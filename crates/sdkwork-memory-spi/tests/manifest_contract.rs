@@ -12,17 +12,20 @@ fn native_sql_manifest_deserializes_and_declares_no_embedding_baseline() {
           "version": "0.1.0",
           "owner": "sdkwork-memory",
           "implementationKinds": ["native_sql", "local_embedded"],
-          "pluginRoles": ["implementation", "store", "retriever", "index"],
+          "pluginRoles": ["implementation", "store"],
           "deploymentModes": ["server", "container", "private", "local", "test"],
           "portExports": [
             {"port": "MemoryRecordStorePort", "builder": "build_native_sql_record_store"},
             {"port": "MemoryEventStorePort", "builder": "build_native_sql_event_store"},
             {"port": "MemoryAuditStorePort", "builder": "build_native_sql_audit_store"},
-            {"port": "MemoryOutboxStorePort", "builder": "build_native_sql_outbox_store"}
+            {"port": "MemoryOutboxStorePort", "builder": "build_native_sql_outbox_store"},
+            {"port": "MemoryCandidateStorePort", "builder": "build_native_sql_candidate_store"},
+            {"port": "MemoryHabitStorePort", "builder": "build_native_sql_habit_store"},
+            {"port": "MemoryRetrievalTraceStorePort", "builder": "build_native_sql_retrieval_trace_store"}
           ],
           "providerKinds": [],
-          "retrieverKinds": ["sql", "keyword", "dictionary", "time", "event"],
-          "indexKinds": ["sql", "keyword", "dictionary", "time", "event"],
+          "retrieverKinds": [],
+          "indexKinds": [],
           "requiredCoreVersion": "0.1.0",
           "secretRefs": [],
           "dataClasses": ["tenant", "personal"],
@@ -31,6 +34,7 @@ fn native_sql_manifest_deserializes_and_declares_no_embedding_baseline() {
             "eventLog": true,
             "candidateLifecycle": true,
             "habitLearning": true,
+            "retrievalTrace": true,
             "deletionPropagation": true,
             "auditLog": true,
             "outboxLog": true,
@@ -56,6 +60,34 @@ fn native_sql_manifest_deserializes_and_declares_no_embedding_baseline() {
         .contains(&MemoryPluginRole::Implementation));
     assert!(!manifest.capabilities.embedding_required);
     assert!(manifest.validate().is_ok());
+}
+
+#[test]
+fn phase1_baseline_manifests_cover_all_implementation_families() {
+    let manifests = MemoryPluginManifest::phase1_baseline_manifests_for_test();
+    let covered_kinds = manifests
+        .iter()
+        .flat_map(|manifest| manifest.implementation_kinds.iter())
+        .collect::<Vec<_>>();
+
+    for implementation_kind in [
+        MemoryImplementationKind::NativeSql,
+        MemoryImplementationKind::LocalEmbedded,
+        MemoryImplementationKind::EventSourced,
+        MemoryImplementationKind::SearchFirst,
+        MemoryImplementationKind::GraphTemporal,
+        MemoryImplementationKind::ExternalProviderBridge,
+        MemoryImplementationKind::HybridPlatform,
+    ] {
+        assert!(
+            covered_kinds.contains(&&implementation_kind),
+            "phase1 baseline manifests must cover {implementation_kind:?}"
+        );
+    }
+
+    for manifest in manifests {
+        assert!(manifest.validate().is_ok());
+    }
 }
 
 #[test]

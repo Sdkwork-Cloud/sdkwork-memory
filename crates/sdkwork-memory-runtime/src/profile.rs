@@ -18,15 +18,146 @@ impl MemoryImplementationProfileDraft {
             profile_id: "native-sql-phase1".to_string(),
             implementation_kind: MemoryImplementationKind::NativeSql,
             primary_plugin_id: "sdkwork-memory-plugin-native-sql".to_string(),
-            required_ports: vec![
-                "MemoryRecordStorePort".to_string(),
-                "MemoryEventStorePort".to_string(),
-                "MemoryAuditStorePort".to_string(),
-                "MemoryOutboxStorePort".to_string(),
-            ],
+            required_ports: native_sql_store_ports(),
             safe_config_json: Value::Object(Default::default()),
         }
     }
+
+    pub fn local_embedded_phase1() -> Self {
+        Self {
+            profile_id: "local-embedded-phase1".to_string(),
+            implementation_kind: MemoryImplementationKind::LocalEmbedded,
+            primary_plugin_id: "sdkwork-memory-plugin-native-sql".to_string(),
+            required_ports: native_sql_store_ports(),
+            safe_config_json: Value::Object(Default::default()),
+        }
+    }
+
+    pub fn event_sourced_phase1() -> Self {
+        reference_profile(
+            "event-sourced-phase1",
+            MemoryImplementationKind::EventSourced,
+            vec![
+                "MemoryEventStorePort",
+                "MemoryRecordStorePort",
+                "MemoryAuditStorePort",
+                "MemoryOutboxStorePort",
+            ],
+        )
+    }
+
+    pub fn search_first_phase1() -> Self {
+        reference_profile(
+            "search-first-phase1",
+            MemoryImplementationKind::SearchFirst,
+            vec![
+                "MemoryRecordStorePort",
+                "MemoryRetrieverPort",
+                "MemoryIndexPort",
+                "MemoryAuditStorePort",
+            ],
+        )
+    }
+
+    pub fn graph_temporal_phase1() -> Self {
+        reference_profile(
+            "graph-temporal-phase1",
+            MemoryImplementationKind::GraphTemporal,
+            vec![
+                "MemoryRecordStorePort",
+                "MemoryRetrieverPort",
+                "MemoryIndexPort",
+                "MemoryContextAssemblerPort",
+            ],
+        )
+    }
+
+    pub fn external_provider_bridge_eval() -> Self {
+        reference_profile(
+            "external-provider-bridge-eval",
+            MemoryImplementationKind::ExternalProviderBridge,
+            vec![
+                "ExternalMemoryBridgePort",
+                "MemoryAuditStorePort",
+                "MemoryOutboxStorePort",
+            ],
+        )
+    }
+
+    pub fn hybrid_platform_phase1() -> Self {
+        reference_profile(
+            "hybrid-platform-phase1",
+            MemoryImplementationKind::HybridPlatform,
+            vec![
+                "MemoryRecordStorePort",
+                "MemoryEventStorePort",
+                "MemoryAuditStorePort",
+                "MemoryOutboxStorePort",
+                "MemoryRetrieverPort",
+                "MemoryIndexPort",
+                "ExternalMemoryBridgePort",
+                "MemoryContextAssemblerPort",
+                "MemoryEvaluationPort",
+            ],
+        )
+    }
+
+    pub fn phase1_family_baselines() -> Vec<Self> {
+        vec![
+            Self::native_sql_phase1(),
+            Self::local_embedded_phase1(),
+            Self::event_sourced_phase1(),
+            Self::search_first_phase1(),
+            Self::graph_temporal_phase1(),
+            Self::external_provider_bridge_eval(),
+            Self::hybrid_platform_phase1(),
+        ]
+    }
+}
+
+fn reference_profile(
+    profile_id: &str,
+    implementation_kind: MemoryImplementationKind,
+    required_ports: Vec<&str>,
+) -> MemoryImplementationProfileDraft {
+    let mut required_ports = required_ports
+        .into_iter()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    for required_port in learning_and_trace_ports() {
+        if !required_ports.contains(&required_port.to_string()) {
+            required_ports.push(required_port.to_string());
+        }
+    }
+
+    MemoryImplementationProfileDraft {
+        profile_id: profile_id.to_string(),
+        implementation_kind,
+        primary_plugin_id: "sdkwork-memory-plugin-reference-profiles".to_string(),
+        required_ports,
+        safe_config_json: Value::Object(Default::default()),
+    }
+}
+
+fn native_sql_store_ports() -> Vec<String> {
+    [
+        "MemoryRecordStorePort".to_string(),
+        "MemoryEventStorePort".to_string(),
+        "MemoryAuditStorePort".to_string(),
+        "MemoryOutboxStorePort".to_string(),
+        "MemoryCandidateStorePort".to_string(),
+        "MemoryHabitStorePort".to_string(),
+        "MemoryRetrievalTraceStorePort".to_string(),
+    ]
+    .to_vec()
+}
+
+fn learning_and_trace_ports() -> [&'static str; 3] {
+    [
+        "MemoryCandidateStorePort",
+        "MemoryHabitStorePort",
+        "MemoryRetrievalTraceStorePort",
+    ]
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

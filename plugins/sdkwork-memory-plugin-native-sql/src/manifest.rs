@@ -44,3 +44,27 @@ pub fn build_native_sql_outbox_store() -> NativeSqlPortBuilder {
         ready: true,
     }
 }
+
+pub fn build_native_sql_candidate_store() -> NativeSqlPortBuilder {
+    NativeSqlPortBuilder {
+        port_name: "MemoryCandidateStorePort",
+        builder_name: "build_native_sql_candidate_store",
+        ready: true,
+    }
+}
+
+pub fn build_native_sql_habit_store() -> NativeSqlPortBuilder {
+    NativeSqlPortBuilder {
+        port_name: "MemoryHabitStorePort",
+        builder_name: "build_native_sql_habit_store",
+        ready: true,
+    }
+}
+
+pub fn build_native_sql_retrieval_trace_store() -> NativeSqlPortBuilder {
+    NativeSqlPortBuilder {
+        port_name: "MemoryRetrievalTraceStorePort",
+        builder_name: "build_native_sql_retrieval_trace_store",
+        ready: true,
+    }
+}

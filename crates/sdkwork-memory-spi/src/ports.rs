@@ -147,6 +147,172 @@ pub struct MarkMemoryOutboxFailedCommand {
     pub outbox_id: String,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreateMemoryCandidateCommand {
+    pub scope: MemoryScopeContext,
+    pub candidate_id: String,
+    pub candidate_type: String,
+    pub memory_type: String,
+    pub proposed_text: String,
+    pub proposed_payload_json: Option<String>,
+    pub evidence_json: Option<String>,
+    pub confidence: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetrieveMemoryCandidateQuery {
+    pub scope: MemoryScopeContext,
+    pub candidate_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApproveMemoryCandidateCommand {
+    pub scope: MemoryScopeContext,
+    pub candidate_id: String,
+    pub decision_reason: Option<String>,
+    pub decided_by: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RejectMemoryCandidateCommand {
+    pub scope: MemoryScopeContext,
+    pub candidate_id: String,
+    pub decision_reason: Option<String>,
+    pub decided_by: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MemoryCandidate {
+    pub candidate_id: String,
+    pub candidate_type: String,
+    pub memory_type: String,
+    pub proposed_text: String,
+    pub proposed_payload_json: Option<String>,
+    pub evidence_json: Option<String>,
+    pub confidence: f64,
+    pub decision_state: String,
+    pub decision_reason: Option<String>,
+    pub decided_by: Option<i64>,
+    pub decided_at: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct UpsertMemoryHabitCommand {
+    pub scope: MemoryScopeContext,
+    pub habit_id: String,
+    pub user_id: i64,
+    pub habit_key: String,
+    pub habit_type: String,
+    pub description: String,
+    pub stage: String,
+    pub strength: f64,
+    pub confidence: f64,
+    pub support_count: i64,
+    pub metadata_json: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetrieveMemoryHabitQuery {
+    pub scope: MemoryScopeContext,
+    pub user_id: i64,
+    pub habit_key: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PromoteMemoryHabitCommand {
+    pub scope: MemoryScopeContext,
+    pub user_id: i64,
+    pub habit_key: String,
+    pub promoted_memory_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DecayMemoryHabitCommand {
+    pub scope: MemoryScopeContext,
+    pub user_id: i64,
+    pub habit_key: String,
+    pub strength_delta: f64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MemoryHabit {
+    pub habit_id: String,
+    pub user_id: i64,
+    pub habit_key: String,
+    pub habit_type: String,
+    pub description: String,
+    pub stage: String,
+    pub strength: f64,
+    pub confidence: f64,
+    pub support_count: i64,
+    pub last_signal_at: Option<String>,
+    pub promoted_memory_id: Option<String>,
+    pub decay_after: Option<String>,
+    pub metadata_json: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MemoryRetrievalHitDraft {
+    pub hit_id: String,
+    pub memory_id: Option<String>,
+    pub retriever_name: String,
+    pub result_rank: i64,
+    pub raw_score: Option<f64>,
+    pub fused_score: Option<f64>,
+    pub explanation_json: Option<String>,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryContextPackSnapshot {
+    pub context_pack_id: String,
+    pub pack_json: String,
+    pub estimated_tokens: i64,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct AppendMemoryRetrievalTraceCommand {
+    pub scope: MemoryScopeContext,
+    pub trace_id: String,
+    pub actor_id: Option<String>,
+    pub query_text: Option<String>,
+    pub query_hash: String,
+    pub retrievers_json: Option<String>,
+    pub latency_ms: Option<i64>,
+    pub degraded: bool,
+    pub metadata_json: Option<String>,
+    pub hits: Vec<MemoryRetrievalHitDraft>,
+    pub context_pack: Option<MemoryContextPackSnapshot>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetrieveMemoryRetrievalTraceQuery {
+    pub scope: MemoryScopeContext,
+    pub trace_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListMemoryRetrievalTracesQuery {
+    pub scope: MemoryScopeContext,
+    pub limit: u32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MemoryRetrievalTrace {
+    pub trace_id: String,
+    pub actor_id: Option<String>,
+    pub query_text: Option<String>,
+    pub query_hash: String,
+    pub retrievers_json: Option<String>,
+    pub latency_ms: Option<i64>,
+    pub result_count: i64,
+    pub degraded: bool,
+    pub metadata_json: Option<String>,
+    pub hits: Vec<MemoryRetrievalHitDraft>,
+    pub context_pack: Option<MemoryContextPackSnapshot>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemoryPolicy {
     pub policy_code: String,
@@ -302,6 +468,65 @@ pub trait MemoryOutboxStorePort: Send + Sync {
         &self,
         command: MarkMemoryOutboxFailedCommand,
     ) -> MemorySpiResult<Option<MemoryOutboxEvent>>;
+}
+
+#[async_trait]
+pub trait MemoryCandidateStorePort: Send + Sync {
+    async fn create(
+        &self,
+        command: CreateMemoryCandidateCommand,
+    ) -> MemorySpiResult<MemoryCandidate>;
+
+    async fn retrieve(
+        &self,
+        query: RetrieveMemoryCandidateQuery,
+    ) -> MemorySpiResult<Option<MemoryCandidate>>;
+
+    async fn approve(
+        &self,
+        command: ApproveMemoryCandidateCommand,
+    ) -> MemorySpiResult<Option<MemoryCandidate>>;
+
+    async fn reject(
+        &self,
+        command: RejectMemoryCandidateCommand,
+    ) -> MemorySpiResult<Option<MemoryCandidate>>;
+}
+
+#[async_trait]
+pub trait MemoryHabitStorePort: Send + Sync {
+    async fn upsert(&self, command: UpsertMemoryHabitCommand) -> MemorySpiResult<MemoryHabit>;
+
+    async fn retrieve(
+        &self,
+        query: RetrieveMemoryHabitQuery,
+    ) -> MemorySpiResult<Option<MemoryHabit>>;
+
+    async fn promote(
+        &self,
+        command: PromoteMemoryHabitCommand,
+    ) -> MemorySpiResult<Option<MemoryHabit>>;
+
+    async fn decay(&self, command: DecayMemoryHabitCommand)
+        -> MemorySpiResult<Option<MemoryHabit>>;
+}
+
+#[async_trait]
+pub trait MemoryRetrievalTraceStorePort: Send + Sync {
+    async fn append(
+        &self,
+        command: AppendMemoryRetrievalTraceCommand,
+    ) -> MemorySpiResult<MemoryRetrievalTrace>;
+
+    async fn retrieve(
+        &self,
+        query: RetrieveMemoryRetrievalTraceQuery,
+    ) -> MemorySpiResult<Option<MemoryRetrievalTrace>>;
+
+    async fn list_recent(
+        &self,
+        query: ListMemoryRetrievalTracesQuery,
+    ) -> MemorySpiResult<Vec<MemoryRetrievalTrace>>;
 }
 
 #[async_trait]

@@ -1,12 +1,119 @@
-use sdkwork_memory_plugin_native_sql::{NativeSqlMemoryStore, NativeSqlStoreError};
+use sdkwork_memory_plugin_native_sql::{
+    build_native_sql_candidate_store, build_native_sql_habit_store,
+    build_native_sql_retrieval_trace_store, NativeSqlAppendOutboxEventCommand,
+    NativeSqlMemoryStore, NativeSqlStoreError,
+};
 use sdkwork_memory_spi::{
     AppendMemoryAuditCommand, AppendMemoryEventCommand, AppendMemoryOutboxCommand,
-    CreateMemoryRecordCommand, DeleteMemoryRecordCommand, ListPendingMemoryOutboxQuery,
-    MarkMemoryOutboxFailedCommand, MarkMemoryOutboxPublishedCommand, MemoryAuditStorePort,
-    MemoryEventStorePort, MemoryOutboxStorePort, MemoryRecordStorePort, MemoryScopeContext,
-    MemorySpiError, RetrieveMemoryAuditQuery, RetrieveMemoryEventQuery, RetrieveMemoryOutboxQuery,
-    RetrieveMemoryRecordQuery,
+    AppendMemoryRetrievalTraceCommand, ApproveMemoryCandidateCommand, CreateMemoryCandidateCommand,
+    CreateMemoryRecordCommand, DecayMemoryHabitCommand, DeleteMemoryRecordCommand,
+    ListMemoryRetrievalTracesQuery, ListPendingMemoryOutboxQuery, MarkMemoryOutboxFailedCommand,
+    MarkMemoryOutboxPublishedCommand, MemoryAuditStorePort, MemoryCandidateStorePort,
+    MemoryContextPackSnapshot, MemoryEventStorePort, MemoryHabitStorePort, MemoryOutboxStorePort,
+    MemoryRecordStorePort, MemoryRetrievalHitDraft, MemoryRetrievalTraceStorePort,
+    MemoryScopeContext, MemorySpiError, PromoteMemoryHabitCommand, RejectMemoryCandidateCommand,
+    RetrieveMemoryAuditQuery, RetrieveMemoryCandidateQuery, RetrieveMemoryEventQuery,
+    RetrieveMemoryHabitQuery, RetrieveMemoryOutboxQuery, RetrieveMemoryRecordQuery,
+    RetrieveMemoryRetrievalTraceQuery, UpsertMemoryHabitCommand,
 };
+
+fn outbox_command<'a>(
+    scope: &'a MemoryScopeContext,
+    outbox_id: &'a str,
+    aggregate_id: &'a str,
+    payload_json: &'a str,
+) -> NativeSqlAppendOutboxEventCommand<'a> {
+    NativeSqlAppendOutboxEventCommand {
+        scope,
+        outbox_id,
+        aggregate_type: "mem_record",
+        aggregate_id,
+        event_type: "memory.record.created",
+        event_version: "1",
+        payload_json,
+    }
+}
+
+fn candidate_command(
+    scope: MemoryScopeContext,
+    candidate_id: &str,
+) -> CreateMemoryCandidateCommand {
+    CreateMemoryCandidateCommand {
+        scope,
+        candidate_id: candidate_id.to_string(),
+        candidate_type: "observation".to_string(),
+        memory_type: "semantic".to_string(),
+        proposed_text: "User prefers concise answers".to_string(),
+        proposed_payload_json: Some(r#"{"preference":"concise"}"#.to_string()),
+        evidence_json: Some(r#"{"eventId":"evt-1"}"#.to_string()),
+        confidence: 0.91,
+    }
+}
+
+fn habit_command(
+    scope: MemoryScopeContext,
+    habit_id: &str,
+    user_id: i64,
+) -> UpsertMemoryHabitCommand {
+    UpsertMemoryHabitCommand {
+        scope,
+        habit_id: habit_id.to_string(),
+        user_id,
+        habit_key: "answer_style:concise".to_string(),
+        habit_type: "preference".to_string(),
+        description: "Prefers concise answers".to_string(),
+        stage: "candidate".to_string(),
+        strength: 0.4,
+        confidence: 0.8,
+        support_count: 2,
+        metadata_json: Some(r#"{"source":"signals"}"#.to_string()),
+    }
+}
+
+fn retrieval_trace_command(
+    scope: MemoryScopeContext,
+    trace_id: &str,
+) -> AppendMemoryRetrievalTraceCommand {
+    AppendMemoryRetrievalTraceCommand {
+        scope,
+        trace_id: trace_id.to_string(),
+        actor_id: Some("user-42".to_string()),
+        query_text: Some("concise answer preference".to_string()),
+        query_hash: format!("hash:{trace_id}"),
+        retrievers_json: Some(r#"["native_sql"]"#.to_string()),
+        latency_ms: Some(17),
+        degraded: false,
+        metadata_json: Some(r#"{"profile":"native_sql"}"#.to_string()),
+        hits: vec![
+            MemoryRetrievalHitDraft {
+                hit_id: format!("{trace_id}-hit-1"),
+                memory_id: Some("rec-trace-1".to_string()),
+                retriever_name: "native_sql".to_string(),
+                result_rank: 1,
+                raw_score: Some(0.75),
+                fused_score: Some(0.9),
+                explanation_json: Some(r#"{"match":"keyword"}"#.to_string()),
+                status: "selected".to_string(),
+            },
+            MemoryRetrievalHitDraft {
+                hit_id: format!("{trace_id}-hit-2"),
+                memory_id: None,
+                retriever_name: "native_sql".to_string(),
+                result_rank: 2,
+                raw_score: Some(0.5),
+                fused_score: Some(0.6),
+                explanation_json: None,
+                status: "candidate".to_string(),
+            },
+        ],
+        context_pack: Some(MemoryContextPackSnapshot {
+            context_pack_id: format!("{trace_id}-pack"),
+            pack_json: r#"{"memoryIds":["rec-trace-1"]}"#.to_string(),
+            estimated_tokens: 12,
+            truncated: false,
+        }),
+    }
+}
 
 #[tokio::test]
 async fn sqlite_store_applies_phase1_migration_and_round_trips_event_and_record() {
@@ -543,27 +650,21 @@ async fn sqlite_store_appends_and_retrieves_outbox_events_by_tenant_scope() {
     let tenant_two = MemoryScopeContext::for_test(2, 2);
 
     store
-        .append_outbox_event(
+        .append_outbox_event(outbox_command(
             &tenant_one,
             "out-shared",
-            "mem_record",
             "rec-1",
-            "memory.record.created",
-            "1",
             r#"{"memoryId":"rec-1"}"#,
-        )
+        ))
         .await
         .unwrap();
     store
-        .append_outbox_event(
+        .append_outbox_event(outbox_command(
             &tenant_two,
             "out-shared",
-            "mem_record",
             "rec-2",
-            "memory.record.created",
-            "1",
             r#"{"memoryId":"rec-2"}"#,
-        )
+        ))
         .await
         .unwrap();
 
@@ -595,27 +696,21 @@ async fn sqlite_store_outbox_append_is_idempotent_for_same_tenant_event_and_payl
     let scope = MemoryScopeContext::for_test(1, 1);
 
     store
-        .append_outbox_event(
+        .append_outbox_event(outbox_command(
             &scope,
             "out-idempotent",
-            "mem_record",
             "rec-1",
-            "memory.record.created",
-            "1",
             r#"{"memoryId":"rec-1"}"#,
-        )
+        ))
         .await
         .unwrap();
     store
-        .append_outbox_event(
+        .append_outbox_event(outbox_command(
             &scope,
             "out-idempotent",
-            "mem_record",
             "rec-1",
-            "memory.record.created",
-            "1",
             r#"{"memoryId":"rec-1"}"#,
-        )
+        ))
         .await
         .unwrap();
 
@@ -634,27 +729,21 @@ async fn sqlite_store_outbox_append_rejects_same_tenant_event_with_different_pay
     let scope = MemoryScopeContext::for_test(1, 1);
 
     store
-        .append_outbox_event(
+        .append_outbox_event(outbox_command(
             &scope,
             "out-conflict",
-            "mem_record",
             "rec-1",
-            "memory.record.created",
-            "1",
             r#"{"memoryId":"rec-1"}"#,
-        )
+        ))
         .await
         .unwrap();
     let err = store
-        .append_outbox_event(
+        .append_outbox_event(outbox_command(
             &scope,
             "out-conflict",
-            "mem_record",
             "rec-1",
-            "memory.record.created",
-            "1",
             r#"{"memoryId":"rec-other"}"#,
-        )
+        ))
         .await
         .unwrap_err();
 
@@ -744,39 +833,30 @@ async fn sqlite_store_lists_pending_outbox_events_by_tenant_scope_and_limit() {
     let tenant_two = MemoryScopeContext::for_test(2, 2);
 
     store
-        .append_outbox_event(
+        .append_outbox_event(outbox_command(
             &tenant_one,
             "out-pending-1",
-            "mem_record",
             "rec-1",
-            "memory.record.created",
-            "1",
             r#"{"memoryId":"rec-1"}"#,
-        )
+        ))
         .await
         .unwrap();
     store
-        .append_outbox_event(
+        .append_outbox_event(outbox_command(
             &tenant_one,
             "out-pending-2",
-            "mem_record",
             "rec-2",
-            "memory.record.created",
-            "1",
             r#"{"memoryId":"rec-2"}"#,
-        )
+        ))
         .await
         .unwrap();
     store
-        .append_outbox_event(
+        .append_outbox_event(outbox_command(
             &tenant_two,
             "out-pending-tenant-two",
-            "mem_record",
             "rec-3",
-            "memory.record.created",
-            "1",
             r#"{"memoryId":"rec-3"}"#,
-        )
+        ))
         .await
         .unwrap();
 
@@ -796,15 +876,12 @@ async fn sqlite_store_marks_outbox_published_and_excludes_it_from_pending() {
     let scope = MemoryScopeContext::for_test(1, 1);
 
     store
-        .append_outbox_event(
+        .append_outbox_event(outbox_command(
             &scope,
             "out-publish",
-            "mem_record",
             "rec-1",
-            "memory.record.created",
-            "1",
             r#"{"memoryId":"rec-1"}"#,
-        )
+        ))
         .await
         .unwrap();
 
@@ -835,15 +912,12 @@ async fn sqlite_store_marks_outbox_failed_increments_retry_and_excludes_it_from_
     let scope = MemoryScopeContext::for_test(1, 1);
 
     store
-        .append_outbox_event(
+        .append_outbox_event(outbox_command(
             &scope,
             "out-fail",
-            "mem_record",
             "rec-1",
-            "memory.record.created",
-            "1",
             r#"{"memoryId":"rec-1"}"#,
-        )
+        ))
         .await
         .unwrap();
 
@@ -868,27 +942,21 @@ async fn sqlite_store_outbox_delivery_lifecycle_does_not_cross_tenant_scope() {
     let missing_tenant = MemoryScopeContext::for_test(3, 3);
 
     store
-        .append_outbox_event(
+        .append_outbox_event(outbox_command(
             &tenant_one,
             "out-scoped",
-            "mem_record",
             "rec-1",
-            "memory.record.created",
-            "1",
             r#"{"memoryId":"rec-1"}"#,
-        )
+        ))
         .await
         .unwrap();
     store
-        .append_outbox_event(
+        .append_outbox_event(outbox_command(
             &tenant_two,
             "out-scoped",
-            "mem_record",
             "rec-2",
-            "memory.record.created",
-            "1",
             r#"{"memoryId":"rec-2"}"#,
-        )
+        ))
         .await
         .unwrap();
 
@@ -996,4 +1064,256 @@ async fn sqlite_store_implements_outbox_delivery_lifecycle_spi_port() {
     assert!(pending_after_publish.is_empty());
     assert_eq!(failed.publish_state, "failed");
     assert_eq!(failed.retry_count, 1);
+}
+
+#[tokio::test]
+async fn sqlite_store_creates_and_decides_candidates_by_tenant_and_space_scope() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let tenant_one = MemoryScopeContext::for_test(1, 1);
+    let tenant_two = MemoryScopeContext::for_test(2, 2);
+    let wrong_space = MemoryScopeContext::for_test(1, 2);
+
+    let tenant_one_candidate = MemoryCandidateStorePort::create(
+        &store,
+        candidate_command(tenant_one.clone(), "cand-shared"),
+    )
+    .await
+    .unwrap();
+    let tenant_two_candidate = MemoryCandidateStorePort::create(
+        &store,
+        candidate_command(tenant_two.clone(), "cand-shared"),
+    )
+    .await
+    .unwrap();
+
+    let approved = MemoryCandidateStorePort::approve(
+        &store,
+        ApproveMemoryCandidateCommand {
+            scope: tenant_one.clone(),
+            candidate_id: "cand-shared".to_string(),
+            decision_reason: Some("confirmed by user".to_string()),
+            decided_by: Some(7),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let rejected = MemoryCandidateStorePort::reject(
+        &store,
+        RejectMemoryCandidateCommand {
+            scope: tenant_two.clone(),
+            candidate_id: "cand-shared".to_string(),
+            decision_reason: Some("stale signal".to_string()),
+            decided_by: Some(8),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+
+    assert_eq!(tenant_one_candidate.decision_state, "pending");
+    assert_eq!(tenant_two_candidate.decision_state, "pending");
+    assert_eq!(approved.decision_state, "approved");
+    assert_eq!(
+        approved.decision_reason.as_deref(),
+        Some("confirmed by user")
+    );
+    assert_eq!(approved.decided_by, Some(7));
+    assert_eq!(approved.decided_at.as_deref(), Some("2026-06-10T00:00:00Z"));
+    assert_eq!(rejected.decision_state, "rejected");
+    assert_eq!(rejected.decision_reason.as_deref(), Some("stale signal"));
+    assert!(MemoryCandidateStorePort::retrieve(
+        &store,
+        RetrieveMemoryCandidateQuery {
+            scope: wrong_space,
+            candidate_id: "cand-shared".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .is_none());
+}
+
+#[tokio::test]
+async fn sqlite_store_upserts_promotes_and_decays_habits_by_tenant_space_and_user_scope() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let tenant_one = MemoryScopeContext::for_test(1, 1);
+    let tenant_two = MemoryScopeContext::for_test(2, 2);
+    let wrong_user = 43;
+
+    store
+        .create_record(&tenant_one, "rec-promoted", "answer_style", "concise")
+        .await
+        .unwrap();
+    let inserted =
+        MemoryHabitStorePort::upsert(&store, habit_command(tenant_one.clone(), "habit-1", 42))
+            .await
+            .unwrap();
+    let updated = MemoryHabitStorePort::upsert(
+        &store,
+        UpsertMemoryHabitCommand {
+            strength: 0.7,
+            support_count: 4,
+            ..habit_command(tenant_one.clone(), "habit-1", 42)
+        },
+    )
+    .await
+    .unwrap();
+    let tenant_two_habit =
+        MemoryHabitStorePort::upsert(&store, habit_command(tenant_two.clone(), "habit-2", 42))
+            .await
+            .unwrap();
+    let promoted = MemoryHabitStorePort::promote(
+        &store,
+        PromoteMemoryHabitCommand {
+            scope: tenant_one.clone(),
+            user_id: 42,
+            habit_key: "answer_style:concise".to_string(),
+            promoted_memory_id: Some("rec-promoted".to_string()),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let decayed = MemoryHabitStorePort::decay(
+        &store,
+        DecayMemoryHabitCommand {
+            scope: tenant_one.clone(),
+            user_id: 42,
+            habit_key: "answer_style:concise".to_string(),
+            strength_delta: 0.2,
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+
+    assert_eq!(inserted.strength, 0.4);
+    assert_eq!(updated.strength, 0.7);
+    assert_eq!(updated.support_count, 4);
+    assert_eq!(tenant_two_habit.habit_id, "habit-2");
+    assert_eq!(promoted.stage, "promoted");
+    assert_eq!(promoted.promoted_memory_id.as_deref(), Some("rec-promoted"));
+    assert_eq!(decayed.stage, "decayed");
+    assert!((decayed.strength - 0.5).abs() < f64::EPSILON);
+    assert!(MemoryHabitStorePort::retrieve(
+        &store,
+        RetrieveMemoryHabitQuery {
+            scope: tenant_one,
+            user_id: wrong_user,
+            habit_key: "answer_style:concise".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .is_none());
+}
+
+#[tokio::test]
+async fn sqlite_store_appends_retrieval_trace_with_hits_and_context_pack_by_scope() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let tenant_one = MemoryScopeContext::for_test(1, 1);
+    let tenant_two = MemoryScopeContext::for_test(2, 2);
+    let wrong_space = MemoryScopeContext::for_test(1, 2);
+
+    store
+        .create_record(&tenant_one, "rec-trace-1", "answer_style", "concise")
+        .await
+        .unwrap();
+    let appended = MemoryRetrievalTraceStorePort::append(
+        &store,
+        retrieval_trace_command(tenant_one.clone(), "trace-shared"),
+    )
+    .await
+    .unwrap();
+    MemoryRetrievalTraceStorePort::append(
+        &store,
+        AppendMemoryRetrievalTraceCommand {
+            query_text: Some("tenant two query".to_string()),
+            ..retrieval_trace_command(tenant_two.clone(), "trace-shared")
+        },
+    )
+    .await
+    .unwrap();
+
+    let retrieved = MemoryRetrievalTraceStorePort::retrieve(
+        &store,
+        RetrieveMemoryRetrievalTraceQuery {
+            scope: tenant_one.clone(),
+            trace_id: "trace-shared".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let tenant_two_trace = MemoryRetrievalTraceStorePort::retrieve(
+        &store,
+        RetrieveMemoryRetrievalTraceQuery {
+            scope: tenant_two,
+            trace_id: "trace-shared".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let recent = MemoryRetrievalTraceStorePort::list_recent(
+        &store,
+        ListMemoryRetrievalTracesQuery {
+            scope: tenant_one.clone(),
+            limit: 1,
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(appended.trace_id, "trace-shared");
+    assert_eq!(retrieved.query_hash, "hash:trace-shared");
+    assert_eq!(retrieved.result_count, 2);
+    assert_eq!(retrieved.hits.len(), 2);
+    assert_eq!(retrieved.hits[0].hit_id, "trace-shared-hit-1");
+    assert_eq!(retrieved.hits[0].memory_id.as_deref(), Some("rec-trace-1"));
+    assert_eq!(retrieved.hits[1].memory_id, None);
+    assert_eq!(
+        retrieved
+            .context_pack
+            .as_ref()
+            .map(|pack| pack.context_pack_id.as_str()),
+        Some("trace-shared-pack")
+    );
+    assert_eq!(
+        tenant_two_trace.query_text.as_deref(),
+        Some("tenant two query")
+    );
+    assert_eq!(recent.len(), 1);
+    assert_eq!(recent[0].trace_id, "trace-shared");
+    assert!(MemoryRetrievalTraceStorePort::retrieve(
+        &store,
+        RetrieveMemoryRetrievalTraceQuery {
+            scope: wrong_space,
+            trace_id: "trace-shared".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .is_none());
+}
+
+#[test]
+fn native_sql_manifest_exports_candidate_habit_and_retrieval_trace_builders() {
+    let candidate = build_native_sql_candidate_store();
+    let habit = build_native_sql_habit_store();
+    let retrieval_trace = build_native_sql_retrieval_trace_store();
+
+    assert_eq!(candidate.port_name, "MemoryCandidateStorePort");
+    assert_eq!(candidate.builder_name, "build_native_sql_candidate_store");
+    assert!(candidate.ready);
+    assert_eq!(habit.port_name, "MemoryHabitStorePort");
+    assert_eq!(habit.builder_name, "build_native_sql_habit_store");
+    assert!(habit.ready);
+    assert_eq!(retrieval_trace.port_name, "MemoryRetrievalTraceStorePort");
+    assert_eq!(
+        retrieval_trace.builder_name,
+        "build_native_sql_retrieval_trace_store"
+    );
+    assert!(retrieval_trace.ready);
 }

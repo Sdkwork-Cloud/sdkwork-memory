@@ -11,8 +11,8 @@
   "apiAuthority": "sdkwork-memory-open-api",
   "discoverySurface": {
     "sdkTarget": "open-api",
-    "apiPrefix": "/memory/v3/api",
-    "schemaUrl": "/memory/v3/openapi.json",
+    "apiPrefix": "/mem/v3/api",
+    "schemaUrl": "/mem/v3/openapi.json",
     "generatedProtocols": [
       "http-openapi"
     ],
@@ -31,7 +31,7 @@
       "description": "Generator-owned TypeScript transport SDK for sdkwork-memory-open-api.",
       "consumerSurface": {
         "primaryClient": "SdkworkMemoryOpenClient",
-        "apiPrefix": "/memory/v3/api"
+        "apiPrefix": "/mem/v3/api"
       }
     }
   ],

@@ -97,9 +97,9 @@ if ($null -eq $rootSpec.contracts.dependencyApiSurfaces) {
 }
 
 foreach ($family in @(
-    @{ Path = "sdks/sdkwork-memory-sdk"; Authority = "sdkwork-memory-open-api"; Prefix = "/memory/v3/api"; Spec = "openapi/memory-open-api.openapi.json"; Client = "SdkworkMemoryOpenClient" },
-    @{ Path = "sdks/sdkwork-memory-app-sdk"; Authority = "sdkwork-memory.app"; Prefix = "/app/v3/api"; Spec = "openapi/memory-app-api.openapi.json"; Client = "SdkworkMemoryAppClient" },
-    @{ Path = "sdks/sdkwork-memory-backend-sdk"; Authority = "sdkwork-memory.backend"; Prefix = "/backend/v3/api"; Spec = "openapi/memory-backend-api.openapi.json"; Client = "SdkworkMemoryBackendClient" }
+    @{ Path = "sdks/sdkwork-memory-sdk"; Authority = "sdkwork-memory-open-api"; Prefix = "/mem/v3/api"; SchemaUrl = "/mem/v3/openapi.json"; Spec = "openapi/memory-open-api.openapi.json"; Client = "SdkworkMemoryOpenClient" },
+    @{ Path = "sdks/sdkwork-memory-app-sdk"; Authority = "sdkwork-memory.app"; Prefix = "/app/v3/api"; SchemaUrl = "/app/v3/openapi.json"; Spec = "openapi/memory-app-api.openapi.json"; Client = "SdkworkMemoryAppClient" },
+    @{ Path = "sdks/sdkwork-memory-backend-sdk"; Authority = "sdkwork-memory.backend"; Prefix = "/backend/v3/api"; SchemaUrl = "/backend/v3/openapi.json"; Spec = "openapi/memory-backend-api.openapi.json"; Client = "SdkworkMemoryBackendClient" }
 )) {
     $assembly = Read-JsonFile (Join-Path $family.Path ".sdkwork-assembly.json")
     $manifest = Read-JsonFile (Join-Path $family.Path "sdk-manifest.json")
@@ -116,6 +116,9 @@ foreach ($family in @(
     }
     if ($assembly.discoverySurface.apiPrefix -ne $family.Prefix -or $manifest.apiPrefix -ne $family.Prefix) {
         throw "$($family.Path) apiPrefix mismatch"
+    }
+    if ($assembly.discoverySurface.schemaUrl -ne $family.SchemaUrl) {
+        throw "$($family.Path) schemaUrl mismatch"
     }
     if ($null -eq $component.contracts.sdkDependencies) {
         throw "$($family.Path) component spec must declare sdkDependencies"
@@ -295,7 +298,7 @@ Verify-OpenApi @appOpenApiCheck
 
 $openApiCheck = @{
     Path = "sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json"
-    Prefix = "/memory/v3/api"
+    Prefix = "/mem/v3/api"
     Authority = "sdkwork-memory-open-api"
     SdkFamily = "sdkwork-memory-sdk"
     AuthMode = "api-key"

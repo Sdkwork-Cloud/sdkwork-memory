@@ -94,7 +94,7 @@
     "apiAuthorities": [
       {
         "name": "sdkwork-memory-open-api",
-        "prefix": "/memory/v3/api",
+        "prefix": "/mem/v3/api",
         "authorityOpenApi": "sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json",
         "sdkFamily": "sdkwork-memory-sdk"
       },

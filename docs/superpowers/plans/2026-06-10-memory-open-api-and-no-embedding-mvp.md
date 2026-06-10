@@ -990,14 +990,14 @@ Create:
 use sdkwork_routes_memory_open_api::manifest::route_manifest;
 
 #[test]
-fn open_api_manifest_uses_memory_prefix_and_api_key_auth() {
+fn open_api_manifest_uses_mem_prefix_and_api_key_auth() {
     let manifest = route_manifest();
     assert_eq!(manifest.package_name, "sdkwork-routes-memory-open-api");
     assert_eq!(manifest.surface, "open-api");
     assert_eq!(manifest.api_authority, "sdkwork-memory-open-api");
     assert_eq!(manifest.sdk_family, "sdkwork-memory-sdk");
-    assert_eq!(manifest.prefix, "/memory/v3/api");
-    assert!(manifest.routes.iter().all(|route| route.path.starts_with("/memory/v3/api")));
+    assert_eq!(manifest.prefix, "/mem/v3/api");
+    assert!(manifest.routes.iter().all(|route| route.path.starts_with("/mem/v3/api")));
     assert!(manifest.routes.iter().all(|route| route.auth_mode == "api-key"));
 }
 ```
@@ -1015,17 +1015,17 @@ Expected: FAIL.
 Create `paths.rs`:
 
 ```rust
-pub const PREFIX: &str = "/memory/v3/api";
-pub const MEMORY_BASE: &str = "/memory/v3/api/memory";
-pub const CAPABILITIES: &str = "/memory/v3/api/memory/capabilities";
-pub const EVENTS: &str = "/memory/v3/api/memory/events";
-pub const MEMORIES: &str = "/memory/v3/api/memory/memories";
-pub const RETRIEVALS: &str = "/memory/v3/api/memory/retrievals";
-pub const CONTEXT_PACKS: &str = "/memory/v3/api/memory/context_packs";
-pub const FEEDBACK: &str = "/memory/v3/api/memory/feedback";
-pub const EXTRACTIONS: &str = "/memory/v3/api/memory/extractions";
-pub const CANDIDATES: &str = "/memory/v3/api/memory/candidates";
-pub const PROVIDER_HEALTH: &str = "/memory/v3/api/memory/provider_health";
+pub const PREFIX: &str = "/mem/v3/api";
+pub const MEMORY_BASE: &str = "/mem/v3/api/memory";
+pub const CAPABILITIES: &str = "/mem/v3/api/memory/capabilities";
+pub const EVENTS: &str = "/mem/v3/api/memory/events";
+pub const MEMORIES: &str = "/mem/v3/api/memory/memories";
+pub const RETRIEVALS: &str = "/mem/v3/api/memory/retrievals";
+pub const CONTEXT_PACKS: &str = "/mem/v3/api/memory/context_packs";
+pub const FEEDBACK: &str = "/mem/v3/api/memory/feedback";
+pub const EXTRACTIONS: &str = "/mem/v3/api/memory/extractions";
+pub const CANDIDATES: &str = "/mem/v3/api/memory/candidates";
+pub const PROVIDER_HEALTH: &str = "/mem/v3/api/memory/provider_health";
 ```
 
 - [ ] **Step 3: Add route manifest**
@@ -1147,7 +1147,7 @@ async fn open_api_rejects_missing_api_key_and_does_not_use_dual_token_fallback()
     let app = sdkwork_routes_memory_open_api::test_router();
 
     let response = app
-        .oneshot(request_without_api_key("/memory/v3/api/memory/capabilities"))
+        .oneshot(request_without_api_key("/mem/v3/api/memory/capabilities"))
         .await
         .unwrap();
 

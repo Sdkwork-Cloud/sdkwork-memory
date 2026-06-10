@@ -4,7 +4,7 @@ This is the SDK family root for the `sdkwork-memory-open-api` OpenAPI authority.
 
 - SDK family: `sdkwork-memory-sdk`
 - API authority: `sdkwork-memory-open-api`
-- API prefix: `/memory/v3/api`
+- API prefix: `/mem/v3/api`
 - Owner: `sdkwork-memory`
 - Standard profile: `sdkwork-v3`
 - Authority OpenAPI: `openapi/memory-open-api.openapi.json`

@@ -636,6 +636,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sdkwork-memory-plugin-reference-profiles"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "sdkwork-memory-spi",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "sdkwork-memory-runtime"
 version = "0.1.0"
 dependencies = [

@@ -69,9 +69,7 @@ impl MemoryPluginConformanceHarness {
         ));
         checks.push(check(
             "secret_redaction",
-            if manifest.secret_refs.is_empty() {
-                ConformanceCheckStatus::Passed
-            } else if manifest.validate().is_ok() {
+            if manifest.validate().is_ok() {
                 ConformanceCheckStatus::Passed
             } else {
                 ConformanceCheckStatus::Failed
@@ -90,25 +88,105 @@ impl MemoryPluginConformanceHarness {
             "Runtime plugins must live under plugins/, not .sdkwork/plugins/.",
         ));
 
-        for pending in [
+        checks.push(port_backed_check(
+            manifest,
             "store_crud",
+            &["MemoryRecordStorePort", "MemoryEventStorePort"],
+            "Record and event store ports are required for executable store CRUD.",
+        ));
+        checks.push(port_backed_check(
+            manifest,
             "tenant_isolation",
+            &["MemoryRecordStorePort", "MemoryEventStorePort"],
+            "Tenant isolation is executable only when scoped record and event ports exist.",
+        ));
+        checks.push(capability_port_check(
+            manifest.capabilities.deletion_propagation,
+            manifest,
             "deletion_propagation",
+            &["MemoryRecordStorePort"],
+            "Deletion propagation requires a record store delete path.",
+        ));
+        checks.push(port_backed_check(
+            manifest,
+            "retriever_and_index",
+            &["MemoryRetrieverPort", "MemoryIndexPort"],
+            "Retriever and index baseline requires retriever and index ports.",
+        ));
+        checks.push(capability_port_check(
+            manifest.capabilities.retrieval_trace,
+            manifest,
             "retrieval_trace",
+            &["MemoryRetrievalTraceStorePort"],
+            "Retrieval trace requires an executable retrieval trace store port.",
+        ));
+        checks.push(capability_port_check(
+            manifest.capabilities.audit_log && manifest.capabilities.outbox_log,
+            manifest,
             "audit_and_outbox",
-        ] {
-            checks.push(check(
-                pending,
-                ConformanceCheckStatus::Pending,
-                "Runtime behavior check is pending until native SQL stores land.",
-            ));
-        }
+            &["MemoryAuditStorePort", "MemoryOutboxStorePort"],
+            "Audit and outbox behavior requires audit and outbox store ports.",
+        ));
+        checks.push(capability_port_check(
+            manifest.capabilities.candidate_lifecycle,
+            manifest,
+            "candidate_lifecycle",
+            &["MemoryCandidateStorePort"],
+            "Candidate lifecycle is pending until an executable candidate store port exists.",
+        ));
+        checks.push(capability_port_check(
+            manifest.capabilities.habit_learning,
+            manifest,
+            "habit_learning",
+            &["MemoryHabitStorePort"],
+            "Habit learning is pending until an executable habit store port exists.",
+        ));
+        checks.push(port_backed_check(
+            manifest,
+            "external_bridge",
+            &["ExternalMemoryBridgePort"],
+            "External bridge baseline requires an explicit fail-closed bridge port.",
+        ));
 
         MemoryPluginConformanceReport {
             plugin_id: manifest.plugin_id.clone(),
             checks,
         }
     }
+}
+
+fn capability_port_check(
+    capability_enabled: bool,
+    manifest: &MemoryPluginManifest,
+    name: impl Into<String>,
+    ports: &[&str],
+    message: impl Into<String>,
+) -> ConformanceCheck {
+    if !capability_enabled {
+        return check(name, ConformanceCheckStatus::Pending, message);
+    }
+
+    port_backed_check(manifest, name, ports, message)
+}
+
+fn port_backed_check(
+    manifest: &MemoryPluginManifest,
+    name: impl Into<String>,
+    ports: &[&str],
+    message: impl Into<String>,
+) -> ConformanceCheck {
+    let status = if ports.iter().all(|port| {
+        manifest
+            .port_exports
+            .iter()
+            .any(|export| export.port == *port)
+    }) {
+        ConformanceCheckStatus::Passed
+    } else {
+        ConformanceCheckStatus::Pending
+    };
+
+    check(name, status, message)
 }
 
 fn check(

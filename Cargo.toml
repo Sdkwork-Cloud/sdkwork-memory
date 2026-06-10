@@ -5,6 +5,7 @@ members = [
   "crates/sdkwork-memory-runtime",
   "crates/sdkwork-memory-test-support",
   "plugins/sdkwork-memory-plugin-native-sql",
+  "plugins/sdkwork-memory-plugin-reference-profiles",
 ]
 
 [workspace.package]

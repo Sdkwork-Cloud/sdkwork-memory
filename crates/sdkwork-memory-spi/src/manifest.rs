@@ -105,6 +105,21 @@ impl MemoryPluginManifest {
             "MemoryOutboxStorePort",
             "outboxLog",
         )?;
+        self.require_capability_port(
+            self.capabilities.candidate_lifecycle,
+            "MemoryCandidateStorePort",
+            "candidateLifecycle",
+        )?;
+        self.require_capability_port(
+            self.capabilities.habit_learning,
+            "MemoryHabitStorePort",
+            "habitLearning",
+        )?;
+        self.require_capability_port(
+            self.capabilities.retrieval_trace,
+            "MemoryRetrievalTraceStorePort",
+            "retrievalTrace",
+        )?;
 
         Ok(())
     }
@@ -142,12 +157,7 @@ impl MemoryPluginManifest {
                 MemoryImplementationKind::NativeSql,
                 MemoryImplementationKind::LocalEmbedded,
             ],
-            plugin_roles: vec![
-                MemoryPluginRole::Implementation,
-                MemoryPluginRole::Store,
-                MemoryPluginRole::Retriever,
-                MemoryPluginRole::Index,
-            ],
+            plugin_roles: vec![MemoryPluginRole::Implementation, MemoryPluginRole::Store],
             deployment_modes: vec![
                 MemoryDeploymentMode::Server,
                 MemoryDeploymentMode::Container,
@@ -172,22 +182,22 @@ impl MemoryPluginManifest {
                     port: "MemoryOutboxStorePort".to_string(),
                     builder: "build_native_sql_outbox_store".to_string(),
                 },
+                MemoryPluginPortExport {
+                    port: "MemoryCandidateStorePort".to_string(),
+                    builder: "build_native_sql_candidate_store".to_string(),
+                },
+                MemoryPluginPortExport {
+                    port: "MemoryHabitStorePort".to_string(),
+                    builder: "build_native_sql_habit_store".to_string(),
+                },
+                MemoryPluginPortExport {
+                    port: "MemoryRetrievalTraceStorePort".to_string(),
+                    builder: "build_native_sql_retrieval_trace_store".to_string(),
+                },
             ],
             provider_kinds: vec![],
-            retriever_kinds: vec![
-                MemoryRetrieverKind::Sql,
-                MemoryRetrieverKind::Keyword,
-                MemoryRetrieverKind::Dictionary,
-                MemoryRetrieverKind::Time,
-                MemoryRetrieverKind::Event,
-            ],
-            index_kinds: vec![
-                MemoryIndexKind::Sql,
-                MemoryIndexKind::Keyword,
-                MemoryIndexKind::Dictionary,
-                MemoryIndexKind::Time,
-                MemoryIndexKind::Event,
-            ],
+            retriever_kinds: vec![],
+            index_kinds: vec![],
             required_core_version: "0.1.0".to_string(),
             config_schema_ref: None,
             secret_refs: vec![],
@@ -200,6 +210,7 @@ impl MemoryPluginManifest {
                 event_log: true,
                 candidate_lifecycle: true,
                 habit_learning: true,
+                retrieval_trace: true,
                 deletion_propagation: true,
                 audit_log: true,
                 outbox_log: true,
@@ -226,8 +237,166 @@ impl MemoryPluginManifest {
         }
     }
 
+    pub fn reference_profiles_baseline() -> Self {
+        Self {
+            schema_version: 1,
+            kind: "sdkwork.memory.plugin".to_string(),
+            plugin_id: "sdkwork-memory-plugin-reference-profiles".to_string(),
+            package_name: "sdkwork-memory-plugin-reference-profiles".to_string(),
+            display_name: "SDKWork Memory Reference Profiles Plugin".to_string(),
+            version: "0.1.0".to_string(),
+            owner: "sdkwork-memory".to_string(),
+            implementation_kinds: vec![
+                MemoryImplementationKind::EventSourced,
+                MemoryImplementationKind::SearchFirst,
+                MemoryImplementationKind::GraphTemporal,
+                MemoryImplementationKind::ExternalProviderBridge,
+                MemoryImplementationKind::HybridPlatform,
+            ],
+            plugin_roles: vec![
+                MemoryPluginRole::Implementation,
+                MemoryPluginRole::Store,
+                MemoryPluginRole::Retriever,
+                MemoryPluginRole::Index,
+                MemoryPluginRole::Provider,
+                MemoryPluginRole::Context,
+                MemoryPluginRole::Evaluation,
+            ],
+            deployment_modes: vec![
+                MemoryDeploymentMode::Server,
+                MemoryDeploymentMode::Container,
+                MemoryDeploymentMode::Private,
+                MemoryDeploymentMode::Local,
+                MemoryDeploymentMode::Test,
+                MemoryDeploymentMode::EvalOnly,
+            ],
+            port_exports: vec![
+                MemoryPluginPortExport {
+                    port: "MemoryRecordStorePort".to_string(),
+                    builder: "build_reference_record_store".to_string(),
+                },
+                MemoryPluginPortExport {
+                    port: "MemoryEventStorePort".to_string(),
+                    builder: "build_reference_event_store".to_string(),
+                },
+                MemoryPluginPortExport {
+                    port: "MemoryAuditStorePort".to_string(),
+                    builder: "build_reference_audit_store".to_string(),
+                },
+                MemoryPluginPortExport {
+                    port: "MemoryOutboxStorePort".to_string(),
+                    builder: "build_reference_outbox_store".to_string(),
+                },
+                MemoryPluginPortExport {
+                    port: "MemoryCandidateStorePort".to_string(),
+                    builder: "build_reference_candidate_store".to_string(),
+                },
+                MemoryPluginPortExport {
+                    port: "MemoryHabitStorePort".to_string(),
+                    builder: "build_reference_habit_store".to_string(),
+                },
+                MemoryPluginPortExport {
+                    port: "MemoryRetrievalTraceStorePort".to_string(),
+                    builder: "build_reference_retrieval_trace_store".to_string(),
+                },
+                MemoryPluginPortExport {
+                    port: "MemoryRetrieverPort".to_string(),
+                    builder: "build_reference_retriever".to_string(),
+                },
+                MemoryPluginPortExport {
+                    port: "MemoryIndexPort".to_string(),
+                    builder: "build_reference_index".to_string(),
+                },
+                MemoryPluginPortExport {
+                    port: "ExternalMemoryBridgePort".to_string(),
+                    builder: "build_reference_external_bridge".to_string(),
+                },
+                MemoryPluginPortExport {
+                    port: "MemoryContextAssemblerPort".to_string(),
+                    builder: "build_reference_context_assembler".to_string(),
+                },
+                MemoryPluginPortExport {
+                    port: "MemoryEvaluationPort".to_string(),
+                    builder: "build_reference_evaluation".to_string(),
+                },
+            ],
+            provider_kinds: vec![
+                MemoryProviderKind::SearchEngine,
+                MemoryProviderKind::GraphEngine,
+                MemoryProviderKind::ExternalMemory,
+            ],
+            retriever_kinds: vec![
+                MemoryRetrieverKind::Sql,
+                MemoryRetrieverKind::Keyword,
+                MemoryRetrieverKind::Time,
+                MemoryRetrieverKind::Event,
+                MemoryRetrieverKind::Graph,
+                MemoryRetrieverKind::External,
+            ],
+            index_kinds: vec![
+                MemoryIndexKind::Sql,
+                MemoryIndexKind::Keyword,
+                MemoryIndexKind::Time,
+                MemoryIndexKind::Event,
+                MemoryIndexKind::Graph,
+            ],
+            required_core_version: "0.1.0".to_string(),
+            config_schema_ref: None,
+            secret_refs: vec![],
+            data_classes: vec![
+                MemoryPluginDataClass::Tenant,
+                MemoryPluginDataClass::Personal,
+                MemoryPluginDataClass::Internal,
+            ],
+            capabilities: MemoryPluginCapabilities {
+                canonical_store: true,
+                event_log: true,
+                candidate_lifecycle: true,
+                habit_learning: true,
+                retrieval_trace: true,
+                deletion_propagation: true,
+                audit_log: true,
+                outbox_log: true,
+                embedding_required: false,
+            },
+            degradation: MemoryPluginDegradationPolicy {
+                mode: "fail_closed_reference_baseline".to_string(),
+                returns_stale_hits: false,
+            },
+            migration: MemoryPluginMigrationCapabilities {
+                export_supported: false,
+                import_supported: false,
+                dual_write_supported: false,
+                shadow_read_supported: true,
+            },
+            observability: MemoryPluginObservabilityContract {
+                metrics_prefix: "sdkwork_memory_reference_profiles".to_string(),
+                redacts_payloads: true,
+            },
+            conformance: MemoryPluginConformanceContract {
+                suite: "sdkwork-memory-plugin-conformance".to_string(),
+                suite_version: "0.1.0".to_string(),
+            },
+        }
+    }
+
+    pub fn phase1_baseline_manifests() -> Vec<Self> {
+        vec![
+            Self::native_sql_baseline(),
+            Self::reference_profiles_baseline(),
+        ]
+    }
+
     pub fn native_sql_for_test() -> Self {
         Self::native_sql_baseline()
+    }
+
+    pub fn reference_profiles_for_test() -> Self {
+        Self::reference_profiles_baseline()
+    }
+
+    pub fn phase1_baseline_manifests_for_test() -> Vec<Self> {
+        Self::phase1_baseline_manifests()
     }
 }
 
@@ -331,6 +500,7 @@ pub struct MemoryPluginCapabilities {
     pub event_log: bool,
     pub candidate_lifecycle: bool,
     pub habit_learning: bool,
+    pub retrieval_trace: bool,
     pub deletion_propagation: bool,
     pub audit_log: bool,
     pub outbox_log: bool,

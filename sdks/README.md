@@ -4,7 +4,7 @@ This directory owns SDKWork Memory SDK families and authority OpenAPI documents.
 
 SDK families:
 
-- `sdkwork-memory-sdk` for `sdkwork-memory-open-api` and `/memory/v3/api`
+- `sdkwork-memory-sdk` for `sdkwork-memory-open-api` and `/mem/v3/api`
 - `sdkwork-memory-app-sdk` for `sdkwork-memory.app` and `/app/v3/api`
 - `sdkwork-memory-backend-sdk` for `sdkwork-memory.backend` and `/backend/v3/api`
 

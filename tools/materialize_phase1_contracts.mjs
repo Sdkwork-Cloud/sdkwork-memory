@@ -7,6 +7,8 @@ const domain = "intelligence";
 const capability = "memory";
 const version = "0.1.0";
 const standardVersion = "2026-06-10";
+const memoryOpenApiPrefix = "/mem/v3/api";
+const memoryOpenApiSchemaUrl = "/mem/v3/openapi.json";
 
 function writeText(relativePath, content) {
   const target = path.join(root, relativePath);
@@ -550,7 +552,7 @@ powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1
       apiAuthorities: [
         {
           name: "sdkwork-memory-open-api",
-          prefix: "/memory/v3/api",
+          prefix: memoryOpenApiPrefix,
           authorityOpenApi: "sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json",
           sdkFamily: "sdkwork-memory-sdk"
         },
@@ -624,7 +626,7 @@ const sdkSurfaceProfiles = {
   open: {
     family: "sdkwork-memory-sdk",
     packageName: "@sdkwork/memory-sdk",
-    schemaUrl: "/memory/v3/openapi.json",
+    schemaUrl: memoryOpenApiSchemaUrl,
     sdkTarget: "open-api",
     componentSurface: "open-api"
   },
@@ -851,7 +853,7 @@ This directory owns SDKWork Memory SDK families and authority OpenAPI documents.
 
 SDK families:
 
-- \`sdkwork-memory-sdk\` for \`sdkwork-memory-open-api\` and \`/memory/v3/api\`
+- \`sdkwork-memory-sdk\` for \`sdkwork-memory-open-api\` and \`${memoryOpenApiPrefix}\`
 - \`sdkwork-memory-app-sdk\` for \`sdkwork-memory.app\` and \`/app/v3/api\`
 - \`sdkwork-memory-backend-sdk\` for \`sdkwork-memory.backend\` and \`/backend/v3/api\`
 
@@ -861,7 +863,7 @@ RPC SDK families are deferred until high-throughput backend/native RPC integrati
 `);
   writeSdkFamily({
     surface: "open",
-    prefix: "/memory/v3/api",
+    prefix: memoryOpenApiPrefix,
     title: "SDKWork Memory Open API SDK",
     authority: "sdkwork-memory-open-api",
     openapiFile: "memory-open-api.openapi.json",
@@ -2426,7 +2428,7 @@ function openOperation(args) {
 function writeOpenApi() {
   const paths = {};
   const authority = "sdkwork-memory-open-api";
-  const P = "/memory/v3/api/memory";
+  const P = `${memoryOpenApiPrefix}/memory`;
 
   addPath(paths, `${P}/capabilities`, "get", openOperation({
     method: "get",
@@ -2603,7 +2605,7 @@ function writeOpenApi() {
   writeJson("sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json", createOpenApi({
     title: "SDKWork Memory Open API",
     authority,
-    prefix: "/memory/v3/api",
+    prefix: memoryOpenApiPrefix,
     sdkFamily: "sdkwork-memory-sdk",
     paths,
     authMode: "api-key"
@@ -2819,9 +2821,9 @@ if ($null -eq $rootSpec.contracts.dependencyApiSurfaces) {
 }
 
 foreach ($family in @(
-    @{ Path = "sdks/sdkwork-memory-sdk"; Authority = "sdkwork-memory-open-api"; Prefix = "/memory/v3/api"; Spec = "openapi/memory-open-api.openapi.json"; Client = "SdkworkMemoryOpenClient" },
-    @{ Path = "sdks/sdkwork-memory-app-sdk"; Authority = "sdkwork-memory.app"; Prefix = "/app/v3/api"; Spec = "openapi/memory-app-api.openapi.json"; Client = "SdkworkMemoryAppClient" },
-    @{ Path = "sdks/sdkwork-memory-backend-sdk"; Authority = "sdkwork-memory.backend"; Prefix = "/backend/v3/api"; Spec = "openapi/memory-backend-api.openapi.json"; Client = "SdkworkMemoryBackendClient" }
+    @{ Path = "sdks/sdkwork-memory-sdk"; Authority = "sdkwork-memory-open-api"; Prefix = "${memoryOpenApiPrefix}"; SchemaUrl = "${memoryOpenApiSchemaUrl}"; Spec = "openapi/memory-open-api.openapi.json"; Client = "SdkworkMemoryOpenClient" },
+    @{ Path = "sdks/sdkwork-memory-app-sdk"; Authority = "sdkwork-memory.app"; Prefix = "/app/v3/api"; SchemaUrl = "/app/v3/openapi.json"; Spec = "openapi/memory-app-api.openapi.json"; Client = "SdkworkMemoryAppClient" },
+    @{ Path = "sdks/sdkwork-memory-backend-sdk"; Authority = "sdkwork-memory.backend"; Prefix = "/backend/v3/api"; SchemaUrl = "/backend/v3/openapi.json"; Spec = "openapi/memory-backend-api.openapi.json"; Client = "SdkworkMemoryBackendClient" }
 )) {
     $assembly = Read-JsonFile (Join-Path $family.Path ".sdkwork-assembly.json")
     $manifest = Read-JsonFile (Join-Path $family.Path "sdk-manifest.json")
@@ -2838,6 +2840,9 @@ foreach ($family in @(
     }
     if ($assembly.discoverySurface.apiPrefix -ne $family.Prefix -or $manifest.apiPrefix -ne $family.Prefix) {
         throw "$($family.Path) apiPrefix mismatch"
+    }
+    if ($assembly.discoverySurface.schemaUrl -ne $family.SchemaUrl) {
+        throw "$($family.Path) schemaUrl mismatch"
     }
     if ($null -eq $component.contracts.sdkDependencies) {
         throw "$($family.Path) component spec must declare sdkDependencies"
@@ -3017,7 +3022,7 @@ Verify-OpenApi @appOpenApiCheck
 
 $openApiCheck = @{
     Path = "sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json"
-    Prefix = "/memory/v3/api"
+    Prefix = "${memoryOpenApiPrefix}"
     Authority = "sdkwork-memory-open-api"
     SdkFamily = "sdkwork-memory-sdk"
     AuthMode = "api-key"

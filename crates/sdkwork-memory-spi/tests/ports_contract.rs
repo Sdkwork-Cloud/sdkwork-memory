@@ -1,361 +1,180 @@
-use async_trait::async_trait;
 use sdkwork_memory_spi::{
-    AppendMemoryAuditCommand, AssembleMemoryContextCommand, EmbeddingCommand, EmbeddingModelPort,
-    ExternalMemoryBridgePort, ExternalMemoryDeleteCommand, ExternalMemoryDeleteReceipt,
-    ExternalMemoryExportCommand, ExternalMemoryExportResult, ExternalMemoryImportCommand,
-    ExternalMemoryImportResult, ExternalMemoryShadowReadCommand, ExternalMemoryShadowReadResult,
-    LanguageModelCommand, LanguageModelPort, MemoryAuditRecord, MemoryAuditStorePort,
-    MemoryContextAssemblerPort, MemoryContextPackDraft, MemoryDeletionReceipt, MemoryEvalRunResult,
-    MemoryEvaluationPort, MemoryEvent, MemoryEventStorePort, MemoryIndexPort, MemoryIndexReceipt,
-    MemoryOutboxEvent, MemoryOutboxStorePort, MemoryPolicy, MemoryPolicyStorePort, MemoryRecord,
-    MemoryRecordStorePort, MemoryRetrieverPort, MemoryRetrieverResult, RerankMemoryHitsCommand,
-    RerankMemoryHitsResult, RerankModelPort, RetrieveMemoryCandidatesCommand, RunMemoryEvalCommand,
+    AppendMemoryRetrievalTraceCommand, ApproveMemoryCandidateCommand, CreateMemoryCandidateCommand,
+    DecayMemoryHabitCommand, MemoryCandidate, MemoryCandidateStorePort, MemoryContextPackSnapshot,
+    MemoryHabit, MemoryHabitStorePort, MemoryRetrievalHitDraft, MemoryRetrievalTrace,
+    MemoryRetrievalTraceStorePort, MemoryScopeContext, PromoteMemoryHabitCommand,
+    RejectMemoryCandidateCommand, RetrieveMemoryCandidateQuery, RetrieveMemoryHabitQuery,
+    RetrieveMemoryRetrievalTraceQuery, UpsertMemoryHabitCommand,
 };
 
-struct FakePorts;
+#[test]
+fn candidate_lifecycle_port_contract_types_are_public_and_scoped() {
+    accept_candidate_port_object(None);
 
-#[async_trait]
-impl MemoryRecordStorePort for FakePorts {
-    async fn create(
-        &self,
-        command: sdkwork_memory_spi::CreateMemoryRecordCommand,
-    ) -> sdkwork_memory_spi::MemorySpiResult<MemoryRecord> {
-        Ok(MemoryRecord {
-            memory_id: command.memory_id,
-            content: command.content,
-        })
-    }
+    let scope = MemoryScopeContext::for_test(1, 10);
+    let create = CreateMemoryCandidateCommand {
+        scope: scope.clone(),
+        candidate_id: "cand-1".to_string(),
+        candidate_type: "observation".to_string(),
+        memory_type: "semantic".to_string(),
+        proposed_text: "User prefers concise answers".to_string(),
+        proposed_payload_json: Some(r#"{"preference":"concise"}"#.to_string()),
+        evidence_json: Some(r#"{"source":"event"}"#.to_string()),
+        confidence: 0.91,
+    };
+    let retrieve = RetrieveMemoryCandidateQuery {
+        scope: scope.clone(),
+        candidate_id: create.candidate_id.clone(),
+    };
+    let approve = ApproveMemoryCandidateCommand {
+        scope: scope.clone(),
+        candidate_id: create.candidate_id.clone(),
+        decision_reason: Some("confirmed by user".to_string()),
+        decided_by: Some(7),
+    };
+    let reject = RejectMemoryCandidateCommand {
+        scope,
+        candidate_id: create.candidate_id.clone(),
+        decision_reason: Some("stale signal".to_string()),
+        decided_by: Some(8),
+    };
+    let candidate = MemoryCandidate {
+        candidate_id: create.candidate_id,
+        candidate_type: create.candidate_type,
+        memory_type: create.memory_type,
+        proposed_text: create.proposed_text,
+        proposed_payload_json: create.proposed_payload_json,
+        evidence_json: create.evidence_json,
+        confidence: create.confidence,
+        decision_state: "pending".to_string(),
+        decision_reason: None,
+        decided_by: None,
+        decided_at: None,
+    };
 
-    async fn retrieve(
-        &self,
-        query: sdkwork_memory_spi::RetrieveMemoryRecordQuery,
-    ) -> sdkwork_memory_spi::MemorySpiResult<Option<MemoryRecord>> {
-        Ok(Some(MemoryRecord {
-            memory_id: query.memory_id,
-            content: "redacted memory".to_string(),
-        }))
-    }
-
-    async fn mark_deleted(
-        &self,
-        command: sdkwork_memory_spi::DeleteMemoryRecordCommand,
-    ) -> sdkwork_memory_spi::MemorySpiResult<MemoryDeletionReceipt> {
-        Ok(MemoryDeletionReceipt {
-            memory_id: command.memory_id,
-            deleted: true,
-            already_deleted: false,
-        })
-    }
-}
-
-#[async_trait]
-impl MemoryEventStorePort for FakePorts {
-    async fn append(
-        &self,
-        command: sdkwork_memory_spi::AppendMemoryEventCommand,
-    ) -> sdkwork_memory_spi::MemorySpiResult<MemoryEvent> {
-        Ok(MemoryEvent {
-            event_id: command.event_id,
-            content: command.content,
-        })
-    }
-
-    async fn retrieve(
-        &self,
-        query: sdkwork_memory_spi::RetrieveMemoryEventQuery,
-    ) -> sdkwork_memory_spi::MemorySpiResult<Option<MemoryEvent>> {
-        Ok(Some(MemoryEvent {
-            event_id: query.event_id,
-            content: "redacted event".to_string(),
-        }))
-    }
-}
-
-#[async_trait]
-impl MemoryAuditStorePort for FakePorts {
-    async fn append(
-        &self,
-        command: AppendMemoryAuditCommand,
-    ) -> sdkwork_memory_spi::MemorySpiResult<MemoryAuditRecord> {
-        Ok(MemoryAuditRecord {
-            audit_id: command.audit_id,
-            action: command.action,
-            resource_type: command.resource_type,
-            resource_id: command.resource_id,
-            result: command.result,
-        })
-    }
-
-    async fn retrieve(
-        &self,
-        query: sdkwork_memory_spi::RetrieveMemoryAuditQuery,
-    ) -> sdkwork_memory_spi::MemorySpiResult<Option<MemoryAuditRecord>> {
-        Ok(Some(MemoryAuditRecord {
-            audit_id: query.audit_id,
-            action: "memory.audit.checked".to_string(),
-            resource_type: "mem_audit_log".to_string(),
-            resource_id: "audit".to_string(),
-            result: "success".to_string(),
-        }))
-    }
-}
-
-#[async_trait]
-impl MemoryOutboxStorePort for FakePorts {
-    async fn append(
-        &self,
-        command: sdkwork_memory_spi::AppendMemoryOutboxCommand,
-    ) -> sdkwork_memory_spi::MemorySpiResult<MemoryOutboxEvent> {
-        Ok(MemoryOutboxEvent {
-            outbox_id: command.outbox_id,
-            aggregate_type: command.aggregate_type,
-            aggregate_id: command.aggregate_id,
-            event_type: command.event_type,
-            event_version: command.event_version,
-            payload_json: command.payload_json,
-            publish_state: "pending".to_string(),
-            published_at: None,
-            retry_count: 0,
-        })
-    }
-
-    async fn retrieve(
-        &self,
-        query: sdkwork_memory_spi::RetrieveMemoryOutboxQuery,
-    ) -> sdkwork_memory_spi::MemorySpiResult<Option<MemoryOutboxEvent>> {
-        Ok(Some(MemoryOutboxEvent {
-            outbox_id: query.outbox_id,
-            aggregate_type: "mem_record".to_string(),
-            aggregate_id: "rec-1".to_string(),
-            event_type: "memory.record.created".to_string(),
-            event_version: "1".to_string(),
-            payload_json: r#"{"memoryId":"rec-1"}"#.to_string(),
-            publish_state: "pending".to_string(),
-            published_at: None,
-            retry_count: 0,
-        }))
-    }
-
-    async fn list_pending(
-        &self,
-        _query: sdkwork_memory_spi::ListPendingMemoryOutboxQuery,
-    ) -> sdkwork_memory_spi::MemorySpiResult<Vec<MemoryOutboxEvent>> {
-        Ok(vec![MemoryOutboxEvent {
-            outbox_id: "out-pending".to_string(),
-            aggregate_type: "mem_record".to_string(),
-            aggregate_id: "rec-1".to_string(),
-            event_type: "memory.record.created".to_string(),
-            event_version: "1".to_string(),
-            payload_json: r#"{"memoryId":"rec-1"}"#.to_string(),
-            publish_state: "pending".to_string(),
-            published_at: None,
-            retry_count: 0,
-        }])
-    }
-
-    async fn mark_published(
-        &self,
-        command: sdkwork_memory_spi::MarkMemoryOutboxPublishedCommand,
-    ) -> sdkwork_memory_spi::MemorySpiResult<Option<MemoryOutboxEvent>> {
-        Ok(Some(MemoryOutboxEvent {
-            outbox_id: command.outbox_id,
-            aggregate_type: "mem_record".to_string(),
-            aggregate_id: "rec-1".to_string(),
-            event_type: "memory.record.created".to_string(),
-            event_version: "1".to_string(),
-            payload_json: r#"{"memoryId":"rec-1"}"#.to_string(),
-            publish_state: "published".to_string(),
-            published_at: Some("2026-06-10T00:00:00Z".to_string()),
-            retry_count: 0,
-        }))
-    }
-
-    async fn mark_failed(
-        &self,
-        command: sdkwork_memory_spi::MarkMemoryOutboxFailedCommand,
-    ) -> sdkwork_memory_spi::MemorySpiResult<Option<MemoryOutboxEvent>> {
-        Ok(Some(MemoryOutboxEvent {
-            outbox_id: command.outbox_id,
-            aggregate_type: "mem_record".to_string(),
-            aggregate_id: "rec-1".to_string(),
-            event_type: "memory.record.created".to_string(),
-            event_version: "1".to_string(),
-            payload_json: r#"{"memoryId":"rec-1"}"#.to_string(),
-            publish_state: "failed".to_string(),
-            published_at: None,
-            retry_count: 1,
-        }))
-    }
-}
-
-#[async_trait]
-impl MemoryPolicyStorePort for FakePorts {
-    async fn resolve_policy(
-        &self,
-        policy_code: String,
-    ) -> sdkwork_memory_spi::MemorySpiResult<MemoryPolicy> {
-        Ok(MemoryPolicy { policy_code })
-    }
-}
-
-#[async_trait]
-impl MemoryRetrieverPort for FakePorts {
-    fn retriever_code(&self) -> &str {
-        "fake-retriever"
-    }
-
-    async fn retrieve(
-        &self,
-        _command: RetrieveMemoryCandidatesCommand,
-    ) -> sdkwork_memory_spi::MemorySpiResult<MemoryRetrieverResult> {
-        Ok(MemoryRetrieverResult { memory_ids: vec![] })
-    }
-}
-
-#[async_trait]
-impl MemoryIndexPort for FakePorts {
-    fn index_kind(&self) -> &str {
-        "sql"
-    }
-
-    async fn index(
-        &self,
-        memory_id: String,
-    ) -> sdkwork_memory_spi::MemorySpiResult<MemoryIndexReceipt> {
-        Ok(MemoryIndexReceipt { memory_id })
-    }
-}
-
-#[async_trait]
-impl LanguageModelPort for FakePorts {
-    fn provider_code(&self) -> &str {
-        "fake-language"
-    }
-
-    async fn generate(
-        &self,
-        command: LanguageModelCommand,
-    ) -> sdkwork_memory_spi::MemorySpiResult<String> {
-        Ok(command.prompt)
-    }
-}
-
-#[async_trait]
-impl EmbeddingModelPort for FakePorts {
-    fn provider_code(&self) -> &str {
-        "fake-embedding"
-    }
-
-    fn dimensions(&self) -> usize {
-        384
-    }
-
-    async fn embed(
-        &self,
-        command: EmbeddingCommand,
-    ) -> sdkwork_memory_spi::MemorySpiResult<Vec<f32>> {
-        Ok(vec![command.input.len() as f32])
-    }
-}
-
-#[async_trait]
-impl RerankModelPort for FakePorts {
-    fn provider_code(&self) -> &str {
-        "fake-rerank"
-    }
-
-    async fn rerank(
-        &self,
-        _command: RerankMemoryHitsCommand,
-    ) -> sdkwork_memory_spi::MemorySpiResult<RerankMemoryHitsResult> {
-        Ok(RerankMemoryHitsResult { memory_ids: vec![] })
-    }
-}
-
-#[async_trait]
-impl ExternalMemoryBridgePort for FakePorts {
-    fn provider_code(&self) -> &str {
-        "fake-external"
-    }
-
-    async fn import(
-        &self,
-        _command: ExternalMemoryImportCommand,
-    ) -> sdkwork_memory_spi::MemorySpiResult<ExternalMemoryImportResult> {
-        Ok(ExternalMemoryImportResult { imported_count: 0 })
-    }
-
-    async fn export(
-        &self,
-        _command: ExternalMemoryExportCommand,
-    ) -> sdkwork_memory_spi::MemorySpiResult<ExternalMemoryExportResult> {
-        Ok(ExternalMemoryExportResult { exported_count: 0 })
-    }
-
-    async fn delete(
-        &self,
-        _command: ExternalMemoryDeleteCommand,
-    ) -> sdkwork_memory_spi::MemorySpiResult<ExternalMemoryDeleteReceipt> {
-        Ok(ExternalMemoryDeleteReceipt { verified: true })
-    }
-
-    async fn shadow_read(
-        &self,
-        _command: ExternalMemoryShadowReadCommand,
-    ) -> sdkwork_memory_spi::MemorySpiResult<ExternalMemoryShadowReadResult> {
-        Ok(ExternalMemoryShadowReadResult { comparable: true })
-    }
-}
-
-#[async_trait]
-impl MemoryContextAssemblerPort for FakePorts {
-    async fn assemble(
-        &self,
-        command: AssembleMemoryContextCommand,
-    ) -> sdkwork_memory_spi::MemorySpiResult<MemoryContextPackDraft> {
-        Ok(MemoryContextPackDraft {
-            memory_ids: command.memory_ids,
-            context_text: "redacted context".to_string(),
-        })
-    }
-}
-
-#[async_trait]
-impl MemoryEvaluationPort for FakePorts {
-    async fn run(
-        &self,
-        command: RunMemoryEvalCommand,
-    ) -> sdkwork_memory_spi::MemorySpiResult<MemoryEvalRunResult> {
-        Ok(MemoryEvalRunResult {
-            eval_type: command.eval_type,
-        })
-    }
+    assert_eq!(retrieve.candidate_id, "cand-1");
+    assert_eq!(approve.decided_by, Some(7));
+    assert_eq!(reject.decided_by, Some(8));
+    assert_eq!(candidate.decision_state, "pending");
 }
 
 #[test]
-fn spi_ports_are_provider_neutral_and_implementation_friendly() {
-    fn assert_ports<T>()
-    where
-        T: MemoryRecordStorePort
-            + MemoryEventStorePort
-            + MemoryAuditStorePort
-            + MemoryOutboxStorePort
-            + MemoryPolicyStorePort
-            + MemoryRetrieverPort
-            + MemoryIndexPort
-            + LanguageModelPort
-            + EmbeddingModelPort
-            + RerankModelPort
-            + ExternalMemoryBridgePort
-            + MemoryContextAssemblerPort
-            + MemoryEvaluationPort,
-    {
-    }
+fn habit_learning_port_contract_types_are_public_and_user_scoped() {
+    accept_habit_port_object(None);
 
-    assert_ports::<FakePorts>();
-    assert_eq!(FakePorts.retriever_code(), "fake-retriever");
-    assert_eq!(
-        <FakePorts as EmbeddingModelPort>::dimensions(&FakePorts),
-        384
-    );
+    let scope = MemoryScopeContext::for_test(1, 10);
+    let upsert = UpsertMemoryHabitCommand {
+        scope: scope.clone(),
+        habit_id: "habit-1".to_string(),
+        user_id: 42,
+        habit_key: "answer_style:concise".to_string(),
+        habit_type: "preference".to_string(),
+        description: "Prefers concise answers".to_string(),
+        stage: "candidate".to_string(),
+        strength: 0.4,
+        confidence: 0.8,
+        support_count: 2,
+        metadata_json: Some(r#"{"source":"signals"}"#.to_string()),
+    };
+    let retrieve = RetrieveMemoryHabitQuery {
+        scope: scope.clone(),
+        user_id: upsert.user_id,
+        habit_key: upsert.habit_key.clone(),
+    };
+    let promote = PromoteMemoryHabitCommand {
+        scope: scope.clone(),
+        user_id: upsert.user_id,
+        habit_key: upsert.habit_key.clone(),
+        promoted_memory_id: Some("rec-1".to_string()),
+    };
+    let decay = DecayMemoryHabitCommand {
+        scope,
+        user_id: upsert.user_id,
+        habit_key: upsert.habit_key.clone(),
+        strength_delta: 0.1,
+    };
+    let habit = MemoryHabit {
+        habit_id: upsert.habit_id,
+        user_id: upsert.user_id,
+        habit_key: upsert.habit_key,
+        habit_type: upsert.habit_type,
+        description: upsert.description,
+        stage: upsert.stage,
+        strength: upsert.strength,
+        confidence: upsert.confidence,
+        support_count: upsert.support_count,
+        last_signal_at: Some("2026-06-10T00:00:00Z".to_string()),
+        promoted_memory_id: None,
+        decay_after: None,
+        metadata_json: upsert.metadata_json,
+    };
+
+    assert_eq!(retrieve.user_id, 42);
+    assert_eq!(promote.promoted_memory_id.as_deref(), Some("rec-1"));
+    assert_eq!(decay.strength_delta, 0.1);
+    assert_eq!(habit.habit_key, "answer_style:concise");
 }
+
+#[test]
+fn retrieval_trace_port_contract_types_are_public_and_bounded() {
+    accept_retrieval_trace_port_object(None);
+
+    let scope = MemoryScopeContext::for_test(1, 10);
+    let hit = MemoryRetrievalHitDraft {
+        hit_id: "hit-1".to_string(),
+        memory_id: Some("rec-1".to_string()),
+        retriever_name: "native_sql".to_string(),
+        result_rank: 1,
+        raw_score: Some(0.75),
+        fused_score: Some(0.9),
+        explanation_json: Some(r#"{"match":"keyword"}"#.to_string()),
+        status: "selected".to_string(),
+    };
+    let context_pack = MemoryContextPackSnapshot {
+        context_pack_id: "pack-1".to_string(),
+        pack_json: r#"{"memoryIds":["rec-1"]}"#.to_string(),
+        estimated_tokens: 12,
+        truncated: false,
+    };
+    let append = AppendMemoryRetrievalTraceCommand {
+        scope: scope.clone(),
+        trace_id: "trace-1".to_string(),
+        actor_id: Some("user-42".to_string()),
+        query_text: Some("concise answer preference".to_string()),
+        query_hash: "hash:trace-1".to_string(),
+        retrievers_json: Some(r#"["native_sql"]"#.to_string()),
+        latency_ms: Some(17),
+        degraded: false,
+        metadata_json: Some(r#"{"profile":"native"}"#.to_string()),
+        hits: vec![hit],
+        context_pack: Some(context_pack),
+    };
+    let retrieve = RetrieveMemoryRetrievalTraceQuery {
+        scope,
+        trace_id: append.trace_id.clone(),
+    };
+    let trace = MemoryRetrievalTrace {
+        trace_id: append.trace_id,
+        actor_id: append.actor_id,
+        query_text: append.query_text,
+        query_hash: append.query_hash,
+        retrievers_json: append.retrievers_json,
+        latency_ms: append.latency_ms,
+        result_count: 1,
+        degraded: append.degraded,
+        metadata_json: append.metadata_json,
+        hits: append.hits,
+        context_pack: append.context_pack,
+    };
+
+    assert_eq!(retrieve.trace_id, "trace-1");
+    assert_eq!(trace.hits.len(), 1);
+    assert_eq!(trace.result_count, 1);
+    assert!(!trace.degraded);
+}
+
+fn accept_candidate_port_object(_port: Option<&dyn MemoryCandidateStorePort>) {}
+
+fn accept_habit_port_object(_port: Option<&dyn MemoryHabitStorePort>) {}
+
+fn accept_retrieval_trace_port_object(_port: Option<&dyn MemoryRetrievalTraceStorePort>) {}

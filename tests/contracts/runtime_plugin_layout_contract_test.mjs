@@ -34,6 +34,12 @@ assert.ok(
   ),
   "native SQL runtime plugin manifest must live under plugins/",
 );
+assert.ok(
+  runtimePluginManifests.includes(
+    "plugins/sdkwork-memory-plugin-reference-profiles/sdkwork.memory.plugin.json",
+  ),
+  "reference implementation profile runtime plugin manifest must live under plugins/",
+);
 assert.deepEqual(
   agentPluginRuntimeManifests,
   [],

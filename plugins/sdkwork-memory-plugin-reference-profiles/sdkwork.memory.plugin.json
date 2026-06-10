@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.memory.plugin",
+  "pluginId": "sdkwork-memory-plugin-reference-profiles",
+  "packageName": "sdkwork-memory-plugin-reference-profiles",
+  "displayName": "SDKWork Memory Reference Profiles Plugin",
+  "version": "0.1.0",
+  "owner": "sdkwork-memory",
+  "implementationKinds": [
+    "event_sourced",
+    "search_first",
+    "graph_temporal",
+    "external_provider_bridge",
+    "hybrid_platform"
+  ],
+  "pluginRoles": [
+    "implementation",
+    "store",
+    "retriever",
+    "index",
+    "provider",
+    "context",
+    "evaluation"
+  ],
+  "deploymentModes": ["server", "container", "private", "local", "test", "eval_only"],
+  "portExports": [
+    {
+      "port": "MemoryRecordStorePort",
+      "builder": "build_reference_record_store"
+    },
+    {
+      "port": "MemoryEventStorePort",
+      "builder": "build_reference_event_store"
+    },
+    {
+      "port": "MemoryAuditStorePort",
+      "builder": "build_reference_audit_store"
+    },
+    {
+      "port": "MemoryOutboxStorePort",
+      "builder": "build_reference_outbox_store"
+    },
+    {
+      "port": "MemoryCandidateStorePort",
+      "builder": "build_reference_candidate_store"
+    },
+    {
+      "port": "MemoryHabitStorePort",
+      "builder": "build_reference_habit_store"
+    },
+    {
+      "port": "MemoryRetrievalTraceStorePort",
+      "builder": "build_reference_retrieval_trace_store"
+    },
+    {
+      "port": "MemoryRetrieverPort",
+      "builder": "build_reference_retriever"
+    },
+    {
+      "port": "MemoryIndexPort",
+      "builder": "build_reference_index"
+    },
+    {
+      "port": "ExternalMemoryBridgePort",
+      "builder": "build_reference_external_bridge"
+    },
+    {
+      "port": "MemoryContextAssemblerPort",
+      "builder": "build_reference_context_assembler"
+    },
+    {
+      "port": "MemoryEvaluationPort",
+      "builder": "build_reference_evaluation"
+    }
+  ],
+  "providerKinds": ["search_engine", "graph_engine", "external_memory"],
+  "retrieverKinds": ["sql", "keyword", "time", "event", "graph", "external"],
+  "indexKinds": ["sql", "keyword", "time", "event", "graph"],
+  "requiredCoreVersion": "0.1.0",
+  "secretRefs": [],
+  "dataClasses": ["tenant", "personal", "internal"],
+  "capabilities": {
+    "canonicalStore": true,
+    "eventLog": true,
+    "candidateLifecycle": true,
+    "habitLearning": true,
+    "retrievalTrace": true,
+    "deletionPropagation": true,
+    "auditLog": true,
+    "outboxLog": true,
+    "embeddingRequired": false
+  },
+  "degradation": {
+    "mode": "fail_closed_reference_baseline",
+    "returnsStaleHits": false
+  },
+  "migration": {
+    "exportSupported": false,
+    "importSupported": false,
+    "dualWriteSupported": false,
+    "shadowReadSupported": true
+  },
+  "observability": {
+    "metricsPrefix": "sdkwork_memory_reference_profiles",
+    "redactsPayloads": true
+  },
+  "conformance": {
+    "suite": "sdkwork-memory-plugin-conformance",
+    "suiteVersion": "0.1.0"
+  }
+}

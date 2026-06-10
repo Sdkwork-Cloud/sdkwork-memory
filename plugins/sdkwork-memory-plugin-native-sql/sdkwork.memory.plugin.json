@@ -7,7 +7,7 @@
   "version": "0.1.0",
   "owner": "sdkwork-memory",
   "implementationKinds": ["native_sql", "local_embedded"],
-  "pluginRoles": ["implementation", "store", "retriever", "index"],
+  "pluginRoles": ["implementation", "store"],
   "deploymentModes": ["server", "container", "private", "local", "test"],
   "portExports": [
     {
@@ -25,11 +25,23 @@
     {
       "port": "MemoryOutboxStorePort",
       "builder": "build_native_sql_outbox_store"
+    },
+    {
+      "port": "MemoryCandidateStorePort",
+      "builder": "build_native_sql_candidate_store"
+    },
+    {
+      "port": "MemoryHabitStorePort",
+      "builder": "build_native_sql_habit_store"
+    },
+    {
+      "port": "MemoryRetrievalTraceStorePort",
+      "builder": "build_native_sql_retrieval_trace_store"
     }
   ],
   "providerKinds": [],
-  "retrieverKinds": ["sql", "keyword", "dictionary", "time", "event"],
-  "indexKinds": ["sql", "keyword", "dictionary", "time", "event"],
+  "retrieverKinds": [],
+  "indexKinds": [],
   "requiredCoreVersion": "0.1.0",
   "secretRefs": [],
   "dataClasses": ["tenant", "personal"],
@@ -38,6 +50,7 @@
     "eventLog": true,
     "candidateLifecycle": true,
     "habitLearning": true,
+    "retrievalTrace": true,
     "deletionPropagation": true,
     "auditLog": true,
     "outboxLog": true,

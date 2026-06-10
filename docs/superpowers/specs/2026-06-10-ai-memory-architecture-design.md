@@ -1757,7 +1757,7 @@ Backend API:
   SDK family: sdks/sdkwork-memory-backend-sdk
 
 Open API:
-  Prefix: /memory/v3/api
+  Prefix: /mem/v3/api
   Authority metadata: sdkwork-memory-open-api
   OpenAPI file: sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json
   SDK family: sdks/sdkwork-memory-sdk
@@ -1860,7 +1860,7 @@ Component responsibilities:
 | `sdkwork-memory-core` | ID helpers, scoring utilities, lifecycle state machines, query planning helpers. |
 | `sdkwork-memory-product` | Use cases, policy engine, learning engine, consolidation engine, retrieval orchestration, context assembly. |
 | `sdkwork-memory-storage-sqlx` | PostgreSQL/SQLite migrations, repository implementations, schema migration registry. |
-| `sdkwork-routes-memory-open-api` | Open API path constants, route manifest, router registration, and handler boundary for `/memory/v3/api`. |
+| `sdkwork-routes-memory-open-api` | Open API path constants, route manifest, router registration, and handler boundary for `/mem/v3/api`. |
 | `sdkwork-routes-memory-app-api` | App API path constants, route manifest, router registration, and handler boundary for `/app/v3/api`. |
 | `sdkwork-routes-memory-backend-api` | Backend API path constants, route manifest, router registration, and handler boundary for `/backend/v3/api`. |
 | `sdkwork-memory-open-api` | Open HTTP route boundary for external and server-to-server API-key Memory integrations. |
@@ -2056,8 +2056,8 @@ Open SDK assembly metadata should declare:
   "apiAuthority": "sdkwork-memory-open-api",
   "discoverySurface": {
     "sdkTarget": "open-api",
-    "apiPrefix": "/memory/v3/api",
-    "schemaUrl": "/memory/v3/openapi.json",
+    "apiPrefix": "/mem/v3/api",
+    "schemaUrl": "/mem/v3/openapi.json",
     "generatedProtocols": ["http-openapi"],
     "manualTransports": []
   },
@@ -2132,37 +2132,37 @@ Dependency rules:
 
 ## 29. Open API Contract Draft
 
-All open-api paths use `/memory/v3/api`. Protected operations require the Open API credential mode `ApiKey` through the `X-API-Key` header. DTO fields containing `int64` values must serialize as strings.
+All open-api paths use `/mem/v3/api`. Protected operations require the Open API credential mode `ApiKey` through the `X-API-Key` header. DTO fields containing `int64` values must serialize as strings.
 
 The Open API surface is for external integrations, API-key clients, server-to-server integrations, and public/domain Memory SDK consumers. It must not expose auth/session endpoints, backend-only implementation profile switching, provider secret binding management, migration jobs, retention jobs, audit log listing, or operator-only diagnostics.
 
 Base path:
 
 ```text
-/memory/v3/api/memory
+/mem/v3/api/memory
 ```
 
 Operation draft:
 
 | Method | Path | operationId | Purpose |
 | --- | --- | --- | --- |
-| `GET` | `/memory/v3/api/memory/capabilities` | `capabilities.retrieve` | Retrieve supported memory capabilities and implementation-safe feature flags. |
-| `POST` | `/memory/v3/api/memory/events` | `events.create` | Append external evidence event through API-key context. |
-| `GET` | `/memory/v3/api/memory/events/{eventId}` | `events.retrieve` | Retrieve an allowed external event projection. |
-| `GET` | `/memory/v3/api/memory/memories` | `memories.list` | List/search memory records allowed to the API key. |
-| `POST` | `/memory/v3/api/memory/memories` | `memories.create` | Explicitly create memory from external integration. |
-| `GET` | `/memory/v3/api/memory/memories/{memoryId}` | `memories.retrieve` | Retrieve a memory record. |
-| `PATCH` | `/memory/v3/api/memory/memories/{memoryId}` | `memories.update` | Update a memory record without exposing backend-only controls. |
-| `DELETE` | `/memory/v3/api/memory/memories/{memoryId}` | `memories.delete` | Delete/suppress a memory record through scoped API-key authority. |
-| `POST` | `/memory/v3/api/memory/retrievals` | `retrievals.create` | Retrieve memory using a server-approved profile. |
-| `GET` | `/memory/v3/api/memory/retrievals/{retrievalId}` | `retrievals.retrieve` | Retrieve retrieval trace projection allowed to the API key. |
-| `POST` | `/memory/v3/api/memory/context_packs` | `contextPacks.create` | Assemble model-ready memory context. |
-| `GET` | `/memory/v3/api/memory/context_packs/{contextPackId}` | `contextPacks.retrieve` | Retrieve assembled context pack metadata. |
-| `POST` | `/memory/v3/api/memory/feedback` | `feedback.create` | Submit usefulness, correction, or suppression feedback. |
-| `POST` | `/memory/v3/api/memory/extractions` | `extractions.create` | Extract candidate memories from supplied external events/messages. |
-| `GET` | `/memory/v3/api/memory/candidates` | `candidates.list` | List API-key-visible candidate memories. |
-| `GET` | `/memory/v3/api/memory/candidates/{candidateId}` | `candidates.retrieve` | Retrieve a candidate memory. |
-| `GET` | `/memory/v3/api/memory/provider_health` | `providerHealth.retrieve` | Retrieve a redacted provider health summary. |
+| `GET` | `/mem/v3/api/memory/capabilities` | `capabilities.retrieve` | Retrieve supported memory capabilities and implementation-safe feature flags. |
+| `POST` | `/mem/v3/api/memory/events` | `events.create` | Append external evidence event through API-key context. |
+| `GET` | `/mem/v3/api/memory/events/{eventId}` | `events.retrieve` | Retrieve an allowed external event projection. |
+| `GET` | `/mem/v3/api/memory/memories` | `memories.list` | List/search memory records allowed to the API key. |
+| `POST` | `/mem/v3/api/memory/memories` | `memories.create` | Explicitly create memory from external integration. |
+| `GET` | `/mem/v3/api/memory/memories/{memoryId}` | `memories.retrieve` | Retrieve a memory record. |
+| `PATCH` | `/mem/v3/api/memory/memories/{memoryId}` | `memories.update` | Update a memory record without exposing backend-only controls. |
+| `DELETE` | `/mem/v3/api/memory/memories/{memoryId}` | `memories.delete` | Delete/suppress a memory record through scoped API-key authority. |
+| `POST` | `/mem/v3/api/memory/retrievals` | `retrievals.create` | Retrieve memory using a server-approved profile. |
+| `GET` | `/mem/v3/api/memory/retrievals/{retrievalId}` | `retrievals.retrieve` | Retrieve retrieval trace projection allowed to the API key. |
+| `POST` | `/mem/v3/api/memory/context_packs` | `contextPacks.create` | Assemble model-ready memory context. |
+| `GET` | `/mem/v3/api/memory/context_packs/{contextPackId}` | `contextPacks.retrieve` | Retrieve assembled context pack metadata. |
+| `POST` | `/mem/v3/api/memory/feedback` | `feedback.create` | Submit usefulness, correction, or suppression feedback. |
+| `POST` | `/mem/v3/api/memory/extractions` | `extractions.create` | Extract candidate memories from supplied external events/messages. |
+| `GET` | `/mem/v3/api/memory/candidates` | `candidates.list` | List API-key-visible candidate memories. |
+| `GET` | `/mem/v3/api/memory/candidates/{candidateId}` | `candidates.retrieve` | Retrieve a candidate memory. |
+| `GET` | `/mem/v3/api/memory/provider_health` | `providerHealth.retrieve` | Retrieve a redacted provider health summary. |
 
 Open API scopes:
 
@@ -3259,7 +3259,7 @@ operator approval
 
 The generated OpenAPI contracts must pass this checklist:
 
-1. Open API paths start with `/memory/v3/api` and do not use `/app/v3/api` or `/backend/v3/api`.
+1. Open API paths start with `/mem/v3/api` and do not use `/app/v3/api` or `/backend/v3/api`.
 2. App API paths start with `/app/v3/api`.
 3. Backend API paths start with `/backend/v3/api`.
 4. No open-api or backend-api login/session endpoints exist.

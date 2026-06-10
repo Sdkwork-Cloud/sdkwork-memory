@@ -15,7 +15,7 @@
     }
   ],
   "paths": {
-    "/memory/v3/api/memory/capabilities": {
+    "/mem/v3/api/memory/capabilities": {
       "get": {
         "operationId": "capabilities.retrieve",
         "tags": [
@@ -101,7 +101,7 @@
         "x-sdkwork-idempotent": false
       }
     },
-    "/memory/v3/api/memory/events": {
+    "/mem/v3/api/memory/events": {
       "post": {
         "operationId": "events.create",
         "tags": [
@@ -209,7 +209,7 @@
         }
       }
     },
-    "/memory/v3/api/memory/events/{eventId}": {
+    "/mem/v3/api/memory/events/{eventId}": {
       "get": {
         "operationId": "events.retrieve",
         "tags": [
@@ -306,7 +306,7 @@
         "x-sdkwork-idempotent": false
       }
     },
-    "/memory/v3/api/memory/memories": {
+    "/mem/v3/api/memory/memories": {
       "get": {
         "operationId": "memories.list",
         "tags": [
@@ -549,7 +549,7 @@
         }
       }
     },
-    "/memory/v3/api/memory/memories/{memoryId}": {
+    "/mem/v3/api/memory/memories/{memoryId}": {
       "get": {
         "operationId": "memories.retrieve",
         "tags": [
@@ -839,7 +839,7 @@
         "x-sdkwork-idempotent": false
       }
     },
-    "/memory/v3/api/memory/retrievals": {
+    "/mem/v3/api/memory/retrievals": {
       "post": {
         "operationId": "retrievals.create",
         "tags": [
@@ -947,7 +947,7 @@
         }
       }
     },
-    "/memory/v3/api/memory/retrievals/{retrievalId}": {
+    "/mem/v3/api/memory/retrievals/{retrievalId}": {
       "get": {
         "operationId": "retrievals.retrieve",
         "tags": [
@@ -1044,7 +1044,7 @@
         "x-sdkwork-idempotent": false
       }
     },
-    "/memory/v3/api/memory/context_packs": {
+    "/mem/v3/api/memory/context_packs": {
       "post": {
         "operationId": "contextPacks.create",
         "tags": [
@@ -1152,7 +1152,7 @@
         }
       }
     },
-    "/memory/v3/api/memory/context_packs/{contextPackId}": {
+    "/mem/v3/api/memory/context_packs/{contextPackId}": {
       "get": {
         "operationId": "contextPacks.retrieve",
         "tags": [
@@ -1249,7 +1249,7 @@
         "x-sdkwork-idempotent": false
       }
     },
-    "/memory/v3/api/memory/feedback": {
+    "/mem/v3/api/memory/feedback": {
       "post": {
         "operationId": "feedback.create",
         "tags": [
@@ -1357,7 +1357,7 @@
         }
       }
     },
-    "/memory/v3/api/memory/extractions": {
+    "/mem/v3/api/memory/extractions": {
       "post": {
         "operationId": "extractions.create",
         "tags": [
@@ -1465,7 +1465,7 @@
         }
       }
     },
-    "/memory/v3/api/memory/candidates": {
+    "/mem/v3/api/memory/candidates": {
       "get": {
         "operationId": "candidates.list",
         "tags": [
@@ -1586,7 +1586,7 @@
         "x-sdkwork-idempotent": false
       }
     },
-    "/memory/v3/api/memory/candidates/{candidateId}": {
+    "/mem/v3/api/memory/candidates/{candidateId}": {
       "get": {
         "operationId": "candidates.retrieve",
         "tags": [
@@ -1683,7 +1683,7 @@
         "x-sdkwork-idempotent": false
       }
     },
-    "/memory/v3/api/memory/provider_health": {
+    "/mem/v3/api/memory/provider_health": {
       "get": {
         "operationId": "providerHealth.retrieve",
         "tags": [
@@ -5431,5 +5431,5 @@
   "x-sdkwork-owner-only-input": true,
   "x-sdkwork-standard-version": "2026-06-10",
   "x-sdkwork-domain": "intelligence",
-  "x-sdkwork-api-prefix": "/memory/v3/api"
+  "x-sdkwork-api-prefix": "/mem/v3/api"
 }
