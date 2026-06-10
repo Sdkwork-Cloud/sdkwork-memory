@@ -1,0 +1,48 @@
+{
+  "workspace": "sdkwork-memory-sdk",
+  "title": "SDKWork Memory Open API SDK",
+  "apiVersion": "0.1.0",
+  "openapiVersion": "3.1.2",
+  "authoritySpec": "openapi/memory-open-api.openapi.json",
+  "generationInputSpec": "openapi/memory-open-api.openapi.json",
+  "derivedSpecs": {
+    "default": "openapi/memory-open-api.openapi.json"
+  },
+  "apiAuthority": "sdkwork-memory-open-api",
+  "discoverySurface": {
+    "sdkTarget": "open-api",
+    "apiPrefix": "/memory/v3/api",
+    "schemaUrl": "/memory/v3/openapi.json",
+    "generatedProtocols": [
+      "http-openapi"
+    ],
+    "manualTransports": []
+  },
+  "languages": [
+    {
+      "language": "typescript",
+      "workspace": "sdkwork-memory-sdk-typescript",
+      "generationState": "declared",
+      "releaseState": "not_published",
+      "generatedPath": "sdkwork-memory-sdk-typescript/generated/server-openapi",
+      "manifestPath": "sdkwork-memory-sdk-typescript/generated/server-openapi/package.json",
+      "name": "@sdkwork/memory-sdk",
+      "version": "0.1.0",
+      "description": "Generator-owned TypeScript transport SDK for sdkwork-memory-open-api.",
+      "consumerSurface": {
+        "primaryClient": "SdkworkMemoryOpenClient",
+        "apiPrefix": "/memory/v3/api"
+      }
+    }
+  ],
+  "sdkOwner": "sdkwork-memory",
+  "sdkDependencies": [],
+  "dependencyApiExports": [],
+  "dependencyApiSurfaces": [],
+  "metadata": {
+    "standardVersion": "2026-06-10",
+    "ownerOnlyOperationCount": null,
+    "materializationState": "authority-draft",
+    "managedBy": "tools/materialize_phase1_contracts.mjs"
+  }
+}

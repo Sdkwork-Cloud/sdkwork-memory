@@ -1,0 +1,214 @@
+{
+  "schemaVersion": 3,
+  "kind": "sdkwork.app",
+  "app": {
+    "key": "sdkwork-memory",
+    "name": "SDKWork Memory",
+    "displayName": "SDKWork Memory",
+    "description": "SDKWork Memory service and SDK families for embedding-optional AI memory, self-learning, habit memory, and provider-switchable retrieval.",
+    "vendor": "SDKWork",
+    "officialWebsiteUrl": "https://sdkwork.com/apps/sdkwork-memory",
+    "supportUrl": "https://sdkwork.com/support",
+    "privacyPolicyUrl": "https://sdkwork.com/privacy",
+    "termsOfServiceUrl": "https://sdkwork.com/terms",
+    "iconUrl": "https://cdn.sdkwork.com/apps/sdkwork-memory/assets/icon-1024.png",
+    "appType": "SDK",
+    "versionSource": "manifest",
+    "identifiers": {
+      "packageName": null,
+      "bundleId": null,
+      "desktopAppId": null,
+      "containerImage": "registry.sdkwork.com/apps/sdkwork-memory"
+    }
+  },
+  "backend": {
+    "profileKey": "backend-root-admin",
+    "ownerMode": "tenant",
+    "grantMode": "current",
+    "platform": "API",
+    "appId": null,
+    "tenantId": "20001",
+    "organizationId": null
+  },
+  "runtime": {
+    "family": "server",
+    "framework": "rust-service",
+    "runtimes": [
+      "API"
+    ],
+    "deliveryModes": [
+      "CONTAINER_IMAGE"
+    ],
+    "defaultPlatform": "API",
+    "defaultArchitecture": "x64"
+  },
+  "media": {
+    "icons": {
+      "primary": {
+        "id": "sdkwork-memory-primary-icon",
+        "type": "ICON",
+        "purpose": "PRIMARY",
+        "url": "https://cdn.sdkwork.com/apps/sdkwork-memory/assets/icon-1024.png",
+        "platform": "API",
+        "locale": "en-US",
+        "width": 1024,
+        "height": 1024,
+        "format": "PNG",
+        "fileSizeBytes": 524288,
+        "alphaChannel": false,
+        "sortOrder": 0,
+        "enabled": true,
+        "metadata": {
+          "generatedPlaceholder": true
+        }
+      },
+      "platform": [],
+      "metadata": {
+        "generatedBy": "tools/materialize_phase1_contracts.mjs"
+      }
+    },
+    "screenshots": [],
+    "previews": [
+      {
+        "id": "sdkwork-memory-catalog-preview",
+        "type": "PREVIEW_IMAGE",
+        "purpose": "CATALOG_PREVIEW",
+        "url": "https://cdn.sdkwork.com/apps/sdkwork-memory/media/preview-cover.png",
+        "platform": "API",
+        "locale": "en-US",
+        "width": 1600,
+        "height": 900,
+        "format": "PNG",
+        "fileSizeBytes": 786432,
+        "alphaChannel": false,
+        "caption": "SDKWork Memory service preview.",
+        "sortOrder": 0,
+        "enabled": true,
+        "metadata": {
+          "generatedPlaceholder": true,
+          "altText": "SDKWork Memory service preview cover."
+        }
+      }
+    ],
+    "metadata": {
+      "assetVersion": "0.1.0",
+      "defaultLocale": "en-US"
+    }
+  },
+  "publish": {
+    "status": "DRAFT",
+    "installSkill": {
+      "name": "sdkwork-skills-app"
+    },
+    "platforms": [
+      "API"
+    ],
+    "installPlatforms": [
+      "API"
+    ],
+    "defaultPackageId": "container-x64-server-docker-image",
+    "storeUrl": "https://sdkwork.com/apps/sdkwork-memory",
+    "stores": [],
+    "config": {
+      "workspaceRoot": "sdkwork-memory",
+      "framework": "rust-service",
+      "managedBy": "tools/materialize_phase1_contracts.mjs"
+    }
+  },
+  "environments": {
+    "development": {
+      "accessUrl": "https://api-dev.sdkwork.com/apps/sdkwork-memory",
+      "deployUrl": "https://api-dev.sdkwork.com/apps/sdkwork-memory",
+      "deployEnv": "dev"
+    },
+    "test": {
+      "accessUrl": "https://api-test.sdkwork.com/apps/sdkwork-memory",
+      "deployUrl": "https://api-test.sdkwork.com/apps/sdkwork-memory",
+      "deployEnv": "test"
+    },
+    "production": {
+      "accessUrl": "https://api.sdkwork.com/apps/sdkwork-memory",
+      "deployUrl": "https://api.sdkwork.com/apps/sdkwork-memory",
+      "deployEnv": "production"
+    }
+  },
+  "artifacts": {
+    "installConfig": {
+      "defaultPackageId": "container-x64-server-docker-image",
+      "installCommand": "sdkwork install sdkwork-memory",
+      "launchCommand": "sdkwork open sdkwork-memory",
+      "uninstallCommand": "sdkwork uninstall sdkwork-memory",
+      "packages": [
+        {
+          "id": "container-x64-server-docker-image",
+          "name": "SDKWork Memory Server Container",
+          "sourceType": "CONTAINER_IMAGE",
+          "packageFormat": "DOCKER_IMAGE",
+          "platform": "API",
+          "url": "https://registry.sdkwork.com/v2/apps/sdkwork-memory/manifests/0.1.0",
+          "enabled": false,
+          "metadata": {
+            "image": "registry.sdkwork.com/apps/sdkwork-memory:0.1.0",
+            "digestRequiredBeforeRelease": true
+          },
+          "architecture": "x64",
+          "checksumAlgorithm": "SHA-256",
+          "checksum": "4d656d6f72794472616674436f6e74726163744f6e6c794e6f7452656c65617365"
+        }
+      ],
+      "metadata": {
+        "workspaceRoot": "sdkwork-memory",
+        "framework": "rust-service",
+        "packageManager": "cargo",
+        "contractPhase": "phase1-draft"
+      }
+    }
+  },
+  "release": {
+    "currentVersion": "0.1.0",
+    "defaultChannel": "DEV",
+    "latest": {
+      "DEV": "0.1.0"
+    },
+    "notes": [
+      {
+        "version": "0.1.0",
+        "releaseChannel": "DEV",
+        "title": "SDKWork Memory 0.1.0 Draft",
+        "summary": "Initial SDKWork Memory contract skeleton.",
+        "content": "Initial SDKWork Memory standard contracts for schema registry, app-api, backend-api, and SDK family metadata.",
+        "highlights": [
+          "Embedding-optional memory architecture",
+          "Provider-switchable implementation profiles",
+          "SDKWork app-api and backend-api authority drafts"
+        ],
+        "packageIds": [
+          "container-x64-server-docker-image"
+        ],
+        "publishedAt": "2026-06-10T00:00:00Z",
+        "current": true,
+        "forceUpdate": false,
+        "minSupportedVersion": "0.1.0",
+        "metadata": {
+          "draft": true
+        }
+      }
+    ]
+  },
+  "security": {
+    "checksumRequired": false,
+    "signatureRequired": false,
+    "sbomRequired": false
+  },
+  "devApp": {
+    "build": {
+      "targets": []
+    },
+    "sourceRoot": "sdkwork-memory"
+  },
+  "metadata": {
+    "standardOwner": "sdkwork-platform",
+    "initializedAt": "2026-06-10T00:00:00Z",
+    "managedBy": "tools/materialize_phase1_contracts.mjs"
+  }
+}

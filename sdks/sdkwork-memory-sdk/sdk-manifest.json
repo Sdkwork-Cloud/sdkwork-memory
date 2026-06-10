@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "sdkName": "sdkwork-memory-sdk",
+  "packageName": "@sdkwork/memory-sdk",
+  "sdkOwner": "sdkwork-memory",
+  "apiAuthority": "sdkwork-memory-open-api",
+  "sdkFamily": "sdkwork-memory-sdk",
+  "sdkType": "open",
+  "sdkSurface": "open",
+  "language": "typescript",
+  "apiPrefix": "/memory/v3/api",
+  "generationInputSpec": "openapi/memory-open-api.openapi.json",
+  "generatedOutput": "sdkwork-memory-sdk-typescript/generated/server-openapi",
+  "standardProfile": "sdkwork-v3",
+  "sdkDependencies": [],
+  "dependencyApiExports": [],
+  "dependencyApiSurfaces": [],
+  "ownerOnlyOperationCount": null,
+  "standardVersion": "2026-06-10",
+  "managedBy": "tools/materialize_phase1_contracts.mjs"
+}

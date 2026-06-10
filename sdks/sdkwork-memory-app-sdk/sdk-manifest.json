@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "sdkName": "sdkwork-memory-app-sdk",
+  "packageName": "@sdkwork/memory-app-sdk",
+  "sdkOwner": "sdkwork-memory",
+  "apiAuthority": "sdkwork-memory.app",
+  "sdkFamily": "sdkwork-memory-app-sdk",
+  "sdkType": "app",
+  "sdkSurface": "app",
+  "language": "typescript",
+  "apiPrefix": "/app/v3/api",
+  "generationInputSpec": "openapi/memory-app-api.openapi.json",
+  "generatedOutput": "sdkwork-memory-app-sdk-typescript/generated/server-openapi",
+  "standardProfile": "sdkwork-v3",
+  "sdkDependencies": [
+    {
+      "workspace": "sdkwork-appbase-app-sdk",
+      "role": "appbase-identity-and-session-capability",
+      "required": true,
+      "dependencyMode": "consumer-sdk",
+      "apiPrefix": "/app/v3/api",
+      "apiAuthority": "sdkwork-appbase.app",
+      "generatedTransportImportPolicy": "forbidden",
+      "packageByLanguage": {
+        "typescript": "@sdkwork/appbase-app-sdk",
+        "rust": "sdkwork-appbase-app-sdk",
+        "java": "com.sdkwork:sdkwork-appbase-app-sdk",
+        "python": "sdkwork-appbase-app-sdk",
+        "go": "github.com/sdkwork/sdkwork-appbase-app-sdk"
+      }
+    },
+    {
+      "workspace": "sdkwork-drive-app-sdk",
+      "role": "drive-memory-export-import-capability",
+      "required": false,
+      "dependencyMode": "consumer-sdk",
+      "apiPrefix": "/app/v3/api",
+      "apiAuthority": "sdkwork-drive.app",
+      "generatedTransportImportPolicy": "forbidden",
+      "packageByLanguage": {
+        "typescript": "@sdkwork/drive-app-sdk",
+        "rust": "sdkwork-drive-app-sdk",
+        "java": "com.sdkwork:sdkwork-drive-app-sdk",
+        "python": "sdkwork-drive-app-sdk",
+        "go": "github.com/sdkwork/sdkwork-drive-app-sdk"
+      }
+    },
+    {
+      "workspace": "sdkwork-knowledgebase-app-sdk",
+      "role": "knowledgebase-context-composition-capability",
+      "required": false,
+      "dependencyMode": "consumer-sdk",
+      "apiPrefix": "/app/v3/api",
+      "apiAuthority": "sdkwork-knowledgebase.app",
+      "generatedTransportImportPolicy": "forbidden",
+      "packageByLanguage": {
+        "typescript": "@sdkwork/knowledgebase-app-sdk",
+        "rust": "sdkwork-knowledgebase-app-sdk",
+        "java": "com.sdkwork:sdkwork-knowledgebase-app-sdk",
+        "python": "sdkwork-knowledgebase-app-sdk",
+        "go": "github.com/sdkwork/sdkwork-knowledgebase-app-sdk"
+      }
+    }
+  ],
+  "dependencyApiExports": [],
+  "dependencyApiSurfaces": [],
+  "ownerOnlyOperationCount": null,
+  "standardVersion": "2026-06-10",
+  "managedBy": "tools/materialize_phase1_contracts.mjs"
+}

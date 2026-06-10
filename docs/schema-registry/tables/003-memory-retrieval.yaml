@@ -1,0 +1,143 @@
+module: memory
+owner: sdkwork-memory
+domain: intelligence
+bounded_context: memory-retrieval
+description: Derived indexes, retrieval profiles, traces, hits, and context packs. Embedding/vector state is optional and represented as one index kind among many.
+tables:
+  - table: mem_index
+    profile: projection
+    compliance_level: L2
+    system_of_record: false
+    description: Provider-neutral index definition for sql, keyword, dictionary, time, event, vector, graph, grep_file, or custom retrievers.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: space_id, type: bigint, nullable: true, references: mem_space.id }
+      - { name: index_kind, type: varchar(32), constraints: ["enum: [sql, keyword, dictionary, time, event, vector, graph, grep_file, custom]"] }
+      - { name: implementation_profile_id, type: bigint, nullable: true }
+      - { name: provider_binding_id, type: bigint, nullable: true }
+      - { name: schema_version, type: varchar(32), constraints: [required] }
+      - { name: status, type: varchar(32), constraints: ["enum: [active, rebuilding, degraded, disabled, deleted]"] }
+      - { name: rebuild_cursor, type: varchar(256), nullable: true }
+      - { name: config_json, type: json, nullable: true }
+      - { name: last_rebuilt_at, type: timestamp, nullable: true }
+      - { name: created_at, type: timestamp, constraints: [required] }
+      - { name: updated_at, type: timestamp, constraints: [required] }
+      - { name: version, type: bigint, constraints: [required, "min: 0"] }
+    indexes:
+      - { name: uk_mem_index_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: uk_mem_index_kind_space, unique: true, columns: [tenant_id, space_id, index_kind, schema_version] }
+      - { name: idx_mem_index_status, columns: [tenant_id, space_id, index_kind, status] }
+  - table: mem_index_entry
+    profile: projection
+    compliance_level: L2
+    system_of_record: false
+    description: Provider-neutral pointer to derived index state; vector payloads may be externalized while canonical memory stays in mem_record.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: index_id, type: bigint, constraints: [required], references: mem_index.id }
+      - { name: memory_id, type: bigint, nullable: true, references: mem_record.id }
+      - { name: event_id, type: bigint, nullable: true, references: mem_event.id }
+      - { name: entry_kind, type: varchar(32), constraints: ["enum: [memory, event, entity, edge, file_line, external_ref]"] }
+      - { name: entry_hash, type: varchar(128), constraints: [required] }
+      - { name: external_ref, type: varchar(512), nullable: true }
+      - { name: payload_json, type: json, nullable: true }
+      - { name: indexed_at, type: timestamp, constraints: [required] }
+    indexes:
+      - { name: uk_mem_index_entry_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: uk_mem_index_entry_memory, unique: true, columns: [tenant_id, index_id, memory_id, entry_kind], predicate: "memory_id IS NOT NULL" }
+      - { name: idx_mem_index_entry_hash, columns: [tenant_id, index_id, entry_hash] }
+  - table: mem_retrieval_profile
+    profile: dictionary_entity
+    compliance_level: L2
+    system_of_record: true
+    description: Runtime retrieval policy describing retriever selection, fusion, rerank, context budget, and degraded-mode behavior.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: space_id, type: bigint, nullable: true, references: mem_space.id }
+      - { name: name, type: varchar(160), constraints: [required] }
+      - { name: strategy, type: varchar(64), constraints: ["enum: [deterministic, semantic, graph, file, hybrid, custom]"] }
+      - { name: retrievers_json, type: json, constraints: [required] }
+      - { name: fusion_policy_json, type: json, nullable: true }
+      - { name: rerank_policy_json, type: json, nullable: true }
+      - { name: top_k, type: int32, constraints: [required] }
+      - { name: context_budget_tokens, type: int32, constraints: [required] }
+      - { name: status, type: varchar(32), constraints: ["enum: [active, disabled, deleted]"] }
+      - { name: created_at, type: timestamp, constraints: [required] }
+      - { name: updated_at, type: timestamp, constraints: [required] }
+      - { name: version, type: bigint, constraints: [required, "min: 0"] }
+    indexes:
+      - { name: uk_mem_retrieval_profile_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_mem_retrieval_profile_scope, columns: [tenant_id, space_id, status, updated_at] }
+  - table: mem_retrieval_trace
+    profile: event_log
+    compliance_level: L2
+    system_of_record: true
+    description: Trace for each retrieval orchestration, including selected retrievers, degraded mode, and scoring metadata.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: space_id, type: bigint, nullable: true, references: mem_space.id }
+      - { name: retrieval_profile_id, type: bigint, nullable: true, references: mem_retrieval_profile.id }
+      - { name: actor_id, type: varchar(128), nullable: true }
+      - { name: query_text, type: text, nullable: true }
+      - { name: query_hash, type: varchar(128), constraints: [required] }
+      - { name: retrievers_json, type: json, nullable: true }
+      - { name: latency_ms, type: int32, nullable: true }
+      - { name: result_count, type: int32, constraints: [required] }
+      - { name: degraded, type: boolean, constraints: [required] }
+      - { name: metadata_json, type: json, nullable: true }
+      - { name: created_at, type: timestamp, constraints: [required] }
+    indexes:
+      - { name: uk_mem_retrieval_trace_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_mem_retrieval_trace_profile_created, columns: [tenant_id, retrieval_profile_id, created_at] }
+      - { name: idx_mem_retrieval_trace_actor_created, columns: [tenant_id, actor_id, created_at] }
+  - table: mem_retrieval_hit
+    profile: projection
+    compliance_level: L2
+    system_of_record: true
+    description: Ranked hit materialized from a retrieval trace for explainability, evaluation, and feedback.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: retrieval_trace_id, type: bigint, constraints: [required], references: mem_retrieval_trace.id }
+      - { name: memory_id, type: bigint, nullable: true, references: mem_record.id }
+      - { name: retriever_name, type: varchar(64), constraints: [required] }
+      - { name: result_rank, type: int32, constraints: [required] }
+      - { name: raw_score, type: decimal(10,6), nullable: true }
+      - { name: fused_score, type: decimal(10,6), nullable: true }
+      - { name: explanation_json, type: json, nullable: true }
+      - { name: status, type: varchar(32), constraints: ["enum: [included, filtered, suppressed]"] }
+      - { name: created_at, type: timestamp, constraints: [required] }
+    indexes:
+      - { name: uk_mem_retrieval_hit_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_mem_retrieval_hit_trace_rank, columns: [tenant_id, retrieval_trace_id, result_rank] }
+      - { name: idx_mem_retrieval_hit_memory, columns: [tenant_id, memory_id, status] }
+  - table: mem_context_pack
+    profile: snapshot
+    compliance_level: L2
+    system_of_record: true
+    description: LLM-ready context assembled from one retrieval trace with citations and token budget metadata.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: retrieval_trace_id, type: bigint, nullable: true, references: mem_retrieval_trace.id }
+      - { name: actor_id, type: varchar(128), nullable: true }
+      - { name: query_text, type: text, nullable: true }
+      - { name: pack_json, type: json, constraints: [required] }
+      - { name: estimated_tokens, type: int32, constraints: [required] }
+      - { name: truncated, type: boolean, constraints: [required] }
+      - { name: created_at, type: timestamp, constraints: [required] }
+    indexes:
+      - { name: uk_mem_context_pack_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_mem_context_pack_trace, columns: [tenant_id, retrieval_trace_id] }
+      - { name: idx_mem_context_pack_actor_created, columns: [tenant_id, actor_id, created_at] }
+serialization: { int64: string, decimal: string, time: iso8601_utc }

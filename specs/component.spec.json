@@ -1,0 +1,258 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.component.spec",
+  "component": {
+    "name": "sdkwork-memory",
+    "displayName": "SDKWork Memory",
+    "version": "0.1.0",
+    "type": "web-backend-service",
+    "root": "sdkwork-memory",
+    "domain": "intelligence",
+    "capability": "memory",
+    "surface": "backend-service",
+    "languages": [
+      "rust",
+      "typescript"
+    ],
+    "generated": false,
+    "status": "draft",
+    "manifests": [
+      "sdkwork.app.config.json",
+      "AGENTS.md",
+      "specs/component.spec.json",
+      "sdks/sdkwork-memory-sdk/.sdkwork-assembly.json",
+      "sdks/sdkwork-memory-app-sdk/.sdkwork-assembly.json",
+      "sdks/sdkwork-memory-backend-sdk/.sdkwork-assembly.json"
+    ]
+  },
+  "canonicalSpecs": [
+    {
+      "file": "SOUL.md",
+      "path": "../sdkwork-specs/SOUL.md",
+      "purpose": "SDKWork execution soul."
+    },
+    {
+      "file": "COMPONENT_SPEC.md",
+      "path": "../sdkwork-specs/COMPONENT_SPEC.md",
+      "purpose": "Component-local contract and discovery rules."
+    },
+    {
+      "file": "NAMING_SPEC.md",
+      "path": "../sdkwork-specs/NAMING_SPEC.md",
+      "purpose": "Canonical naming for domains, APIs, SDKs, tables, and events."
+    },
+    {
+      "file": "DOMAIN_SPEC.md",
+      "path": "../sdkwork-specs/DOMAIN_SPEC.md",
+      "purpose": "Canonical domain and capability boundaries."
+    },
+    {
+      "file": "API_SPEC.md",
+      "path": "../sdkwork-specs/API_SPEC.md",
+      "purpose": "HTTP/OpenAPI and generated SDK contract rules."
+    },
+    {
+      "file": "SDK_SPEC.md",
+      "path": "../sdkwork-specs/SDK_SPEC.md",
+      "purpose": "SDK generation, SDK dependency, and SDK integration rules."
+    },
+    {
+      "file": "SDK_WORKSPACE_GENERATION_SPEC.md",
+      "path": "../sdkwork-specs/SDK_WORKSPACE_GENERATION_SPEC.md",
+      "purpose": "SDK workspace and OpenAPI authority placement rules."
+    },
+    {
+      "file": "WEB_BACKEND_SPEC.md",
+      "path": "../sdkwork-specs/WEB_BACKEND_SPEC.md",
+      "purpose": "Backend route, service, repository, provider, and request-context boundaries."
+    },
+    {
+      "file": "DATABASE_SPEC.md",
+      "path": "../sdkwork-specs/DATABASE_SPEC.md",
+      "purpose": "Schema registry, table contract, migration, and storage rules."
+    },
+    {
+      "file": "EVENT_SPEC.md",
+      "path": "../sdkwork-specs/EVENT_SPEC.md",
+      "purpose": "Domain event and outbox contract rules."
+    },
+    {
+      "file": "PRIVACY_SPEC.md",
+      "path": "../sdkwork-specs/PRIVACY_SPEC.md",
+      "purpose": "Memory privacy, sensitive data, retention, export, and deletion rules."
+    },
+    {
+      "file": "OBSERVABILITY_SPEC.md",
+      "path": "../sdkwork-specs/OBSERVABILITY_SPEC.md",
+      "purpose": "Request, retrieval, provider, job, audit, and evaluation observability rules."
+    }
+  ],
+  "contracts": {
+    "publicExports": [],
+    "runtimeEntrypoints": [],
+    "routeManifest": null,
+    "apiAuthorities": [
+      {
+        "name": "sdkwork-memory-open-api",
+        "prefix": "/memory/v3/api",
+        "authorityOpenApi": "sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json",
+        "sdkFamily": "sdkwork-memory-sdk"
+      },
+      {
+        "name": "sdkwork-memory.app",
+        "prefix": "/app/v3/api",
+        "authorityOpenApi": "sdks/sdkwork-memory-app-sdk/openapi/memory-app-api.openapi.json",
+        "sdkFamily": "sdkwork-memory-app-sdk"
+      },
+      {
+        "name": "sdkwork-memory.backend",
+        "prefix": "/backend/v3/api",
+        "authorityOpenApi": "sdks/sdkwork-memory-backend-sdk/openapi/memory-backend-api.openapi.json",
+        "sdkFamily": "sdkwork-memory-backend-sdk"
+      }
+    ],
+    "sdkClients": [
+      "SdkworkMemoryOpenClient",
+      "SdkworkMemoryAppClient",
+      "SdkworkMemoryBackendClient"
+    ],
+    "sdkDependencies": [
+      {
+        "workspace": "sdkwork-appbase-app-sdk",
+        "role": "appbase-identity-and-session-capability",
+        "required": true,
+        "dependencyMode": "consumer-sdk",
+        "apiPrefix": "/app/v3/api",
+        "apiAuthority": "sdkwork-appbase.app",
+        "generatedTransportImportPolicy": "forbidden",
+        "packageByLanguage": {
+          "typescript": "@sdkwork/appbase-app-sdk",
+          "rust": "sdkwork-appbase-app-sdk",
+          "java": "com.sdkwork:sdkwork-appbase-app-sdk",
+          "python": "sdkwork-appbase-app-sdk",
+          "go": "github.com/sdkwork/sdkwork-appbase-app-sdk"
+        }
+      },
+      {
+        "workspace": "sdkwork-drive-app-sdk",
+        "role": "drive-memory-export-import-capability",
+        "required": false,
+        "dependencyMode": "consumer-sdk",
+        "apiPrefix": "/app/v3/api",
+        "apiAuthority": "sdkwork-drive.app",
+        "generatedTransportImportPolicy": "forbidden",
+        "packageByLanguage": {
+          "typescript": "@sdkwork/drive-app-sdk",
+          "rust": "sdkwork-drive-app-sdk",
+          "java": "com.sdkwork:sdkwork-drive-app-sdk",
+          "python": "sdkwork-drive-app-sdk",
+          "go": "github.com/sdkwork/sdkwork-drive-app-sdk"
+        }
+      },
+      {
+        "workspace": "sdkwork-knowledgebase-app-sdk",
+        "role": "knowledgebase-context-composition-capability",
+        "required": false,
+        "dependencyMode": "consumer-sdk",
+        "apiPrefix": "/app/v3/api",
+        "apiAuthority": "sdkwork-knowledgebase.app",
+        "generatedTransportImportPolicy": "forbidden",
+        "packageByLanguage": {
+          "typescript": "@sdkwork/knowledgebase-app-sdk",
+          "rust": "sdkwork-knowledgebase-app-sdk",
+          "java": "com.sdkwork:sdkwork-knowledgebase-app-sdk",
+          "python": "sdkwork-knowledgebase-app-sdk",
+          "go": "github.com/sdkwork/sdkwork-knowledgebase-app-sdk"
+        }
+      },
+      {
+        "workspace": "sdkwork-appbase-backend-sdk",
+        "role": "appbase-backend-management-capability",
+        "required": true,
+        "dependencyMode": "consumer-sdk",
+        "apiPrefix": "/backend/v3/api",
+        "apiAuthority": "sdkwork-appbase.backend",
+        "generatedTransportImportPolicy": "forbidden",
+        "packageByLanguage": {
+          "typescript": "@sdkwork/appbase-backend-sdk",
+          "rust": "sdkwork-appbase-backend-sdk",
+          "java": "com.sdkwork:sdkwork-appbase-backend-sdk",
+          "python": "sdkwork-appbase-backend-sdk",
+          "go": "github.com/sdkwork/sdkwork-appbase-backend-sdk"
+        }
+      },
+      {
+        "workspace": "sdkwork-drive-backend-sdk",
+        "role": "drive-backend-memory-export-and-retention-capability",
+        "required": false,
+        "dependencyMode": "consumer-sdk",
+        "apiPrefix": "/backend/v3/api",
+        "apiAuthority": "sdkwork-drive.backend",
+        "generatedTransportImportPolicy": "forbidden",
+        "packageByLanguage": {
+          "typescript": "@sdkwork/drive-backend-sdk",
+          "rust": "sdkwork-drive-backend-sdk",
+          "java": "com.sdkwork:sdkwork-drive-backend-sdk",
+          "python": "sdkwork-drive-backend-sdk",
+          "go": "github.com/sdkwork/sdkwork-drive-backend-sdk"
+        }
+      },
+      {
+        "workspace": "sdkwork-knowledgebase-backend-sdk",
+        "role": "knowledgebase-backend-index-and-eval-capability",
+        "required": false,
+        "dependencyMode": "consumer-sdk",
+        "apiPrefix": "/backend/v3/api",
+        "apiAuthority": "sdkwork-knowledgebase.backend",
+        "generatedTransportImportPolicy": "forbidden",
+        "packageByLanguage": {
+          "typescript": "@sdkwork/knowledgebase-backend-sdk",
+          "rust": "sdkwork-knowledgebase-backend-sdk",
+          "java": "com.sdkwork:sdkwork-knowledgebase-backend-sdk",
+          "python": "sdkwork-knowledgebase-backend-sdk",
+          "go": "github.com/sdkwork/sdkwork-knowledgebase-backend-sdk"
+        }
+      }
+    ],
+    "dependencyApiExports": [],
+    "dependencyApiSurfaces": [],
+    "events": [
+      "memory.space.created",
+      "memory.event.appended",
+      "memory.record.created",
+      "memory.record.updated",
+      "memory.record.deleted",
+      "memory.record.superseded",
+      "memory.candidate.created",
+      "memory.candidate.approved",
+      "memory.candidate.rejected",
+      "memory.habit.promoted",
+      "memory.habit.decayed",
+      "memory.index.rebuild_requested",
+      "memory.index.rebuild_completed",
+      "memory.context_pack.created",
+      "memory.retention.deleted",
+      "memory.provider.health_changed"
+    ],
+    "configKeys": []
+  },
+  "integration": {
+    "authority": "Root SDKWork specs remain authoritative. Local specs may extend but must not contradict them.",
+    "memoryPolicy": "Canonical mem_record and mem_event tables are the source of truth; all indexes are derived and rebuildable.",
+    "implementationPolicy": "Memory implementation profiles select native_sql, event_sourced, graph_temporal, search_first, local_embedded, external_provider_bridge, or hybrid_platform without changing app/backend API contracts.",
+    "embeddingPolicy": "Embedding is an optional retriever/index provider, not a required storage dependency.",
+    "sdkPolicy": "Generated SDK clients are consumed through generated SDKs or approved composed wrappers; no raw HTTP fallback."
+  },
+  "verification": {
+    "commands": [
+      "node tools/materialize_phase1_contracts.mjs",
+      "powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1"
+    ]
+  },
+  "metadata": {
+    "standardVersion": "2026-06-10",
+    "status": "draft",
+    "design": "docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md",
+    "managedBy": "tools/materialize_phase1_contracts.mjs"
+  }
+}

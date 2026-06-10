@@ -1,0 +1,75 @@
+module: memory
+owner: sdkwork-memory
+domain: intelligence
+bounded_context: memory-provider-policy
+description: Implementation profiles, provider bindings, and policy definitions for provider-switchable memory.
+tables:
+  - table: mem_implementation_profile
+    profile: dictionary_entity
+    compliance_level: L3
+    system_of_record: true
+    description: Selects the concrete Memory runtime implementation behind stable app/backend APIs.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: name, type: varchar(160), constraints: [required] }
+      - { name: implementation_kind, type: varchar(64), constraints: ["enum: [native_sql, event_sourced, graph_temporal, search_first, local_embedded, external_provider_bridge, hybrid_platform]"] }
+      - { name: role, type: varchar(32), constraints: ["enum: [primary, shadow, migration_source, migration_target, eval_only]"] }
+      - { name: status, type: varchar(32), constraints: ["enum: [draft, active, paused, deprecated, deleted]"] }
+      - { name: capability_json, type: json, constraints: [required] }
+      - { name: config_json, type: json, nullable: true }
+      - { name: rollout_json, type: json, nullable: true }
+      - { name: created_at, type: timestamp, constraints: [required] }
+      - { name: updated_at, type: timestamp, constraints: [required] }
+      - { name: version, type: bigint, constraints: [required, "min: 0"] }
+    indexes:
+      - { name: uk_mem_implementation_profile_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_mem_implementation_profile_kind, columns: [tenant_id, implementation_kind, status] }
+  - table: mem_provider_binding
+    profile: dictionary_entity
+    compliance_level: L3
+    system_of_record: true
+    description: Abstract binding for LLM, embedding, rerank, graph, search, file, and external memory providers. Secrets are referenced, never stored here.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: provider_kind, type: varchar(32), constraints: ["enum: [llm, embedding, rerank, vector, graph, search, file, memory, external]"] }
+      - { name: provider_code, type: varchar(128), constraints: [required] }
+      - { name: display_name, type: varchar(160), constraints: [required] }
+      - { name: endpoint_ref, type: varchar(256), nullable: true }
+      - { name: secret_ref, type: varchar(256), nullable: true }
+      - { name: model_ref, type: varchar(256), nullable: true }
+      - { name: capabilities_json, type: json, constraints: [required] }
+      - { name: config_json, type: json, nullable: true }
+      - { name: health_state, type: varchar(32), constraints: ["enum: [unknown, healthy, degraded, unhealthy, disabled]"] }
+      - { name: last_health_at, type: timestamp, nullable: true }
+      - { name: created_at, type: timestamp, constraints: [required] }
+      - { name: updated_at, type: timestamp, constraints: [required] }
+      - { name: version, type: bigint, constraints: [required, "min: 0"] }
+    indexes:
+      - { name: uk_mem_provider_binding_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: uk_mem_provider_binding_code, unique: true, columns: [tenant_id, provider_kind, provider_code] }
+      - { name: idx_mem_provider_binding_health, columns: [tenant_id, provider_kind, health_state, updated_at] }
+  - table: mem_policy
+    profile: dictionary_entity
+    compliance_level: L3
+    system_of_record: true
+    description: Retention, privacy, review, learning, retrieval, and provider governance policy.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: policy_type, type: varchar(64), constraints: ["enum: [retention, privacy, review, learning, retrieval, provider, export, deletion]"] }
+      - { name: scope, type: varchar(32), constraints: ["enum: [tenant, organization, user, space, app, agent, global]"] }
+      - { name: scope_ref, type: varchar(128), nullable: true }
+      - { name: status, type: varchar(32), constraints: ["enum: [active, disabled, deleted]"] }
+      - { name: policy_json, type: json, constraints: [required] }
+      - { name: created_at, type: timestamp, constraints: [required] }
+      - { name: updated_at, type: timestamp, constraints: [required] }
+      - { name: version, type: bigint, constraints: [required, "min: 0"] }
+    indexes:
+      - { name: uk_mem_policy_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_mem_policy_type_scope, columns: [tenant_id, policy_type, scope, status] }
+serialization: { int64: string, decimal: string, time: iso8601_utc }

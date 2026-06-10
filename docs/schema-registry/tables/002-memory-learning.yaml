@@ -1,0 +1,113 @@
+module: memory
+owner: sdkwork-memory
+domain: intelligence
+bounded_context: memory-learning
+description: Self-learning candidates, habit lifecycle, evidence signals, and learning jobs.
+tables:
+  - table: mem_candidate
+    profile: core_entity
+    compliance_level: L3
+    system_of_record: true
+    description: Reviewable memory candidate created by deterministic rules, LLM extraction, feedback, consolidation, or external provider import.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: space_id, type: bigint, constraints: [required], references: mem_space.id }
+      - { name: user_id, type: bigint, nullable: true }
+      - { name: candidate_type, type: varchar(32), constraints: ["enum: [create, update, delete, supersede, promote_habit, decay_habit]"] }
+      - { name: memory_type, type: varchar(32), constraints: ["enum: [semantic, episodic, procedural, habit, relationship, domain_knowledge]"] }
+      - { name: proposed_text, type: text, constraints: [required] }
+      - { name: proposed_payload_json, type: json, nullable: true }
+      - { name: target_memory_id, type: bigint, nullable: true, references: mem_record.id }
+      - { name: evidence_json, type: json, nullable: true }
+      - { name: confidence, type: decimal(5,4), constraints: ["range: 0..1"] }
+      - { name: novelty_score, type: decimal(5,4), nullable: true }
+      - { name: risk_score, type: decimal(5,4), nullable: true }
+      - { name: decision_state, type: varchar(32), constraints: ["enum: [pending, auto_approved, approved, rejected, expired, superseded]"] }
+      - { name: decision_reason, type: varchar(256), nullable: true }
+      - { name: decided_by, type: bigint, nullable: true }
+      - { name: decided_at, type: timestamp, nullable: true }
+      - { name: created_at, type: timestamp, constraints: [required] }
+      - { name: updated_at, type: timestamp, constraints: [required] }
+      - { name: version, type: bigint, constraints: [required, "min: 0"] }
+    indexes:
+      - { name: uk_mem_candidate_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_mem_candidate_state, columns: [tenant_id, space_id, decision_state, updated_at] }
+      - { name: idx_mem_candidate_target, columns: [tenant_id, target_memory_id] }
+  - table: mem_habit
+    profile: core_entity
+    compliance_level: L3
+    system_of_record: true
+    description: Habit-forming memory state promoted from repeated behavior signals and optional user confirmations.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: space_id, type: bigint, constraints: [required], references: mem_space.id }
+      - { name: user_id, type: bigint, constraints: [required] }
+      - { name: habit_key, type: varchar(160), constraints: [required] }
+      - { name: habit_type, type: varchar(64), constraints: [required] }
+      - { name: description, type: text, constraints: [required] }
+      - { name: stage, type: varchar(32), constraints: ["enum: [observing, emerging, confirmed, decaying, inactive, rejected]"] }
+      - { name: strength, type: decimal(5,4), constraints: ["range: 0..1"] }
+      - { name: confidence, type: decimal(5,4), constraints: ["range: 0..1"] }
+      - { name: support_count, type: int32, constraints: [required, "min: 0"] }
+      - { name: last_signal_at, type: timestamp, nullable: true }
+      - { name: promoted_memory_id, type: bigint, nullable: true, references: mem_record.id }
+      - { name: decay_after, type: timestamp, nullable: true }
+      - { name: metadata_json, type: json, nullable: true }
+      - { name: created_at, type: timestamp, constraints: [required] }
+      - { name: updated_at, type: timestamp, constraints: [required] }
+      - { name: version, type: bigint, constraints: [required, "min: 0"] }
+    indexes:
+      - { name: uk_mem_habit_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: uk_mem_habit_key, unique: true, columns: [tenant_id, space_id, user_id, habit_key] }
+      - { name: idx_mem_habit_stage, columns: [tenant_id, space_id, stage, confidence, updated_at] }
+  - table: mem_habit_signal
+    profile: event_log
+    compliance_level: L2
+    system_of_record: true
+    description: Evidence signal attached to habit scoring and promotion/decay decisions.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: habit_id, type: bigint, constraints: [required], references: mem_habit.id }
+      - { name: event_id, type: bigint, nullable: true, references: mem_event.id }
+      - { name: signal_type, type: varchar(64), constraints: [required] }
+      - { name: signal_strength, type: decimal(5,4), constraints: ["range: 0..1"] }
+      - { name: observed_at, type: timestamp, constraints: [required] }
+      - { name: payload_json, type: json, nullable: true }
+      - { name: created_at, type: timestamp, constraints: [required] }
+    indexes:
+      - { name: uk_mem_habit_signal_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_mem_habit_signal_habit, columns: [tenant_id, habit_id, observed_at] }
+      - { name: idx_mem_habit_signal_event, columns: [tenant_id, event_id] }
+  - table: mem_learning_job
+    profile: event_log
+    compliance_level: L2
+    system_of_record: true
+    description: Asynchronous extraction, consolidation, habit scoring, and review materialization job.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: space_id, type: bigint, nullable: true, references: mem_space.id }
+      - { name: job_type, type: varchar(64), constraints: ["enum: [extract, consolidate, habit_score, index_sync, retention, migration]"] }
+      - { name: state, type: varchar(32), constraints: ["enum: [queued, running, succeeded, failed, cancelled]"] }
+      - { name: priority, type: int32, constraints: [required] }
+      - { name: idempotency_key, type: varchar(128), nullable: true }
+      - { name: input_json, type: json, nullable: true }
+      - { name: result_json, type: json, nullable: true }
+      - { name: error_json, type: json, nullable: true }
+      - { name: started_at, type: timestamp, nullable: true }
+      - { name: finished_at, type: timestamp, nullable: true }
+      - { name: created_at, type: timestamp, constraints: [required] }
+      - { name: updated_at, type: timestamp, constraints: [required] }
+      - { name: version, type: bigint, constraints: [required, "min: 0"] }
+    indexes:
+      - { name: uk_mem_learning_job_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: uk_mem_learning_job_idempotency, unique: true, columns: [tenant_id, job_type, idempotency_key], predicate: "idempotency_key IS NOT NULL" }
+      - { name: idx_mem_learning_job_state, columns: [tenant_id, job_type, state, priority, created_at] }
+serialization: { int64: string, decimal: string, time: iso8601_utc }

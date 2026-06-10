@@ -1,0 +1,76 @@
+module: memory
+owner: sdkwork-memory
+domain: intelligence
+bounded_context: memory-governance
+description: Audit, evaluation, and outbox contracts for governed memory operations.
+tables:
+  - table: mem_audit_log
+    profile: audit_log
+    compliance_level: L3
+    system_of_record: true
+    description: Immutable audit log for memory read, write, provider, retention, export, deletion, and admin operations.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: actor_type, type: varchar(32), constraints: [required] }
+      - { name: actor_id, type: varchar(128), nullable: true }
+      - { name: action, type: varchar(128), constraints: [required] }
+      - { name: resource_type, type: varchar(64), constraints: [required] }
+      - { name: resource_id, type: varchar(128), nullable: true }
+      - { name: request_id, type: varchar(64), nullable: true }
+      - { name: trace_id, type: varchar(128), nullable: true }
+      - { name: result, type: varchar(32), constraints: ["enum: [success, denied, failed, partial]"] }
+      - { name: reason, type: varchar(256), nullable: true }
+      - { name: metadata_json, type: json, nullable: true }
+      - { name: created_at, type: timestamp, constraints: [required] }
+    indexes:
+      - { name: uk_mem_audit_log_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_mem_audit_actor_time, columns: [tenant_id, actor_type, actor_id, created_at] }
+      - { name: idx_mem_audit_resource_time, columns: [tenant_id, resource_type, resource_id, created_at] }
+      - { name: idx_mem_audit_action_time, columns: [tenant_id, action, created_at] }
+  - table: mem_eval_run
+    profile: event_log
+    compliance_level: L2
+    system_of_record: true
+    description: Offline or online evaluation run for write quality, retrieval quality, habit quality, and provider switching.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: eval_type, type: varchar(64), constraints: ["enum: [write_quality, retrieval_quality, habit_quality, provider_switch, regression]"] }
+      - { name: state, type: varchar(32), constraints: ["enum: [queued, running, succeeded, failed, cancelled]"] }
+      - { name: dataset_ref, type: varchar(256), nullable: true }
+      - { name: profile_ref, type: varchar(256), nullable: true }
+      - { name: metrics_json, type: json, nullable: true }
+      - { name: result_json, type: json, nullable: true }
+      - { name: started_at, type: timestamp, nullable: true }
+      - { name: finished_at, type: timestamp, nullable: true }
+      - { name: created_at, type: timestamp, constraints: [required] }
+      - { name: updated_at, type: timestamp, constraints: [required] }
+    indexes:
+      - { name: uk_mem_eval_run_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_mem_eval_run_type_state, columns: [tenant_id, eval_type, state, created_at] }
+  - table: mem_outbox_event
+    profile: outbox_event
+    compliance_level: L3
+    system_of_record: true
+    description: Transactional outbox for memory.* domain events.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: aggregate_type, type: varchar(64), constraints: [required] }
+      - { name: aggregate_id, type: varchar(128), constraints: [required] }
+      - { name: event_type, type: varchar(128), constraints: [required] }
+      - { name: event_version, type: varchar(32), constraints: [required] }
+      - { name: payload_json, type: json, constraints: [required] }
+      - { name: publish_state, type: varchar(32), constraints: ["enum: [pending, published, failed, skipped]"] }
+      - { name: published_at, type: timestamp, nullable: true }
+      - { name: retry_count, type: int32, constraints: [required, "min: 0"] }
+      - { name: created_at, type: timestamp, constraints: [required] }
+      - { name: updated_at, type: timestamp, constraints: [required] }
+    indexes:
+      - { name: uk_mem_outbox_event_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_mem_outbox_state, columns: [tenant_id, publish_state, created_at] }
+serialization: { int64: string, decimal: string, time: iso8601_utc }
