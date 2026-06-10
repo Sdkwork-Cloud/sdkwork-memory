@@ -1,6 +1,8 @@
 use std::fs;
 
-use sdkwork_memory_plugin_native_sql::{build_native_sql_record_store, native_sql_manifest};
+use sdkwork_memory_plugin_native_sql::{
+    build_native_sql_event_store, build_native_sql_record_store, native_sql_manifest,
+};
 use sdkwork_memory_spi::{MemoryImplementationKind, MemoryPluginManifest};
 
 #[test]
@@ -34,5 +36,31 @@ fn manifest_record_store_builder_is_exported_by_plugin_crate() {
         .iter()
         .any(|export| export.builder == builder.builder_name));
     assert_eq!(builder.port_name, "MemoryRecordStorePort");
-    assert!(!builder.ready);
+    assert!(builder.ready);
+}
+
+#[test]
+fn manifest_event_store_builder_is_exported_by_plugin_crate() {
+    let manifest = native_sql_manifest();
+    let builder = build_native_sql_event_store();
+
+    assert!(manifest
+        .port_exports
+        .iter()
+        .any(|export| export.builder == builder.builder_name));
+    assert_eq!(builder.port_name, "MemoryEventStorePort");
+    assert!(builder.ready);
+}
+
+#[test]
+fn manifest_declares_record_and_event_store_ports() {
+    let manifest = native_sql_manifest();
+    let ports = manifest
+        .port_exports
+        .iter()
+        .map(|export| export.port.as_str())
+        .collect::<Vec<_>>();
+
+    assert!(ports.contains(&"MemoryRecordStorePort"));
+    assert!(ports.contains(&"MemoryEventStorePort"));
 }

@@ -35,14 +35,18 @@ fn registry_validates_required_port_exports_before_runtime_serves() {
     registry
         .validate_required_ports(
             "sdkwork-memory-plugin-native-sql",
-            &["MemoryRecordStorePort"],
+            &["MemoryRecordStorePort", "MemoryEventStorePort"],
         )
         .unwrap();
 
     let err = registry
         .validate_required_ports(
             "sdkwork-memory-plugin-native-sql",
-            &["MemoryRecordStorePort", "MemoryEventStorePort"],
+            &[
+                "MemoryRecordStorePort",
+                "MemoryEventStorePort",
+                "MemoryPolicyStorePort",
+            ],
         )
         .unwrap_err();
     assert!(matches!(err, MemorySpiError::RequiredPortMissing { .. }));

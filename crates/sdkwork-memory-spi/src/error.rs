@@ -12,4 +12,6 @@ pub enum MemorySpiError {
     PluginNotFound(String),
     #[error("memory plugin {plugin_id} is missing required port {port}")]
     RequiredPortMissing { plugin_id: String, port: String },
+    #[error("memory plugin port {port} operation failed: {message}")]
+    PortOperationFailed { port: String, message: String },
 }

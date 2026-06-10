@@ -13,6 +13,10 @@
     {
       "port": "MemoryRecordStorePort",
       "builder": "build_native_sql_record_store"
+    },
+    {
+      "port": "MemoryEventStorePort",
+      "builder": "build_native_sql_event_store"
     }
   ],
   "providerKinds": [],

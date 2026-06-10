@@ -18,7 +18,10 @@ impl MemoryImplementationProfileDraft {
             profile_id: "native-sql-phase1".to_string(),
             implementation_kind: MemoryImplementationKind::NativeSql,
             primary_plugin_id: "sdkwork-memory-plugin-native-sql".to_string(),
-            required_ports: vec!["MemoryRecordStorePort".to_string()],
+            required_ports: vec![
+                "MemoryRecordStorePort".to_string(),
+                "MemoryEventStorePort".to_string(),
+            ],
             safe_config_json: Value::Object(Default::default()),
         }
     }

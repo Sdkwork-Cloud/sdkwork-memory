@@ -114,10 +114,16 @@ impl MemoryPluginManifest {
                 MemoryDeploymentMode::Local,
                 MemoryDeploymentMode::Test,
             ],
-            port_exports: vec![MemoryPluginPortExport {
-                port: "MemoryRecordStorePort".to_string(),
-                builder: "build_native_sql_record_store".to_string(),
-            }],
+            port_exports: vec![
+                MemoryPluginPortExport {
+                    port: "MemoryRecordStorePort".to_string(),
+                    builder: "build_native_sql_record_store".to_string(),
+                },
+                MemoryPluginPortExport {
+                    port: "MemoryEventStorePort".to_string(),
+                    builder: "build_native_sql_event_store".to_string(),
+                },
+            ],
             provider_kinds: vec![],
             retriever_kinds: vec![
                 MemoryRetrieverKind::Sql,

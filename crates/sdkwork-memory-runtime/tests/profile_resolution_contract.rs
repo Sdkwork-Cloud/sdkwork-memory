@@ -45,7 +45,7 @@ fn profile_fails_before_serving_when_required_port_is_missing() {
     let mut profile = MemoryImplementationProfileDraft::native_sql_phase1();
     profile
         .required_ports
-        .push("MemoryEventStorePort".to_string());
+        .push("MemoryPolicyStorePort".to_string());
 
     let err = MemoryRuntimeProfileResolver::new(&registry)
         .resolve(profile)

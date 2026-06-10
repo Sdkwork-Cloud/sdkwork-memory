@@ -17,6 +17,14 @@ pub fn build_native_sql_record_store() -> NativeSqlPortBuilder {
     NativeSqlPortBuilder {
         port_name: "MemoryRecordStorePort",
         builder_name: "build_native_sql_record_store",
-        ready: false,
+        ready: true,
+    }
+}
+
+pub fn build_native_sql_event_store() -> NativeSqlPortBuilder {
+    NativeSqlPortBuilder {
+        port_name: "MemoryEventStorePort",
+        builder_name: "build_native_sql_event_store",
+        ready: true,
     }
 }
