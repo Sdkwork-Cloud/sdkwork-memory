@@ -200,6 +200,14 @@ export interface MemoryAuditStorePort {
   list(query: ListMemoryAuditQuery): Promise<Page<MemoryAuditRecord>>;
 }
 
+export interface MemoryOutboxStorePort {
+  append(command: AppendMemoryOutboxCommand): Promise<MemoryOutboxEvent>;
+  retrieve(query: RetrieveMemoryOutboxQuery): Promise<MemoryOutboxEvent | null>;
+  listPending(query: ListPendingMemoryOutboxQuery): Promise<Page<MemoryOutboxEvent>>;
+  markPublished(command: MarkMemoryOutboxPublishedCommand): Promise<MemoryOutboxEvent>;
+  markFailed(command: MarkMemoryOutboxFailedCommand): Promise<MemoryOutboxEvent>;
+}
+
 export interface MemoryPolicyStorePort {
   resolvePolicy(query: ResolveMemoryPolicyQuery): Promise<ResolvedMemoryPolicy>;
   upsertPolicy(command: UpsertMemoryPolicyCommand): Promise<MemoryPolicy>;
@@ -401,8 +409,16 @@ Example:
       "builder": "build_native_sql_record_store"
     },
     {
-      "port": "MemoryRetrieverPort",
-      "builder": "build_native_sql_retrievers"
+      "port": "MemoryEventStorePort",
+      "builder": "build_native_sql_event_store"
+    },
+    {
+      "port": "MemoryAuditStorePort",
+      "builder": "build_native_sql_audit_store"
+    },
+    {
+      "port": "MemoryOutboxStorePort",
+      "builder": "build_native_sql_outbox_store"
     }
   ],
   "providerKinds": [],
@@ -417,6 +433,7 @@ Example:
     "habitLearning": true,
     "deletionPropagation": true,
     "auditLog": true,
+    "outboxLog": true,
     "embeddingRequired": false
   },
   "degradation": {

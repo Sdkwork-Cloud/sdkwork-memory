@@ -87,6 +87,35 @@ pub struct RetrieveMemoryAuditQuery {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryOutboxEvent {
+    pub outbox_id: String,
+    pub aggregate_type: String,
+    pub aggregate_id: String,
+    pub event_type: String,
+    pub event_version: String,
+    pub payload_json: String,
+    pub publish_state: String,
+    pub retry_count: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppendMemoryOutboxCommand {
+    pub scope: MemoryScopeContext,
+    pub outbox_id: String,
+    pub aggregate_type: String,
+    pub aggregate_id: String,
+    pub event_type: String,
+    pub event_version: String,
+    pub payload_json: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetrieveMemoryOutboxQuery {
+    pub scope: MemoryScopeContext,
+    pub outbox_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemoryPolicy {
     pub policy_code: String,
 }
@@ -208,6 +237,19 @@ pub trait MemoryAuditStorePort: Send + Sync {
         &self,
         query: RetrieveMemoryAuditQuery,
     ) -> MemorySpiResult<Option<MemoryAuditRecord>>;
+}
+
+#[async_trait]
+pub trait MemoryOutboxStorePort: Send + Sync {
+    async fn append(
+        &self,
+        command: AppendMemoryOutboxCommand,
+    ) -> MemorySpiResult<MemoryOutboxEvent>;
+
+    async fn retrieve(
+        &self,
+        query: RetrieveMemoryOutboxQuery,
+    ) -> MemorySpiResult<Option<MemoryOutboxEvent>>;
 }
 
 #[async_trait]

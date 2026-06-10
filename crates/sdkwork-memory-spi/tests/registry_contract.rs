@@ -39,6 +39,7 @@ fn registry_validates_required_port_exports_before_runtime_serves() {
                 "MemoryRecordStorePort",
                 "MemoryEventStorePort",
                 "MemoryAuditStorePort",
+                "MemoryOutboxStorePort",
             ],
         )
         .unwrap();
@@ -50,6 +51,7 @@ fn registry_validates_required_port_exports_before_runtime_serves() {
                 "MemoryRecordStorePort",
                 "MemoryEventStorePort",
                 "MemoryAuditStorePort",
+                "MemoryOutboxStorePort",
                 "MemoryPolicyStorePort",
             ],
         )

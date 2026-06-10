@@ -6,10 +6,10 @@ use sdkwork_memory_spi::{
     ExternalMemoryImportResult, ExternalMemoryShadowReadCommand, ExternalMemoryShadowReadResult,
     LanguageModelCommand, LanguageModelPort, MemoryAuditRecord, MemoryAuditStorePort,
     MemoryContextAssemblerPort, MemoryContextPackDraft, MemoryEvalRunResult, MemoryEvaluationPort,
-    MemoryEvent, MemoryEventStorePort, MemoryIndexPort, MemoryIndexReceipt, MemoryPolicy,
-    MemoryPolicyStorePort, MemoryRecord, MemoryRecordStorePort, MemoryRetrieverPort,
-    MemoryRetrieverResult, RerankMemoryHitsCommand, RerankMemoryHitsResult, RerankModelPort,
-    RetrieveMemoryCandidatesCommand, RunMemoryEvalCommand,
+    MemoryEvent, MemoryEventStorePort, MemoryIndexPort, MemoryIndexReceipt, MemoryOutboxEvent,
+    MemoryOutboxStorePort, MemoryPolicy, MemoryPolicyStorePort, MemoryRecord,
+    MemoryRecordStorePort, MemoryRetrieverPort, MemoryRetrieverResult, RerankMemoryHitsCommand,
+    RerankMemoryHitsResult, RerankModelPort, RetrieveMemoryCandidatesCommand, RunMemoryEvalCommand,
 };
 
 struct FakePorts;
@@ -85,6 +85,41 @@ impl MemoryAuditStorePort for FakePorts {
             resource_type: "mem_audit_log".to_string(),
             resource_id: "audit".to_string(),
             result: "success".to_string(),
+        }))
+    }
+}
+
+#[async_trait]
+impl MemoryOutboxStorePort for FakePorts {
+    async fn append(
+        &self,
+        command: sdkwork_memory_spi::AppendMemoryOutboxCommand,
+    ) -> sdkwork_memory_spi::MemorySpiResult<MemoryOutboxEvent> {
+        Ok(MemoryOutboxEvent {
+            outbox_id: command.outbox_id,
+            aggregate_type: command.aggregate_type,
+            aggregate_id: command.aggregate_id,
+            event_type: command.event_type,
+            event_version: command.event_version,
+            payload_json: command.payload_json,
+            publish_state: "pending".to_string(),
+            retry_count: 0,
+        })
+    }
+
+    async fn retrieve(
+        &self,
+        query: sdkwork_memory_spi::RetrieveMemoryOutboxQuery,
+    ) -> sdkwork_memory_spi::MemorySpiResult<Option<MemoryOutboxEvent>> {
+        Ok(Some(MemoryOutboxEvent {
+            outbox_id: query.outbox_id,
+            aggregate_type: "mem_record".to_string(),
+            aggregate_id: "rec-1".to_string(),
+            event_type: "memory.record.created".to_string(),
+            event_version: "1".to_string(),
+            payload_json: r#"{"memoryId":"rec-1"}"#.to_string(),
+            publish_state: "pending".to_string(),
+            retry_count: 0,
         }))
     }
 }
@@ -240,6 +275,7 @@ fn spi_ports_are_provider_neutral_and_implementation_friendly() {
         T: MemoryRecordStorePort
             + MemoryEventStorePort
             + MemoryAuditStorePort
+            + MemoryOutboxStorePort
             + MemoryPolicyStorePort
             + MemoryRetrieverPort
             + MemoryIndexPort

@@ -1,9 +1,11 @@
 use async_trait::async_trait;
 use sdkwork_memory_spi::{
-    AppendMemoryAuditCommand, AppendMemoryEventCommand, CreateMemoryRecordCommand,
-    MemoryAuditRecord, MemoryAuditStorePort, MemoryEvent, MemoryEventStorePort, MemoryRecord,
+    AppendMemoryAuditCommand, AppendMemoryEventCommand, AppendMemoryOutboxCommand,
+    CreateMemoryRecordCommand, MemoryAuditRecord, MemoryAuditStorePort, MemoryEvent,
+    MemoryEventStorePort, MemoryOutboxEvent, MemoryOutboxStorePort, MemoryRecord,
     MemoryRecordStorePort, MemoryScopeContext, MemorySpiError, MemorySpiResult,
-    RetrieveMemoryAuditQuery, RetrieveMemoryEventQuery, RetrieveMemoryRecordQuery,
+    RetrieveMemoryAuditQuery, RetrieveMemoryEventQuery, RetrieveMemoryOutboxQuery,
+    RetrieveMemoryRecordQuery,
 };
 use serde_json::Value;
 use sqlx::{Row, SqlitePool};
@@ -267,6 +269,115 @@ impl NativeSqlMemoryStore {
         }))
     }
 
+    pub async fn append_outbox_event(
+        &self,
+        scope: &MemoryScopeContext,
+        outbox_id: &str,
+        aggregate_type: &str,
+        aggregate_id: &str,
+        event_type: &str,
+        event_version: &str,
+        payload_json: &str,
+    ) -> Result<NativeSqlMemoryOutboxEvent, NativeSqlStoreError> {
+        let _payload: Value = serde_json::from_str(payload_json)?;
+
+        if let Some(existing) = self
+            .retrieve_outbox_idempotency_state(scope, outbox_id)
+            .await?
+        {
+            if existing.aggregate_type == aggregate_type
+                && existing.aggregate_id == aggregate_id
+                && existing.event_type == event_type
+                && existing.event_version == event_version
+                && existing.payload_json == payload_json
+            {
+                return Ok(existing.into_outbox_event(outbox_id));
+            }
+
+            return Err(NativeSqlStoreError::OutboxConflict {
+                tenant_id: scope.tenant_id,
+                outbox_id: outbox_id.to_string(),
+            });
+        }
+
+        sqlx::query(
+            r#"
+            INSERT INTO mem_outbox_event (
+              uuid,
+              tenant_id,
+              aggregate_type,
+              aggregate_id,
+              event_type,
+              event_version,
+              payload_json,
+              publish_state,
+              created_at,
+              updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+            "#,
+        )
+        .bind(outbox_id)
+        .bind(scope.tenant_id)
+        .bind(aggregate_type)
+        .bind(aggregate_id)
+        .bind(event_type)
+        .bind(event_version)
+        .bind(payload_json)
+        .bind(now_text())
+        .bind(now_text())
+        .execute(&self.pool)
+        .await?;
+
+        Ok(NativeSqlMemoryOutboxEvent {
+            outbox_id: outbox_id.to_string(),
+            aggregate_type: aggregate_type.to_string(),
+            aggregate_id: aggregate_id.to_string(),
+            event_type: event_type.to_string(),
+            event_version: event_version.to_string(),
+            payload_json: payload_json.to_string(),
+            publish_state: "pending".to_string(),
+            retry_count: 0,
+        })
+    }
+
+    pub async fn retrieve_outbox_event(
+        &self,
+        scope: &MemoryScopeContext,
+        outbox_id: &str,
+    ) -> Result<Option<NativeSqlMemoryOutboxEvent>, NativeSqlStoreError> {
+        let row = sqlx::query(
+            r#"
+            SELECT
+              uuid,
+              aggregate_type,
+              aggregate_id,
+              event_type,
+              event_version,
+              payload_json,
+              publish_state,
+              retry_count
+            FROM mem_outbox_event
+            WHERE tenant_id = ? AND uuid = ?
+            "#,
+        )
+        .bind(scope.tenant_id)
+        .bind(outbox_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|row| NativeSqlMemoryOutboxEvent {
+            outbox_id: row.get("uuid"),
+            aggregate_type: row.get("aggregate_type"),
+            aggregate_id: row.get("aggregate_id"),
+            event_type: row.get("event_type"),
+            event_version: row.get("event_version"),
+            payload_json: row.get("payload_json"),
+            publish_state: row.get("publish_state"),
+            retry_count: row.get("retry_count"),
+        }))
+    }
+
     async fn apply_sqlite_phase1_migration(&self) -> Result<(), NativeSqlStoreError> {
         let migration = include_str!("../migrations/sqlite/V202606100001__memory_phase1.sql");
         for statement in migration.split(';') {
@@ -299,6 +410,41 @@ impl NativeSqlMemoryStore {
             space_id: row.get("space_id"),
             payload_json: row.get("payload_json"),
             payload_hash: row.get("payload_hash"),
+        }))
+    }
+
+    async fn retrieve_outbox_idempotency_state(
+        &self,
+        scope: &MemoryScopeContext,
+        outbox_id: &str,
+    ) -> Result<Option<NativeSqlOutboxIdempotencyState>, NativeSqlStoreError> {
+        let row = sqlx::query(
+            r#"
+            SELECT
+              aggregate_type,
+              aggregate_id,
+              event_type,
+              event_version,
+              payload_json,
+              publish_state,
+              retry_count
+            FROM mem_outbox_event
+            WHERE tenant_id = ? AND uuid = ?
+            "#,
+        )
+        .bind(scope.tenant_id)
+        .bind(outbox_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|row| NativeSqlOutboxIdempotencyState {
+            aggregate_type: row.get("aggregate_type"),
+            aggregate_id: row.get("aggregate_id"),
+            event_type: row.get("event_type"),
+            event_version: row.get("event_version"),
+            payload_json: row.get("payload_json"),
+            publish_state: row.get("publish_state"),
+            retry_count: row.get("retry_count"),
         }))
     }
 
@@ -439,6 +585,59 @@ impl MemoryAuditStorePort for NativeSqlMemoryStore {
     }
 }
 
+#[async_trait]
+impl MemoryOutboxStorePort for NativeSqlMemoryStore {
+    async fn append(
+        &self,
+        command: AppendMemoryOutboxCommand,
+    ) -> MemorySpiResult<MemoryOutboxEvent> {
+        let outbox = self
+            .append_outbox_event(
+                &command.scope,
+                &command.outbox_id,
+                &command.aggregate_type,
+                &command.aggregate_id,
+                &command.event_type,
+                &command.event_version,
+                &command.payload_json,
+            )
+            .await
+            .map_err(|err| port_error("MemoryOutboxStorePort", err))?;
+
+        Ok(MemoryOutboxEvent {
+            outbox_id: outbox.outbox_id,
+            aggregate_type: outbox.aggregate_type,
+            aggregate_id: outbox.aggregate_id,
+            event_type: outbox.event_type,
+            event_version: outbox.event_version,
+            payload_json: outbox.payload_json,
+            publish_state: outbox.publish_state,
+            retry_count: outbox.retry_count,
+        })
+    }
+
+    async fn retrieve(
+        &self,
+        query: RetrieveMemoryOutboxQuery,
+    ) -> MemorySpiResult<Option<MemoryOutboxEvent>> {
+        let outbox = self
+            .retrieve_outbox_event(&query.scope, &query.outbox_id)
+            .await
+            .map_err(|err| port_error("MemoryOutboxStorePort", err))?;
+
+        Ok(outbox.map(|outbox| MemoryOutboxEvent {
+            outbox_id: outbox.outbox_id,
+            aggregate_type: outbox.aggregate_type,
+            aggregate_id: outbox.aggregate_id,
+            event_type: outbox.event_type,
+            event_version: outbox.event_version,
+            payload_json: outbox.payload_json,
+            publish_state: outbox.publish_state,
+            retry_count: outbox.retry_count,
+        }))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeSqlMemoryEvent {
     pub event_id: String,
@@ -460,6 +659,18 @@ pub struct NativeSqlMemoryAuditRecord {
     pub result: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeSqlMemoryOutboxEvent {
+    pub outbox_id: String,
+    pub aggregate_type: String,
+    pub aggregate_id: String,
+    pub event_type: String,
+    pub event_version: String,
+    pub payload_json: String,
+    pub publish_state: String,
+    pub retry_count: i64,
+}
+
 #[derive(Debug, Error)]
 pub enum NativeSqlStoreError {
     #[error("native SQL store database error: {0}")]
@@ -468,6 +679,8 @@ pub enum NativeSqlStoreError {
     Json(#[from] serde_json::Error),
     #[error("native SQL event append conflict for tenant {tenant_id} event {event_id}")]
     EventConflict { tenant_id: i64, event_id: String },
+    #[error("native SQL outbox append conflict for tenant {tenant_id} outbox event {outbox_id}")]
+    OutboxConflict { tenant_id: i64, outbox_id: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -475,6 +688,32 @@ struct NativeSqlEventIdempotencyState {
     space_id: i64,
     payload_json: String,
     payload_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NativeSqlOutboxIdempotencyState {
+    aggregate_type: String,
+    aggregate_id: String,
+    event_type: String,
+    event_version: String,
+    payload_json: String,
+    publish_state: String,
+    retry_count: i64,
+}
+
+impl NativeSqlOutboxIdempotencyState {
+    fn into_outbox_event(self, outbox_id: &str) -> NativeSqlMemoryOutboxEvent {
+        NativeSqlMemoryOutboxEvent {
+            outbox_id: outbox_id.to_string(),
+            aggregate_type: self.aggregate_type,
+            aggregate_id: self.aggregate_id,
+            event_type: self.event_type,
+            event_version: self.event_version,
+            payload_json: self.payload_json,
+            publish_state: self.publish_state,
+            retry_count: self.retry_count,
+        }
+    }
 }
 
 fn now_text() -> &'static str {
@@ -498,6 +737,11 @@ fn port_error(port: &str, error: NativeSqlStoreError) -> MemorySpiError {
     if let NativeSqlStoreError::EventConflict { event_id, .. } = error {
         return MemorySpiError::IdempotencyConflict {
             idempotency_key: event_id,
+        };
+    }
+    if let NativeSqlStoreError::OutboxConflict { outbox_id, .. } = error {
+        return MemorySpiError::IdempotencyConflict {
+            idempotency_key: outbox_id,
         };
     }
 

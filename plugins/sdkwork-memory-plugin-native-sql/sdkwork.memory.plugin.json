@@ -21,6 +21,10 @@
     {
       "port": "MemoryAuditStorePort",
       "builder": "build_native_sql_audit_store"
+    },
+    {
+      "port": "MemoryOutboxStorePort",
+      "builder": "build_native_sql_outbox_store"
     }
   ],
   "providerKinds": [],
@@ -36,6 +40,7 @@
     "habitLearning": true,
     "deletionPropagation": true,
     "auditLog": true,
+    "outboxLog": true,
     "embeddingRequired": false
   },
   "degradation": {

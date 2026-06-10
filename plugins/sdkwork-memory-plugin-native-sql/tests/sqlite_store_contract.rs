@@ -1,8 +1,9 @@
 use sdkwork_memory_plugin_native_sql::{NativeSqlMemoryStore, NativeSqlStoreError};
 use sdkwork_memory_spi::{
-    AppendMemoryAuditCommand, AppendMemoryEventCommand, CreateMemoryRecordCommand,
-    MemoryAuditStorePort, MemoryEventStorePort, MemoryRecordStorePort, MemoryScopeContext,
-    MemorySpiError, RetrieveMemoryAuditQuery, RetrieveMemoryEventQuery, RetrieveMemoryRecordQuery,
+    AppendMemoryAuditCommand, AppendMemoryEventCommand, AppendMemoryOutboxCommand,
+    CreateMemoryRecordCommand, MemoryAuditStorePort, MemoryEventStorePort, MemoryOutboxStorePort,
+    MemoryRecordStorePort, MemoryScopeContext, MemorySpiError, RetrieveMemoryAuditQuery,
+    RetrieveMemoryEventQuery, RetrieveMemoryOutboxQuery, RetrieveMemoryRecordQuery,
 };
 
 #[tokio::test]
@@ -394,4 +395,205 @@ async fn sqlite_store_implements_audit_store_spi_port() {
     assert_eq!(retrieved.resource_type, "mem_event");
     assert_eq!(retrieved.resource_id, "evt-spi");
     assert_eq!(retrieved.result, "success");
+}
+
+#[tokio::test]
+async fn sqlite_store_appends_and_retrieves_outbox_events_by_tenant_scope() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let tenant_one = MemoryScopeContext::for_test(1, 1);
+    let tenant_two = MemoryScopeContext::for_test(2, 2);
+
+    store
+        .append_outbox_event(
+            &tenant_one,
+            "out-shared",
+            "mem_record",
+            "rec-1",
+            "memory.record.created",
+            "1",
+            r#"{"memoryId":"rec-1"}"#,
+        )
+        .await
+        .unwrap();
+    store
+        .append_outbox_event(
+            &tenant_two,
+            "out-shared",
+            "mem_record",
+            "rec-2",
+            "memory.record.created",
+            "1",
+            r#"{"memoryId":"rec-2"}"#,
+        )
+        .await
+        .unwrap();
+
+    let tenant_one_outbox = store
+        .retrieve_outbox_event(&tenant_one, "out-shared")
+        .await
+        .unwrap()
+        .unwrap();
+    let tenant_two_outbox = store
+        .retrieve_outbox_event(&tenant_two, "out-shared")
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(tenant_one_outbox.aggregate_id, "rec-1");
+    assert_eq!(tenant_one_outbox.publish_state, "pending");
+    assert_eq!(tenant_one_outbox.retry_count, 0);
+    assert_eq!(tenant_two_outbox.aggregate_id, "rec-2");
+    assert!(store
+        .retrieve_outbox_event(&MemoryScopeContext::for_test(3, 3), "out-shared")
+        .await
+        .unwrap()
+        .is_none());
+}
+
+#[tokio::test]
+async fn sqlite_store_outbox_append_is_idempotent_for_same_tenant_event_and_payload() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let scope = MemoryScopeContext::for_test(1, 1);
+
+    store
+        .append_outbox_event(
+            &scope,
+            "out-idempotent",
+            "mem_record",
+            "rec-1",
+            "memory.record.created",
+            "1",
+            r#"{"memoryId":"rec-1"}"#,
+        )
+        .await
+        .unwrap();
+    store
+        .append_outbox_event(
+            &scope,
+            "out-idempotent",
+            "mem_record",
+            "rec-1",
+            "memory.record.created",
+            "1",
+            r#"{"memoryId":"rec-1"}"#,
+        )
+        .await
+        .unwrap();
+
+    let outbox = store
+        .retrieve_outbox_event(&scope, "out-idempotent")
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(outbox.aggregate_id, "rec-1");
+}
+
+#[tokio::test]
+async fn sqlite_store_outbox_append_rejects_same_tenant_event_with_different_payload() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let scope = MemoryScopeContext::for_test(1, 1);
+
+    store
+        .append_outbox_event(
+            &scope,
+            "out-conflict",
+            "mem_record",
+            "rec-1",
+            "memory.record.created",
+            "1",
+            r#"{"memoryId":"rec-1"}"#,
+        )
+        .await
+        .unwrap();
+    let err = store
+        .append_outbox_event(
+            &scope,
+            "out-conflict",
+            "mem_record",
+            "rec-1",
+            "memory.record.created",
+            "1",
+            r#"{"memoryId":"rec-other"}"#,
+        )
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, NativeSqlStoreError::OutboxConflict { .. }));
+}
+
+#[tokio::test]
+async fn sqlite_store_implements_outbox_store_spi_port() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let scope = MemoryScopeContext::for_test(1, 1);
+
+    let outbox = MemoryOutboxStorePort::append(
+        &store,
+        AppendMemoryOutboxCommand {
+            scope: scope.clone(),
+            outbox_id: "out-spi".to_string(),
+            aggregate_type: "mem_event".to_string(),
+            aggregate_id: "evt-spi".to_string(),
+            event_type: "memory.event.appended".to_string(),
+            event_version: "1".to_string(),
+            payload_json: r#"{"eventId":"evt-spi"}"#.to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let retrieved = MemoryOutboxStorePort::retrieve(
+        &store,
+        RetrieveMemoryOutboxQuery {
+            scope,
+            outbox_id: "out-spi".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+
+    assert_eq!(outbox.outbox_id, "out-spi");
+    assert_eq!(retrieved.aggregate_type, "mem_event");
+    assert_eq!(retrieved.aggregate_id, "evt-spi");
+    assert_eq!(retrieved.event_type, "memory.event.appended");
+    assert_eq!(retrieved.event_version, "1");
+    assert_eq!(retrieved.payload_json, r#"{"eventId":"evt-spi"}"#);
+    assert_eq!(retrieved.publish_state, "pending");
+}
+
+#[tokio::test]
+async fn sqlite_store_spi_outbox_append_maps_idempotency_conflict_to_spi_conflict() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let scope = MemoryScopeContext::for_test(1, 1);
+
+    MemoryOutboxStorePort::append(
+        &store,
+        AppendMemoryOutboxCommand {
+            scope: scope.clone(),
+            outbox_id: "out-spi-conflict".to_string(),
+            aggregate_type: "mem_record".to_string(),
+            aggregate_id: "rec-1".to_string(),
+            event_type: "memory.record.created".to_string(),
+            event_version: "1".to_string(),
+            payload_json: r#"{"memoryId":"rec-1"}"#.to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let err = MemoryOutboxStorePort::append(
+        &store,
+        AppendMemoryOutboxCommand {
+            scope,
+            outbox_id: "out-spi-conflict".to_string(),
+            aggregate_type: "mem_record".to_string(),
+            aggregate_id: "rec-1".to_string(),
+            event_type: "memory.record.created".to_string(),
+            event_version: "1".to_string(),
+            payload_json: r#"{"memoryId":"rec-other"}"#.to_string(),
+        },
+    )
+    .await
+    .unwrap_err();
+
+    assert!(matches!(err, MemorySpiError::IdempotencyConflict { .. }));
 }

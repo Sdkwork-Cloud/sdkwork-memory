@@ -100,6 +100,11 @@ impl MemoryPluginManifest {
             "MemoryAuditStorePort",
             "auditLog",
         )?;
+        self.require_capability_port(
+            self.capabilities.outbox_log,
+            "MemoryOutboxStorePort",
+            "outboxLog",
+        )?;
 
         Ok(())
     }
@@ -163,6 +168,10 @@ impl MemoryPluginManifest {
                     port: "MemoryAuditStorePort".to_string(),
                     builder: "build_native_sql_audit_store".to_string(),
                 },
+                MemoryPluginPortExport {
+                    port: "MemoryOutboxStorePort".to_string(),
+                    builder: "build_native_sql_outbox_store".to_string(),
+                },
             ],
             provider_kinds: vec![],
             retriever_kinds: vec![
@@ -193,6 +202,7 @@ impl MemoryPluginManifest {
                 habit_learning: true,
                 deletion_propagation: true,
                 audit_log: true,
+                outbox_log: true,
                 embedding_required: false,
             },
             degradation: MemoryPluginDegradationPolicy {
@@ -323,6 +333,7 @@ pub struct MemoryPluginCapabilities {
     pub habit_learning: bool,
     pub deletion_propagation: bool,
     pub audit_log: bool,
+    pub outbox_log: bool,
     pub embedding_required: bool,
 }
 

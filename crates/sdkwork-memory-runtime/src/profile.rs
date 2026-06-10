@@ -22,6 +22,7 @@ impl MemoryImplementationProfileDraft {
                 "MemoryRecordStorePort".to_string(),
                 "MemoryEventStorePort".to_string(),
                 "MemoryAuditStorePort".to_string(),
+                "MemoryOutboxStorePort".to_string(),
             ],
             safe_config_json: Value::Object(Default::default()),
         }

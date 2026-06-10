@@ -36,3 +36,11 @@ pub fn build_native_sql_audit_store() -> NativeSqlPortBuilder {
         ready: true,
     }
 }
+
+pub fn build_native_sql_outbox_store() -> NativeSqlPortBuilder {
+    NativeSqlPortBuilder {
+        port_name: "MemoryOutboxStorePort",
+        builder_name: "build_native_sql_outbox_store",
+        ready: true,
+    }
+}

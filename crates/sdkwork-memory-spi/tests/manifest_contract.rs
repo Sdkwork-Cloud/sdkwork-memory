@@ -17,7 +17,8 @@ fn native_sql_manifest_deserializes_and_declares_no_embedding_baseline() {
           "portExports": [
             {"port": "MemoryRecordStorePort", "builder": "build_native_sql_record_store"},
             {"port": "MemoryEventStorePort", "builder": "build_native_sql_event_store"},
-            {"port": "MemoryAuditStorePort", "builder": "build_native_sql_audit_store"}
+            {"port": "MemoryAuditStorePort", "builder": "build_native_sql_audit_store"},
+            {"port": "MemoryOutboxStorePort", "builder": "build_native_sql_outbox_store"}
           ],
           "providerKinds": [],
           "retrieverKinds": ["sql", "keyword", "dictionary", "time", "event"],
@@ -32,6 +33,7 @@ fn native_sql_manifest_deserializes_and_declares_no_embedding_baseline() {
             "habitLearning": true,
             "deletionPropagation": true,
             "auditLog": true,
+            "outboxLog": true,
             "embeddingRequired": false
           },
           "degradation": {"mode": "fail_required_degrade_optional", "returnsStaleHits": false},
@@ -75,6 +77,13 @@ fn manifest_rejects_enabled_capabilities_without_required_ports() {
     manifest
         .port_exports
         .retain(|export| export.port != "MemoryAuditStorePort");
+
+    assert!(manifest.validate().is_err());
+
+    let mut manifest = MemoryPluginManifest::native_sql_for_test();
+    manifest
+        .port_exports
+        .retain(|export| export.port != "MemoryOutboxStorePort");
 
     assert!(manifest.validate().is_err());
 }
