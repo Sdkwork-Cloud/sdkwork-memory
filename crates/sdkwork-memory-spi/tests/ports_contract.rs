@@ -5,9 +5,9 @@ use sdkwork_memory_spi::{
     ExternalMemoryExportCommand, ExternalMemoryExportResult, ExternalMemoryImportCommand,
     ExternalMemoryImportResult, ExternalMemoryShadowReadCommand, ExternalMemoryShadowReadResult,
     LanguageModelCommand, LanguageModelPort, MemoryAuditRecord, MemoryAuditStorePort,
-    MemoryContextAssemblerPort, MemoryContextPackDraft, MemoryEvalRunResult, MemoryEvaluationPort,
-    MemoryEvent, MemoryEventStorePort, MemoryIndexPort, MemoryIndexReceipt, MemoryOutboxEvent,
-    MemoryOutboxStorePort, MemoryPolicy, MemoryPolicyStorePort, MemoryRecord,
+    MemoryContextAssemblerPort, MemoryContextPackDraft, MemoryDeletionReceipt, MemoryEvalRunResult,
+    MemoryEvaluationPort, MemoryEvent, MemoryEventStorePort, MemoryIndexPort, MemoryIndexReceipt,
+    MemoryOutboxEvent, MemoryOutboxStorePort, MemoryPolicy, MemoryPolicyStorePort, MemoryRecord,
     MemoryRecordStorePort, MemoryRetrieverPort, MemoryRetrieverResult, RerankMemoryHitsCommand,
     RerankMemoryHitsResult, RerankModelPort, RetrieveMemoryCandidatesCommand, RunMemoryEvalCommand,
 };
@@ -34,6 +34,17 @@ impl MemoryRecordStorePort for FakePorts {
             memory_id: query.memory_id,
             content: "redacted memory".to_string(),
         }))
+    }
+
+    async fn mark_deleted(
+        &self,
+        command: sdkwork_memory_spi::DeleteMemoryRecordCommand,
+    ) -> sdkwork_memory_spi::MemorySpiResult<MemoryDeletionReceipt> {
+        Ok(MemoryDeletionReceipt {
+            memory_id: command.memory_id,
+            deleted: true,
+            already_deleted: false,
+        })
     }
 }
 

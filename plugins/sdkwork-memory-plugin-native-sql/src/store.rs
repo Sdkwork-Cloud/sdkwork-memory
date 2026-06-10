@@ -1,10 +1,10 @@
 use async_trait::async_trait;
 use sdkwork_memory_spi::{
     AppendMemoryAuditCommand, AppendMemoryEventCommand, AppendMemoryOutboxCommand,
-    CreateMemoryRecordCommand, MemoryAuditRecord, MemoryAuditStorePort, MemoryEvent,
-    MemoryEventStorePort, MemoryOutboxEvent, MemoryOutboxStorePort, MemoryRecord,
-    MemoryRecordStorePort, MemoryScopeContext, MemorySpiError, MemorySpiResult,
-    RetrieveMemoryAuditQuery, RetrieveMemoryEventQuery, RetrieveMemoryOutboxQuery,
+    CreateMemoryRecordCommand, DeleteMemoryRecordCommand, MemoryAuditRecord, MemoryAuditStorePort,
+    MemoryDeletionReceipt, MemoryEvent, MemoryEventStorePort, MemoryOutboxEvent,
+    MemoryOutboxStorePort, MemoryRecord, MemoryRecordStorePort, MemoryScopeContext, MemorySpiError,
+    MemorySpiResult, RetrieveMemoryAuditQuery, RetrieveMemoryEventQuery, RetrieveMemoryOutboxQuery,
     RetrieveMemoryRecordQuery,
 };
 use serde_json::Value;
@@ -186,7 +186,14 @@ impl NativeSqlMemoryStore {
         memory_id: &str,
     ) -> Result<Option<NativeSqlMemoryRecord>, NativeSqlStoreError> {
         let row = sqlx::query(
-            "SELECT uuid, object_text FROM mem_record WHERE tenant_id = ? AND space_id = ? AND uuid = ?",
+            r#"
+            SELECT uuid, object_text
+            FROM mem_record
+            WHERE tenant_id = ?
+              AND space_id = ?
+              AND uuid = ?
+              AND status <> 'deleted'
+            "#,
         )
         .bind(scope.tenant_id)
         .bind(scope.space_id)
@@ -197,6 +204,93 @@ impl NativeSqlMemoryStore {
         Ok(row.map(|row| NativeSqlMemoryRecord {
             memory_id: row.get("uuid"),
             content: row.get("object_text"),
+        }))
+    }
+
+    pub async fn mark_record_deleted(
+        &self,
+        scope: &MemoryScopeContext,
+        memory_id: &str,
+    ) -> Result<MemoryDeletionReceipt, NativeSqlStoreError> {
+        let row = sqlx::query(
+            r#"
+            SELECT status, deleted_at
+            FROM mem_record
+            WHERE tenant_id = ? AND space_id = ? AND uuid = ?
+            "#,
+        )
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
+        .bind(memory_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let Some(row) = row else {
+            return Ok(MemoryDeletionReceipt {
+                memory_id: memory_id.to_string(),
+                deleted: false,
+                already_deleted: false,
+            });
+        };
+
+        let status: String = row.get("status");
+        let deleted_at: Option<String> = row.get("deleted_at");
+
+        if status == "deleted" || deleted_at.is_some() {
+            return Ok(MemoryDeletionReceipt {
+                memory_id: memory_id.to_string(),
+                deleted: true,
+                already_deleted: true,
+            });
+        }
+
+        sqlx::query(
+            r#"
+            UPDATE mem_record
+            SET status = 'deleted',
+                deleted_at = ?,
+                updated_at = ?,
+                version = version + 1
+            WHERE tenant_id = ? AND space_id = ? AND uuid = ?
+            "#,
+        )
+        .bind(now_text())
+        .bind(now_text())
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
+        .bind(memory_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(MemoryDeletionReceipt {
+            memory_id: memory_id.to_string(),
+            deleted: true,
+            already_deleted: false,
+        })
+    }
+
+    pub async fn retrieve_record_lifecycle(
+        &self,
+        scope: &MemoryScopeContext,
+        memory_id: &str,
+    ) -> Result<Option<NativeSqlMemoryRecordLifecycle>, NativeSqlStoreError> {
+        let row = sqlx::query(
+            r#"
+            SELECT uuid, status, deleted_at
+            FROM mem_record
+            WHERE tenant_id = ? AND space_id = ? AND uuid = ?
+            "#,
+        )
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
+        .bind(memory_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|row| NativeSqlMemoryRecordLifecycle {
+            memory_id: row.get("uuid"),
+            status: row.get("status"),
+            deleted_at: row.get("deleted_at"),
         }))
     }
 
@@ -537,6 +631,15 @@ impl MemoryRecordStorePort for NativeSqlMemoryStore {
             content: record.content,
         }))
     }
+
+    async fn mark_deleted(
+        &self,
+        command: DeleteMemoryRecordCommand,
+    ) -> MemorySpiResult<MemoryDeletionReceipt> {
+        self.mark_record_deleted(&command.scope, &command.memory_id)
+            .await
+            .map_err(|err| port_error("MemoryRecordStorePort", err))
+    }
 }
 
 #[async_trait]
@@ -648,6 +751,13 @@ pub struct NativeSqlMemoryEvent {
 pub struct NativeSqlMemoryRecord {
     pub memory_id: String,
     pub content: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeSqlMemoryRecordLifecycle {
+    pub memory_id: String,
+    pub status: String,
+    pub deleted_at: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,9 +1,10 @@
 use sdkwork_memory_plugin_native_sql::{NativeSqlMemoryStore, NativeSqlStoreError};
 use sdkwork_memory_spi::{
     AppendMemoryAuditCommand, AppendMemoryEventCommand, AppendMemoryOutboxCommand,
-    CreateMemoryRecordCommand, MemoryAuditStorePort, MemoryEventStorePort, MemoryOutboxStorePort,
-    MemoryRecordStorePort, MemoryScopeContext, MemorySpiError, RetrieveMemoryAuditQuery,
-    RetrieveMemoryEventQuery, RetrieveMemoryOutboxQuery, RetrieveMemoryRecordQuery,
+    CreateMemoryRecordCommand, DeleteMemoryRecordCommand, MemoryAuditStorePort,
+    MemoryEventStorePort, MemoryOutboxStorePort, MemoryRecordStorePort, MemoryScopeContext,
+    MemorySpiError, RetrieveMemoryAuditQuery, RetrieveMemoryEventQuery, RetrieveMemoryOutboxQuery,
+    RetrieveMemoryRecordQuery,
 };
 
 #[tokio::test]
@@ -217,6 +218,143 @@ async fn sqlite_store_spi_retrieve_methods_require_matching_scope() {
     .await
     .unwrap()
     .is_none());
+}
+
+#[tokio::test]
+async fn sqlite_store_soft_deletes_records_and_suppresses_retrieve() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let scope = MemoryScopeContext::for_test(1, 1);
+
+    store
+        .create_record(&scope, "rec-delete", "preference", "delete me")
+        .await
+        .unwrap();
+
+    let receipt = store
+        .mark_record_deleted(&scope, "rec-delete")
+        .await
+        .unwrap();
+    let retrieved = store.retrieve_record(&scope, "rec-delete").await.unwrap();
+    let lifecycle = store
+        .retrieve_record_lifecycle(&scope, "rec-delete")
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert!(receipt.deleted);
+    assert!(!receipt.already_deleted);
+    assert!(retrieved.is_none());
+    assert_eq!(lifecycle.memory_id, "rec-delete");
+    assert_eq!(lifecycle.status, "deleted");
+    assert_eq!(
+        lifecycle.deleted_at.as_deref(),
+        Some("2026-06-10T00:00:00Z")
+    );
+}
+
+#[tokio::test]
+async fn sqlite_store_record_delete_is_idempotent_for_already_deleted_records() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let scope = MemoryScopeContext::for_test(1, 1);
+
+    store
+        .create_record(&scope, "rec-delete-repeat", "preference", "delete me")
+        .await
+        .unwrap();
+
+    let first = store
+        .mark_record_deleted(&scope, "rec-delete-repeat")
+        .await
+        .unwrap();
+    let second = store
+        .mark_record_deleted(&scope, "rec-delete-repeat")
+        .await
+        .unwrap();
+
+    assert!(first.deleted);
+    assert!(!first.already_deleted);
+    assert!(second.deleted);
+    assert!(second.already_deleted);
+}
+
+#[tokio::test]
+async fn sqlite_store_record_delete_does_not_cross_tenant_or_space_scope() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let tenant_one = MemoryScopeContext::for_test(1, 1);
+    let tenant_two = MemoryScopeContext::for_test(2, 2);
+    let wrong_space = MemoryScopeContext::for_test(1, 2);
+
+    store
+        .create_record(&tenant_one, "rec-delete-scoped", "preference", "tenant one")
+        .await
+        .unwrap();
+    store
+        .create_record(&tenant_two, "rec-delete-scoped", "preference", "tenant two")
+        .await
+        .unwrap();
+
+    let missing = store
+        .mark_record_deleted(&wrong_space, "rec-delete-scoped")
+        .await
+        .unwrap();
+    let deleted = store
+        .mark_record_deleted(&tenant_one, "rec-delete-scoped")
+        .await
+        .unwrap();
+    let tenant_two_record = store
+        .retrieve_record(&tenant_two, "rec-delete-scoped")
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert!(!missing.deleted);
+    assert!(deleted.deleted);
+    assert!(store
+        .retrieve_record(&tenant_one, "rec-delete-scoped")
+        .await
+        .unwrap()
+        .is_none());
+    assert_eq!(tenant_two_record.content, "tenant two");
+}
+
+#[tokio::test]
+async fn sqlite_store_implements_record_delete_spi_port() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let scope = MemoryScopeContext::for_test(1, 1);
+
+    MemoryRecordStorePort::create(
+        &store,
+        CreateMemoryRecordCommand {
+            scope: scope.clone(),
+            memory_id: "rec-spi-delete".to_string(),
+            content: "SPI delete payload".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let receipt = MemoryRecordStorePort::mark_deleted(
+        &store,
+        DeleteMemoryRecordCommand {
+            scope: scope.clone(),
+            memory_id: "rec-spi-delete".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let retrieved = MemoryRecordStorePort::retrieve(
+        &store,
+        RetrieveMemoryRecordQuery {
+            scope,
+            memory_id: "rec-spi-delete".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(receipt.memory_id, "rec-spi-delete");
+    assert!(receipt.deleted);
+    assert!(retrieved.is_none());
 }
 
 #[tokio::test]

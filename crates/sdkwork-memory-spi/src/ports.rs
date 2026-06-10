@@ -43,6 +43,19 @@ pub struct RetrieveMemoryRecordQuery {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeleteMemoryRecordCommand {
+    pub scope: MemoryScopeContext,
+    pub memory_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryDeletionReceipt {
+    pub memory_id: String,
+    pub deleted: bool,
+    pub already_deleted: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppendMemoryEventCommand {
     pub scope: MemoryScopeContext,
     pub event_id: String,
@@ -216,6 +229,11 @@ pub trait MemoryRecordStorePort: Send + Sync {
         &self,
         query: RetrieveMemoryRecordQuery,
     ) -> MemorySpiResult<Option<MemoryRecord>>;
+
+    async fn mark_deleted(
+        &self,
+        command: DeleteMemoryRecordCommand,
+    ) -> MemorySpiResult<MemoryDeletionReceipt>;
 }
 
 #[async_trait]
