@@ -498,6 +498,7 @@ Primary standards for this component:
 Local design authority:
 
 - \`docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md\`
+- \`docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md\`
 
 Draft contract artifacts:
 
@@ -2752,6 +2753,7 @@ $requiredFiles = @(
     "specs/README.md",
     "specs/component.spec.json",
     "docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md",
+    "docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md",
     "docs/schema-registry/README.md",
     "docs/schema-registry/tables/001-memory-core.yaml",
     "docs/schema-registry/tables/002-memory-learning.yaml",
@@ -3099,6 +3101,30 @@ foreach ($snippet in @(
     "mem_"
 )) {
     Assert-Contains -Content $design -Needle $snippet -Path "docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md"
+}
+
+$spiDesign = Get-Content -Raw "docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md"
+foreach ($snippet in @(
+    "MemoryPluginManifest",
+    "MemoryRuntimePlugin",
+    "MemoryCoreRuntime",
+    "Stable Core And Plugin Boundaries",
+    "SPI Port Families",
+    "Runtime Plugin Manifest",
+    "Built-In Plugin Families",
+    "Conformance suite",
+    "0.1.0 Implementation Decisions",
+    "Static Rust registration",
+    "JSON manifest plus Rust constant",
+    "Runtime plugins are not Codex agent plugins",
+    'Do not place runtime Memory plugins under \`.sdkwork/plugins/\`',
+    "Industry References"
+)) {
+    Assert-Contains -Content $spiDesign -Needle $snippet -Path "docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md"
+}
+
+if ($spiDesign.Contains("## 17. Open Decisions")) {
+    throw "SPI design must resolve first-landing open decisions before runtime implementation starts."
 }
 
 Write-Host "SDKWork Memory phase1 contract verification passed."

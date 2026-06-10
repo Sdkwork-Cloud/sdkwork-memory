@@ -1,0 +1,11 @@
+[package]
+name = "sdkwork-memory-plugin-native-sql"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+sdkwork-memory-spi = { path = "../../crates/sdkwork-memory-spi" }
+
+[dev-dependencies]
+serde_json.workspace = true

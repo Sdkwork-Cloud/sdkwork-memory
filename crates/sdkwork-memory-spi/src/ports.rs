@@ -1,0 +1,228 @@
+use async_trait::async_trait;
+
+use crate::MemorySpiResult;
+
+pub trait MemoryRuntimePlugin: Send + Sync {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateMemoryRecordCommand {
+    pub memory_id: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryRecord {
+    pub memory_id: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppendMemoryEventCommand {
+    pub event_id: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryEvent {
+    pub event_id: String,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryAuditRecord {
+    pub action: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryPolicy {
+    pub policy_code: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetrieveMemoryCandidatesCommand {
+    pub query: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryRetrieverResult {
+    pub memory_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryIndexReceipt {
+    pub memory_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LanguageModelCommand {
+    pub prompt: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EmbeddingCommand {
+    pub input: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RerankMemoryHitsCommand {
+    pub memory_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RerankMemoryHitsResult {
+    pub memory_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalMemoryImportCommand;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalMemoryImportResult {
+    pub imported_count: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalMemoryExportCommand;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalMemoryExportResult {
+    pub exported_count: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalMemoryDeleteCommand;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalMemoryDeleteReceipt {
+    pub verified: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalMemoryShadowReadCommand;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalMemoryShadowReadResult {
+    pub comparable: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssembleMemoryContextCommand {
+    pub memory_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryContextPackDraft {
+    pub memory_ids: Vec<String>,
+    pub context_text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RunMemoryEvalCommand {
+    pub eval_type: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryEvalRunResult {
+    pub eval_type: String,
+}
+
+#[async_trait]
+pub trait MemoryRecordStorePort: Send + Sync {
+    async fn create(&self, command: CreateMemoryRecordCommand) -> MemorySpiResult<MemoryRecord>;
+}
+
+#[async_trait]
+pub trait MemoryEventStorePort: Send + Sync {
+    async fn append(&self, command: AppendMemoryEventCommand) -> MemorySpiResult<MemoryEvent>;
+}
+
+#[async_trait]
+pub trait MemoryAuditStorePort: Send + Sync {
+    async fn append(&self, action: String) -> MemorySpiResult<MemoryAuditRecord>;
+}
+
+#[async_trait]
+pub trait MemoryPolicyStorePort: Send + Sync {
+    async fn resolve_policy(&self, policy_code: String) -> MemorySpiResult<MemoryPolicy>;
+}
+
+#[async_trait]
+pub trait MemoryRetrieverPort: Send + Sync {
+    fn retriever_code(&self) -> &str;
+
+    async fn retrieve(
+        &self,
+        command: RetrieveMemoryCandidatesCommand,
+    ) -> MemorySpiResult<MemoryRetrieverResult>;
+}
+
+#[async_trait]
+pub trait MemoryIndexPort: Send + Sync {
+    fn index_kind(&self) -> &str;
+
+    async fn index(&self, memory_id: String) -> MemorySpiResult<MemoryIndexReceipt>;
+}
+
+#[async_trait]
+pub trait LanguageModelPort: Send + Sync {
+    fn provider_code(&self) -> &str;
+
+    async fn generate(&self, command: LanguageModelCommand) -> MemorySpiResult<String>;
+}
+
+#[async_trait]
+pub trait EmbeddingModelPort: Send + Sync {
+    fn provider_code(&self) -> &str;
+
+    fn dimensions(&self) -> usize;
+
+    async fn embed(&self, command: EmbeddingCommand) -> MemorySpiResult<Vec<f32>>;
+}
+
+#[async_trait]
+pub trait RerankModelPort: Send + Sync {
+    fn provider_code(&self) -> &str;
+
+    async fn rerank(
+        &self,
+        command: RerankMemoryHitsCommand,
+    ) -> MemorySpiResult<RerankMemoryHitsResult>;
+}
+
+#[async_trait]
+pub trait ExternalMemoryBridgePort: Send + Sync {
+    fn provider_code(&self) -> &str;
+
+    async fn import(
+        &self,
+        command: ExternalMemoryImportCommand,
+    ) -> MemorySpiResult<ExternalMemoryImportResult>;
+
+    async fn export(
+        &self,
+        command: ExternalMemoryExportCommand,
+    ) -> MemorySpiResult<ExternalMemoryExportResult>;
+
+    async fn delete(
+        &self,
+        command: ExternalMemoryDeleteCommand,
+    ) -> MemorySpiResult<ExternalMemoryDeleteReceipt>;
+
+    async fn shadow_read(
+        &self,
+        command: ExternalMemoryShadowReadCommand,
+    ) -> MemorySpiResult<ExternalMemoryShadowReadResult>;
+}
+
+#[async_trait]
+pub trait MemoryContextAssemblerPort: Send + Sync {
+    async fn assemble(
+        &self,
+        command: AssembleMemoryContextCommand,
+    ) -> MemorySpiResult<MemoryContextPackDraft>;
+}
+
+#[async_trait]
+pub trait MemoryEvaluationPort: Send + Sync {
+    async fn run(&self, command: RunMemoryEvalCommand) -> MemorySpiResult<MemoryEvalRunResult>;
+}

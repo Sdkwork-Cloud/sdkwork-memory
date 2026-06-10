@@ -22,6 +22,7 @@ Primary standards for this component:
 Local design authority:
 
 - `docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md`
+- `docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md`
 
 Draft contract artifacts:
 

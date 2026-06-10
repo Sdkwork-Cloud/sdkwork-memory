@@ -1,0 +1,66 @@
+use sdkwork_memory_spi::{MemoryImplementationKind, MemoryPluginManifest, MemoryPluginRole};
+
+#[test]
+fn native_sql_manifest_deserializes_and_declares_no_embedding_baseline() {
+    let manifest: MemoryPluginManifest = serde_json::from_str(
+        r#"{
+          "schemaVersion": 1,
+          "kind": "sdkwork.memory.plugin",
+          "pluginId": "sdkwork-memory-plugin-native-sql",
+          "packageName": "sdkwork-memory-plugin-native-sql",
+          "displayName": "SDKWork Memory Native SQL Plugin",
+          "version": "0.1.0",
+          "owner": "sdkwork-memory",
+          "implementationKinds": ["native_sql", "local_embedded"],
+          "pluginRoles": ["implementation", "store", "retriever", "index"],
+          "deploymentModes": ["server", "container", "private", "local", "test"],
+          "portExports": [{"port": "MemoryRecordStorePort", "builder": "build_native_sql_record_store"}],
+          "providerKinds": [],
+          "retrieverKinds": ["sql", "keyword", "dictionary", "time", "event"],
+          "indexKinds": ["sql", "keyword", "dictionary", "time", "event"],
+          "requiredCoreVersion": "0.1.0",
+          "secretRefs": [],
+          "dataClasses": ["tenant", "personal"],
+          "capabilities": {
+            "canonicalStore": true,
+            "eventLog": true,
+            "candidateLifecycle": true,
+            "habitLearning": true,
+            "deletionPropagation": true,
+            "auditLog": true,
+            "embeddingRequired": false
+          },
+          "degradation": {"mode": "fail_required_degrade_optional", "returnsStaleHits": false},
+          "migration": {"exportSupported": true, "importSupported": true, "dualWriteSupported": false, "shadowReadSupported": true},
+          "observability": {"metricsPrefix": "sdkwork_memory_native_sql", "redactsPayloads": true},
+          "conformance": {"suite": "sdkwork-memory-plugin-conformance", "suiteVersion": "0.1.0"}
+        }"#,
+    )
+    .unwrap();
+
+    assert_eq!(manifest.schema_version, 1);
+    assert!(manifest
+        .implementation_kinds
+        .contains(&MemoryImplementationKind::NativeSql));
+    assert!(manifest
+        .implementation_kinds
+        .contains(&MemoryImplementationKind::LocalEmbedded));
+    assert!(manifest
+        .plugin_roles
+        .contains(&MemoryPluginRole::Implementation));
+    assert!(!manifest.capabilities.embedding_required);
+    assert!(manifest.validate().is_ok());
+}
+
+#[test]
+fn manifest_rejects_secret_values_and_agent_plugin_paths() {
+    let mut manifest = MemoryPluginManifest::native_sql_for_test();
+    manifest
+        .secret_refs
+        .push("literal-token-secret".to_string());
+    assert!(manifest.validate().is_err());
+
+    let mut manifest = MemoryPluginManifest::native_sql_for_test();
+    manifest.package_name = ".sdkwork/plugins/sdkwork-memory-plugin-native-sql".to_string();
+    assert!(manifest.validate().is_err());
+}

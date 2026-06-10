@@ -1,0 +1,8 @@
+[package]
+name = "sdkwork-memory-test-support"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+sdkwork-memory-spi = { path = "../sdkwork-memory-spi" }
