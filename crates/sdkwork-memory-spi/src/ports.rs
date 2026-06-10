@@ -108,6 +108,7 @@ pub struct MemoryOutboxEvent {
     pub event_version: String,
     pub payload_json: String,
     pub publish_state: String,
+    pub published_at: Option<String>,
     pub retry_count: i64,
 }
 
@@ -124,6 +125,24 @@ pub struct AppendMemoryOutboxCommand {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RetrieveMemoryOutboxQuery {
+    pub scope: MemoryScopeContext,
+    pub outbox_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListPendingMemoryOutboxQuery {
+    pub scope: MemoryScopeContext,
+    pub limit: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MarkMemoryOutboxPublishedCommand {
+    pub scope: MemoryScopeContext,
+    pub outbox_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MarkMemoryOutboxFailedCommand {
     pub scope: MemoryScopeContext,
     pub outbox_id: String,
 }
@@ -267,6 +286,21 @@ pub trait MemoryOutboxStorePort: Send + Sync {
     async fn retrieve(
         &self,
         query: RetrieveMemoryOutboxQuery,
+    ) -> MemorySpiResult<Option<MemoryOutboxEvent>>;
+
+    async fn list_pending(
+        &self,
+        query: ListPendingMemoryOutboxQuery,
+    ) -> MemorySpiResult<Vec<MemoryOutboxEvent>>;
+
+    async fn mark_published(
+        &self,
+        command: MarkMemoryOutboxPublishedCommand,
+    ) -> MemorySpiResult<Option<MemoryOutboxEvent>>;
+
+    async fn mark_failed(
+        &self,
+        command: MarkMemoryOutboxFailedCommand,
     ) -> MemorySpiResult<Option<MemoryOutboxEvent>>;
 }
 

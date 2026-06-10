@@ -114,6 +114,7 @@ impl MemoryOutboxStorePort for FakePorts {
             event_version: command.event_version,
             payload_json: command.payload_json,
             publish_state: "pending".to_string(),
+            published_at: None,
             retry_count: 0,
         })
     }
@@ -130,7 +131,59 @@ impl MemoryOutboxStorePort for FakePorts {
             event_version: "1".to_string(),
             payload_json: r#"{"memoryId":"rec-1"}"#.to_string(),
             publish_state: "pending".to_string(),
+            published_at: None,
             retry_count: 0,
+        }))
+    }
+
+    async fn list_pending(
+        &self,
+        _query: sdkwork_memory_spi::ListPendingMemoryOutboxQuery,
+    ) -> sdkwork_memory_spi::MemorySpiResult<Vec<MemoryOutboxEvent>> {
+        Ok(vec![MemoryOutboxEvent {
+            outbox_id: "out-pending".to_string(),
+            aggregate_type: "mem_record".to_string(),
+            aggregate_id: "rec-1".to_string(),
+            event_type: "memory.record.created".to_string(),
+            event_version: "1".to_string(),
+            payload_json: r#"{"memoryId":"rec-1"}"#.to_string(),
+            publish_state: "pending".to_string(),
+            published_at: None,
+            retry_count: 0,
+        }])
+    }
+
+    async fn mark_published(
+        &self,
+        command: sdkwork_memory_spi::MarkMemoryOutboxPublishedCommand,
+    ) -> sdkwork_memory_spi::MemorySpiResult<Option<MemoryOutboxEvent>> {
+        Ok(Some(MemoryOutboxEvent {
+            outbox_id: command.outbox_id,
+            aggregate_type: "mem_record".to_string(),
+            aggregate_id: "rec-1".to_string(),
+            event_type: "memory.record.created".to_string(),
+            event_version: "1".to_string(),
+            payload_json: r#"{"memoryId":"rec-1"}"#.to_string(),
+            publish_state: "published".to_string(),
+            published_at: Some("2026-06-10T00:00:00Z".to_string()),
+            retry_count: 0,
+        }))
+    }
+
+    async fn mark_failed(
+        &self,
+        command: sdkwork_memory_spi::MarkMemoryOutboxFailedCommand,
+    ) -> sdkwork_memory_spi::MemorySpiResult<Option<MemoryOutboxEvent>> {
+        Ok(Some(MemoryOutboxEvent {
+            outbox_id: command.outbox_id,
+            aggregate_type: "mem_record".to_string(),
+            aggregate_id: "rec-1".to_string(),
+            event_type: "memory.record.created".to_string(),
+            event_version: "1".to_string(),
+            payload_json: r#"{"memoryId":"rec-1"}"#.to_string(),
+            publish_state: "failed".to_string(),
+            published_at: None,
+            retry_count: 1,
         }))
     }
 }

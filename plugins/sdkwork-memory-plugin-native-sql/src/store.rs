@@ -1,11 +1,12 @@
 use async_trait::async_trait;
 use sdkwork_memory_spi::{
     AppendMemoryAuditCommand, AppendMemoryEventCommand, AppendMemoryOutboxCommand,
-    CreateMemoryRecordCommand, DeleteMemoryRecordCommand, MemoryAuditRecord, MemoryAuditStorePort,
-    MemoryDeletionReceipt, MemoryEvent, MemoryEventStorePort, MemoryOutboxEvent,
-    MemoryOutboxStorePort, MemoryRecord, MemoryRecordStorePort, MemoryScopeContext, MemorySpiError,
-    MemorySpiResult, RetrieveMemoryAuditQuery, RetrieveMemoryEventQuery, RetrieveMemoryOutboxQuery,
-    RetrieveMemoryRecordQuery,
+    CreateMemoryRecordCommand, DeleteMemoryRecordCommand, ListPendingMemoryOutboxQuery,
+    MarkMemoryOutboxFailedCommand, MarkMemoryOutboxPublishedCommand, MemoryAuditRecord,
+    MemoryAuditStorePort, MemoryDeletionReceipt, MemoryEvent, MemoryEventStorePort,
+    MemoryOutboxEvent, MemoryOutboxStorePort, MemoryRecord, MemoryRecordStorePort,
+    MemoryScopeContext, MemorySpiError, MemorySpiResult, RetrieveMemoryAuditQuery,
+    RetrieveMemoryEventQuery, RetrieveMemoryOutboxQuery, RetrieveMemoryRecordQuery,
 };
 use serde_json::Value;
 use sqlx::{Row, SqlitePool};
@@ -431,6 +432,7 @@ impl NativeSqlMemoryStore {
             event_version: event_version.to_string(),
             payload_json: payload_json.to_string(),
             publish_state: "pending".to_string(),
+            published_at: None,
             retry_count: 0,
         })
     }
@@ -450,6 +452,7 @@ impl NativeSqlMemoryStore {
               event_version,
               payload_json,
               publish_state,
+              published_at,
               retry_count
             FROM mem_outbox_event
             WHERE tenant_id = ? AND uuid = ?
@@ -468,8 +471,101 @@ impl NativeSqlMemoryStore {
             event_version: row.get("event_version"),
             payload_json: row.get("payload_json"),
             publish_state: row.get("publish_state"),
+            published_at: row.get("published_at"),
             retry_count: row.get("retry_count"),
         }))
+    }
+
+    pub async fn list_pending_outbox_events(
+        &self,
+        scope: &MemoryScopeContext,
+        limit: u32,
+    ) -> Result<Vec<NativeSqlMemoryOutboxEvent>, NativeSqlStoreError> {
+        let row_limit = i64::from(limit.max(1));
+        let rows = sqlx::query(
+            r#"
+            SELECT
+              uuid,
+              aggregate_type,
+              aggregate_id,
+              event_type,
+              event_version,
+              payload_json,
+              publish_state,
+              published_at,
+              retry_count
+            FROM mem_outbox_event
+            WHERE tenant_id = ? AND publish_state = 'pending'
+            ORDER BY created_at ASC, id ASC
+            LIMIT ?
+            "#,
+        )
+        .bind(scope.tenant_id)
+        .bind(row_limit)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| NativeSqlMemoryOutboxEvent {
+                outbox_id: row.get("uuid"),
+                aggregate_type: row.get("aggregate_type"),
+                aggregate_id: row.get("aggregate_id"),
+                event_type: row.get("event_type"),
+                event_version: row.get("event_version"),
+                payload_json: row.get("payload_json"),
+                publish_state: row.get("publish_state"),
+                published_at: row.get("published_at"),
+                retry_count: row.get("retry_count"),
+            })
+            .collect())
+    }
+
+    pub async fn mark_outbox_published(
+        &self,
+        scope: &MemoryScopeContext,
+        outbox_id: &str,
+    ) -> Result<Option<NativeSqlMemoryOutboxEvent>, NativeSqlStoreError> {
+        sqlx::query(
+            r#"
+            UPDATE mem_outbox_event
+            SET publish_state = 'published',
+                published_at = ?,
+                updated_at = ?
+            WHERE tenant_id = ? AND uuid = ?
+            "#,
+        )
+        .bind(now_text())
+        .bind(now_text())
+        .bind(scope.tenant_id)
+        .bind(outbox_id)
+        .execute(&self.pool)
+        .await?;
+
+        self.retrieve_outbox_event(scope, outbox_id).await
+    }
+
+    pub async fn mark_outbox_failed(
+        &self,
+        scope: &MemoryScopeContext,
+        outbox_id: &str,
+    ) -> Result<Option<NativeSqlMemoryOutboxEvent>, NativeSqlStoreError> {
+        sqlx::query(
+            r#"
+            UPDATE mem_outbox_event
+            SET publish_state = 'failed',
+                retry_count = retry_count + 1,
+                updated_at = ?
+            WHERE tenant_id = ? AND uuid = ?
+            "#,
+        )
+        .bind(now_text())
+        .bind(scope.tenant_id)
+        .bind(outbox_id)
+        .execute(&self.pool)
+        .await?;
+
+        self.retrieve_outbox_event(scope, outbox_id).await
     }
 
     async fn apply_sqlite_phase1_migration(&self) -> Result<(), NativeSqlStoreError> {
@@ -521,6 +617,7 @@ impl NativeSqlMemoryStore {
               event_version,
               payload_json,
               publish_state,
+              published_at,
               retry_count
             FROM mem_outbox_event
             WHERE tenant_id = ? AND uuid = ?
@@ -538,6 +635,7 @@ impl NativeSqlMemoryStore {
             event_version: row.get("event_version"),
             payload_json: row.get("payload_json"),
             publish_state: row.get("publish_state"),
+            published_at: row.get("published_at"),
             retry_count: row.get("retry_count"),
         }))
     }
@@ -715,6 +813,7 @@ impl MemoryOutboxStorePort for NativeSqlMemoryStore {
             event_version: outbox.event_version,
             payload_json: outbox.payload_json,
             publish_state: outbox.publish_state,
+            published_at: outbox.published_at,
             retry_count: outbox.retry_count,
         })
     }
@@ -728,16 +827,46 @@ impl MemoryOutboxStorePort for NativeSqlMemoryStore {
             .await
             .map_err(|err| port_error("MemoryOutboxStorePort", err))?;
 
-        Ok(outbox.map(|outbox| MemoryOutboxEvent {
-            outbox_id: outbox.outbox_id,
-            aggregate_type: outbox.aggregate_type,
-            aggregate_id: outbox.aggregate_id,
-            event_type: outbox.event_type,
-            event_version: outbox.event_version,
-            payload_json: outbox.payload_json,
-            publish_state: outbox.publish_state,
-            retry_count: outbox.retry_count,
-        }))
+        Ok(outbox.map(into_spi_outbox_event))
+    }
+
+    async fn list_pending(
+        &self,
+        query: ListPendingMemoryOutboxQuery,
+    ) -> MemorySpiResult<Vec<MemoryOutboxEvent>> {
+        let outbox_events = self
+            .list_pending_outbox_events(&query.scope, query.limit)
+            .await
+            .map_err(|err| port_error("MemoryOutboxStorePort", err))?;
+
+        Ok(outbox_events
+            .into_iter()
+            .map(into_spi_outbox_event)
+            .collect())
+    }
+
+    async fn mark_published(
+        &self,
+        command: MarkMemoryOutboxPublishedCommand,
+    ) -> MemorySpiResult<Option<MemoryOutboxEvent>> {
+        let outbox = self
+            .mark_outbox_published(&command.scope, &command.outbox_id)
+            .await
+            .map_err(|err| port_error("MemoryOutboxStorePort", err))?;
+
+        Ok(outbox.map(into_spi_outbox_event))
+    }
+
+    async fn mark_failed(
+        &self,
+        command: MarkMemoryOutboxFailedCommand,
+    ) -> MemorySpiResult<Option<MemoryOutboxEvent>> {
+        let outbox = self
+            .mark_outbox_failed(&command.scope, &command.outbox_id)
+            .await
+            .map_err(|err| port_error("MemoryOutboxStorePort", err))?;
+
+        Ok(outbox.map(into_spi_outbox_event))
     }
 }
 
@@ -778,6 +907,7 @@ pub struct NativeSqlMemoryOutboxEvent {
     pub event_version: String,
     pub payload_json: String,
     pub publish_state: String,
+    pub published_at: Option<String>,
     pub retry_count: i64,
 }
 
@@ -808,6 +938,7 @@ struct NativeSqlOutboxIdempotencyState {
     event_version: String,
     payload_json: String,
     publish_state: String,
+    published_at: Option<String>,
     retry_count: i64,
 }
 
@@ -821,8 +952,23 @@ impl NativeSqlOutboxIdempotencyState {
             event_version: self.event_version,
             payload_json: self.payload_json,
             publish_state: self.publish_state,
+            published_at: self.published_at,
             retry_count: self.retry_count,
         }
+    }
+}
+
+fn into_spi_outbox_event(outbox: NativeSqlMemoryOutboxEvent) -> MemoryOutboxEvent {
+    MemoryOutboxEvent {
+        outbox_id: outbox.outbox_id,
+        aggregate_type: outbox.aggregate_type,
+        aggregate_id: outbox.aggregate_id,
+        event_type: outbox.event_type,
+        event_version: outbox.event_version,
+        payload_json: outbox.payload_json,
+        publish_state: outbox.publish_state,
+        published_at: outbox.published_at,
+        retry_count: outbox.retry_count,
     }
 }
 

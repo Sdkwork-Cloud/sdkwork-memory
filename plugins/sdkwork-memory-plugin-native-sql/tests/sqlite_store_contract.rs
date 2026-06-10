@@ -1,7 +1,8 @@
 use sdkwork_memory_plugin_native_sql::{NativeSqlMemoryStore, NativeSqlStoreError};
 use sdkwork_memory_spi::{
     AppendMemoryAuditCommand, AppendMemoryEventCommand, AppendMemoryOutboxCommand,
-    CreateMemoryRecordCommand, DeleteMemoryRecordCommand, MemoryAuditStorePort,
+    CreateMemoryRecordCommand, DeleteMemoryRecordCommand, ListPendingMemoryOutboxQuery,
+    MarkMemoryOutboxFailedCommand, MarkMemoryOutboxPublishedCommand, MemoryAuditStorePort,
     MemoryEventStorePort, MemoryOutboxStorePort, MemoryRecordStorePort, MemoryScopeContext,
     MemorySpiError, RetrieveMemoryAuditQuery, RetrieveMemoryEventQuery, RetrieveMemoryOutboxQuery,
     RetrieveMemoryRecordQuery,
@@ -734,4 +735,265 @@ async fn sqlite_store_spi_outbox_append_maps_idempotency_conflict_to_spi_conflic
     .unwrap_err();
 
     assert!(matches!(err, MemorySpiError::IdempotencyConflict { .. }));
+}
+
+#[tokio::test]
+async fn sqlite_store_lists_pending_outbox_events_by_tenant_scope_and_limit() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let tenant_one = MemoryScopeContext::for_test(1, 1);
+    let tenant_two = MemoryScopeContext::for_test(2, 2);
+
+    store
+        .append_outbox_event(
+            &tenant_one,
+            "out-pending-1",
+            "mem_record",
+            "rec-1",
+            "memory.record.created",
+            "1",
+            r#"{"memoryId":"rec-1"}"#,
+        )
+        .await
+        .unwrap();
+    store
+        .append_outbox_event(
+            &tenant_one,
+            "out-pending-2",
+            "mem_record",
+            "rec-2",
+            "memory.record.created",
+            "1",
+            r#"{"memoryId":"rec-2"}"#,
+        )
+        .await
+        .unwrap();
+    store
+        .append_outbox_event(
+            &tenant_two,
+            "out-pending-tenant-two",
+            "mem_record",
+            "rec-3",
+            "memory.record.created",
+            "1",
+            r#"{"memoryId":"rec-3"}"#,
+        )
+        .await
+        .unwrap();
+
+    let pending = store
+        .list_pending_outbox_events(&tenant_one, 1)
+        .await
+        .unwrap();
+
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].outbox_id, "out-pending-1");
+    assert_eq!(pending[0].publish_state, "pending");
+}
+
+#[tokio::test]
+async fn sqlite_store_marks_outbox_published_and_excludes_it_from_pending() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let scope = MemoryScopeContext::for_test(1, 1);
+
+    store
+        .append_outbox_event(
+            &scope,
+            "out-publish",
+            "mem_record",
+            "rec-1",
+            "memory.record.created",
+            "1",
+            r#"{"memoryId":"rec-1"}"#,
+        )
+        .await
+        .unwrap();
+
+    let published = store
+        .mark_outbox_published(&scope, "out-publish")
+        .await
+        .unwrap()
+        .unwrap();
+    let retrieved = store
+        .retrieve_outbox_event(&scope, "out-publish")
+        .await
+        .unwrap()
+        .unwrap();
+    let pending = store.list_pending_outbox_events(&scope, 10).await.unwrap();
+
+    assert_eq!(published.publish_state, "published");
+    assert_eq!(
+        published.published_at.as_deref(),
+        Some("2026-06-10T00:00:00Z")
+    );
+    assert_eq!(retrieved.publish_state, "published");
+    assert!(pending.is_empty());
+}
+
+#[tokio::test]
+async fn sqlite_store_marks_outbox_failed_increments_retry_and_excludes_it_from_pending() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let scope = MemoryScopeContext::for_test(1, 1);
+
+    store
+        .append_outbox_event(
+            &scope,
+            "out-fail",
+            "mem_record",
+            "rec-1",
+            "memory.record.created",
+            "1",
+            r#"{"memoryId":"rec-1"}"#,
+        )
+        .await
+        .unwrap();
+
+    let failed = store
+        .mark_outbox_failed(&scope, "out-fail")
+        .await
+        .unwrap()
+        .unwrap();
+    let pending = store.list_pending_outbox_events(&scope, 10).await.unwrap();
+
+    assert_eq!(failed.publish_state, "failed");
+    assert_eq!(failed.retry_count, 1);
+    assert!(failed.published_at.is_none());
+    assert!(pending.is_empty());
+}
+
+#[tokio::test]
+async fn sqlite_store_outbox_delivery_lifecycle_does_not_cross_tenant_scope() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let tenant_one = MemoryScopeContext::for_test(1, 1);
+    let tenant_two = MemoryScopeContext::for_test(2, 2);
+    let missing_tenant = MemoryScopeContext::for_test(3, 3);
+
+    store
+        .append_outbox_event(
+            &tenant_one,
+            "out-scoped",
+            "mem_record",
+            "rec-1",
+            "memory.record.created",
+            "1",
+            r#"{"memoryId":"rec-1"}"#,
+        )
+        .await
+        .unwrap();
+    store
+        .append_outbox_event(
+            &tenant_two,
+            "out-scoped",
+            "mem_record",
+            "rec-2",
+            "memory.record.created",
+            "1",
+            r#"{"memoryId":"rec-2"}"#,
+        )
+        .await
+        .unwrap();
+
+    let missing = store
+        .mark_outbox_published(&missing_tenant, "out-scoped")
+        .await
+        .unwrap();
+    let tenant_one_published = store
+        .mark_outbox_published(&tenant_one, "out-scoped")
+        .await
+        .unwrap()
+        .unwrap();
+    let tenant_two_pending = store
+        .list_pending_outbox_events(&tenant_two, 10)
+        .await
+        .unwrap();
+
+    assert!(missing.is_none());
+    assert_eq!(tenant_one_published.publish_state, "published");
+    assert_eq!(tenant_two_pending.len(), 1);
+    assert_eq!(tenant_two_pending[0].aggregate_id, "rec-2");
+}
+
+#[tokio::test]
+async fn sqlite_store_implements_outbox_delivery_lifecycle_spi_port() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let scope = MemoryScopeContext::for_test(1, 1);
+
+    MemoryOutboxStorePort::append(
+        &store,
+        AppendMemoryOutboxCommand {
+            scope: scope.clone(),
+            outbox_id: "out-spi-lifecycle".to_string(),
+            aggregate_type: "mem_record".to_string(),
+            aggregate_id: "rec-1".to_string(),
+            event_type: "memory.record.created".to_string(),
+            event_version: "1".to_string(),
+            payload_json: r#"{"memoryId":"rec-1"}"#.to_string(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let pending = MemoryOutboxStorePort::list_pending(
+        &store,
+        ListPendingMemoryOutboxQuery {
+            scope: scope.clone(),
+            limit: 10,
+        },
+    )
+    .await
+    .unwrap();
+    let published = MemoryOutboxStorePort::mark_published(
+        &store,
+        MarkMemoryOutboxPublishedCommand {
+            scope: scope.clone(),
+            outbox_id: "out-spi-lifecycle".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let pending_after_publish = MemoryOutboxStorePort::list_pending(
+        &store,
+        ListPendingMemoryOutboxQuery {
+            scope: scope.clone(),
+            limit: 10,
+        },
+    )
+    .await
+    .unwrap();
+
+    MemoryOutboxStorePort::append(
+        &store,
+        AppendMemoryOutboxCommand {
+            scope: scope.clone(),
+            outbox_id: "out-spi-failed".to_string(),
+            aggregate_type: "mem_event".to_string(),
+            aggregate_id: "evt-1".to_string(),
+            event_type: "memory.event.appended".to_string(),
+            event_version: "1".to_string(),
+            payload_json: r#"{"eventId":"evt-1"}"#.to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let failed = MemoryOutboxStorePort::mark_failed(
+        &store,
+        MarkMemoryOutboxFailedCommand {
+            scope,
+            outbox_id: "out-spi-failed".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].outbox_id, "out-spi-lifecycle");
+    assert_eq!(published.publish_state, "published");
+    assert_eq!(
+        published.published_at.as_deref(),
+        Some("2026-06-10T00:00:00Z")
+    );
+    assert!(pending_after_publish.is_empty());
+    assert_eq!(failed.publish_state, "failed");
+    assert_eq!(failed.retry_count, 1);
 }
