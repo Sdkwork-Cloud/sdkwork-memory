@@ -29,6 +29,25 @@ impl NativeSqlMemoryStore {
     ) -> Result<(), NativeSqlStoreError> {
         self.ensure_space(scope).await?;
         let payload_json = serde_json::json!({ "content": content }).to_string();
+        let payload_hash = stable_hash(content);
+
+        if let Some(existing) = self
+            .retrieve_event_idempotency_state(scope, event_id)
+            .await?
+        {
+            if existing.space_id == scope.space_id
+                && existing.payload_json == payload_json
+                && existing.payload_hash == payload_hash
+            {
+                return Ok(());
+            }
+
+            return Err(NativeSqlStoreError::EventConflict {
+                tenant_id: scope.tenant_id,
+                event_id: event_id.to_string(),
+            });
+        }
+
         sqlx::query(
             r#"
             INSERT INTO mem_event (
@@ -53,7 +72,7 @@ impl NativeSqlMemoryStore {
         .bind(scope.space_id)
         .bind(now_text())
         .bind(payload_json)
-        .bind(stable_hash(content))
+        .bind(payload_hash)
         .bind(now_text())
         .execute(&self.pool)
         .await?;
@@ -189,6 +208,30 @@ impl NativeSqlMemoryStore {
         Ok(())
     }
 
+    async fn retrieve_event_idempotency_state(
+        &self,
+        scope: &MemoryScopeContext,
+        event_id: &str,
+    ) -> Result<Option<NativeSqlEventIdempotencyState>, NativeSqlStoreError> {
+        let row = sqlx::query(
+            r#"
+            SELECT space_id, payload_json, payload_hash
+            FROM mem_event
+            WHERE tenant_id = ? AND uuid = ?
+            "#,
+        )
+        .bind(scope.tenant_id)
+        .bind(event_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|row| NativeSqlEventIdempotencyState {
+            space_id: row.get("space_id"),
+            payload_json: row.get("payload_json"),
+            payload_hash: row.get("payload_hash"),
+        }))
+    }
+
     async fn ensure_space(&self, scope: &MemoryScopeContext) -> Result<(), NativeSqlStoreError> {
         sqlx::query(
             r#"
@@ -298,6 +341,15 @@ pub enum NativeSqlStoreError {
     Database(#[from] sqlx::Error),
     #[error("native SQL store JSON payload error: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("native SQL event append conflict for tenant {tenant_id} event {event_id}")]
+    EventConflict { tenant_id: i64, event_id: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NativeSqlEventIdempotencyState {
+    space_id: i64,
+    payload_json: String,
+    payload_hash: String,
 }
 
 fn now_text() -> &'static str {
@@ -305,7 +357,12 @@ fn now_text() -> &'static str {
 }
 
 fn stable_hash(value: &str) -> String {
-    format!("len:{}", value.len())
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in value.as_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    format!("fnv1a64:{hash:016x}")
 }
 
 fn parse_event_payload(payload: &str) -> Result<Value, serde_json::Error> {
@@ -313,6 +370,12 @@ fn parse_event_payload(payload: &str) -> Result<Value, serde_json::Error> {
 }
 
 fn port_error(port: &str, error: NativeSqlStoreError) -> MemorySpiError {
+    if let NativeSqlStoreError::EventConflict { event_id, .. } = error {
+        return MemorySpiError::IdempotencyConflict {
+            idempotency_key: event_id,
+        };
+    }
+
     MemorySpiError::PortOperationFailed {
         port: port.to_string(),
         message: error.to_string(),

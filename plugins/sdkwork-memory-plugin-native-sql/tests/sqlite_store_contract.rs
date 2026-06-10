@@ -1,7 +1,8 @@
-use sdkwork_memory_plugin_native_sql::NativeSqlMemoryStore;
+use sdkwork_memory_plugin_native_sql::{NativeSqlMemoryStore, NativeSqlStoreError};
 use sdkwork_memory_spi::{
     AppendMemoryEventCommand, CreateMemoryRecordCommand, MemoryEventStorePort,
-    MemoryRecordStorePort, MemoryScopeContext, RetrieveMemoryEventQuery, RetrieveMemoryRecordQuery,
+    MemoryRecordStorePort, MemoryScopeContext, MemorySpiError, RetrieveMemoryEventQuery,
+    RetrieveMemoryRecordQuery,
 };
 
 #[tokio::test]
@@ -215,4 +216,96 @@ async fn sqlite_store_spi_retrieve_methods_require_matching_scope() {
     .await
     .unwrap()
     .is_none());
+}
+
+#[tokio::test]
+async fn sqlite_store_event_append_is_idempotent_for_same_scope_event_and_content() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let scope = MemoryScopeContext::for_test(1, 1);
+
+    store
+        .append_event(&scope, "evt-idempotent", "same content")
+        .await
+        .unwrap();
+    store
+        .append_event(&scope, "evt-idempotent", "same content")
+        .await
+        .unwrap();
+
+    let event = store
+        .retrieve_event(&scope, "evt-idempotent")
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(event.content, "same content");
+}
+
+#[tokio::test]
+async fn sqlite_store_event_append_rejects_same_scope_event_with_different_content() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let scope = MemoryScopeContext::for_test(1, 1);
+
+    store
+        .append_event(&scope, "evt-conflict", "alpha")
+        .await
+        .unwrap();
+    let err = store
+        .append_event(&scope, "evt-conflict", "omega")
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, NativeSqlStoreError::EventConflict { .. }));
+}
+
+#[tokio::test]
+async fn sqlite_store_event_append_rejects_same_tenant_event_reuse_in_different_space() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let first_space = MemoryScopeContext::for_test(1, 1);
+    let second_space = MemoryScopeContext::for_test(1, 2);
+
+    store
+        .append_event(&first_space, "evt-space-conflict", "same content")
+        .await
+        .unwrap();
+    let err = store
+        .append_event(&second_space, "evt-space-conflict", "same content")
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, NativeSqlStoreError::EventConflict { .. }));
+    assert!(store
+        .retrieve_event(&second_space, "evt-space-conflict")
+        .await
+        .unwrap()
+        .is_none());
+}
+
+#[tokio::test]
+async fn sqlite_store_spi_event_append_maps_idempotency_conflict_to_spi_conflict() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let scope = MemoryScopeContext::for_test(1, 1);
+
+    MemoryEventStorePort::append(
+        &store,
+        AppendMemoryEventCommand {
+            scope: scope.clone(),
+            event_id: "evt-spi-conflict".to_string(),
+            content: "alpha".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let err = MemoryEventStorePort::append(
+        &store,
+        AppendMemoryEventCommand {
+            scope,
+            event_id: "evt-spi-conflict".to_string(),
+            content: "omega".to_string(),
+        },
+    )
+    .await
+    .unwrap_err();
+
+    assert!(matches!(err, MemorySpiError::IdempotencyConflict { .. }));
 }
