@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 use sdkwork_memory_spi::{
-    AppendMemoryEventCommand, CreateMemoryRecordCommand, MemoryEvent, MemoryEventStorePort,
-    MemoryRecord, MemoryRecordStorePort, MemoryScopeContext, MemorySpiError, MemorySpiResult,
-    RetrieveMemoryEventQuery, RetrieveMemoryRecordQuery,
+    AppendMemoryAuditCommand, AppendMemoryEventCommand, CreateMemoryRecordCommand,
+    MemoryAuditRecord, MemoryAuditStorePort, MemoryEvent, MemoryEventStorePort, MemoryRecord,
+    MemoryRecordStorePort, MemoryScopeContext, MemorySpiError, MemorySpiResult,
+    RetrieveMemoryAuditQuery, RetrieveMemoryEventQuery, RetrieveMemoryRecordQuery,
 };
 use serde_json::Value;
 use sqlx::{Row, SqlitePool};
@@ -197,6 +198,75 @@ impl NativeSqlMemoryStore {
         }))
     }
 
+    pub async fn append_audit(
+        &self,
+        scope: &MemoryScopeContext,
+        audit_id: &str,
+        action: &str,
+        resource_type: &str,
+        resource_id: &str,
+        result: &str,
+    ) -> Result<NativeSqlMemoryAuditRecord, NativeSqlStoreError> {
+        sqlx::query(
+            r#"
+            INSERT INTO mem_audit_log (
+              uuid,
+              tenant_id,
+              actor_type,
+              action,
+              resource_type,
+              resource_id,
+              result,
+              created_at
+            )
+            VALUES (?, ?, 'system', ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(audit_id)
+        .bind(scope.tenant_id)
+        .bind(action)
+        .bind(resource_type)
+        .bind(resource_id)
+        .bind(result)
+        .bind(now_text())
+        .execute(&self.pool)
+        .await?;
+
+        Ok(NativeSqlMemoryAuditRecord {
+            audit_id: audit_id.to_string(),
+            action: action.to_string(),
+            resource_type: resource_type.to_string(),
+            resource_id: resource_id.to_string(),
+            result: result.to_string(),
+        })
+    }
+
+    pub async fn retrieve_audit(
+        &self,
+        scope: &MemoryScopeContext,
+        audit_id: &str,
+    ) -> Result<Option<NativeSqlMemoryAuditRecord>, NativeSqlStoreError> {
+        let row = sqlx::query(
+            r#"
+            SELECT uuid, action, resource_type, resource_id, result
+            FROM mem_audit_log
+            WHERE tenant_id = ? AND uuid = ?
+            "#,
+        )
+        .bind(scope.tenant_id)
+        .bind(audit_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|row| NativeSqlMemoryAuditRecord {
+            audit_id: row.get("uuid"),
+            action: row.get("action"),
+            resource_type: row.get("resource_type"),
+            resource_id: row.get("resource_id"),
+            result: row.get("result"),
+        }))
+    }
+
     async fn apply_sqlite_phase1_migration(&self) -> Result<(), NativeSqlStoreError> {
         let migration = include_str!("../migrations/sqlite/V202606100001__memory_phase1.sql");
         for statement in migration.split(';') {
@@ -323,6 +393,52 @@ impl MemoryRecordStorePort for NativeSqlMemoryStore {
     }
 }
 
+#[async_trait]
+impl MemoryAuditStorePort for NativeSqlMemoryStore {
+    async fn append(
+        &self,
+        command: AppendMemoryAuditCommand,
+    ) -> MemorySpiResult<MemoryAuditRecord> {
+        let audit = self
+            .append_audit(
+                &command.scope,
+                &command.audit_id,
+                &command.action,
+                &command.resource_type,
+                &command.resource_id,
+                &command.result,
+            )
+            .await
+            .map_err(|err| port_error("MemoryAuditStorePort", err))?;
+
+        Ok(MemoryAuditRecord {
+            audit_id: audit.audit_id,
+            action: audit.action,
+            resource_type: audit.resource_type,
+            resource_id: audit.resource_id,
+            result: audit.result,
+        })
+    }
+
+    async fn retrieve(
+        &self,
+        query: RetrieveMemoryAuditQuery,
+    ) -> MemorySpiResult<Option<MemoryAuditRecord>> {
+        let audit = self
+            .retrieve_audit(&query.scope, &query.audit_id)
+            .await
+            .map_err(|err| port_error("MemoryAuditStorePort", err))?;
+
+        Ok(audit.map(|audit| MemoryAuditRecord {
+            audit_id: audit.audit_id,
+            action: audit.action,
+            resource_type: audit.resource_type,
+            resource_id: audit.resource_id,
+            result: audit.result,
+        }))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeSqlMemoryEvent {
     pub event_id: String,
@@ -333,6 +449,15 @@ pub struct NativeSqlMemoryEvent {
 pub struct NativeSqlMemoryRecord {
     pub memory_id: String,
     pub content: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeSqlMemoryAuditRecord {
+    pub audit_id: String,
+    pub action: String,
+    pub resource_type: String,
+    pub resource_id: String,
+    pub result: String,
 }
 
 #[derive(Debug, Error)]

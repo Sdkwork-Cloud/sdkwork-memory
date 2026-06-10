@@ -63,7 +63,27 @@ pub struct RetrieveMemoryEventQuery {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemoryAuditRecord {
+    pub audit_id: String,
     pub action: String,
+    pub resource_type: String,
+    pub resource_id: String,
+    pub result: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AppendMemoryAuditCommand {
+    pub scope: MemoryScopeContext,
+    pub audit_id: String,
+    pub action: String,
+    pub resource_type: String,
+    pub resource_id: String,
+    pub result: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetrieveMemoryAuditQuery {
+    pub scope: MemoryScopeContext,
+    pub audit_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -181,7 +201,13 @@ pub trait MemoryEventStorePort: Send + Sync {
 
 #[async_trait]
 pub trait MemoryAuditStorePort: Send + Sync {
-    async fn append(&self, action: String) -> MemorySpiResult<MemoryAuditRecord>;
+    async fn append(&self, command: AppendMemoryAuditCommand)
+        -> MemorySpiResult<MemoryAuditRecord>;
+
+    async fn retrieve(
+        &self,
+        query: RetrieveMemoryAuditQuery,
+    ) -> MemorySpiResult<Option<MemoryAuditRecord>>;
 }
 
 #[async_trait]

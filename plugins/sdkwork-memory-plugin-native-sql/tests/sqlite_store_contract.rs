@@ -1,8 +1,8 @@
 use sdkwork_memory_plugin_native_sql::{NativeSqlMemoryStore, NativeSqlStoreError};
 use sdkwork_memory_spi::{
-    AppendMemoryEventCommand, CreateMemoryRecordCommand, MemoryEventStorePort,
-    MemoryRecordStorePort, MemoryScopeContext, MemorySpiError, RetrieveMemoryEventQuery,
-    RetrieveMemoryRecordQuery,
+    AppendMemoryAuditCommand, AppendMemoryEventCommand, CreateMemoryRecordCommand,
+    MemoryAuditStorePort, MemoryEventStorePort, MemoryRecordStorePort, MemoryScopeContext,
+    MemorySpiError, RetrieveMemoryAuditQuery, RetrieveMemoryEventQuery, RetrieveMemoryRecordQuery,
 };
 
 #[tokio::test]
@@ -308,4 +308,90 @@ async fn sqlite_store_spi_event_append_maps_idempotency_conflict_to_spi_conflict
     .unwrap_err();
 
     assert!(matches!(err, MemorySpiError::IdempotencyConflict { .. }));
+}
+
+#[tokio::test]
+async fn sqlite_store_appends_and_retrieves_audit_records_by_scope() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let tenant_one = MemoryScopeContext::for_test(1, 1);
+    let tenant_two = MemoryScopeContext::for_test(2, 2);
+
+    store
+        .append_audit(
+            &tenant_one,
+            "aud-shared",
+            "memory.record.created",
+            "mem_record",
+            "rec-1",
+            "success",
+        )
+        .await
+        .unwrap();
+    store
+        .append_audit(
+            &tenant_two,
+            "aud-shared",
+            "memory.record.created",
+            "mem_record",
+            "rec-2",
+            "success",
+        )
+        .await
+        .unwrap();
+
+    let tenant_one_audit = store
+        .retrieve_audit(&tenant_one, "aud-shared")
+        .await
+        .unwrap()
+        .unwrap();
+    let tenant_two_audit = store
+        .retrieve_audit(&tenant_two, "aud-shared")
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(tenant_one_audit.action, "memory.record.created");
+    assert_eq!(tenant_one_audit.resource_id, "rec-1");
+    assert_eq!(tenant_two_audit.resource_id, "rec-2");
+    assert!(store
+        .retrieve_audit(&MemoryScopeContext::for_test(3, 3), "aud-shared")
+        .await
+        .unwrap()
+        .is_none());
+}
+
+#[tokio::test]
+async fn sqlite_store_implements_audit_store_spi_port() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let scope = MemoryScopeContext::for_test(1, 1);
+
+    let audit = MemoryAuditStorePort::append(
+        &store,
+        AppendMemoryAuditCommand {
+            scope: scope.clone(),
+            audit_id: "aud-spi".to_string(),
+            action: "memory.event.appended".to_string(),
+            resource_type: "mem_event".to_string(),
+            resource_id: "evt-spi".to_string(),
+            result: "success".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let retrieved = MemoryAuditStorePort::retrieve(
+        &store,
+        RetrieveMemoryAuditQuery {
+            scope,
+            audit_id: "aud-spi".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+
+    assert_eq!(audit.audit_id, "aud-spi");
+    assert_eq!(retrieved.action, "memory.event.appended");
+    assert_eq!(retrieved.resource_type, "mem_event");
+    assert_eq!(retrieved.resource_id, "evt-spi");
+    assert_eq!(retrieved.result, "success");
 }

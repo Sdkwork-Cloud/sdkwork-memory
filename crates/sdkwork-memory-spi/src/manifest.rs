@@ -85,6 +85,42 @@ impl MemoryPluginManifest {
             ));
         }
 
+        self.require_capability_port(
+            self.capabilities.canonical_store,
+            "MemoryRecordStorePort",
+            "canonicalStore",
+        )?;
+        self.require_capability_port(
+            self.capabilities.event_log,
+            "MemoryEventStorePort",
+            "eventLog",
+        )?;
+        self.require_capability_port(
+            self.capabilities.audit_log,
+            "MemoryAuditStorePort",
+            "auditLog",
+        )?;
+
+        Ok(())
+    }
+
+    fn require_capability_port(
+        &self,
+        capability_enabled: bool,
+        required_port: &str,
+        capability_name: &str,
+    ) -> Result<(), MemorySpiError> {
+        if capability_enabled
+            && !self
+                .port_exports
+                .iter()
+                .any(|export| export.port == required_port)
+        {
+            return Err(MemorySpiError::ManifestInvalid(format!(
+                "{capability_name}=true requires {required_port}"
+            )));
+        }
+
         Ok(())
     }
 
@@ -122,6 +158,10 @@ impl MemoryPluginManifest {
                 MemoryPluginPortExport {
                     port: "MemoryEventStorePort".to_string(),
                     builder: "build_native_sql_event_store".to_string(),
+                },
+                MemoryPluginPortExport {
+                    port: "MemoryAuditStorePort".to_string(),
+                    builder: "build_native_sql_audit_store".to_string(),
                 },
             ],
             provider_kinds: vec![],

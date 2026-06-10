@@ -14,7 +14,11 @@ fn native_sql_manifest_deserializes_and_declares_no_embedding_baseline() {
           "implementationKinds": ["native_sql", "local_embedded"],
           "pluginRoles": ["implementation", "store", "retriever", "index"],
           "deploymentModes": ["server", "container", "private", "local", "test"],
-          "portExports": [{"port": "MemoryRecordStorePort", "builder": "build_native_sql_record_store"}],
+          "portExports": [
+            {"port": "MemoryRecordStorePort", "builder": "build_native_sql_record_store"},
+            {"port": "MemoryEventStorePort", "builder": "build_native_sql_event_store"},
+            {"port": "MemoryAuditStorePort", "builder": "build_native_sql_audit_store"}
+          ],
           "providerKinds": [],
           "retrieverKinds": ["sql", "keyword", "dictionary", "time", "event"],
           "indexKinds": ["sql", "keyword", "dictionary", "time", "event"],
@@ -62,5 +66,15 @@ fn manifest_rejects_secret_values_and_agent_plugin_paths() {
 
     let mut manifest = MemoryPluginManifest::native_sql_for_test();
     manifest.package_name = ".sdkwork/plugins/sdkwork-memory-plugin-native-sql".to_string();
+    assert!(manifest.validate().is_err());
+}
+
+#[test]
+fn manifest_rejects_enabled_capabilities_without_required_ports() {
+    let mut manifest = MemoryPluginManifest::native_sql_for_test();
+    manifest
+        .port_exports
+        .retain(|export| export.port != "MemoryAuditStorePort");
+
     assert!(manifest.validate().is_err());
 }

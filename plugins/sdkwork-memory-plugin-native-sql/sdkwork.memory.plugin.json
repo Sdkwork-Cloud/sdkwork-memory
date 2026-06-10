@@ -17,6 +17,10 @@
     {
       "port": "MemoryEventStorePort",
       "builder": "build_native_sql_event_store"
+    },
+    {
+      "port": "MemoryAuditStorePort",
+      "builder": "build_native_sql_audit_store"
     }
   ],
   "providerKinds": [],

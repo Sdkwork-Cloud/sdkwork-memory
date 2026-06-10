@@ -1,14 +1,14 @@
 use async_trait::async_trait;
 use sdkwork_memory_spi::{
-    AssembleMemoryContextCommand, EmbeddingCommand, EmbeddingModelPort, ExternalMemoryBridgePort,
-    ExternalMemoryDeleteCommand, ExternalMemoryDeleteReceipt, ExternalMemoryExportCommand,
-    ExternalMemoryExportResult, ExternalMemoryImportCommand, ExternalMemoryImportResult,
-    ExternalMemoryShadowReadCommand, ExternalMemoryShadowReadResult, LanguageModelCommand,
-    LanguageModelPort, MemoryAuditRecord, MemoryAuditStorePort, MemoryContextAssemblerPort,
-    MemoryContextPackDraft, MemoryEvalRunResult, MemoryEvaluationPort, MemoryEvent,
-    MemoryEventStorePort, MemoryIndexPort, MemoryIndexReceipt, MemoryPolicy, MemoryPolicyStorePort,
-    MemoryRecord, MemoryRecordStorePort, MemoryRetrieverPort, MemoryRetrieverResult,
-    RerankMemoryHitsCommand, RerankMemoryHitsResult, RerankModelPort,
+    AppendMemoryAuditCommand, AssembleMemoryContextCommand, EmbeddingCommand, EmbeddingModelPort,
+    ExternalMemoryBridgePort, ExternalMemoryDeleteCommand, ExternalMemoryDeleteReceipt,
+    ExternalMemoryExportCommand, ExternalMemoryExportResult, ExternalMemoryImportCommand,
+    ExternalMemoryImportResult, ExternalMemoryShadowReadCommand, ExternalMemoryShadowReadResult,
+    LanguageModelCommand, LanguageModelPort, MemoryAuditRecord, MemoryAuditStorePort,
+    MemoryContextAssemblerPort, MemoryContextPackDraft, MemoryEvalRunResult, MemoryEvaluationPort,
+    MemoryEvent, MemoryEventStorePort, MemoryIndexPort, MemoryIndexReceipt, MemoryPolicy,
+    MemoryPolicyStorePort, MemoryRecord, MemoryRecordStorePort, MemoryRetrieverPort,
+    MemoryRetrieverResult, RerankMemoryHitsCommand, RerankMemoryHitsResult, RerankModelPort,
     RetrieveMemoryCandidatesCommand, RunMemoryEvalCommand,
 };
 
@@ -64,9 +64,28 @@ impl MemoryEventStorePort for FakePorts {
 impl MemoryAuditStorePort for FakePorts {
     async fn append(
         &self,
-        action: String,
+        command: AppendMemoryAuditCommand,
     ) -> sdkwork_memory_spi::MemorySpiResult<MemoryAuditRecord> {
-        Ok(MemoryAuditRecord { action })
+        Ok(MemoryAuditRecord {
+            audit_id: command.audit_id,
+            action: command.action,
+            resource_type: command.resource_type,
+            resource_id: command.resource_id,
+            result: command.result,
+        })
+    }
+
+    async fn retrieve(
+        &self,
+        query: sdkwork_memory_spi::RetrieveMemoryAuditQuery,
+    ) -> sdkwork_memory_spi::MemorySpiResult<Option<MemoryAuditRecord>> {
+        Ok(Some(MemoryAuditRecord {
+            audit_id: query.audit_id,
+            action: "memory.audit.checked".to_string(),
+            resource_type: "mem_audit_log".to_string(),
+            resource_id: "audit".to_string(),
+            result: "success".to_string(),
+        }))
     }
 }
 

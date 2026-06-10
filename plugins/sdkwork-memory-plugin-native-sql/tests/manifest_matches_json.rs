@@ -1,7 +1,8 @@
 use std::fs;
 
 use sdkwork_memory_plugin_native_sql::{
-    build_native_sql_event_store, build_native_sql_record_store, native_sql_manifest,
+    build_native_sql_audit_store, build_native_sql_event_store, build_native_sql_record_store,
+    native_sql_manifest,
 };
 use sdkwork_memory_spi::{MemoryImplementationKind, MemoryPluginManifest};
 
@@ -53,7 +54,20 @@ fn manifest_event_store_builder_is_exported_by_plugin_crate() {
 }
 
 #[test]
-fn manifest_declares_record_and_event_store_ports() {
+fn manifest_audit_store_builder_is_exported_by_plugin_crate() {
+    let manifest = native_sql_manifest();
+    let builder = build_native_sql_audit_store();
+
+    assert!(manifest
+        .port_exports
+        .iter()
+        .any(|export| export.builder == builder.builder_name));
+    assert_eq!(builder.port_name, "MemoryAuditStorePort");
+    assert!(builder.ready);
+}
+
+#[test]
+fn manifest_declares_record_event_and_audit_store_ports() {
     let manifest = native_sql_manifest();
     let ports = manifest
         .port_exports
@@ -63,4 +77,5 @@ fn manifest_declares_record_and_event_store_ports() {
 
     assert!(ports.contains(&"MemoryRecordStorePort"));
     assert!(ports.contains(&"MemoryEventStorePort"));
+    assert!(ports.contains(&"MemoryAuditStorePort"));
 }

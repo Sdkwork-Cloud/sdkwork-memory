@@ -28,3 +28,11 @@ pub fn build_native_sql_event_store() -> NativeSqlPortBuilder {
         ready: true,
     }
 }
+
+pub fn build_native_sql_audit_store() -> NativeSqlPortBuilder {
+    NativeSqlPortBuilder {
+        port_name: "MemoryAuditStorePort",
+        builder_name: "build_native_sql_audit_store",
+        ready: true,
+    }
+}
