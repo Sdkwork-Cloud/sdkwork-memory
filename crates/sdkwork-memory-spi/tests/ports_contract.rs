@@ -25,6 +25,16 @@ impl MemoryRecordStorePort for FakePorts {
             content: command.content,
         })
     }
+
+    async fn retrieve(
+        &self,
+        query: sdkwork_memory_spi::RetrieveMemoryRecordQuery,
+    ) -> sdkwork_memory_spi::MemorySpiResult<Option<MemoryRecord>> {
+        Ok(Some(MemoryRecord {
+            memory_id: query.memory_id,
+            content: "redacted memory".to_string(),
+        }))
+    }
 }
 
 #[async_trait]
@@ -37,6 +47,16 @@ impl MemoryEventStorePort for FakePorts {
             event_id: command.event_id,
             content: command.content,
         })
+    }
+
+    async fn retrieve(
+        &self,
+        query: sdkwork_memory_spi::RetrieveMemoryEventQuery,
+    ) -> sdkwork_memory_spi::MemorySpiResult<Option<MemoryEvent>> {
+        Ok(Some(MemoryEvent {
+            event_id: query.event_id,
+            content: "redacted event".to_string(),
+        }))
     }
 }
 

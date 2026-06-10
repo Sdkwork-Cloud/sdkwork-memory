@@ -1,7 +1,8 @@
 use async_trait::async_trait;
 use sdkwork_memory_spi::{
     AppendMemoryEventCommand, CreateMemoryRecordCommand, MemoryEvent, MemoryEventStorePort,
-    MemoryRecord, MemoryRecordStorePort, MemorySpiError, MemorySpiResult,
+    MemoryRecord, MemoryRecordStorePort, MemoryScopeContext, MemorySpiError, MemorySpiResult,
+    RetrieveMemoryEventQuery, RetrieveMemoryRecordQuery,
 };
 use serde_json::Value;
 use sqlx::{Row, SqlitePool};
@@ -17,15 +18,16 @@ impl NativeSqlMemoryStore {
         let pool = SqlitePool::connect("sqlite::memory:").await?;
         let store = Self { pool };
         store.apply_sqlite_phase1_migration().await?;
-        store.ensure_default_space().await?;
         Ok(store)
     }
 
     pub async fn append_event(
         &self,
+        scope: &MemoryScopeContext,
         event_id: &str,
         content: &str,
     ) -> Result<(), NativeSqlStoreError> {
+        self.ensure_space(scope).await?;
         let payload_json = serde_json::json!({ "content": content }).to_string();
         sqlx::query(
             r#"
@@ -43,10 +45,12 @@ impl NativeSqlMemoryStore {
               ingestion_status,
               created_at
             )
-            VALUES (?, 1, 1, 'system', 'memory.event.appended', 'api', ?, ?, ?, 'internal', 'received', ?)
+            VALUES (?, ?, ?, 'system', 'memory.event.appended', 'api', ?, ?, ?, 'internal', 'received', ?)
             "#,
         )
         .bind(event_id)
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
         .bind(now_text())
         .bind(payload_json)
         .bind(stable_hash(content))
@@ -59,11 +63,14 @@ impl NativeSqlMemoryStore {
 
     pub async fn retrieve_event(
         &self,
+        scope: &MemoryScopeContext,
         event_id: &str,
     ) -> Result<Option<NativeSqlMemoryEvent>, NativeSqlStoreError> {
         let row = sqlx::query(
-            "SELECT uuid, payload_json FROM mem_event WHERE tenant_id = 1 AND uuid = ?",
+            "SELECT uuid, payload_json FROM mem_event WHERE tenant_id = ? AND space_id = ? AND uuid = ?",
         )
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
         .bind(event_id)
         .fetch_optional(&self.pool)
         .await?;
@@ -84,13 +91,17 @@ impl NativeSqlMemoryStore {
 
     pub async fn retrieve_event_payload(
         &self,
+        scope: &MemoryScopeContext,
         event_id: &str,
     ) -> Result<Option<Value>, NativeSqlStoreError> {
-        let row =
-            sqlx::query("SELECT payload_json FROM mem_event WHERE tenant_id = 1 AND uuid = ?")
-                .bind(event_id)
-                .fetch_optional(&self.pool)
-                .await?;
+        let row = sqlx::query(
+            "SELECT payload_json FROM mem_event WHERE tenant_id = ? AND space_id = ? AND uuid = ?",
+        )
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
+        .bind(event_id)
+        .fetch_optional(&self.pool)
+        .await?;
 
         Ok(row
             .map(|row| {
@@ -102,10 +113,12 @@ impl NativeSqlMemoryStore {
 
     pub async fn create_record(
         &self,
+        scope: &MemoryScopeContext,
         memory_id: &str,
         subject: &str,
         content: &str,
     ) -> Result<(), NativeSqlStoreError> {
+        self.ensure_space(scope).await?;
         sqlx::query(
             r#"
             INSERT INTO mem_record (
@@ -128,10 +141,12 @@ impl NativeSqlMemoryStore {
               created_at,
               updated_at
             )
-            VALUES (?, 1, 1, 'user', 'semantic', ?, 'is', ?, ?, 1.0, 1, 0, 0.5, 0.5, 'active', 'internal', ?, ?)
+            VALUES (?, ?, ?, 'user', 'semantic', ?, 'is', ?, ?, 1.0, 1, 0, 0.5, 0.5, 'active', 'internal', ?, ?)
             "#,
         )
         .bind(memory_id)
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
         .bind(subject)
         .bind(content)
         .bind(content)
@@ -145,11 +160,14 @@ impl NativeSqlMemoryStore {
 
     pub async fn retrieve_record(
         &self,
+        scope: &MemoryScopeContext,
         memory_id: &str,
     ) -> Result<Option<NativeSqlMemoryRecord>, NativeSqlStoreError> {
         let row = sqlx::query(
-            "SELECT uuid, object_text FROM mem_record WHERE tenant_id = 1 AND uuid = ?",
+            "SELECT uuid, object_text FROM mem_record WHERE tenant_id = ? AND space_id = ? AND uuid = ?",
         )
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
         .bind(memory_id)
         .fetch_optional(&self.pool)
         .await?;
@@ -171,7 +189,7 @@ impl NativeSqlMemoryStore {
         Ok(())
     }
 
-    async fn ensure_default_space(&self) -> Result<(), NativeSqlStoreError> {
+    async fn ensure_space(&self, scope: &MemoryScopeContext) -> Result<(), NativeSqlStoreError> {
         sqlx::query(
             r#"
             INSERT OR IGNORE INTO mem_space (
@@ -188,9 +206,13 @@ impl NativeSqlMemoryStore {
               updated_at,
               version
             )
-            VALUES (1, 'default-space', 1, 'user', 'system', 'personal', 'Default Memory Space', 'user', 'active', ?, ?, 0)
+            VALUES (?, ?, ?, 'user', ?, 'personal', 'Default Memory Space', 'user', 'active', ?, ?, 0)
             "#,
         )
+        .bind(scope.space_id)
+        .bind(format!("space-{}", scope.space_id))
+        .bind(scope.tenant_id)
+        .bind(format!("tenant-{}-space-{}", scope.tenant_id, scope.space_id))
         .bind(now_text())
         .bind(now_text())
         .execute(&self.pool)
@@ -203,7 +225,7 @@ impl NativeSqlMemoryStore {
 #[async_trait]
 impl MemoryEventStorePort for NativeSqlMemoryStore {
     async fn append(&self, command: AppendMemoryEventCommand) -> MemorySpiResult<MemoryEvent> {
-        self.append_event(&command.event_id, &command.content)
+        self.append_event(&command.scope, &command.event_id, &command.content)
             .await
             .map_err(|err| port_error("MemoryEventStorePort", err))?;
 
@@ -212,12 +234,27 @@ impl MemoryEventStorePort for NativeSqlMemoryStore {
             content: command.content,
         })
     }
+
+    async fn retrieve(
+        &self,
+        query: RetrieveMemoryEventQuery,
+    ) -> MemorySpiResult<Option<MemoryEvent>> {
+        let event = self
+            .retrieve_event(&query.scope, &query.event_id)
+            .await
+            .map_err(|err| port_error("MemoryEventStorePort", err))?;
+
+        Ok(event.map(|event| MemoryEvent {
+            event_id: event.event_id,
+            content: event.content,
+        }))
+    }
 }
 
 #[async_trait]
 impl MemoryRecordStorePort for NativeSqlMemoryStore {
     async fn create(&self, command: CreateMemoryRecordCommand) -> MemorySpiResult<MemoryRecord> {
-        self.create_record(&command.memory_id, "spi", &command.content)
+        self.create_record(&command.scope, &command.memory_id, "spi", &command.content)
             .await
             .map_err(|err| port_error("MemoryRecordStorePort", err))?;
 
@@ -225,6 +262,21 @@ impl MemoryRecordStorePort for NativeSqlMemoryStore {
             memory_id: command.memory_id,
             content: command.content,
         })
+    }
+
+    async fn retrieve(
+        &self,
+        query: RetrieveMemoryRecordQuery,
+    ) -> MemorySpiResult<Option<MemoryRecord>> {
+        let record = self
+            .retrieve_record(&query.scope, &query.memory_id)
+            .await
+            .map_err(|err| port_error("MemoryRecordStorePort", err))?;
+
+        Ok(record.map(|record| MemoryRecord {
+            memory_id: record.memory_id,
+            content: record.content,
+        }))
     }
 }
 

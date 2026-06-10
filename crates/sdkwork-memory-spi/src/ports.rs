@@ -5,7 +5,27 @@ use crate::MemorySpiResult;
 pub trait MemoryRuntimePlugin: Send + Sync {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryScopeContext {
+    pub tenant_id: i64,
+    pub space_id: i64,
+    pub organization_id: Option<i64>,
+    pub user_id: Option<i64>,
+}
+
+impl MemoryScopeContext {
+    pub fn for_test(tenant_id: i64, space_id: i64) -> Self {
+        Self {
+            tenant_id,
+            space_id,
+            organization_id: None,
+            user_id: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateMemoryRecordCommand {
+    pub scope: MemoryScopeContext,
     pub memory_id: String,
     pub content: String,
 }
@@ -17,7 +37,14 @@ pub struct MemoryRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetrieveMemoryRecordQuery {
+    pub scope: MemoryScopeContext,
+    pub memory_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppendMemoryEventCommand {
+    pub scope: MemoryScopeContext,
     pub event_id: String,
     pub content: String,
 }
@@ -26,6 +53,12 @@ pub struct AppendMemoryEventCommand {
 pub struct MemoryEvent {
     pub event_id: String,
     pub content: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetrieveMemoryEventQuery {
+    pub scope: MemoryScopeContext,
+    pub event_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -129,11 +162,21 @@ pub struct MemoryEvalRunResult {
 #[async_trait]
 pub trait MemoryRecordStorePort: Send + Sync {
     async fn create(&self, command: CreateMemoryRecordCommand) -> MemorySpiResult<MemoryRecord>;
+
+    async fn retrieve(
+        &self,
+        query: RetrieveMemoryRecordQuery,
+    ) -> MemorySpiResult<Option<MemoryRecord>>;
 }
 
 #[async_trait]
 pub trait MemoryEventStorePort: Send + Sync {
     async fn append(&self, command: AppendMemoryEventCommand) -> MemorySpiResult<MemoryEvent>;
+
+    async fn retrieve(
+        &self,
+        query: RetrieveMemoryEventQuery,
+    ) -> MemorySpiResult<Option<MemoryEvent>>;
 }
 
 #[async_trait]
