@@ -73,7 +73,7 @@ const appSdkDependencies = [
     required: true,
     dependencyMode: "consumer-sdk",
     apiPrefix: "/app/v3/api",
-    apiAuthority: "sdkwork-appbase.app",
+    apiAuthority: "sdkwork-appbase-app-api",
     generatedTransportImportPolicy: "forbidden",
     packageByLanguage: packageByLanguage.appbaseApp
   },
@@ -106,7 +106,7 @@ const backendSdkDependencies = [
     required: true,
     dependencyMode: "consumer-sdk",
     apiPrefix: "/backend/v3/api",
-    apiAuthority: "sdkwork-appbase.backend",
+    apiAuthority: "sdkwork-appbase-backend-api",
     generatedTransportImportPolicy: "forbidden",
     packageByLanguage: packageByLanguage.appbaseBackend
   },
