@@ -18,5 +18,5 @@ Generated files must not be hand-edited. Fix OpenAPI, route manifests, generator
 
 Credential mode:
 
-- Open API SDKs use an API key credential provider for protected operations.
+- Open API SDKs use an open-api credential provider matching the declared auth mode for protected operations.
 - App and backend SDKs use SDKWork dual-token credential injection.
