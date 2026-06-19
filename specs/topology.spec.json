@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.app.topology",
+  "appId": "sdkwork-memory",
+  "deploymentProfile": "cloud",
+  "runtimeTarget": "container",
+  "surfaces": {
+    "open-api": {
+      "prefix": "/mem/v3/api",
+      "ingressBindEnv": "SDKWORK_MEMORY_APPLICATION_PUBLIC_INGRESS_BIND"
+    },
+    "app-api": {
+      "prefix": "/app/v3/api"
+    },
+    "backend-api": {
+      "prefix": "/backend/v3/api"
+    }
+  },
+  "database": {
+    "serviceName": "memory",
+    "urlEnv": "SDKWORK_MEMORY_DATABASE_URL"
+  },
+  "metadata": {
+    "status": "draft",
+    "managedBy": "tools/check_sdkwork_memory_architecture_alignment.mjs"
+  }
+}

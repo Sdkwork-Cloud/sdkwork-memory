@@ -62,9 +62,19 @@
       "purpose": "SDK workspace and OpenAPI authority placement rules."
     },
     {
+      "file": "WEB_FRAMEWORK_SPEC.md",
+      "path": "../sdkwork-specs/WEB_FRAMEWORK_SPEC.md",
+      "purpose": "Mandatory sdkwork-web-framework integration for HTTP *-api surfaces."
+    },
+    {
       "file": "WEB_BACKEND_SPEC.md",
       "path": "../sdkwork-specs/WEB_BACKEND_SPEC.md",
       "purpose": "Backend route, service, repository, provider, and request-context boundaries."
+    },
+    {
+      "file": "DEPLOYMENT_SPEC.md",
+      "path": "../sdkwork-specs/DEPLOYMENT_SPEC.md",
+      "purpose": "Standalone/cloud deployment profile parity and runtime packaging."
     },
     {
       "file": "DATABASE_SPEC.md",

@@ -4,6 +4,12 @@ members = [
   "crates/sdkwork-memory-spi",
   "crates/sdkwork-memory-runtime",
   "crates/sdkwork-memory-test-support",
+  "crates/sdkwork-intelligence-memory-service",
+  "crates/sdkwork-intelligence-memory-repository-sqlx",
+  "crates/sdkwork-router-memory-open-api",
+  "crates/sdkwork-router-memory-app-api",
+  "crates/sdkwork-router-memory-backend-api",
+  "crates/sdkwork-memory-api-server",
   "plugins/sdkwork-memory-plugin-native-sql",
   "plugins/sdkwork-memory-plugin-reference-profiles",
 ]
@@ -15,8 +21,31 @@ license = "UNLICENSED"
 
 [workspace.dependencies]
 async-trait = "0.1"
+axum = "0.8"
+http = "1.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "migrate"] }
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tower = { version = "0.5", features = ["util"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+sdkwork-memory-spi = { path = "crates/sdkwork-memory-spi" }
+sdkwork-memory-runtime = { path = "crates/sdkwork-memory-runtime" }
+sdkwork-memory-test-support = { path = "crates/sdkwork-memory-test-support" }
+sdkwork-intelligence-memory-service = { path = "crates/sdkwork-intelligence-memory-service" }
+sdkwork-intelligence-memory-repository-sqlx = { path = "crates/sdkwork-intelligence-memory-repository-sqlx" }
+sdkwork-router-memory-open-api = { path = "crates/sdkwork-router-memory-open-api" }
+sdkwork-router-memory-app-api = { path = "crates/sdkwork-router-memory-app-api" }
+sdkwork-router-memory-backend-api = { path = "crates/sdkwork-router-memory-backend-api" }
+sdkwork-memory-api-server = { path = "crates/sdkwork-memory-api-server" }
+
+sdkwork-iam-web-adapter = { path = "../sdkwork-appbase/crates/sdkwork-iam-web-adapter" }
+sdkwork-router-iam-app-api = { path = "../sdkwork-appbase/crates/sdkwork-router-iam-app-api" }
+sdkwork-web-core = { path = "../sdkwork-web-framework/crates/sdkwork-web-core" }
+sdkwork-web-axum = { path = "../sdkwork-web-framework/crates/sdkwork-web-axum" }
+sdkwork-database-config = { path = "../sdkwork-database/crates/sdkwork-database-config" }
+sdkwork-database-sqlx = { path = "../sdkwork-database/crates/sdkwork-database-sqlx" }
+sdkwork-database-repository = { path = "../sdkwork-database/crates/sdkwork-database-repository" }

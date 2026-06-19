@@ -1,0 +1,19 @@
+[package]
+name = "sdkwork-intelligence-memory-repository-sqlx"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "migrate"] }
+thiserror.workspace = true
+tracing.workspace = true
+sdkwork-database-config.workspace = true
+sdkwork-database-sqlx.workspace = true
+sdkwork-database-repository.workspace = true
+sdkwork-intelligence-memory-service.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

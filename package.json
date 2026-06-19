@@ -1,0 +1,19 @@
+{
+  "name": "sdkwork-memory-workspace",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "packageManager": "pnpm@10.30.2",
+  "scripts": {
+    "dev": "cargo run -p sdkwork-memory-api-server",
+    "build": "cargo build --workspace --release",
+    "test": "cargo test --workspace",
+    "check": "node tools/check_sdkwork_memory_architecture_alignment.mjs",
+    "verify": "node tools/materialize_phase1_contracts.mjs && powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1 && cargo test --workspace && node tools/check_sdkwork_memory_architecture_alignment.mjs",
+    "clean": "cargo clean",
+    "api:materialize": "node tools/materialize_phase1_contracts.mjs",
+    "api:check": "powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1",
+    "db:validate": "cargo test -p sdkwork-intelligence-memory-repository-sqlx",
+    "topology:validate": "node ../sdkwork-app-topology/scripts/sdkwork-topology.mjs validate --root . --spec specs/topology.spec.json"
+  }
+}
