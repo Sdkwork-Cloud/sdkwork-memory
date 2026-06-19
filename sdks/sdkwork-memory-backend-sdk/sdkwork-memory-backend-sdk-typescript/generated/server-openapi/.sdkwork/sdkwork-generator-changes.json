@@ -1,0 +1,303 @@
+{
+  "schemaVersion": 1,
+  "generator": "@sdkwork/sdk-generator",
+  "sdk": {
+    "name": "sdkwork-memory-backend-sdk",
+    "version": "0.1.0",
+    "language": "typescript",
+    "sdkType": "backend",
+    "protocol": "http",
+    "packageName": "@sdkwork/memory-backend-sdk"
+  },
+  "changeFingerprint": "5c1d9ff2faadcfea4465e99081dc67f533dc4999204e7692db11802de64a0da1",
+  "changes": {
+    "createdGeneratedFiles": [
+      "bin/publish-core.mjs",
+      "bin/publish.ps1",
+      "bin/publish.sh",
+      "bin/sdk-gen.bat",
+      "bin/sdk-gen.sh",
+      "CHANGELOG.md",
+      "LICENSE",
+      "package.json",
+      "README.md",
+      "sdkwork-sdk.json",
+      "src/api/base.ts",
+      "src/api/index.ts",
+      "src/api/memory.ts",
+      "src/api/paths.ts",
+      "src/auth/index.ts",
+      "src/http/client.ts",
+      "src/http/index.ts",
+      "src/index.ts",
+      "src/sdk.ts",
+      "src/types/common.ts",
+      "src/types/index.ts",
+      "src/types/memory-audit-log-list.ts",
+      "src/types/memory-audit-log.ts",
+      "src/types/memory-candidate-list.ts",
+      "src/types/memory-candidate.ts",
+      "src/types/memory-capabilities.ts",
+      "src/types/memory-context-pack-request.ts",
+      "src/types/memory-context-pack.ts",
+      "src/types/memory-eval-run-list.ts",
+      "src/types/memory-eval-run-request.ts",
+      "src/types/memory-eval-run.ts",
+      "src/types/memory-event-list.ts",
+      "src/types/memory-event-request.ts",
+      "src/types/memory-event.ts",
+      "src/types/memory-export-job.ts",
+      "src/types/memory-export-request.ts",
+      "src/types/memory-extraction-request.ts",
+      "src/types/memory-feedback-request.ts",
+      "src/types/memory-feedback.ts",
+      "src/types/memory-forget-job.ts",
+      "src/types/memory-forget-request.ts",
+      "src/types/memory-habit-list.ts",
+      "src/types/memory-habit-request.ts",
+      "src/types/memory-habit.ts",
+      "src/types/memory-implementation-profile-list.ts",
+      "src/types/memory-implementation-profile-request.ts",
+      "src/types/memory-implementation-profile.ts",
+      "src/types/memory-index-list.ts",
+      "src/types/memory-index-request.ts",
+      "src/types/memory-index.ts",
+      "src/types/memory-learning-job.ts",
+      "src/types/memory-learning-settings-request.ts",
+      "src/types/memory-learning-settings.ts",
+      "src/types/memory-migration-job-request.ts",
+      "src/types/memory-page-info.ts",
+      "src/types/memory-provider-binding-list.ts",
+      "src/types/memory-provider-binding-request.ts",
+      "src/types/memory-provider-binding.ts",
+      "src/types/memory-provider-health.ts",
+      "src/types/memory-record-list.ts",
+      "src/types/memory-record-request.ts",
+      "src/types/memory-record-source-list.ts",
+      "src/types/memory-record-source.ts",
+      "src/types/memory-record.ts",
+      "src/types/memory-retention-job-request.ts",
+      "src/types/memory-retrieval-hit.ts",
+      "src/types/memory-retrieval-profile-list.ts",
+      "src/types/memory-retrieval-profile-request.ts",
+      "src/types/memory-retrieval-profile.ts",
+      "src/types/memory-retrieval-request.ts",
+      "src/types/memory-retrieval-result.ts",
+      "src/types/memory-retrieval-trace-list.ts",
+      "src/types/memory-retrieval-trace.ts",
+      "src/types/memory-review-request.ts",
+      "src/types/memory-space-list.ts",
+      "src/types/memory-space-request.ts",
+      "src/types/memory-space.ts",
+      "src/types/problem-details.ts",
+      "tsconfig.json"
+    ],
+    "updatedGeneratedFiles": [],
+    "unchangedGeneratedFiles": [],
+    "deletedGeneratedFiles": [],
+    "scaffoldedFiles": [
+      "custom/build-runtime.mjs",
+      "custom/README.md"
+    ],
+    "preservedScaffoldFiles": [],
+    "backedUpFiles": []
+  },
+  "impact": {
+    "schemaVersion": 1,
+    "areas": [
+      "api-surface",
+      "models",
+      "runtime",
+      "build-metadata",
+      "publish-workflow",
+      "documentation",
+      "custom-scaffold",
+      "unknown"
+    ],
+    "details": [
+      {
+        "area": "api-surface",
+        "paths": [
+          "src/api/base.ts",
+          "src/api/index.ts",
+          "src/api/memory.ts",
+          "src/api/paths.ts",
+          "src/http/client.ts",
+          "src/sdk.ts"
+        ]
+      },
+      {
+        "area": "models",
+        "paths": [
+          "src/types/common.ts",
+          "src/types/index.ts",
+          "src/types/memory-audit-log-list.ts",
+          "src/types/memory-audit-log.ts",
+          "src/types/memory-candidate-list.ts",
+          "src/types/memory-candidate.ts",
+          "src/types/memory-capabilities.ts",
+          "src/types/memory-context-pack-request.ts",
+          "src/types/memory-context-pack.ts",
+          "src/types/memory-eval-run-list.ts",
+          "src/types/memory-eval-run-request.ts",
+          "src/types/memory-eval-run.ts",
+          "src/types/memory-event-list.ts",
+          "src/types/memory-event-request.ts",
+          "src/types/memory-event.ts",
+          "src/types/memory-export-job.ts",
+          "src/types/memory-export-request.ts",
+          "src/types/memory-extraction-request.ts",
+          "src/types/memory-feedback-request.ts",
+          "src/types/memory-feedback.ts",
+          "src/types/memory-forget-job.ts",
+          "src/types/memory-forget-request.ts",
+          "src/types/memory-habit-list.ts",
+          "src/types/memory-habit-request.ts",
+          "src/types/memory-habit.ts",
+          "src/types/memory-implementation-profile-list.ts",
+          "src/types/memory-implementation-profile-request.ts",
+          "src/types/memory-implementation-profile.ts",
+          "src/types/memory-index-list.ts",
+          "src/types/memory-index-request.ts",
+          "src/types/memory-index.ts",
+          "src/types/memory-learning-job.ts",
+          "src/types/memory-learning-settings-request.ts",
+          "src/types/memory-learning-settings.ts",
+          "src/types/memory-migration-job-request.ts",
+          "src/types/memory-page-info.ts",
+          "src/types/memory-provider-binding-list.ts",
+          "src/types/memory-provider-binding-request.ts",
+          "src/types/memory-provider-binding.ts",
+          "src/types/memory-provider-health.ts",
+          "src/types/memory-record-list.ts",
+          "src/types/memory-record-request.ts",
+          "src/types/memory-record-source-list.ts",
+          "src/types/memory-record-source.ts",
+          "src/types/memory-record.ts",
+          "src/types/memory-retention-job-request.ts",
+          "src/types/memory-retrieval-hit.ts",
+          "src/types/memory-retrieval-profile-list.ts",
+          "src/types/memory-retrieval-profile-request.ts",
+          "src/types/memory-retrieval-profile.ts",
+          "src/types/memory-retrieval-request.ts",
+          "src/types/memory-retrieval-result.ts",
+          "src/types/memory-retrieval-trace-list.ts",
+          "src/types/memory-retrieval-trace.ts",
+          "src/types/memory-review-request.ts",
+          "src/types/memory-space-list.ts",
+          "src/types/memory-space-request.ts",
+          "src/types/memory-space.ts",
+          "src/types/problem-details.ts"
+        ]
+      },
+      {
+        "area": "runtime",
+        "paths": [
+          "src/auth/index.ts",
+          "src/http/client.ts",
+          "src/http/index.ts"
+        ]
+      },
+      {
+        "area": "build-metadata",
+        "paths": [
+          "package.json",
+          "sdkwork-sdk.json",
+          "tsconfig.json"
+        ]
+      },
+      {
+        "area": "publish-workflow",
+        "paths": [
+          "bin/publish-core.mjs",
+          "bin/publish.ps1",
+          "bin/publish.sh",
+          "bin/sdk-gen.bat",
+          "bin/sdk-gen.sh"
+        ]
+      },
+      {
+        "area": "documentation",
+        "paths": [
+          "CHANGELOG.md",
+          "custom/README.md",
+          "README.md"
+        ]
+      },
+      {
+        "area": "custom-scaffold",
+        "paths": [
+          "custom/build-runtime.mjs",
+          "custom/README.md"
+        ]
+      },
+      {
+        "area": "unknown",
+        "paths": [
+          "LICENSE",
+          "src/index.ts"
+        ]
+      }
+    ],
+    "requiresVerification": true,
+    "summary": "Detected impact areas: api-surface, models, runtime, build-metadata, publish-workflow, documentation, custom-scaffold, unknown. Verification is required."
+  },
+  "verificationPlan": {
+    "shouldRun": true,
+    "runPhase": "now",
+    "summary": "Detected impact areas: api-surface, models, runtime, build-metadata, publish-workflow, documentation, custom-scaffold, unknown. Verification is required. Run the required verification commands now against the generated SDK output.",
+    "steps": [
+      {
+        "id": "check",
+        "title": "Unified package check",
+        "required": true,
+        "rationale": "Validate the generated package with the unified publish helper. Triggered by: api-surface, models, runtime, build-metadata, publish-workflow, documentation, custom-scaffold, unknown.",
+        "workingDirectory": "E:\\sdkwork-space\\sdkwork-memory\\sdks\\sdkwork-memory-backend-sdk\\sdkwork-memory-backend-sdk-typescript\\generated\\server-openapi",
+        "command": "node",
+        "args": [
+          "./bin/publish-core.mjs",
+          "--language",
+          "typescript",
+          "--project-dir",
+          ".",
+          "--action",
+          "check"
+        ],
+        "displayCommand": "node ./bin/publish-core.mjs --language typescript --project-dir . --action check"
+      },
+      {
+        "id": "build",
+        "title": "Unified package build",
+        "required": true,
+        "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: api-surface, models, runtime, build-metadata, publish-workflow, documentation, custom-scaffold, unknown.",
+        "workingDirectory": "E:\\sdkwork-space\\sdkwork-memory\\sdks\\sdkwork-memory-backend-sdk\\sdkwork-memory-backend-sdk-typescript\\generated\\server-openapi",
+        "command": "node",
+        "args": [
+          "./bin/publish-core.mjs",
+          "--language",
+          "typescript",
+          "--project-dir",
+          ".",
+          "--action",
+          "build"
+        ],
+        "displayCommand": "node ./bin/publish-core.mjs --language typescript --project-dir . --action build"
+      }
+    ]
+  },
+  "executionDecision": {
+    "schemaVersion": 1,
+    "riskLevel": "high",
+    "nextAction": "verify",
+    "requiresManualReview": false,
+    "applyRequiresExpectedFingerprint": false,
+    "summary": "Changes have been applied. Run the required verification plan now.",
+    "reasons": [
+      "manual-review-required",
+      "preserved-legacy-files",
+      "unknown-impact",
+      "verification-required"
+    ]
+  },
+  "preservedLegacyFiles": true
+}

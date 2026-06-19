@@ -231,6 +231,103 @@ CREATE TABLE IF NOT EXISTS mem_context_pack (
 CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_context_pack_uuid
   ON mem_context_pack (tenant_id, uuid);
 
+CREATE TABLE IF NOT EXISTS mem_index (
+  id INTEGER PRIMARY KEY,
+  uuid TEXT NOT NULL,
+  tenant_id INTEGER NOT NULL,
+  space_id INTEGER,
+  index_kind TEXT NOT NULL,
+  implementation_profile_id INTEGER,
+  provider_binding_id INTEGER,
+  schema_version TEXT NOT NULL,
+  status TEXT NOT NULL,
+  rebuild_cursor TEXT,
+  config_json TEXT,
+  last_rebuilt_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  version INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_index_uuid
+  ON mem_index (tenant_id, uuid);
+
+CREATE TABLE IF NOT EXISTS mem_retrieval_profile (
+  id INTEGER PRIMARY KEY,
+  uuid TEXT NOT NULL,
+  tenant_id INTEGER NOT NULL,
+  space_id INTEGER,
+  name TEXT NOT NULL,
+  strategy TEXT NOT NULL,
+  retrievers_json TEXT NOT NULL,
+  fusion_policy_json TEXT,
+  rerank_policy_json TEXT,
+  top_k INTEGER NOT NULL,
+  context_budget_tokens INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  version INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_retrieval_profile_uuid
+  ON mem_retrieval_profile (tenant_id, uuid);
+
+CREATE TABLE IF NOT EXISTS mem_implementation_profile (
+  id INTEGER PRIMARY KEY,
+  uuid TEXT NOT NULL,
+  tenant_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  implementation_kind TEXT NOT NULL,
+  role TEXT NOT NULL,
+  status TEXT NOT NULL,
+  capability_json TEXT NOT NULL,
+  config_json TEXT,
+  rollout_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  version INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_implementation_profile_uuid
+  ON mem_implementation_profile (tenant_id, uuid);
+
+CREATE TABLE IF NOT EXISTS mem_provider_binding (
+  id INTEGER PRIMARY KEY,
+  uuid TEXT NOT NULL,
+  tenant_id INTEGER NOT NULL,
+  provider_kind TEXT NOT NULL,
+  provider_code TEXT NOT NULL,
+  display_name TEXT NOT NULL,
+  endpoint_ref TEXT,
+  secret_ref TEXT,
+  model_ref TEXT,
+  capabilities_json TEXT NOT NULL,
+  config_json TEXT,
+  health_state TEXT NOT NULL,
+  last_health_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  version INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_provider_binding_uuid
+  ON mem_provider_binding (tenant_id, uuid);
+
+CREATE TABLE IF NOT EXISTS mem_eval_run (
+  id INTEGER PRIMARY KEY,
+  uuid TEXT NOT NULL,
+  tenant_id INTEGER NOT NULL,
+  eval_type TEXT NOT NULL,
+  state TEXT NOT NULL,
+  metrics_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_eval_run_uuid
+  ON mem_eval_run (tenant_id, uuid);
+
 CREATE TABLE IF NOT EXISTS mem_audit_log (
   id INTEGER PRIMARY KEY,
   uuid TEXT NOT NULL,

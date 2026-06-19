@@ -3,12 +3,15 @@ resolver = "2"
 members = [
   "crates/sdkwork-memory-spi",
   "crates/sdkwork-memory-runtime",
+  "crates/sdkwork-memory-contract",
+  "crates/sdkwork-memory-core",
   "crates/sdkwork-memory-test-support",
   "crates/sdkwork-intelligence-memory-service",
   "crates/sdkwork-intelligence-memory-repository-sqlx",
   "crates/sdkwork-router-memory-open-api",
   "crates/sdkwork-router-memory-app-api",
   "crates/sdkwork-router-memory-backend-api",
+  "crates/sdkwork-memory-integration-tests",
   "crates/sdkwork-memory-api-server",
   "plugins/sdkwork-memory-plugin-native-sql",
   "plugins/sdkwork-memory-plugin-reference-profiles",
@@ -34,7 +37,10 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 sdkwork-memory-spi = { path = "crates/sdkwork-memory-spi" }
 sdkwork-memory-runtime = { path = "crates/sdkwork-memory-runtime" }
+sdkwork-memory-contract = { path = "crates/sdkwork-memory-contract" }
+sdkwork-memory-core = { path = "crates/sdkwork-memory-core" }
 sdkwork-memory-test-support = { path = "crates/sdkwork-memory-test-support" }
+sdkwork-memory-plugin-native-sql = { path = "plugins/sdkwork-memory-plugin-native-sql" }
 sdkwork-intelligence-memory-service = { path = "crates/sdkwork-intelligence-memory-service" }
 sdkwork-intelligence-memory-repository-sqlx = { path = "crates/sdkwork-intelligence-memory-repository-sqlx" }
 sdkwork-router-memory-open-api = { path = "crates/sdkwork-router-memory-open-api" }

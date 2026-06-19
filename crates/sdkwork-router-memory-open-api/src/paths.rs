@@ -1,3 +1,16 @@
 pub const PREFIX: &str = "/mem/v3/api";
 pub const HEALTHZ: &str = "/healthz";
-pub const CAPABILITIES: &str = "/mem/v3/api/capabilities";
+pub const CAPABILITIES: &str = "/mem/v3/api/memory/capabilities";
+pub const EVENTS: &str = "/mem/v3/api/memory/events";
+pub const EVENT: &str = "/mem/v3/api/memory/events/{eventId}";
+pub const MEMORIES: &str = "/mem/v3/api/memory/memories";
+pub const MEMORY: &str = "/mem/v3/api/memory/memories/{memoryId}";
+pub const RETRIEVALS: &str = "/mem/v3/api/memory/retrievals";
+pub const RETRIEVAL: &str = "/mem/v3/api/memory/retrievals/{retrievalId}";
+pub const CONTEXT_PACKS: &str = "/mem/v3/api/memory/context_packs";
+pub const CONTEXT_PACK: &str = "/mem/v3/api/memory/context_packs/{contextPackId}";
+pub const FEEDBACK: &str = "/mem/v3/api/memory/feedback";
+pub const EXTRACTIONS: &str = "/mem/v3/api/memory/extractions";
+pub const CANDIDATES: &str = "/mem/v3/api/memory/candidates";
+pub const CANDIDATE: &str = "/mem/v3/api/memory/candidates/{candidateId}";
+pub const PROVIDER_HEALTH: &str = "/mem/v3/api/memory/provider_health";

@@ -2,9 +2,11 @@ use std::sync::Arc;
 
 use axum::Router;
 use sdkwork_iam_web_adapter::IamDatabaseWebRequestContextResolver;
+use sdkwork_memory_contract::MemoryOpenApiRequestContext;
 use sdkwork_web_axum::{with_web_request_context, WebFrameworkLayer};
 use sdkwork_web_core::{
-    DefaultWebRequestContextResolver, WebRequestContextProfile,
+    DefaultWebRequestContextResolver, DomainContextInjector, WebRequestContext,
+    WebRequestContextProfile,
 };
 
 use crate::http_route_manifest::open_route_manifest;
@@ -18,24 +20,47 @@ pub fn memory_open_api_prefixes() -> Vec<String> {
     vec![paths::PREFIX.to_owned()]
 }
 
+#[derive(Clone, Default)]
+struct MemoryOpenApiContextInjector;
+
+impl DomainContextInjector for MemoryOpenApiContextInjector {
+    fn inject(&self, request: &mut axum::extract::Request, context: &WebRequestContext) {
+        if let Some(open_context) = memory_open_api_context_from_web_request(context) {
+            request.extensions_mut().insert(open_context);
+        }
+    }
+}
+
+fn memory_open_api_context_from_web_request(
+    context: &WebRequestContext,
+) -> Option<MemoryOpenApiRequestContext> {
+    let principal = context.principal.as_ref()?;
+    let tenant_id = principal.tenant_id().parse().ok()?;
+    let actor_id = principal.user_id().parse().ok();
+    let credential_id = principal
+        .api_key_id()
+        .map(str::to_owned)
+        .or_else(|| principal.session_id().map(str::to_owned))
+        .unwrap_or_else(|| principal.user_id().to_owned());
+    Some(MemoryOpenApiRequestContext {
+        api_key_id: credential_id,
+        tenant_id,
+        actor_id,
+    })
+}
+
 pub fn wrap_router_with_web_framework(
     resolver: DefaultWebRequestContextResolver,
     router: Router,
 ) -> Router {
-    with_web_request_context(
-        router,
-        build_memory_open_api_framework_layer(resolver),
-    )
+    with_web_request_context(router, build_memory_open_api_framework_layer(resolver))
 }
 
 pub fn wrap_router_with_iam_database_web_framework(
     resolver: IamDatabaseWebRequestContextResolver,
     router: Router,
 ) -> Router {
-    with_web_request_context(
-        router,
-        build_memory_open_api_framework_layer(resolver),
-    )
+    with_web_request_context(router, build_memory_open_api_framework_layer(resolver))
 }
 
 fn build_memory_open_api_framework_layer<R>(resolver: R) -> WebFrameworkLayer<R>
@@ -54,19 +79,7 @@ where
             ..WebRequestContextProfile::default()
         })
         .with_route_manifest(route_manifest)
-        .with_domain_injector(Arc::new(MemoryOpenApiNoopInjector))
-}
-
-#[derive(Clone, Default)]
-struct MemoryOpenApiNoopInjector;
-
-impl sdkwork_web_core::DomainContextInjector for MemoryOpenApiNoopInjector {
-    fn inject(
-        &self,
-        _request: &mut axum::extract::Request,
-        _context: &sdkwork_web_core::WebRequestContext,
-    ) {
-    }
+        .with_domain_injector(Arc::new(MemoryOpenApiContextInjector))
 }
 
 pub async fn wrap_router_with_web_framework_from_env(router: Router) -> Router {

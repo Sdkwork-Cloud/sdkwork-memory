@@ -9,3 +9,9 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 sdkwork-memory-spi.workspace = true
+sdkwork-memory-contract.workspace = true
+sdkwork-memory-core.workspace = true
+sdkwork-memory-plugin-native-sql.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

@@ -1,0 +1,15 @@
+schemaVersion: 1
+kind: sdkwork.sdkgen.config
+input: memory-backend-api.openapi.json
+output: ../sdkwork-memory-backend-sdk-typescript/generated/server-openapi
+sdkOwner: sdkwork-memory
+apiAuthority: sdkwork-memory.backend
+sdkFamily: sdkwork-memory-backend-sdk
+standardProfile: sdkwork-v3
+languageTargets:
+  - typescript
+ownerOnly: true
+domain: intelligence
+capability: memory
+prefix: /backend/v3/api
+surface: backend-api

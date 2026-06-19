@@ -1,0 +1,22 @@
+[package]
+name = "sdkwork-memory-integration-tests"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dev-dependencies]
+axum.workspace = true
+http.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tower.workspace = true
+sdkwork-iam-web-adapter.workspace = true
+sdkwork-intelligence-memory-service.workspace = true
+sdkwork-memory-contract.workspace = true
+sdkwork-memory-plugin-native-sql.workspace = true
+sdkwork-memory-spi.workspace = true
+sdkwork-router-memory-app-api.workspace = true
+sdkwork-router-memory-open-api.workspace = true
+sdkwork-router-memory-backend-api.workspace = true
+sdkwork-web-core.workspace = true
+sdkwork-memory-api-server = { path = "../sdkwork-memory-api-server" }

@@ -128,6 +128,41 @@
     ],
     "sdkDependencies": [
       {
+        "workspace": "sdkwork-web-framework",
+        "role": "http-web-framework-runtime",
+        "required": true,
+        "dependencyMode": "platform-framework",
+        "generatedTransportImportPolicy": "forbidden"
+      },
+      {
+        "workspace": "sdkwork-database",
+        "role": "database-runtime",
+        "required": true,
+        "dependencyMode": "platform-framework",
+        "generatedTransportImportPolicy": "forbidden"
+      },
+      {
+        "workspace": "sdkwork-appbase",
+        "role": "appbase-platform-runtime",
+        "required": true,
+        "dependencyMode": "platform-framework",
+        "generatedTransportImportPolicy": "forbidden"
+      },
+      {
+        "workspace": "sdkwork-id",
+        "role": "id-generation-runtime",
+        "required": true,
+        "dependencyMode": "platform-framework",
+        "generatedTransportImportPolicy": "forbidden"
+      },
+      {
+        "workspace": "sdkwork-sdk-generator",
+        "role": "sdk-generation-tooling",
+        "required": true,
+        "dependencyMode": "platform-tooling",
+        "generatedTransportImportPolicy": "forbidden"
+      },
+      {
         "workspace": "sdkwork-appbase-app-sdk",
         "role": "appbase-identity-and-session-capability",
         "required": true,

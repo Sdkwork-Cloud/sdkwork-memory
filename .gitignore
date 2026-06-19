@@ -32,3 +32,6 @@ target/
 dist/
 build/
 coverage/
+sdks/**/generated/server-openapi/node_modules/
+sdks/**/generated/server-openapi/dist/
+sdks/**/generated/server-openapi/package-lock.json

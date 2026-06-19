@@ -16,6 +16,11 @@ const requiredTables = [
   "mem_retrieval_trace",
   "mem_retrieval_hit",
   "mem_context_pack",
+  "mem_index",
+  "mem_retrieval_profile",
+  "mem_implementation_profile",
+  "mem_provider_binding",
+  "mem_eval_run",
   "mem_audit_log",
   "mem_outbox_event",
 ];

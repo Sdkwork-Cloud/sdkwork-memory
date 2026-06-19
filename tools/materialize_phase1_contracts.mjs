@@ -132,6 +132,44 @@ const backendSdkDependencies = [
   }
 ];
 
+const platformWorkspaceDependencies = [
+  {
+    workspace: "sdkwork-web-framework",
+    role: "http-web-framework-runtime",
+    required: true,
+    dependencyMode: "platform-framework",
+    generatedTransportImportPolicy: "forbidden"
+  },
+  {
+    workspace: "sdkwork-database",
+    role: "database-runtime",
+    required: true,
+    dependencyMode: "platform-framework",
+    generatedTransportImportPolicy: "forbidden"
+  },
+  {
+    workspace: "sdkwork-appbase",
+    role: "appbase-platform-runtime",
+    required: true,
+    dependencyMode: "platform-framework",
+    generatedTransportImportPolicy: "forbidden"
+  },
+  {
+    workspace: "sdkwork-id",
+    role: "id-generation-runtime",
+    required: true,
+    dependencyMode: "platform-framework",
+    generatedTransportImportPolicy: "forbidden"
+  },
+  {
+    workspace: "sdkwork-sdk-generator",
+    role: "sdk-generation-tooling",
+    required: true,
+    dependencyMode: "platform-tooling",
+    generatedTransportImportPolicy: "forbidden"
+  }
+];
+
 const rootCanonicalSpecs = [
   ["SOUL.md", "../sdkwork-specs/SOUL.md", "SDKWork execution soul."],
   ["COMPONENT_SPEC.md", "../sdkwork-specs/COMPONENT_SPEC.md", "Component-local contract and discovery rules."],
@@ -577,6 +615,7 @@ powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1
         "SdkworkMemoryBackendClient"
       ],
       sdkDependencies: [
+        ...platformWorkspaceDependencies,
         ...appSdkDependencies,
         ...backendSdkDependencies
       ],
@@ -800,6 +839,33 @@ function sdkManifest({ surface, prefix, authority, openapiFile, dependencies }) 
   };
 }
 
+function writeSdkgenConfig({ surface, prefix, authority, openapiFile }) {
+  const profile = sdkSurfaceProfile(surface);
+  const family = profile.family;
+  const sdkgenFile = openapiFile.replace(".openapi.json", ".sdkgen.yaml");
+  const apiSurface =
+    surface === "open" ? "open-api" : surface === "app" ? "app-api" : "backend-api";
+  writeText(
+    `sdks/${family}/openapi/${sdkgenFile}`,
+    `schemaVersion: 1
+kind: sdkwork.sdkgen.config
+input: ${openapiFile}
+output: ../${family}-typescript/generated/server-openapi
+sdkOwner: ${owner}
+apiAuthority: ${authority}
+sdkFamily: ${family}
+standardProfile: sdkwork-v3
+languageTargets:
+  - typescript
+ownerOnly: true
+domain: ${domain}
+capability: ${capability}
+prefix: ${prefix}
+surface: ${apiSurface}
+`
+  );
+}
+
 function writeSdkFamily({ surface, prefix, title, authority, openapiFile, client, dependencies }) {
   const profile = sdkSurfaceProfile(surface);
   const family = profile.family;
@@ -846,6 +912,7 @@ Local authority:
   writeJson(`sdks/${family}/.sdkwork-assembly.json`, sdkFamilyAssembly({ surface, prefix, title, authority, openapiFile, client, dependencies }));
   writeJson(`sdks/${family}/specs/component.spec.json`, sdkComponentSpec({ surface, prefix, title, authority, openapiFile, client, dependencies }));
   writeJson(`sdks/${family}/sdk-manifest.json`, sdkManifest({ surface, prefix, authority, openapiFile, dependencies }));
+  writeSdkgenConfig({ surface, prefix, authority, openapiFile });
 }
 
 function writeSdkFamilies() {
@@ -1602,6 +1669,19 @@ function idempotencyParam() {
   };
 }
 
+function resolveApiSurface({ authority, authMode, apiSurface }) {
+  if (apiSurface) {
+    return apiSurface;
+  }
+  if (authMode === "api-key") {
+    return "open-api";
+  }
+  if (authority === "sdkwork-memory.backend") {
+    return "backend-api";
+  }
+  return "app-api";
+}
+
 function operation({
   method,
   operationId,
@@ -1616,8 +1696,10 @@ function operation({
   status,
   resource,
   idempotent = false,
-  authMode = "dual-token"
+  authMode = "dual-token",
+  apiSurface
 }) {
+  const resolvedApiSurface = resolveApiSurface({ authority, authMode, apiSurface });
   const responses = {
     [status ?? (method === "post" ? "201" : method === "delete" ? "204" : "200")]: successResponse(status ?? (method === "post" ? "201" : method === "delete" ? "204" : "200"), responseSchema),
     ...errorResponses()
@@ -1634,6 +1716,8 @@ function operation({
     security: authMode === "api-key" ? [{ ApiKey: [] }] : [{ AuthToken: [], AccessToken: [] }],
     "x-sdkwork-owner": owner,
     "x-sdkwork-api-authority": authority,
+    "x-sdkwork-api-surface": resolvedApiSurface,
+    "x-sdkwork-request-context": "WebRequestContext",
     "x-sdkwork-domain": domain,
     "x-sdkwork-resource": resource ?? operationId.split(".")[0],
     "x-sdkwork-permission": permission,
@@ -2723,6 +2807,179 @@ function writeBackendOpenApi() {
   }));
 }
 
+const routeSurfaceProfiles = [
+  {
+    surface: "open-api",
+    openapiPath: "sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json",
+    apisPath: "apis/open-api/memory-open-api.openapi.json",
+    packageName: "sdkwork-router-memory-open-api",
+    crateDir: "crates/sdkwork-router-memory-open-api",
+    crateImport: "sdkwork_router_memory_open_api",
+    manifestFn: "open_route_manifest",
+    apiAuthority: "sdkwork-memory-open-api",
+    sdkFamily: "sdkwork-memory-sdk",
+    prefix: memoryOpenApiPrefix,
+    routeManifestDir: "sdks/_route-manifests/open-api",
+    routeManifestFile: "sdkwork-router-memory-open-api.route-manifest.json"
+  },
+  {
+    surface: "app-api",
+    openapiPath: "sdks/sdkwork-memory-app-sdk/openapi/memory-app-api.openapi.json",
+    apisPath: "apis/app-api/memory-app-api.openapi.json",
+    packageName: "sdkwork-router-memory-app-api",
+    crateDir: "crates/sdkwork-router-memory-app-api",
+    crateImport: "sdkwork_router_memory_app_api",
+    manifestFn: "app_route_manifest",
+    apiAuthority: "sdkwork-memory.app",
+    sdkFamily: "sdkwork-memory-app-sdk",
+    prefix: "/app/v3/api",
+    routeManifestDir: "sdks/_route-manifests/app-api",
+    routeManifestFile: "sdkwork-router-memory-app-api.route-manifest.json"
+  },
+  {
+    surface: "backend-api",
+    openapiPath: "sdks/sdkwork-memory-backend-sdk/openapi/memory-backend-api.openapi.json",
+    apisPath: "apis/backend-api/memory-backend-api.openapi.json",
+    packageName: "sdkwork-router-memory-backend-api",
+    crateDir: "crates/sdkwork-router-memory-backend-api",
+    crateImport: "sdkwork_router_memory_backend_api",
+    manifestFn: "backend_route_manifest",
+    apiAuthority: "sdkwork-memory.backend",
+    sdkFamily: "sdkwork-memory-backend-sdk",
+    prefix: "/backend/v3/api",
+    routeManifestDir: "sdks/_route-manifests/backend-api",
+    routeManifestFile: "sdkwork-router-memory-backend-api.route-manifest.json"
+  }
+];
+
+function readJsonFromDisk(relativePath) {
+  return JSON.parse(fs.readFileSync(path.join(root, relativePath), "utf8"));
+}
+
+function extractRoutesFromOpenApi(openapi) {
+  const routes = [];
+  for (const [pathKey, pathItem] of Object.entries(openapi.paths ?? {})) {
+    for (const [method, operation] of Object.entries(pathItem ?? {})) {
+      if (!["get", "post", "patch", "delete"].includes(method)) {
+        continue;
+      }
+      routes.push({
+        method: method.toUpperCase(),
+        path: pathKey,
+        operationId: operation.operationId,
+        tags: operation.tags ?? ["memory"],
+        authMode: operation["x-sdkwork-auth-mode"],
+        apiSurface: operation["x-sdkwork-api-surface"],
+        apiAuthority: operation["x-sdkwork-api-authority"]
+      });
+    }
+  }
+  return routes;
+}
+
+function httpRouteAuthHelper(authMode) {
+  return authMode === "api-key" ? "api_key" : "dual_token";
+}
+
+function httpMethodRust(method) {
+  const map = { GET: "Get", POST: "Post", PATCH: "Patch", DELETE: "Delete" };
+  return map[method];
+}
+
+function writeHttpRouteManifestRust(crateDir, fnName, routes) {
+  const lines = [
+    "// @generated by tools/materialize_phase1_contracts.mjs — do not edit",
+    "",
+    "use sdkwork_web_core::{HttpMethod, HttpRoute, HttpRouteManifest};",
+    "",
+    "const HTTP_ROUTES: &[HttpRoute] = &["
+  ];
+  for (const route of routes) {
+    const auth = httpRouteAuthHelper(route.authMode);
+    lines.push(`    HttpRoute::${auth}(`);
+    lines.push(`        HttpMethod::${httpMethodRust(route.method)},`);
+    lines.push(`        "${route.path}",`);
+    lines.push(`        "${route.tags[0] ?? "memory"}",`);
+    lines.push(`        "${route.operationId}",`);
+    lines.push("    ),");
+  }
+  lines.push(
+    "];",
+    "",
+    `pub fn ${fnName}() -> HttpRouteManifest {`,
+    "    HttpRouteManifest::new(HTTP_ROUTES)",
+    "}",
+    ""
+  );
+  writeText(`${crateDir}/src/http_route_manifest.rs`, lines.join("\n"));
+}
+
+function writeRouteManifestJson(profile, routes) {
+  writeJson(`${profile.routeManifestDir}/${profile.routeManifestFile}`, {
+    schemaVersion: 1,
+    kind: "sdkwork.route.manifest",
+    packageName: profile.packageName,
+    surface: profile.surface,
+    owner,
+    domain,
+    capability,
+    apiAuthority: profile.apiAuthority,
+    sdkFamily: profile.sdkFamily,
+    prefix: profile.prefix,
+    source: {
+      crateRoot: profile.crateDir,
+      crateImport: profile.crateImport,
+      openApiAuthority: profile.openapiPath
+    },
+    routes: routes.map((route) => ({
+      method: route.method,
+      path: route.path,
+      operationId: route.operationId,
+      tags: route.tags,
+      auth: {
+        mode: route.authMode,
+        required: true
+      },
+      handler: {
+        module: "crate::routes",
+        name: null
+      },
+      ownership: {
+        owner,
+        apiAuthority: route.apiAuthority
+      },
+      requestContext: "WebRequestContext",
+      apiSurface: route.apiSurface
+    }))
+  });
+}
+
+function mirrorApisOpenApi(profiles) {
+  for (const profile of profiles) {
+    const content = fs.readFileSync(path.join(root, profile.openapiPath), "utf8");
+    writeText(profile.apisPath, content);
+  }
+}
+
+function writeRouteArtifacts() {
+  for (const profile of routeSurfaceProfiles) {
+    const openapi = readJsonFromDisk(profile.openapiPath);
+    const routes = extractRoutesFromOpenApi(openapi);
+    writeHttpRouteManifestRust(profile.crateDir, profile.manifestFn, routes);
+    writeRouteManifestJson(profile, routes);
+    console.log(`materialized ${routes.length} routes for ${profile.packageName}`);
+  }
+  mirrorApisOpenApi(routeSurfaceProfiles);
+  writeJson("apis/authority-manifest.json", {
+    schemaVersion: 1,
+    kind: "sdkwork.api.authority.manifest",
+    surfaces: routeSurfaceProfiles.map((profile) => ({
+      authorityPath: profile.apisPath,
+      sdkPath: profile.openapiPath
+    }))
+  });
+}
+
 function writeVerification() {
   writeText("tools/verify_phase1.ps1", `$ErrorActionPreference = "Stop"
 
@@ -2782,7 +3039,17 @@ $requiredFiles = @(
     "sdks/sdkwork-memory-backend-sdk/sdk-manifest.json",
     "sdks/sdkwork-memory-backend-sdk/specs/README.md",
     "sdks/sdkwork-memory-backend-sdk/specs/component.spec.json",
-    "sdks/sdkwork-memory-backend-sdk/openapi/memory-backend-api.openapi.json"
+    "sdks/sdkwork-memory-backend-sdk/openapi/memory-backend-api.openapi.json",
+    "apis/authority-manifest.json",
+    "apis/open-api/memory-open-api.openapi.json",
+    "apis/app-api/memory-app-api.openapi.json",
+    "apis/backend-api/memory-backend-api.openapi.json",
+    "sdks/_route-manifests/open-api/sdkwork-router-memory-open-api.route-manifest.json",
+    "sdks/_route-manifests/app-api/sdkwork-router-memory-app-api.route-manifest.json",
+    "sdks/_route-manifests/backend-api/sdkwork-router-memory-backend-api.route-manifest.json",
+    "package.json",
+    "sdkwork.workflow.json",
+    ".github/workflows/package.yml"
 )
 
 foreach ($file in $requiredFiles) {
@@ -2864,6 +3131,7 @@ function Verify-OpenApi {
         [Parameter(Mandatory = $true)][string]$Authority,
         [Parameter(Mandatory = $true)][string]$SdkFamily,
         [Parameter(Mandatory = $true)][ValidateSet("dual-token", "api-key")][string]$AuthMode,
+        [Parameter(Mandatory = $true)][ValidateSet("open-api", "app-api", "backend-api")][string]$ExpectedApiSurface,
         [Parameter(Mandatory = $true)][string[]]$RequiredOperationIds,
         [Parameter(Mandatory = $true)][string[]]$RequiredSchemas
     )
@@ -2936,6 +3204,12 @@ function Verify-OpenApi {
             if ($operation.'x-sdkwork-auth-mode' -ne $AuthMode) {
                 throw "$Path operation auth mode mismatch for $operationId"
             }
+            if ($operation.'x-sdkwork-api-surface' -ne $ExpectedApiSurface) {
+                throw "$Path operation api surface mismatch for $operationId"
+            }
+            if ($operation.'x-sdkwork-request-context' -ne "WebRequestContext") {
+                throw "$Path operation must declare WebRequestContext for $operationId"
+            }
             $security = $operation.security
             if (!$security -or $security.Count -eq 0) {
                 throw "$Path operation missing security declaration: $operationId"
@@ -3000,6 +3274,7 @@ $appOpenApiCheck = @{
     Authority = "sdkwork-memory.app"
     SdkFamily = "sdkwork-memory-app-sdk"
     AuthMode = "dual-token"
+    ExpectedApiSurface = "app-api"
     RequiredOperationIds = @(
         "spaces.create", "spaces.list", "spaces.retrieve", "spaces.update",
         "events.create", "events.retrieve",
@@ -3028,6 +3303,7 @@ $openApiCheck = @{
     Authority = "sdkwork-memory-open-api"
     SdkFamily = "sdkwork-memory-sdk"
     AuthMode = "api-key"
+    ExpectedApiSurface = "open-api"
     RequiredOperationIds = @(
         "capabilities.retrieve",
         "events.create", "events.retrieve",
@@ -3054,6 +3330,7 @@ $backendOpenApiCheck = @{
     Authority = "sdkwork-memory.backend"
     SdkFamily = "sdkwork-memory-backend-sdk"
     AuthMode = "dual-token"
+    ExpectedApiSurface = "backend-api"
     RequiredOperationIds = @(
         "spaces.list", "spaces.retrieve", "spaces.update",
         "memories.list", "memories.retrieve", "memories.update", "memories.supersede",
@@ -3076,6 +3353,26 @@ $backendOpenApiCheck = @{
     )
 }
 Verify-OpenApi @backendOpenApiCheck
+
+foreach ($routeManifestPath in @(
+    "sdks/_route-manifests/open-api/sdkwork-router-memory-open-api.route-manifest.json",
+    "sdks/_route-manifests/app-api/sdkwork-router-memory-app-api.route-manifest.json",
+    "sdks/_route-manifests/backend-api/sdkwork-router-memory-backend-api.route-manifest.json"
+)) {
+    $routeManifest = Read-JsonFile $routeManifestPath
+    if ($routeManifest.kind -ne "sdkwork.route.manifest") {
+        throw "$routeManifestPath must use sdkwork.route.manifest kind"
+    }
+    foreach ($route in $routeManifest.routes) {
+        if ($route.requestContext -ne "WebRequestContext") {
+            throw "$routeManifestPath route $($route.method) $($route.path) must declare WebRequestContext"
+        }
+        if ($route.apiSurface -notin @("open-api", "app-api", "backend-api")) {
+            throw "$routeManifestPath route $($route.method) $($route.path) must declare canonical apiSurface"
+        }
+    }
+    Write-Host "Verified $routeManifestPath with $($routeManifest.routes.Count) routes."
+}
 
 foreach ($schemaPath in Get-ChildItem -Path "docs/schema-registry/tables" -Filter "*.yaml") {
     $content = Get-Content -Raw $schemaPath.FullName
@@ -3146,4 +3443,5 @@ writeSchemaRegistry();
 writeOpenApi();
 writeAppOpenApi();
 writeBackendOpenApi();
+writeRouteArtifacts();
 writeVerification();

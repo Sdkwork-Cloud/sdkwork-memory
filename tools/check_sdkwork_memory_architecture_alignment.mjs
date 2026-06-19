@@ -124,6 +124,40 @@ assert(
 );
 
 const componentSpec = readJson('specs/component.spec.json');
+const sdkDependencyIds = new Set((componentSpec.contracts?.sdkDependencies ?? []).map((item) => item.workspace));
+for (const workspace of [
+  'sdkwork-web-framework',
+  'sdkwork-database',
+  'sdkwork-appbase',
+  'sdkwork-id',
+  'sdkwork-sdk-generator',
+]) {
+  assert(
+    sdkDependencyIds.has(workspace),
+    `specs/component.spec.json must declare sdkDependencies workspace ${workspace}`,
+  );
+}
+
+const routeManifestPaths = [
+  'sdks/_route-manifests/open-api/sdkwork-router-memory-open-api.route-manifest.json',
+  'sdks/_route-manifests/app-api/sdkwork-router-memory-app-api.route-manifest.json',
+  'sdks/_route-manifests/backend-api/sdkwork-router-memory-backend-api.route-manifest.json',
+];
+
+for (const relativePath of routeManifestPaths) {
+  const manifest = readJson(relativePath);
+  for (const route of manifest.routes ?? []) {
+    assert(
+      route.requestContext === 'WebRequestContext',
+      `${relativePath} route ${route.method} ${route.path} must declare WebRequestContext`,
+    );
+    assert(
+      ['open-api', 'app-api', 'backend-api'].includes(route.apiSurface),
+      `${relativePath} route ${route.method} ${route.path} must declare canonical apiSurface`,
+    );
+  }
+}
+
 assert(componentSpec.component.type === 'web-backend-service', 'component type must be web-backend-service');
 assert(componentSpec.component.domain === 'intelligence', 'component domain must be intelligence');
 assert(componentSpec.component.capability === 'memory', 'component capability must be memory');
@@ -144,20 +178,21 @@ for (const relativePath of openapiPaths) {
   let hasSurface = false;
   for (const pathItem of Object.values(openapi.paths ?? {})) {
     for (const operation of Object.values(pathItem ?? {})) {
-      if (operation && typeof operation === 'object' && operation['x-sdkwork-api-surface']) {
-        hasSurface = true;
-      }
-      if (operation && typeof operation === 'object') {
+      if (operation && typeof operation === 'object' && operation.operationId) {
         assert(
-          operation['x-sdkwork-request-context'] === 'WebRequestContext'
-            || operation['x-sdkwork-request-context'] === undefined,
-          `${relativePath} must not use legacy AppRequestContext`,
+          operation['x-sdkwork-request-context'] === 'WebRequestContext',
+          `${relativePath} operation ${operation.operationId} must declare WebRequestContext`,
         );
+        assert(
+          ['open-api', 'app-api', 'backend-api'].includes(operation['x-sdkwork-api-surface']),
+          `${relativePath} operation ${operation.operationId} must declare canonical x-sdkwork-api-surface`,
+        );
+        hasSurface = true;
       }
     }
   }
   if (!hasSurface) {
-    warnings.push(`${relativePath} should declare x-sdkwork-api-surface on operations (WEB_FRAMEWORK_SPEC.md §5)`);
+    assert(false, `${relativePath} must declare x-sdkwork-api-surface on operations`);
   }
 }
 

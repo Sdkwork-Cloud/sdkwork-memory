@@ -13,7 +13,7 @@ tracing.workspace = true
 sdkwork-database-config.workspace = true
 sdkwork-database-sqlx.workspace = true
 sdkwork-database-repository.workspace = true
-sdkwork-intelligence-memory-service.workspace = true
+sdkwork-memory-plugin-native-sql.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

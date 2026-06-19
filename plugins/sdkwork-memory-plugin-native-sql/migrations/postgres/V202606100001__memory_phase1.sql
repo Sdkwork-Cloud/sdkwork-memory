@@ -218,6 +218,103 @@ CREATE TABLE IF NOT EXISTS mem_context_pack (
 CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_context_pack_uuid
   ON mem_context_pack (tenant_id, uuid);
 
+CREATE TABLE IF NOT EXISTS mem_index (
+  id BIGINT PRIMARY KEY,
+  uuid VARCHAR(64) NOT NULL,
+  tenant_id BIGINT NOT NULL,
+  space_id BIGINT,
+  index_kind VARCHAR(32) NOT NULL,
+  implementation_profile_id BIGINT,
+  provider_binding_id BIGINT,
+  schema_version VARCHAR(32) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  rebuild_cursor VARCHAR(256),
+  config_json JSONB,
+  last_rebuilt_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL,
+  version BIGINT NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_index_uuid
+  ON mem_index (tenant_id, uuid);
+
+CREATE TABLE IF NOT EXISTS mem_retrieval_profile (
+  id BIGINT PRIMARY KEY,
+  uuid VARCHAR(64) NOT NULL,
+  tenant_id BIGINT NOT NULL,
+  space_id BIGINT,
+  name VARCHAR(160) NOT NULL,
+  strategy VARCHAR(64) NOT NULL,
+  retrievers_json JSONB NOT NULL,
+  fusion_policy_json JSONB,
+  rerank_policy_json JSONB,
+  top_k INTEGER NOT NULL,
+  context_budget_tokens INTEGER NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL,
+  version BIGINT NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_retrieval_profile_uuid
+  ON mem_retrieval_profile (tenant_id, uuid);
+
+CREATE TABLE IF NOT EXISTS mem_implementation_profile (
+  id BIGINT PRIMARY KEY,
+  uuid VARCHAR(64) NOT NULL,
+  tenant_id BIGINT NOT NULL,
+  name VARCHAR(160) NOT NULL,
+  implementation_kind VARCHAR(64) NOT NULL,
+  role VARCHAR(32) NOT NULL,
+  status VARCHAR(32) NOT NULL,
+  capability_json JSONB NOT NULL,
+  config_json JSONB,
+  rollout_json JSONB,
+  created_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL,
+  version BIGINT NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_implementation_profile_uuid
+  ON mem_implementation_profile (tenant_id, uuid);
+
+CREATE TABLE IF NOT EXISTS mem_provider_binding (
+  id BIGINT PRIMARY KEY,
+  uuid VARCHAR(64) NOT NULL,
+  tenant_id BIGINT NOT NULL,
+  provider_kind VARCHAR(32) NOT NULL,
+  provider_code VARCHAR(128) NOT NULL,
+  display_name VARCHAR(160) NOT NULL,
+  endpoint_ref VARCHAR(256),
+  secret_ref VARCHAR(256),
+  model_ref VARCHAR(256),
+  capabilities_json JSONB NOT NULL,
+  config_json JSONB,
+  health_state VARCHAR(32) NOT NULL,
+  last_health_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL,
+  version BIGINT NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_provider_binding_uuid
+  ON mem_provider_binding (tenant_id, uuid);
+
+CREATE TABLE IF NOT EXISTS mem_eval_run (
+  id BIGINT PRIMARY KEY,
+  uuid VARCHAR(64) NOT NULL,
+  tenant_id BIGINT NOT NULL,
+  eval_type VARCHAR(64) NOT NULL,
+  state VARCHAR(32) NOT NULL,
+  metrics_json JSONB,
+  created_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_eval_run_uuid
+  ON mem_eval_run (tenant_id, uuid);
+
 CREATE TABLE IF NOT EXISTS mem_audit_log (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,

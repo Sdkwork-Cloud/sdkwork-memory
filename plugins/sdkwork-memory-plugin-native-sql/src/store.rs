@@ -26,9 +26,393 @@ pub struct NativeSqlMemoryStore {
 impl NativeSqlMemoryStore {
     pub async fn new_in_memory_sqlite() -> Result<Self, NativeSqlStoreError> {
         let pool = SqlitePool::connect("sqlite::memory:").await?;
+        Self::from_sqlite_pool(pool).await
+    }
+
+    pub async fn from_sqlite_pool(pool: SqlitePool) -> Result<Self, NativeSqlStoreError> {
         let store = Self { pool };
         store.apply_sqlite_phase1_migration().await?;
         Ok(store)
+    }
+
+    pub async fn install_sqlite_phase1_schema(
+        pool: &SqlitePool,
+    ) -> Result<(), NativeSqlStoreError> {
+        Self::from_sqlite_pool(pool.clone()).await?;
+        Ok(())
+    }
+
+    pub fn pool(&self) -> &SqlitePool {
+        &self.pool
+    }
+
+    pub async fn append_open_api_event(
+        &self,
+        scope: &MemoryScopeContext,
+        event_id: &str,
+        event_type: &str,
+        source_type: &str,
+        event_time: &str,
+        payload: &Value,
+    ) -> Result<(), NativeSqlStoreError> {
+        self.ensure_space(scope).await?;
+        let payload_json = payload.to_string();
+        let payload_hash = stable_hash(&payload_json);
+
+        if let Some(existing) = self
+            .retrieve_event_idempotency_state(scope, event_id)
+            .await?
+        {
+            if existing.space_id == scope.space_id
+                && existing.payload_json == payload_json
+                && existing.payload_hash == payload_hash
+            {
+                return Ok(());
+            }
+
+            return Err(NativeSqlStoreError::EventConflict {
+                tenant_id: scope.tenant_id,
+                event_id: event_id.to_string(),
+            });
+        }
+
+        sqlx::query(
+            r#"
+            INSERT INTO mem_event (
+              uuid,
+              tenant_id,
+              space_id,
+              actor_type,
+              event_type,
+              source_type,
+              event_time,
+              payload_json,
+              payload_hash,
+              sensitivity_level,
+              ingestion_status,
+              created_at
+            )
+            VALUES (?, ?, ?, 'system', ?, ?, ?, ?, ?, 'internal', 'received', ?)
+            "#,
+        )
+        .bind(event_id)
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
+        .bind(event_type)
+        .bind(source_type)
+        .bind(event_time)
+        .bind(payload_json)
+        .bind(payload_hash)
+        .bind(now_text())
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn retrieve_open_api_event_for_tenant(
+        &self,
+        tenant_id: i64,
+        event_id: &str,
+    ) -> Result<Option<NativeSqlOpenApiEventRow>, NativeSqlStoreError> {
+        let row = sqlx::query(
+            r#"
+            SELECT uuid, space_id, event_type, source_type, event_time, payload_json, payload_hash, ingestion_status, created_at
+            FROM mem_event
+            WHERE tenant_id = ? AND uuid = ?
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(event_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|row| {
+            let payload_json: String = row.get("payload_json");
+            NativeSqlOpenApiEventRow {
+                event_id: row.get("uuid"),
+                space_id: row.get("space_id"),
+                event_type: row.get("event_type"),
+                source_type: row.get("source_type"),
+                event_time: row.get("event_time"),
+                payload: parse_event_payload(&payload_json).unwrap_or(Value::Null),
+                payload_hash: row.get("payload_hash"),
+                ingestion_status: row.get("ingestion_status"),
+                created_at: row.get("created_at"),
+            }
+        }))
+    }
+
+    pub async fn retrieve_record_detail_for_tenant(
+        &self,
+        tenant_id: i64,
+        memory_id: &str,
+    ) -> Result<Option<NativeSqlMemoryRecordDetail>, NativeSqlStoreError> {
+        let row = sqlx::query(
+            r#"
+            SELECT uuid, space_id, scope, memory_type, subject, predicate, object_text, canonical_text,
+                   confidence, status, created_at, updated_at, version
+            FROM mem_record
+            WHERE tenant_id = ?
+              AND uuid = ?
+              AND status <> 'deleted'
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(memory_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(record_detail_from_row))
+    }
+
+    pub async fn retrieve_open_api_event(
+        &self,
+        scope: &MemoryScopeContext,
+        event_id: &str,
+    ) -> Result<Option<NativeSqlOpenApiEventRow>, NativeSqlStoreError> {
+        let row = sqlx::query(
+            r#"
+            SELECT uuid, space_id, event_type, source_type, event_time, payload_json, payload_hash, ingestion_status, created_at
+            FROM mem_event
+            WHERE tenant_id = ? AND space_id = ? AND uuid = ?
+            "#,
+        )
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
+        .bind(event_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|row| {
+            let payload_json: String = row.get("payload_json");
+            NativeSqlOpenApiEventRow {
+                event_id: row.get("uuid"),
+                space_id: row.get("space_id"),
+                event_type: row.get("event_type"),
+                source_type: row.get("source_type"),
+                event_time: row.get("event_time"),
+                payload: parse_event_payload(&payload_json).unwrap_or(Value::Null),
+                payload_hash: row.get("payload_hash"),
+                ingestion_status: row.get("ingestion_status"),
+                created_at: row.get("created_at"),
+            }
+        }))
+    }
+
+    pub async fn create_record_open_api(
+        &self,
+        scope: &MemoryScopeContext,
+        memory_id: &str,
+        scope_label: &str,
+        memory_type: &str,
+        subject: Option<&str>,
+        predicate: Option<&str>,
+        object_text: &str,
+        canonical_text: &str,
+    ) -> Result<(), NativeSqlStoreError> {
+        self.ensure_space(scope).await?;
+        sqlx::query(
+            r#"
+            INSERT INTO mem_record (
+              uuid,
+              tenant_id,
+              space_id,
+              scope,
+              memory_type,
+              subject,
+              predicate,
+              object_text,
+              canonical_text,
+              confidence,
+              evidence_count,
+              contradiction_count,
+              importance_score,
+              recency_score,
+              status,
+              sensitivity_level,
+              created_at,
+              updated_at,
+              version
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1.0, 1, 0, 0.5, 0.5, 'active', 'internal', ?, ?, 1)
+            "#,
+        )
+        .bind(memory_id)
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
+        .bind(scope_label)
+        .bind(memory_type)
+        .bind(subject)
+        .bind(predicate.unwrap_or("is"))
+        .bind(object_text)
+        .bind(canonical_text)
+        .bind(now_text())
+        .bind(now_text())
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn retrieve_record_detail(
+        &self,
+        scope: &MemoryScopeContext,
+        memory_id: &str,
+    ) -> Result<Option<NativeSqlMemoryRecordDetail>, NativeSqlStoreError> {
+        let row = sqlx::query(
+            r#"
+            SELECT uuid, space_id, scope, memory_type, subject, predicate, object_text, canonical_text,
+                   confidence, status, created_at, updated_at, version
+            FROM mem_record
+            WHERE tenant_id = ?
+              AND space_id = ?
+              AND uuid = ?
+              AND status <> 'deleted'
+            "#,
+        )
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
+        .bind(memory_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(record_detail_from_row))
+    }
+
+    pub async fn list_record_details(
+        &self,
+        scope: &MemoryScopeContext,
+        query: Option<&str>,
+        page_size: i32,
+        cursor: Option<&str>,
+    ) -> Result<Vec<NativeSqlMemoryRecordDetail>, NativeSqlStoreError> {
+        let page_size = page_size.clamp(1, 100) as i64;
+        let cursor = cursor.unwrap_or("");
+        let query = query.unwrap_or("").trim();
+
+        let rows = if query.is_empty() {
+            sqlx::query(
+                r#"
+                SELECT uuid, space_id, scope, memory_type, subject, predicate, object_text, canonical_text,
+                       confidence, status, created_at, updated_at, version
+                FROM mem_record
+                WHERE tenant_id = ?
+                  AND space_id = ?
+                  AND status <> 'deleted'
+                  AND uuid > ?
+                ORDER BY uuid ASC
+                LIMIT ?
+                "#,
+            )
+            .bind(scope.tenant_id)
+            .bind(scope.space_id)
+            .bind(cursor)
+            .bind(page_size + 1)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            let pattern = format!("%{query}%");
+            sqlx::query(
+                r#"
+                SELECT uuid, space_id, scope, memory_type, subject, predicate, object_text, canonical_text,
+                       confidence, status, created_at, updated_at, version
+                FROM mem_record
+                WHERE tenant_id = ?
+                  AND space_id = ?
+                  AND status <> 'deleted'
+                  AND uuid > ?
+                  AND (canonical_text LIKE ? OR object_text LIKE ? OR IFNULL(subject, '') LIKE ?)
+                ORDER BY uuid ASC
+                LIMIT ?
+                "#,
+            )
+            .bind(scope.tenant_id)
+            .bind(scope.space_id)
+            .bind(cursor)
+            .bind(&pattern)
+            .bind(&pattern)
+            .bind(&pattern)
+            .bind(page_size + 1)
+            .fetch_all(&self.pool)
+            .await?
+        };
+
+        Ok(rows.into_iter().map(record_detail_from_row).collect())
+    }
+
+    pub async fn update_record_open_api(
+        &self,
+        scope: &MemoryScopeContext,
+        memory_id: &str,
+        canonical_text: Option<&str>,
+        subject: Option<&str>,
+    ) -> Result<Option<NativeSqlMemoryRecordDetail>, NativeSqlStoreError> {
+        let existing = self.retrieve_record_detail(scope, memory_id).await?;
+        let Some(existing) = existing else {
+            return Ok(None);
+        };
+
+        let canonical_text = canonical_text.unwrap_or(&existing.canonical_text);
+        let subject = subject.or(existing.subject.as_deref());
+
+        sqlx::query(
+            r#"
+            UPDATE mem_record
+            SET canonical_text = ?,
+                object_text = ?,
+                subject = ?,
+                updated_at = ?,
+                version = version + 1
+            WHERE tenant_id = ?
+              AND space_id = ?
+              AND uuid = ?
+              AND status <> 'deleted'
+            "#,
+        )
+        .bind(canonical_text)
+        .bind(canonical_text)
+        .bind(subject)
+        .bind(now_text())
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
+        .bind(memory_id)
+        .execute(&self.pool)
+        .await?;
+
+        self.retrieve_record_detail(scope, memory_id).await
+    }
+
+    pub async fn search_record_details_keyword(
+        &self,
+        scope: &MemoryScopeContext,
+        query: &str,
+        top_k: i32,
+    ) -> Result<Vec<NativeSqlMemoryRecordDetail>, NativeSqlStoreError> {
+        let pattern = format!("%{}%", query.trim());
+        let rows = sqlx::query(
+            r#"
+            SELECT uuid, space_id, scope, memory_type, subject, predicate, object_text, canonical_text,
+                   confidence, status, created_at, updated_at, version
+            FROM mem_record
+            WHERE tenant_id = ?
+              AND space_id = ?
+              AND status <> 'deleted'
+              AND (canonical_text LIKE ? OR object_text LIKE ? OR IFNULL(subject, '') LIKE ?)
+            ORDER BY updated_at DESC
+            LIMIT ?
+            "#,
+        )
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(&pattern)
+        .bind(top_k.max(1) as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows.into_iter().map(record_detail_from_row).collect())
     }
 
     pub async fn append_event(
@@ -342,6 +726,181 @@ impl NativeSqlMemoryStore {
             resource_id: resource_id.to_string(),
             result: result.to_string(),
         })
+    }
+
+    pub async fn append_audit_with_metadata(
+        &self,
+        scope: &MemoryScopeContext,
+        audit_id: &str,
+        action: &str,
+        resource_type: &str,
+        resource_id: &str,
+        result: &str,
+        metadata_json: &str,
+    ) -> Result<NativeSqlMemoryAuditRecord, NativeSqlStoreError> {
+        sqlx::query(
+            r#"
+            INSERT INTO mem_audit_log (
+              uuid,
+              tenant_id,
+              actor_type,
+              action,
+              resource_type,
+              resource_id,
+              result,
+              metadata_json,
+              created_at
+            )
+            VALUES (?, ?, 'system', ?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(audit_id)
+        .bind(scope.tenant_id)
+        .bind(action)
+        .bind(resource_type)
+        .bind(resource_id)
+        .bind(result)
+        .bind(metadata_json)
+        .bind(now_text())
+        .execute(&self.pool)
+        .await?;
+
+        Ok(NativeSqlMemoryAuditRecord {
+            audit_id: audit_id.to_string(),
+            action: action.to_string(),
+            resource_type: resource_type.to_string(),
+            resource_id: resource_id.to_string(),
+            result: result.to_string(),
+        })
+    }
+
+    pub async fn retrieve_governance_job_for_tenant(
+        &self,
+        tenant_id: i64,
+        job_id: &str,
+        resource_type: &str,
+    ) -> Result<Option<NativeSqlGovernanceJobRow>, NativeSqlStoreError> {
+        let row = sqlx::query(
+            r#"
+            SELECT uuid, resource_type, result, metadata_json, created_at
+            FROM mem_audit_log
+            WHERE tenant_id = ?
+              AND uuid = ?
+              AND resource_type = ?
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(job_id)
+        .bind(resource_type)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|row| NativeSqlGovernanceJobRow {
+            job_id: row.get("uuid"),
+            resource_type: row.get("resource_type"),
+            result: row.get("result"),
+            metadata_json: row.get("metadata_json"),
+            created_at: row.get("created_at"),
+        }))
+    }
+
+    pub async fn save_admin_config_entity(
+        &self,
+        tenant_id: i64,
+        resource_type: &str,
+        entity_id: &str,
+        metadata_json: &str,
+    ) -> Result<(), NativeSqlStoreError> {
+        let audit_id = format!("{resource_type}:{entity_id}:{}", now_text());
+        sqlx::query(
+            r#"
+            INSERT INTO mem_audit_log (
+              uuid,
+              tenant_id,
+              actor_type,
+              action,
+              resource_type,
+              resource_id,
+              result,
+              metadata_json,
+              created_at
+            )
+            VALUES (?, ?, 'system', 'admin.config.save', ?, ?, 'active', ?, ?)
+            "#,
+        )
+        .bind(audit_id)
+        .bind(tenant_id)
+        .bind(resource_type)
+        .bind(entity_id)
+        .bind(metadata_json)
+        .bind(now_text())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn retrieve_admin_config_entity(
+        &self,
+        tenant_id: i64,
+        resource_type: &str,
+        entity_id: &str,
+    ) -> Result<Option<String>, NativeSqlStoreError> {
+        let row = sqlx::query(
+            r#"
+            SELECT metadata_json
+            FROM mem_audit_log
+            WHERE tenant_id = ?
+              AND resource_type = ?
+              AND resource_id = ?
+              AND action = 'admin.config.save'
+            ORDER BY created_at DESC
+            LIMIT 1
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(resource_type)
+        .bind(entity_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|row| row.get("metadata_json")))
+    }
+
+    pub async fn list_admin_config_entities(
+        &self,
+        tenant_id: i64,
+        resource_type: &str,
+        page_size: i32,
+    ) -> Result<Vec<(String, String)>, NativeSqlStoreError> {
+        let rows = sqlx::query(
+            r#"
+            SELECT resource_id, metadata_json
+            FROM mem_audit_log AS current
+            WHERE tenant_id = ?
+              AND resource_type = ?
+              AND action = 'admin.config.save'
+              AND created_at = (
+                SELECT MAX(created_at)
+                FROM mem_audit_log AS latest
+                WHERE latest.tenant_id = current.tenant_id
+                  AND latest.resource_type = current.resource_type
+                  AND latest.resource_id = current.resource_id
+                  AND latest.action = 'admin.config.save'
+              )
+            ORDER BY created_at DESC
+            LIMIT ?
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(resource_type)
+        .bind(page_size.clamp(1, 100) as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.get("resource_id"), row.get("metadata_json")))
+            .collect())
     }
 
     pub async fn retrieve_audit(
@@ -942,6 +1501,32 @@ impl NativeSqlMemoryStore {
             })
     }
 
+    pub async fn retrieve_retrieval_trace_for_tenant(
+        &self,
+        tenant_id: i64,
+        trace_id: &str,
+    ) -> Result<Option<MemoryRetrievalTrace>, NativeSqlStoreError> {
+        let row = sqlx::query(
+            "SELECT space_id FROM mem_retrieval_trace WHERE tenant_id = ? AND uuid = ?",
+        )
+        .bind(tenant_id)
+        .bind(trace_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let Some(row) = row else {
+            return Ok(None);
+        };
+
+        let scope = MemoryScopeContext {
+            tenant_id,
+            space_id: row.get("space_id"),
+            organization_id: None,
+            user_id: None,
+        };
+        self.retrieve_retrieval_trace(&scope, trace_id).await
+    }
+
     pub async fn retrieve_retrieval_trace(
         &self,
         scope: &MemoryScopeContext,
@@ -1291,6 +1876,732 @@ impl NativeSqlMemoryStore {
         }))
     }
 
+    pub async fn list_retrieval_traces_for_tenant(
+        &self,
+        tenant_id: i64,
+        space_id: Option<i64>,
+        page_size: i32,
+    ) -> Result<Vec<NativeSqlRetrievalTraceSummaryRow>, NativeSqlStoreError> {
+        let rows = if let Some(space_id) = space_id {
+            sqlx::query(
+                r#"
+                SELECT uuid, space_id, query_text, query_hash, result_count, degraded, created_at
+                FROM mem_retrieval_trace
+                WHERE tenant_id = ? AND space_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                "#,
+            )
+            .bind(tenant_id)
+            .bind(space_id)
+            .bind(page_size.max(1) as i64)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query(
+                r#"
+                SELECT uuid, space_id, query_text, query_hash, result_count, degraded, created_at
+                FROM mem_retrieval_trace
+                WHERE tenant_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                "#,
+            )
+            .bind(tenant_id)
+            .bind(page_size.max(1) as i64)
+            .fetch_all(&self.pool)
+            .await?
+        };
+
+        Ok(rows
+            .into_iter()
+            .map(|row| NativeSqlRetrievalTraceSummaryRow {
+                trace_id: row.get("uuid"),
+                space_id: row.get("space_id"),
+                query_text: row.get("query_text"),
+                query_hash: row.get("query_hash"),
+                result_count: row.get("result_count"),
+                degraded: sqlite_int_to_bool(row.get("degraded")),
+                created_at: row.get("created_at"),
+            })
+            .collect())
+    }
+
+    pub async fn insert_context_pack_open_api(
+        &self,
+        tenant_id: i64,
+        space_id: i64,
+        context_pack_id: &str,
+        retrieval_trace_id: Option<&str>,
+        actor_id: Option<&str>,
+        query_text: Option<&str>,
+        pack_json: &str,
+        estimated_tokens: i64,
+        truncated: bool,
+    ) -> Result<(), NativeSqlStoreError> {
+        let trace_row_id = if let Some(trace_id) = retrieval_trace_id {
+            self.lookup_retrieval_trace_row_id_for_tenant(tenant_id, trace_id)
+                .await?
+        } else {
+            None
+        };
+
+        sqlx::query(
+            r#"
+            INSERT INTO mem_context_pack (
+              uuid,
+              tenant_id,
+              retrieval_trace_id,
+              actor_id,
+              query_text,
+              pack_json,
+              estimated_tokens,
+              truncated,
+              created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(context_pack_id)
+        .bind(tenant_id)
+        .bind(trace_row_id)
+        .bind(actor_id)
+        .bind(query_text)
+        .bind(pack_json)
+        .bind(estimated_tokens)
+        .bind(bool_to_sqlite_int(truncated))
+        .bind(now_text())
+        .execute(&self.pool)
+        .await?;
+
+        let _ = space_id;
+        Ok(())
+    }
+
+    pub async fn retrieve_context_pack_for_tenant(
+        &self,
+        tenant_id: i64,
+        context_pack_id: &str,
+    ) -> Result<Option<NativeSqlContextPackRow>, NativeSqlStoreError> {
+        let row = sqlx::query(
+            r#"
+            SELECT uuid, query_text, pack_json, estimated_tokens, truncated, created_at, retrieval_trace_id
+            FROM mem_context_pack
+            WHERE tenant_id = ? AND uuid = ?
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(context_pack_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|row| NativeSqlContextPackRow {
+            context_pack_id: row.get("uuid"),
+            query_text: row.get("query_text"),
+            pack_json: row.get("pack_json"),
+            estimated_tokens: row.get("estimated_tokens"),
+            truncated: sqlite_int_to_bool(row.get("truncated")),
+            created_at: row.get("created_at"),
+            retrieval_trace_id: row.get("retrieval_trace_id"),
+        }))
+    }
+
+    async fn lookup_retrieval_trace_row_id_for_tenant(
+        &self,
+        tenant_id: i64,
+        trace_uuid: &str,
+    ) -> Result<Option<i64>, NativeSqlStoreError> {
+        let row =
+            sqlx::query("SELECT id FROM mem_retrieval_trace WHERE tenant_id = ? AND uuid = ?")
+                .bind(tenant_id)
+                .bind(trace_uuid)
+                .fetch_optional(&self.pool)
+                .await?;
+
+        Ok(row.map(|row| row.get("id")))
+    }
+
+    pub async fn list_spaces_for_tenant(
+        &self,
+        tenant_id: i64,
+        page_size: i32,
+    ) -> Result<Vec<NativeSqlMemorySpaceRow>, NativeSqlStoreError> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, uuid, tenant_id, owner_subject_type, owner_subject_id, space_type,
+                   display_name, default_scope, lifecycle_status, created_at, updated_at, version
+            FROM mem_space
+            WHERE tenant_id = ?
+            ORDER BY id ASC
+            LIMIT ?
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(page_size.max(1) as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows.into_iter().map(space_row_from_sql).collect())
+    }
+
+    pub async fn retrieve_space_for_tenant(
+        &self,
+        tenant_id: i64,
+        space_id: i64,
+    ) -> Result<Option<NativeSqlMemorySpaceRow>, NativeSqlStoreError> {
+        let row = sqlx::query(
+            r#"
+            SELECT id, uuid, tenant_id, owner_subject_type, owner_subject_id, space_type,
+                   display_name, default_scope, lifecycle_status, created_at, updated_at, version
+            FROM mem_space
+            WHERE tenant_id = ? AND id = ?
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(space_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(space_row_from_sql))
+    }
+
+    pub async fn create_space_record(
+        &self,
+        tenant_id: i64,
+        space_id: i64,
+        request: &NativeSqlCreateSpaceCommand,
+    ) -> Result<(), NativeSqlStoreError> {
+        sqlx::query(
+            r#"
+            INSERT INTO mem_space (
+              id, uuid, tenant_id, organization_id, owner_subject_type, owner_subject_id,
+              space_type, display_name, default_scope, lifecycle_status, created_at, updated_at, version
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, 0)
+            "#,
+        )
+        .bind(space_id)
+        .bind(format!("space-{space_id}"))
+        .bind(tenant_id)
+        .bind(request.organization_id)
+        .bind(&request.owner_subject_type)
+        .bind(&request.owner_subject_id)
+        .bind(&request.space_type)
+        .bind(&request.display_name)
+        .bind(&request.default_scope)
+        .bind(now_text())
+        .bind(now_text())
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn update_space_record(
+        &self,
+        tenant_id: i64,
+        space_id: i64,
+        display_name: Option<&str>,
+        default_scope: Option<&str>,
+    ) -> Result<Option<NativeSqlMemorySpaceRow>, NativeSqlStoreError> {
+        let existing = self.retrieve_space_for_tenant(tenant_id, space_id).await?;
+        let Some(existing) = existing else {
+            return Ok(None);
+        };
+
+        let display_name = display_name.unwrap_or(&existing.display_name);
+        let default_scope =
+            default_scope.unwrap_or(existing.default_scope.as_deref().unwrap_or("user"));
+
+        sqlx::query(
+            r#"
+            UPDATE mem_space
+            SET display_name = ?, default_scope = ?, updated_at = ?, version = version + 1
+            WHERE tenant_id = ? AND id = ?
+            "#,
+        )
+        .bind(display_name)
+        .bind(default_scope)
+        .bind(now_text())
+        .bind(tenant_id)
+        .bind(space_id)
+        .execute(&self.pool)
+        .await?;
+
+        self.retrieve_space_for_tenant(tenant_id, space_id).await
+    }
+
+    pub async fn list_open_api_events_for_tenant(
+        &self,
+        tenant_id: i64,
+        space_id: Option<i64>,
+        page_size: i32,
+    ) -> Result<Vec<NativeSqlOpenApiEventRow>, NativeSqlStoreError> {
+        let rows = if let Some(space_id) = space_id {
+            sqlx::query(
+                r#"
+                SELECT uuid, space_id, event_type, source_type, event_time, payload_json, payload_hash, ingestion_status, created_at
+                FROM mem_event
+                WHERE tenant_id = ? AND space_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                "#,
+            )
+            .bind(tenant_id)
+            .bind(space_id)
+            .bind(page_size.max(1) as i64)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query(
+                r#"
+                SELECT uuid, space_id, event_type, source_type, event_time, payload_json, payload_hash, ingestion_status, created_at
+                FROM mem_event
+                WHERE tenant_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                "#,
+            )
+            .bind(tenant_id)
+            .bind(page_size.max(1) as i64)
+            .fetch_all(&self.pool)
+            .await?
+        };
+
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let payload_json: String = row.get("payload_json");
+                NativeSqlOpenApiEventRow {
+                    event_id: row.get("uuid"),
+                    space_id: row.get("space_id"),
+                    event_type: row.get("event_type"),
+                    source_type: row.get("source_type"),
+                    event_time: row.get("event_time"),
+                    payload: parse_event_payload(&payload_json).unwrap_or(Value::Null),
+                    payload_hash: row.get("payload_hash"),
+                    ingestion_status: row.get("ingestion_status"),
+                    created_at: row.get("created_at"),
+                }
+            })
+            .collect())
+    }
+
+    pub async fn list_candidates_for_tenant(
+        &self,
+        tenant_id: i64,
+        space_id: Option<i64>,
+        page_size: i32,
+    ) -> Result<Vec<NativeSqlCandidateRow>, NativeSqlStoreError> {
+        let rows = if let Some(space_id) = space_id {
+            sqlx::query(
+                r#"
+                SELECT uuid, space_id, candidate_type, memory_type, proposed_text, confidence,
+                       decision_state, created_at, updated_at
+                FROM mem_candidate
+                WHERE tenant_id = ? AND space_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                "#,
+            )
+            .bind(tenant_id)
+            .bind(space_id)
+            .bind(page_size.max(1) as i64)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query(
+                r#"
+                SELECT uuid, space_id, candidate_type, memory_type, proposed_text, confidence,
+                       decision_state, created_at, updated_at
+                FROM mem_candidate
+                WHERE tenant_id = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+                "#,
+            )
+            .bind(tenant_id)
+            .bind(page_size.max(1) as i64)
+            .fetch_all(&self.pool)
+            .await?
+        };
+
+        Ok(rows
+            .into_iter()
+            .map(|row| NativeSqlCandidateRow {
+                candidate_id: row.get("uuid"),
+                space_id: row.get("space_id"),
+                candidate_type: row.get("candidate_type"),
+                memory_type: row.get("memory_type"),
+                proposed_text: row.get("proposed_text"),
+                confidence: row.get("confidence"),
+                decision_state: row.get("decision_state"),
+                created_at: row.get("created_at"),
+                updated_at: row.get("updated_at"),
+            })
+            .collect())
+    }
+
+    pub async fn retrieve_candidate_for_tenant(
+        &self,
+        tenant_id: i64,
+        candidate_id: &str,
+    ) -> Result<Option<NativeSqlCandidateRow>, NativeSqlStoreError> {
+        let row = sqlx::query(
+            r#"
+            SELECT uuid, space_id, candidate_type, memory_type, proposed_text, confidence,
+                   decision_state, created_at, updated_at
+            FROM mem_candidate
+            WHERE tenant_id = ? AND uuid = ?
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(candidate_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|row| NativeSqlCandidateRow {
+            candidate_id: row.get("uuid"),
+            space_id: row.get("space_id"),
+            candidate_type: row.get("candidate_type"),
+            memory_type: row.get("memory_type"),
+            proposed_text: row.get("proposed_text"),
+            confidence: row.get("confidence"),
+            decision_state: row.get("decision_state"),
+            created_at: row.get("created_at"),
+            updated_at: row.get("updated_at"),
+        }))
+    }
+
+    pub async fn retrieve_candidate_detail_for_tenant(
+        &self,
+        tenant_id: i64,
+        candidate_id: &str,
+    ) -> Result<Option<NativeSqlCandidateDetailRow>, NativeSqlStoreError> {
+        let row = sqlx::query(
+            r#"
+            SELECT
+              candidate.uuid,
+              candidate.space_id,
+              candidate.candidate_type,
+              candidate.memory_type,
+              candidate.proposed_text,
+              candidate.evidence_json,
+              candidate.confidence,
+              candidate.decision_state,
+              candidate.created_at,
+              candidate.updated_at,
+              record.uuid AS target_memory_uuid
+            FROM mem_candidate candidate
+            LEFT JOIN mem_record record
+              ON record.id = candidate.target_memory_id
+             AND record.tenant_id = candidate.tenant_id
+            WHERE candidate.tenant_id = ?
+              AND candidate.uuid = ?
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(candidate_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|row| NativeSqlCandidateDetailRow {
+            candidate_id: row.get("uuid"),
+            space_id: row.get("space_id"),
+            candidate_type: row.get("candidate_type"),
+            memory_type: row.get("memory_type"),
+            proposed_text: row.get("proposed_text"),
+            evidence_json: row.get("evidence_json"),
+            confidence: row.get("confidence"),
+            decision_state: row.get("decision_state"),
+            created_at: row.get("created_at"),
+            updated_at: row.get("updated_at"),
+            target_memory_uuid: row.get("target_memory_uuid"),
+        }))
+    }
+
+    pub async fn set_candidate_target_memory_for_tenant(
+        &self,
+        tenant_id: i64,
+        candidate_id: &str,
+        memory_uuid: &str,
+    ) -> Result<(), NativeSqlStoreError> {
+        let result = sqlx::query(
+            r#"
+            UPDATE mem_candidate
+            SET target_memory_id = (
+              SELECT id
+              FROM mem_record
+              WHERE tenant_id = ?
+                AND uuid = ?
+            ),
+            updated_at = ?
+            WHERE tenant_id = ?
+              AND uuid = ?
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(memory_uuid)
+        .bind(now_text())
+        .bind(tenant_id)
+        .bind(candidate_id)
+        .execute(&self.pool)
+        .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(NativeSqlStoreError::InvariantViolation {
+                message: "candidate or promoted memory not found".to_string(),
+            });
+        }
+
+        Ok(())
+    }
+
+    pub async fn list_habits_for_tenant(
+        &self,
+        tenant_id: i64,
+        space_id: Option<i64>,
+        stage: Option<&str>,
+        query_text: Option<&str>,
+        page_size: i32,
+    ) -> Result<Vec<NativeSqlHabitRow>, NativeSqlStoreError> {
+        let like_pattern = query_text.map(|value| format!("%{value}%"));
+        let rows = sqlx::query(
+            r#"
+            SELECT
+              habit.uuid,
+              habit.space_id,
+              habit.user_id,
+              habit.habit_key,
+              habit.habit_type,
+              habit.description,
+              habit.stage,
+              habit.strength,
+              habit.confidence,
+              habit.support_count,
+              habit.last_signal_at,
+              promoted.uuid AS promoted_memory_uuid,
+              habit.decay_after,
+              habit.metadata_json,
+              habit.created_at,
+              habit.updated_at,
+              habit.version
+            FROM mem_habit habit
+            LEFT JOIN mem_record promoted
+              ON promoted.id = habit.promoted_memory_id
+             AND promoted.tenant_id = habit.tenant_id
+             AND promoted.space_id = habit.space_id
+            WHERE habit.tenant_id = ?
+              AND (? IS NULL OR habit.space_id = ?)
+              AND (? IS NULL OR habit.stage = ?)
+              AND (
+                ? IS NULL
+                OR habit.description LIKE ?
+                OR habit.habit_key LIKE ?
+              )
+            ORDER BY habit.updated_at DESC
+            LIMIT ?
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(space_id)
+        .bind(space_id)
+        .bind(stage)
+        .bind(stage)
+        .bind(like_pattern.as_deref())
+        .bind(like_pattern.as_deref())
+        .bind(like_pattern.as_deref())
+        .bind(page_size.max(1) as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows.into_iter().map(map_habit_row).collect())
+    }
+
+    pub async fn retrieve_habit_for_tenant(
+        &self,
+        tenant_id: i64,
+        habit_id: &str,
+    ) -> Result<Option<NativeSqlHabitRow>, NativeSqlStoreError> {
+        let row = sqlx::query(
+            r#"
+            SELECT
+              habit.uuid,
+              habit.space_id,
+              habit.user_id,
+              habit.habit_key,
+              habit.habit_type,
+              habit.description,
+              habit.stage,
+              habit.strength,
+              habit.confidence,
+              habit.support_count,
+              habit.last_signal_at,
+              promoted.uuid AS promoted_memory_uuid,
+              habit.decay_after,
+              habit.metadata_json,
+              habit.created_at,
+              habit.updated_at,
+              habit.version
+            FROM mem_habit habit
+            LEFT JOIN mem_record promoted
+              ON promoted.id = habit.promoted_memory_id
+             AND promoted.tenant_id = habit.tenant_id
+             AND promoted.space_id = habit.space_id
+            WHERE habit.tenant_id = ?
+              AND (habit.uuid = ? OR CAST(habit.id AS TEXT) = ?)
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(habit_id)
+        .bind(habit_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(map_habit_row))
+    }
+
+    pub async fn append_record_source_for_tenant(
+        &self,
+        tenant_id: i64,
+        source_id: &str,
+        memory_uuid: &str,
+        event_uuid: &str,
+        source_role: &str,
+        confidence_delta: Option<f64>,
+    ) -> Result<(), NativeSqlStoreError> {
+        let result = sqlx::query(
+            r#"
+            INSERT INTO mem_record_source (
+              uuid,
+              tenant_id,
+              memory_id,
+              event_id,
+              source_role,
+              confidence_delta,
+              created_at
+            )
+            SELECT
+              ?,
+              ?,
+              record.id,
+              event.id,
+              ?,
+              ?,
+              ?
+            FROM mem_record record
+            JOIN mem_event event
+              ON event.tenant_id = record.tenant_id
+             AND event.uuid = ?
+            WHERE record.tenant_id = ?
+              AND record.uuid = ?
+              AND record.status <> 'deleted'
+            "#,
+        )
+        .bind(source_id)
+        .bind(tenant_id)
+        .bind(source_role)
+        .bind(confidence_delta)
+        .bind(now_text())
+        .bind(event_uuid)
+        .bind(tenant_id)
+        .bind(memory_uuid)
+        .execute(&self.pool)
+        .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(NativeSqlStoreError::InvariantViolation {
+                message: "memory or event not found for record source".to_string(),
+            });
+        }
+
+        Ok(())
+    }
+
+    pub async fn list_record_sources_for_memory(
+        &self,
+        tenant_id: i64,
+        memory_uuid: &str,
+        page_size: i32,
+    ) -> Result<Vec<NativeSqlRecordSourceRow>, NativeSqlStoreError> {
+        let limit = page_size.clamp(1, 100) as i64 + 1;
+        let rows = sqlx::query(
+            r#"
+            SELECT
+              source.uuid AS source_uuid,
+              record.uuid AS memory_uuid,
+              event.uuid AS event_uuid,
+              source.source_role,
+              source.confidence_delta,
+              source.created_at
+            FROM mem_record_source source
+            JOIN mem_record record
+              ON record.id = source.memory_id
+             AND record.tenant_id = source.tenant_id
+            JOIN mem_event event
+              ON event.id = source.event_id
+             AND event.tenant_id = source.tenant_id
+            WHERE source.tenant_id = ?
+              AND record.uuid = ?
+            ORDER BY source.created_at DESC, source.id DESC
+            LIMIT ?
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(memory_uuid)
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| NativeSqlRecordSourceRow {
+                source_uuid: row.get("source_uuid"),
+                memory_uuid: row.get("memory_uuid"),
+                event_uuid: row.get("event_uuid"),
+                source_role: row.get("source_role"),
+                confidence_delta: row.get("confidence_delta"),
+                created_at: row.get("created_at"),
+            })
+            .collect())
+    }
+
+    pub async fn list_audit_logs_for_tenant(
+        &self,
+        tenant_id: i64,
+        action: Option<&str>,
+        page_size: i32,
+    ) -> Result<Vec<NativeSqlAuditLogRow>, NativeSqlStoreError> {
+        let rows = sqlx::query(
+            r#"
+            SELECT uuid, action, resource_type, resource_id, result, created_at
+            FROM mem_audit_log
+            WHERE tenant_id = ?
+              AND (? IS NULL OR action = ?)
+            ORDER BY created_at DESC
+            LIMIT ?
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(action)
+        .bind(action)
+        .bind(page_size.max(1) as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| NativeSqlAuditLogRow {
+                audit_id: row.get("uuid"),
+                action: row.get("action"),
+                resource_type: row.get("resource_type"),
+                resource_id: row.get("resource_id"),
+                result: row.get("result"),
+                created_at: row.get("created_at"),
+            })
+            .collect())
+    }
+
     async fn ensure_space(&self, scope: &MemoryScopeContext) -> Result<(), NativeSqlStoreError> {
         sqlx::query(
             r#"
@@ -1626,6 +2937,197 @@ impl MemoryRetrievalTraceStorePort for NativeSqlMemoryStore {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct NativeSqlOpenApiEventRow {
+    pub event_id: String,
+    pub space_id: i64,
+    pub event_type: String,
+    pub source_type: String,
+    pub event_time: String,
+    pub payload: Value,
+    pub payload_hash: String,
+    pub ingestion_status: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct NativeSqlMemoryRecordDetail {
+    pub memory_id: String,
+    pub space_id: i64,
+    pub scope: String,
+    pub memory_type: String,
+    pub subject: Option<String>,
+    pub predicate: Option<String>,
+    pub object_text: String,
+    pub canonical_text: String,
+    pub confidence: f64,
+    pub status: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub version: i64,
+}
+
+fn record_detail_from_row(row: SqliteRow) -> NativeSqlMemoryRecordDetail {
+    NativeSqlMemoryRecordDetail {
+        memory_id: row.get("uuid"),
+        space_id: row.get("space_id"),
+        scope: row.get("scope"),
+        memory_type: row.get("memory_type"),
+        subject: row.get("subject"),
+        predicate: row.get("predicate"),
+        object_text: row.get("object_text"),
+        canonical_text: row.get("canonical_text"),
+        confidence: row.get("confidence"),
+        status: row.get("status"),
+        created_at: row.get("created_at"),
+        updated_at: row.get("updated_at"),
+        version: row.get("version"),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct NativeSqlMemorySpaceRow {
+    pub space_id: i64,
+    pub uuid: String,
+    pub tenant_id: i64,
+    pub owner_subject_type: String,
+    pub owner_subject_id: String,
+    pub space_type: String,
+    pub display_name: String,
+    pub default_scope: Option<String>,
+    pub lifecycle_status: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub version: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeSqlCreateSpaceCommand {
+    pub organization_id: Option<i64>,
+    pub owner_subject_type: String,
+    pub owner_subject_id: String,
+    pub space_type: String,
+    pub display_name: String,
+    pub default_scope: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct NativeSqlCandidateRow {
+    pub candidate_id: String,
+    pub space_id: i64,
+    pub candidate_type: String,
+    pub memory_type: String,
+    pub proposed_text: String,
+    pub confidence: f64,
+    pub decision_state: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct NativeSqlCandidateDetailRow {
+    pub candidate_id: String,
+    pub space_id: i64,
+    pub candidate_type: String,
+    pub memory_type: String,
+    pub proposed_text: String,
+    pub evidence_json: Option<String>,
+    pub confidence: f64,
+    pub decision_state: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub target_memory_uuid: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct NativeSqlHabitRow {
+    pub habit_id: String,
+    pub space_id: i64,
+    pub user_id: i64,
+    pub habit_key: String,
+    pub habit_type: String,
+    pub description: String,
+    pub stage: String,
+    pub strength: f64,
+    pub confidence: f64,
+    pub support_count: i64,
+    pub last_signal_at: Option<String>,
+    pub promoted_memory_uuid: Option<String>,
+    pub decay_after: Option<String>,
+    pub metadata_json: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+    pub version: i64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct NativeSqlRecordSourceRow {
+    pub source_uuid: String,
+    pub memory_uuid: String,
+    pub event_uuid: String,
+    pub source_role: String,
+    pub confidence_delta: Option<f64>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeSqlAuditLogRow {
+    pub audit_id: String,
+    pub action: String,
+    pub resource_type: String,
+    pub resource_id: String,
+    pub result: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeSqlGovernanceJobRow {
+    pub job_id: String,
+    pub resource_type: String,
+    pub result: String,
+    pub metadata_json: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct NativeSqlRetrievalTraceSummaryRow {
+    pub trace_id: String,
+    pub space_id: i64,
+    pub query_text: Option<String>,
+    pub query_hash: String,
+    pub result_count: i64,
+    pub degraded: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct NativeSqlContextPackRow {
+    pub context_pack_id: String,
+    pub query_text: Option<String>,
+    pub pack_json: String,
+    pub estimated_tokens: i64,
+    pub truncated: bool,
+    pub created_at: String,
+    pub retrieval_trace_id: Option<i64>,
+}
+
+fn space_row_from_sql(row: SqliteRow) -> NativeSqlMemorySpaceRow {
+    NativeSqlMemorySpaceRow {
+        space_id: row.get("id"),
+        uuid: row.get("uuid"),
+        tenant_id: row.get("tenant_id"),
+        owner_subject_type: row.get("owner_subject_type"),
+        owner_subject_id: row.get("owner_subject_id"),
+        space_type: row.get("space_type"),
+        display_name: row.get("display_name"),
+        default_scope: row.get("default_scope"),
+        lifecycle_status: row.get("lifecycle_status"),
+        created_at: row.get("created_at"),
+        updated_at: row.get("updated_at"),
+        version: row.get("version"),
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeSqlMemoryEvent {
     pub event_id: String,
@@ -1757,6 +3259,28 @@ fn candidate_from_row(row: SqliteRow) -> MemoryCandidate {
     }
 }
 
+fn map_habit_row(row: SqliteRow) -> NativeSqlHabitRow {
+    NativeSqlHabitRow {
+        habit_id: row.get("uuid"),
+        space_id: row.get("space_id"),
+        user_id: row.get("user_id"),
+        habit_key: row.get("habit_key"),
+        habit_type: row.get("habit_type"),
+        description: row.get("description"),
+        stage: row.get("stage"),
+        strength: row.get("strength"),
+        confidence: row.get("confidence"),
+        support_count: row.get("support_count"),
+        last_signal_at: row.get("last_signal_at"),
+        promoted_memory_uuid: row.get("promoted_memory_uuid"),
+        decay_after: row.get("decay_after"),
+        metadata_json: row.get("metadata_json"),
+        created_at: row.get("created_at"),
+        updated_at: row.get("updated_at"),
+        version: row.get("version"),
+    }
+}
+
 fn habit_from_row(row: SqliteRow) -> MemoryHabit {
     MemoryHabit {
         habit_id: row.get("uuid"),
@@ -1805,7 +3329,7 @@ fn sqlite_int_to_bool(value: i64) -> bool {
     value != 0
 }
 
-fn now_text() -> &'static str {
+pub(crate) fn now_text() -> &'static str {
     "2026-06-10T00:00:00Z"
 }
 

@@ -56,7 +56,17 @@ $requiredFiles = @(
     "sdks/sdkwork-memory-backend-sdk/sdk-manifest.json",
     "sdks/sdkwork-memory-backend-sdk/specs/README.md",
     "sdks/sdkwork-memory-backend-sdk/specs/component.spec.json",
-    "sdks/sdkwork-memory-backend-sdk/openapi/memory-backend-api.openapi.json"
+    "sdks/sdkwork-memory-backend-sdk/openapi/memory-backend-api.openapi.json",
+    "apis/authority-manifest.json",
+    "apis/open-api/memory-open-api.openapi.json",
+    "apis/app-api/memory-app-api.openapi.json",
+    "apis/backend-api/memory-backend-api.openapi.json",
+    "sdks/_route-manifests/open-api/sdkwork-router-memory-open-api.route-manifest.json",
+    "sdks/_route-manifests/app-api/sdkwork-router-memory-app-api.route-manifest.json",
+    "sdks/_route-manifests/backend-api/sdkwork-router-memory-backend-api.route-manifest.json",
+    "package.json",
+    "sdkwork.workflow.json",
+    ".github/workflows/package.yml"
 )
 
 foreach ($file in $requiredFiles) {
@@ -138,6 +148,7 @@ function Verify-OpenApi {
         [Parameter(Mandatory = $true)][string]$Authority,
         [Parameter(Mandatory = $true)][string]$SdkFamily,
         [Parameter(Mandatory = $true)][ValidateSet("dual-token", "api-key")][string]$AuthMode,
+        [Parameter(Mandatory = $true)][ValidateSet("open-api", "app-api", "backend-api")][string]$ExpectedApiSurface,
         [Parameter(Mandatory = $true)][string[]]$RequiredOperationIds,
         [Parameter(Mandatory = $true)][string[]]$RequiredSchemas
     )
@@ -210,6 +221,12 @@ function Verify-OpenApi {
             if ($operation.'x-sdkwork-auth-mode' -ne $AuthMode) {
                 throw "$Path operation auth mode mismatch for $operationId"
             }
+            if ($operation.'x-sdkwork-api-surface' -ne $ExpectedApiSurface) {
+                throw "$Path operation api surface mismatch for $operationId"
+            }
+            if ($operation.'x-sdkwork-request-context' -ne "WebRequestContext") {
+                throw "$Path operation must declare WebRequestContext for $operationId"
+            }
             $security = $operation.security
             if (!$security -or $security.Count -eq 0) {
                 throw "$Path operation missing security declaration: $operationId"
@@ -274,6 +291,7 @@ $appOpenApiCheck = @{
     Authority = "sdkwork-memory.app"
     SdkFamily = "sdkwork-memory-app-sdk"
     AuthMode = "dual-token"
+    ExpectedApiSurface = "app-api"
     RequiredOperationIds = @(
         "spaces.create", "spaces.list", "spaces.retrieve", "spaces.update",
         "events.create", "events.retrieve",
@@ -302,6 +320,7 @@ $openApiCheck = @{
     Authority = "sdkwork-memory-open-api"
     SdkFamily = "sdkwork-memory-sdk"
     AuthMode = "api-key"
+    ExpectedApiSurface = "open-api"
     RequiredOperationIds = @(
         "capabilities.retrieve",
         "events.create", "events.retrieve",
@@ -328,6 +347,7 @@ $backendOpenApiCheck = @{
     Authority = "sdkwork-memory.backend"
     SdkFamily = "sdkwork-memory-backend-sdk"
     AuthMode = "dual-token"
+    ExpectedApiSurface = "backend-api"
     RequiredOperationIds = @(
         "spaces.list", "spaces.retrieve", "spaces.update",
         "memories.list", "memories.retrieve", "memories.update", "memories.supersede",
@@ -350,6 +370,26 @@ $backendOpenApiCheck = @{
     )
 }
 Verify-OpenApi @backendOpenApiCheck
+
+foreach ($routeManifestPath in @(
+    "sdks/_route-manifests/open-api/sdkwork-router-memory-open-api.route-manifest.json",
+    "sdks/_route-manifests/app-api/sdkwork-router-memory-app-api.route-manifest.json",
+    "sdks/_route-manifests/backend-api/sdkwork-router-memory-backend-api.route-manifest.json"
+)) {
+    $routeManifest = Read-JsonFile $routeManifestPath
+    if ($routeManifest.kind -ne "sdkwork.route.manifest") {
+        throw "$routeManifestPath must use sdkwork.route.manifest kind"
+    }
+    foreach ($route in $routeManifest.routes) {
+        if ($route.requestContext -ne "WebRequestContext") {
+            throw "$routeManifestPath route $($route.method) $($route.path) must declare WebRequestContext"
+        }
+        if ($route.apiSurface -notin @("open-api", "app-api", "backend-api")) {
+            throw "$routeManifestPath route $($route.method) $($route.path) must declare canonical apiSurface"
+        }
+    }
+    Write-Host "Verified $routeManifestPath with $($routeManifest.routes.Count) routes."
+}
 
 foreach ($schemaPath in Get-ChildItem -Path "docs/schema-registry/tables" -Filter "*.yaml") {
     $content = Get-Content -Raw $schemaPath.FullName

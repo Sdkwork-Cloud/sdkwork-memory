@@ -2,9 +2,11 @@ use std::sync::Arc;
 
 use axum::Router;
 use sdkwork_iam_web_adapter::IamDatabaseWebRequestContextResolver;
+use sdkwork_memory_contract::MemoryAppRequestContext;
 use sdkwork_web_axum::{with_web_request_context, WebFrameworkLayer};
 use sdkwork_web_core::{
-    DefaultWebRequestContextResolver, WebRequestContextProfile,
+    DefaultWebRequestContextResolver, DomainContextInjector, WebRequestContext,
+    WebRequestContextProfile,
 };
 
 use crate::http_route_manifest::app_route_manifest;
@@ -18,24 +20,47 @@ pub fn memory_app_api_prefixes() -> Vec<String> {
     vec![paths::PREFIX.to_owned()]
 }
 
+#[derive(Clone, Default)]
+struct MemoryAppContextInjector;
+
+impl DomainContextInjector for MemoryAppContextInjector {
+    fn inject(&self, request: &mut axum::extract::Request, context: &WebRequestContext) {
+        if let Some(app_context) = memory_app_context_from_web_request(context) {
+            request.extensions_mut().insert(app_context);
+        }
+    }
+}
+
+fn memory_app_context_from_web_request(
+    context: &WebRequestContext,
+) -> Option<MemoryAppRequestContext> {
+    let principal = context.principal.as_ref()?;
+    let tenant_id = principal.tenant_id().parse().ok()?;
+    let actor_id = principal.user_id().parse().ok();
+    let organization_id = principal
+        .organization_id()
+        .and_then(|value| value.parse().ok());
+    let session_id = principal.session_id().map(str::to_owned);
+    Some(MemoryAppRequestContext {
+        tenant_id,
+        actor_id,
+        organization_id,
+        session_id,
+    })
+}
+
 pub fn wrap_router_with_web_framework(
     resolver: DefaultWebRequestContextResolver,
     router: Router,
 ) -> Router {
-    with_web_request_context(
-        router,
-        build_memory_app_api_framework_layer(resolver),
-    )
+    with_web_request_context(router, build_memory_app_api_framework_layer(resolver))
 }
 
 pub fn wrap_router_with_iam_database_web_framework(
     resolver: IamDatabaseWebRequestContextResolver,
     router: Router,
 ) -> Router {
-    with_web_request_context(
-        router,
-        build_memory_app_api_framework_layer(resolver),
-    )
+    with_web_request_context(router, build_memory_app_api_framework_layer(resolver))
 }
 
 fn build_memory_app_api_framework_layer<R>(resolver: R) -> WebFrameworkLayer<R>
@@ -54,19 +79,7 @@ where
             ..WebRequestContextProfile::default()
         })
         .with_route_manifest(route_manifest)
-        .with_domain_injector(Arc::new(MemoryAppApiNoopInjector))
-}
-
-#[derive(Clone, Default)]
-struct MemoryAppApiNoopInjector;
-
-impl sdkwork_web_core::DomainContextInjector for MemoryAppApiNoopInjector {
-    fn inject(
-        &self,
-        _request: &mut axum::extract::Request,
-        _context: &sdkwork_web_core::WebRequestContext,
-    ) {
-    }
+        .with_domain_injector(Arc::new(MemoryAppContextInjector))
 }
 
 pub async fn wrap_router_with_web_framework_from_env(router: Router) -> Router {

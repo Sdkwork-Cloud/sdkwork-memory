@@ -2,9 +2,11 @@ use std::sync::Arc;
 
 use axum::Router;
 use sdkwork_iam_web_adapter::IamDatabaseWebRequestContextResolver;
+use sdkwork_memory_contract::MemoryBackendRequestContext;
 use sdkwork_web_axum::{with_web_request_context, WebFrameworkLayer};
 use sdkwork_web_core::{
-    DefaultWebRequestContextResolver, WebRequestContextProfile,
+    DefaultWebRequestContextResolver, DomainContextInjector, WebRequestContext,
+    WebRequestContextProfile,
 };
 
 use crate::http_route_manifest::backend_route_manifest;
@@ -18,24 +20,41 @@ pub fn memory_backend_api_prefixes() -> Vec<String> {
     vec![paths::PREFIX.to_owned()]
 }
 
+#[derive(Clone, Default)]
+struct MemoryBackendContextInjector;
+
+impl DomainContextInjector for MemoryBackendContextInjector {
+    fn inject(&self, request: &mut axum::extract::Request, context: &WebRequestContext) {
+        if let Some(backend_context) = memory_backend_context_from_web_request(context) {
+            request.extensions_mut().insert(backend_context);
+        }
+    }
+}
+
+fn memory_backend_context_from_web_request(
+    context: &WebRequestContext,
+) -> Option<MemoryBackendRequestContext> {
+    let principal = context.principal.as_ref()?;
+    let tenant_id = principal.tenant_id().parse().ok()?;
+    let operator_id = principal.user_id().parse().ok();
+    Some(MemoryBackendRequestContext {
+        tenant_id,
+        operator_id,
+    })
+}
+
 pub fn wrap_router_with_web_framework(
     resolver: DefaultWebRequestContextResolver,
     router: Router,
 ) -> Router {
-    with_web_request_context(
-        router,
-        build_memory_backend_api_framework_layer(resolver),
-    )
+    with_web_request_context(router, build_memory_backend_api_framework_layer(resolver))
 }
 
 pub fn wrap_router_with_iam_database_web_framework(
     resolver: IamDatabaseWebRequestContextResolver,
     router: Router,
 ) -> Router {
-    with_web_request_context(
-        router,
-        build_memory_backend_api_framework_layer(resolver),
-    )
+    with_web_request_context(router, build_memory_backend_api_framework_layer(resolver))
 }
 
 fn build_memory_backend_api_framework_layer<R>(resolver: R) -> WebFrameworkLayer<R>
@@ -54,19 +73,7 @@ where
             ..WebRequestContextProfile::default()
         })
         .with_route_manifest(route_manifest)
-        .with_domain_injector(Arc::new(MemoryBackendApiNoopInjector))
-}
-
-#[derive(Clone, Default)]
-struct MemoryBackendApiNoopInjector;
-
-impl sdkwork_web_core::DomainContextInjector for MemoryBackendApiNoopInjector {
-    fn inject(
-        &self,
-        _request: &mut axum::extract::Request,
-        _context: &sdkwork_web_core::WebRequestContext,
-    ) {
-    }
+        .with_domain_injector(Arc::new(MemoryBackendContextInjector))
 }
 
 pub async fn wrap_router_with_web_framework_from_env(router: Router) -> Router {
