@@ -27,7 +27,6 @@
     "grantMode": "current",
     "platform": "API",
     "appId": null,
-    "tenantId": "20001",
     "organizationId": null
   },
   "runtime": {
@@ -40,7 +39,11 @@
       "CONTAINER_IMAGE"
     ],
     "defaultPlatform": "API",
-    "defaultArchitecture": "x64"
+    "defaultArchitecture": "x64",
+    "supportedDeploymentProfiles": [
+      "cloud"
+    ],
+    "defaultDeploymentProfile": "cloud"
   },
   "media": {
     "icons": {
@@ -106,7 +109,7 @@
     "installPlatforms": [
       "API"
     ],
-    "defaultPackageId": "container-x64-server-docker-image",
+    "defaultPackageId": "container-x64-cloud-container-oci",
     "storeUrl": "https://sdkwork.com/apps/sdkwork-memory",
     "stores": [],
     "config": {
@@ -134,13 +137,13 @@
   },
   "artifacts": {
     "installConfig": {
-      "defaultPackageId": "container-x64-server-docker-image",
+      "defaultPackageId": "container-x64-cloud-container-oci",
       "installCommand": "sdkwork install sdkwork-memory",
       "launchCommand": "sdkwork open sdkwork-memory",
       "uninstallCommand": "sdkwork uninstall sdkwork-memory",
       "packages": [
         {
-          "id": "container-x64-server-docker-image",
+          "id": "container-x64-cloud-container-oci",
           "name": "SDKWork Memory Server Container",
           "sourceType": "CONTAINER_IMAGE",
           "packageFormat": "DOCKER_IMAGE",
@@ -153,7 +156,9 @@
           },
           "architecture": "x64",
           "checksumAlgorithm": "SHA-256",
-          "checksum": "4d656d6f72794472616674436f6e74726163744f6e6c794e6f7452656c65617365"
+          "checksum": "4d656d6f72794472616674436f6e74726163744f6e6c794e6f7452656c65617365",
+          "deploymentProfile": "cloud",
+          "runtimeTarget": "container"
         }
       ],
       "metadata": {
@@ -183,7 +188,7 @@
           "SDKWork app-api and backend-api authority drafts"
         ],
         "packageIds": [
-          "container-x64-server-docker-image"
+          "container-x64-cloud-container-oci"
         ],
         "publishedAt": "2026-06-10T00:00:00Z",
         "current": true,
