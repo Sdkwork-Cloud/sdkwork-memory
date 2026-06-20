@@ -3329,8 +3329,8 @@ fn sqlite_int_to_bool(value: i64) -> bool {
     value != 0
 }
 
-pub(crate) fn now_text() -> &'static str {
-    "2026-06-10T00:00:00Z"
+pub(crate) fn now_text() -> String {
+    sdkwork_utils_rust::format_datetime(sdkwork_utils_rust::now(), None)
 }
 
 fn stable_hash(value: &str) -> String {

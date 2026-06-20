@@ -42,6 +42,12 @@
       "tokenSecret": "SDKWORK_RELEASE_TOKEN"
     },
     {
+      "id": "sdkwork-utils",
+      "repository": "Sdkwork-Cloud/sdkwork-utils",
+      "refInput": "SDKWORK_UTILS_REF",
+      "tokenSecret": "SDKWORK_RELEASE_TOKEN"
+    },
+    {
       "id": "sdkwork-sdk-generator",
       "repository": "Sdkwork-Cloud/sdkwork-sdk-generator",
       "refInput": "SDKWORK_SDK_GENERATOR_REF",
@@ -110,10 +116,12 @@
   },
   "targets": [
     {
+      "id": "linux-x64-cloud-container-server-tar-gz",
       "profile": "server",
-      "platform": "API",
+      "platform": "linux",
       "architecture": "x64",
       "formats": ["tar.gz"],
+      "runner": "ubuntu-24.04",
       "outputGlobs": ["target/release/sdkwork-memory-api-server*"],
       "deploymentProfile": "cloud",
       "runtimeTarget": "container"

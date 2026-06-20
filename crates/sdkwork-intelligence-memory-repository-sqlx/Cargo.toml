@@ -11,9 +11,11 @@ sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio",
 thiserror.workspace = true
 tracing.workspace = true
 sdkwork-database-config.workspace = true
+sdkwork-database-repository.workspace = true
 sdkwork-database-sqlx.workspace = true
 sdkwork-memory-database-host.workspace = true
 sdkwork-memory-plugin-native-sql.workspace = true
+sdkwork-utils-rust.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

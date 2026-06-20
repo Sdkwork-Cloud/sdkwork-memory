@@ -1,24 +1,122 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "kind": "sdkwork.app.topology",
   "appId": "sdkwork-memory",
-  "deploymentProfile": "cloud",
-  "runtimeTarget": "container",
+  "archetype": "application-http-gateway",
+  "profileRoot": "configs/topology",
+  "profilePattern": "{deploymentProfile}.{serviceLayout}.{environment}.env",
+  "vocabulary": {
+    "deploymentProfile": { "allowed": ["standalone", "cloud"] },
+    "serviceLayout": { "allowed": ["unified-process", "split-services"] },
+    "environment": { "allowed": ["development", "production"] }
+  },
+  "defaults": {
+    "developmentProfileId": "standalone.unified-process.development",
+    "productionProfileId": "standalone.unified-process.production",
+    "desktopBuildProfileId": "standalone.unified-process.production",
+    "gatewayBind": "127.0.0.1:8080"
+  },
+  "profileFiles": {
+    "standalone.unified-process.development": "configs/topology/standalone.unified-process.development.env",
+    "standalone.unified-process.production": "configs/topology/standalone.unified-process.production.env"
+  },
+  "envKeys": {
+    "deploymentProfile": "SDKWORK_MEMORY_DEPLOYMENT_PROFILE",
+    "serviceLayout": "SDKWORK_MEMORY_SERVICE_LAYOUT",
+    "environment": "SDKWORK_MEMORY_ENVIRONMENT",
+    "profileId": "SDKWORK_MEMORY_PROFILE_ID",
+    "clientDeploymentProfile": "VITE_SDKWORK_MEMORY_DEPLOYMENT_PROFILE",
+    "gatewayAutostart": "SDKWORK_MEMORY_PLATFORM_API_GATEWAY_AUTOSTART",
+    "standaloneGatewayBind": "SDKWORK_MEMORY_APPLICATION_PUBLIC_INGRESS_BIND",
+    "cloudGatewayBind": "SDKWORK_API_GATEWAY_BIND",
+    "cloudGatewayConfig": "SDKWORK_API_GATEWAY_CONFIG",
+    "clientApiGatewayBaseUrl": "VITE_SDKWORK_MEMORY_PLATFORM_API_GATEWAY_HTTP_URL",
+    "apiGatewayBaseUrl": "SDKWORK_MEMORY_PLATFORM_API_GATEWAY_HTTP_URL"
+  },
   "surfaces": {
-    "open-api": {
-      "prefix": "/mem/v3/api",
-      "ingressBindEnv": "SDKWORK_MEMORY_APPLICATION_PUBLIC_INGRESS_BIND"
+    "application.public-ingress": {
+      "connectivityPlane": "application",
+      "protocols": ["http"],
+      "bindEnv": "SDKWORK_MEMORY_APPLICATION_PUBLIC_INGRESS_BIND",
+      "httpUrlEnv": "SDKWORK_MEMORY_APPLICATION_PUBLIC_HTTP_URL",
+      "clientHttpEnv": "VITE_SDKWORK_MEMORY_APPLICATION_PUBLIC_HTTP_URL"
     },
-    "app-api": {
-      "prefix": "/app/v3/api"
+    "application.backend-http": {
+      "connectivityPlane": "application",
+      "protocols": ["http"],
+      "bindEnv": "SDKWORK_MEMORY_APPLICATION_BACKEND_HTTP_BIND",
+      "httpUrlEnv": "SDKWORK_MEMORY_APPLICATION_BACKEND_HTTP_URL",
+      "clientHttpEnv": "VITE_SDKWORK_MEMORY_APPLICATION_BACKEND_HTTP_URL"
     },
-    "backend-api": {
-      "prefix": "/backend/v3/api"
+    "application.open-http": {
+      "connectivityPlane": "application",
+      "protocols": ["http"],
+      "bindEnv": "SDKWORK_MEMORY_APPLICATION_OPEN_HTTP_BIND",
+      "httpUrlEnv": "SDKWORK_MEMORY_APPLICATION_OPEN_HTTP_URL",
+      "clientHttpEnv": "VITE_SDKWORK_MEMORY_APPLICATION_OPEN_HTTP_URL"
+    },
+    "application.app-http": {
+      "connectivityPlane": "application",
+      "protocols": ["http"],
+      "bindEnv": "SDKWORK_MEMORY_APPLICATION_APP_HTTP_BIND",
+      "httpUrlEnv": "SDKWORK_MEMORY_APPLICATION_APP_HTTP_URL",
+      "clientHttpEnv": "VITE_SDKWORK_MEMORY_APPLICATION_APP_HTTP_URL"
     }
   },
+  "cloudPublicHosts": {
+    "application.public-ingress": { "httpHost": "memory.sdkwork.com" },
+    "application.backend-http": { "httpHost": "memory-admin.sdkwork.com" },
+    "application.open-http": { "httpHost": "mem.sdkwork.com" },
+    "application.app-http": { "httpHost": "memory-app.sdkwork.com" }
+  },
   "database": {
-    "serviceName": "memory",
-    "urlEnv": "SDKWORK_MEMORY_DATABASE_URL"
+    "appPrefix": "SDKWORK_MEMORY"
+  },
+  "components": {
+    "appApiRouter": {
+      "crate": "sdkwork-memory-api-server",
+      "binary": "sdkwork-memory-api-server"
+    },
+    "backendApiRouter": {
+      "crate": "sdkwork-memory-api-server",
+      "binary": "sdkwork-memory-api-server"
+    },
+    "openApiRouter": {
+      "crate": "sdkwork-memory-api-server",
+      "binary": "sdkwork-memory-api-server"
+    }
+  },
+  "orchestration": {
+    "profiles": {
+      "standalone.unified-process.development": {
+        "processes": [
+          {
+            "id": "application.public-ingress",
+            "crate": "sdkwork-memory-api-server",
+            "binary": "sdkwork-memory-api-server",
+            "required": true
+          }
+        ],
+        "healthSurfaces": ["application.public-ingress"]
+      },
+      "standalone.unified-process.production": {
+        "processes": [
+          {
+            "id": "application.public-ingress",
+            "crate": "sdkwork-memory-api-server",
+            "binary": "sdkwork-memory-api-server",
+            "required": true
+          }
+        ],
+        "healthSurfaces": ["application.public-ingress"]
+      }
+    }
+  },
+  "scripts": {
+    "dev": "scripts/memory-dev.mjs"
+  },
+  "retired": {
+    "envKeys": ["PORT"]
   },
   "metadata": {
     "status": "draft",

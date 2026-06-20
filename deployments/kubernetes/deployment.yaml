@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sdkwork-memory-api-server
+  labels:
+    app.kubernetes.io/name: sdkwork-memory
+    app.kubernetes.io/component: api-server
+    app.kubernetes.io/part-of: sdkwork-memory
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sdkwork-memory
+      app.kubernetes.io/component: api-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sdkwork-memory
+        app.kubernetes.io/component: api-server
+        app.kubernetes.io/part-of: sdkwork-memory
+    spec:
+      containers:
+        - name: api-server
+          image: sdkwork-memory-api-server:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: SDKWORK_MEMORY_APPLICATION_PUBLIC_INGRESS_BIND
+              value: "0.0.0.0:8080"
+            - name: SDKWORK_MEMORY_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: sdkwork-memory-database
+                  key: database-url
+                  optional: true
+          readinessProbe:
+            httpGet:
+              path: /mem/v3/api/capabilities
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /mem/v3/api/capabilities
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi

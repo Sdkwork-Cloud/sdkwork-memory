@@ -3,6 +3,7 @@
 pub mod auth;
 pub mod error;
 pub mod http_route_manifest;
+pub mod manifest;
 pub mod paths;
 pub mod routes;
 pub mod web_bootstrap;

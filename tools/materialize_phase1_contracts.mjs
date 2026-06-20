@@ -155,6 +155,13 @@ const platformWorkspaceDependencies = [
     generatedTransportImportPolicy: "forbidden"
   },
   {
+    workspace: "sdkwork-utils",
+    role: "cross-language-utility-runtime",
+    required: true,
+    dependencyMode: "platform-framework",
+    generatedTransportImportPolicy: "forbidden"
+  },
+  {
     workspace: "sdkwork-id",
     role: "id-generation-runtime",
     required: true,
@@ -184,7 +191,8 @@ const rootCanonicalSpecs = [
   ["DATABASE_SPEC.md", "../sdkwork-specs/DATABASE_SPEC.md", "Schema registry, table contract, migration, and storage rules."],
   ["EVENT_SPEC.md", "../sdkwork-specs/EVENT_SPEC.md", "Domain event and outbox contract rules."],
   ["PRIVACY_SPEC.md", "../sdkwork-specs/PRIVACY_SPEC.md", "Memory privacy, sensitive data, retention, export, and deletion rules."],
-  ["OBSERVABILITY_SPEC.md", "../sdkwork-specs/OBSERVABILITY_SPEC.md", "Request, retrieval, provider, job, audit, and evaluation observability rules."]
+  ["OBSERVABILITY_SPEC.md", "../sdkwork-specs/OBSERVABILITY_SPEC.md", "Request, retrieval, provider, job, audit, and evaluation observability rules."],
+  ["TEST_SPEC.md", "../sdkwork-specs/TEST_SPEC.md", "Verification, contract testing, and evidence-before-completion rules."]
 ].map(([file, specPath, purpose]) => ({ file, path: specPath, purpose }));
 
 const sdkCanonicalSpecs = [
@@ -197,62 +205,86 @@ const sdkCanonicalSpecs = [
 function writeAgentEntrypoints() {
   writeText("AGENTS.md", `# Repository Guidelines
 
+<!-- SDKWORK-AGENTS-GENERATED: v2 -->
+
 ## SDKWORK Soul
 
-Read \`../sdkwork-specs/SOUL.md\` before executing repository tasks. It defines the SDKWork rules for specs-before-memory, dictionary-before-context, stop-on-ambiguity, and evidence-before-completion.
+Read \`../sdkwork-specs/SOUL.md\` before executing tasks in this root. Follow specs before memory, dictionary before context, stop on ambiguity, and evidence before completion.
 
 ## SDKWORK Standards
 
-The canonical standards entrypoint is \`../sdkwork-specs/README.md\`. This repository must reference root standards by relative path and must not copy standard text into local specs.
+Canonical SDKWORK specs path from this root:
+
+- \`../sdkwork-specs/README.md\`
+- \`../sdkwork-specs/SOUL.md\`
+- \`../sdkwork-specs/AGENTS_SPEC.md\`
+- \`../sdkwork-specs/PNPM_SCRIPT_SPEC.md\`
+- \`../sdkwork-specs/GITHUB_WORKFLOW_SPEC.md\`
+- \`../sdkwork-specs/CODE_STYLE_SPEC.md\`
+- \`../sdkwork-specs/NAMING_SPEC.md\`
+
+Do not copy root standard text into this repository. If these relative paths do not resolve, stop and report the broken workspace layout.
 
 ## Application Identity
 
-Read \`sdkwork.app.config.json\`, \`specs/README.md\`, and \`specs/component.spec.json\` before changing Memory behavior, runtime config, SDK wiring, database schema, API contracts, provider abstractions, release metadata, or app-owned capabilities.
+Read \`sdkwork.app.config.json\` only when the task touches Memory application behavior, runtime config, SDK wiring, release metadata, app-owned capabilities, packaging, or deployment. For unrelated documentation or tooling work, do not expand into the full app manifest unless evidence requires it.
 
 ## Local Dictionary Structure
 
-- \`AGENTS.md\`: repository agent execution rules.
-- \`CODEX.md\`, \`CLAUDE.md\`, \`GEMINI.md\`: tool compatibility shims that point back to \`AGENTS.md\`.
-- \`sdkwork.app.config.json\`: SDKWork Memory app/service identity.
-- \`.sdkwork/\`: local skills, plugins, and workspace metadata.
-- \`specs/\`: local component contract entrypoint.
-- \`docs/superpowers/specs/\`: product and architecture design specs.
-- \`docs/schema-registry/tables/\`: Memory table contracts using the \`mem_\` prefix.
-- \`sdks/\`: SDK families, OpenAPI authority files, SDK assembly manifests, and generated SDK outputs when materialized.
-- \`tools/\`: materialization and verification commands.
+- \`AGENTS.md\`: repository agent entrypoint and relative SDKWork spec index.
+- \`CLAUDE.md\`, \`GEMINI.md\`, \`CODEX.md\`: compatibility shims that point to \`AGENTS.md\` and must not duplicate rules.
+- \`sdkwork.app.config.json\`: Memory application identity, runtime, release, and capability metadata.
+- \`sdkwork.workflow.json\`: GitHub packaging/release workflow manifest governed by \`GITHUB_WORKFLOW_SPEC.md\`.
+- \`.github/workflows/package.yml\`: thin reusable workflow call only.
+- \`.sdkwork/\`: repository/application AI workspace metadata, local skills, local plugins, and manifests.
+- \`specs/\`: local application/component contracts and narrowing rules.
+- \`apis/\`: Memory-owned API contract sources and materialized OpenAPI inputs.
+- \`apps/\`: reserved for future client application roots.
+- \`crates/\`: reusable Rust service, repository, route, and API server crates.
+- \`sdks/\`: SDK families, SDK generation manifests, route manifests, and generated SDK artifacts.
+- \`database/\`: database contract, baseline DDL, migrations, seeds, and drift policy.
+- \`configs/\`, \`deployments/\`, \`scripts/\`, \`tools/\`, \`docs/\`, \`tests/\`: config templates, deployment descriptors, thin command entrypoints, validators, documentation, and verification assets.
+- \`package.json\`, \`Cargo.toml\`: language/build manifests.
 
 ## Spec Resolution Order
 
-1. Read this \`AGENTS.md\`.
-2. Read \`sdkwork.app.config.json\` when present.
-3. Read \`specs/README.md\` and \`specs/component.spec.json\`.
-4. Read local \`.sdkwork/README.md\` and relevant local skills/plugins when present.
-5. Resolve \`../sdkwork-specs/README.md\`.
-6. Read task-specific root specs.
-7. Inspect implementation files.
+Use dynamic progressive loading:
+
+1. Read this \`AGENTS.md\` and any nearer component-level \`AGENTS.md\`.
+2. Read \`sdkwork.app.config.json\` only when app behavior, runtime config, SDK wiring, release, packaging, or app-owned capabilities are touched.
+3. Read local \`specs/README.md\` and \`specs/component.spec.json\` only when the task touches that local contract.
+4. Read local \`.sdkwork/README.md\`, \`.sdkwork/skills/\`, and \`.sdkwork/plugins/\` only when local agent extensions are relevant.
+5. Read \`../sdkwork-specs/README.md\`, then only the task-specific root specs.
+6. Inspect implementation files after the dictionary and relevant specs are clear.
+
+Do not load the whole repository or every root spec before identifying the task surface.
 
 ## Required Specs By Task Type
 
-- Agent/workflow changes: \`../sdkwork-specs/SOUL.md\`, \`../sdkwork-specs/AGENTS_SPEC.md\`, \`../sdkwork-specs/SDKWORK_WORKSPACE_SPEC.md\`.
-- Code changes: \`../sdkwork-specs/CODE_STYLE_SPEC.md\`, \`../sdkwork-specs/NAMING_SPEC.md\`, and only the touched language/framework spec.
-- API changes: \`../sdkwork-specs/API_SPEC.md\`, \`../sdkwork-specs/WEB_BACKEND_SPEC.md\`, \`../sdkwork-specs/SDK_SPEC.md\`, \`../sdkwork-specs/TEST_SPEC.md\`.
-- SDK generation or consumption: \`../sdkwork-specs/SDK_SPEC.md\`, \`../sdkwork-specs/SDK_WORKSPACE_GENERATION_SPEC.md\`, \`../sdkwork-specs/API_SPEC.md\`, \`../sdkwork-specs/TEST_SPEC.md\`.
-- Database and storage changes: \`../sdkwork-specs/DATABASE_SPEC.md\`, \`../sdkwork-specs/PRIVACY_SPEC.md\`, \`../sdkwork-specs/TEST_SPEC.md\`.
-- Events, jobs, and outbox changes: \`../sdkwork-specs/EVENT_SPEC.md\`, \`../sdkwork-specs/OBSERVABILITY_SPEC.md\`.
-- Provider/integration changes: \`../sdkwork-specs/INTEGRATION_SPEC.md\`, \`../sdkwork-specs/SECURITY_SPEC.md\`, \`../sdkwork-specs/PRIVACY_SPEC.md\`.
-- App identity/release changes: \`../sdkwork-specs/APP_MANIFEST_SPEC.md\`, \`../sdkwork-specs/CONFIG_SPEC.md\`, \`../sdkwork-specs/DEPLOYMENT_SPEC.md\`.
+- Agent/workflow changes: \`../sdkwork-specs/SOUL.md\`, \`../sdkwork-specs/AGENTS_SPEC.md\`, \`../sdkwork-specs/SDKWORK_WORKSPACE_SPEC.md\`, \`../sdkwork-specs/GITHUB_WORKFLOW_SPEC.md\`, and \`../sdkwork-specs/TEST_SPEC.md\`.
+- Package script changes: \`../sdkwork-specs/PNPM_SCRIPT_SPEC.md\`, \`../sdkwork-specs/APP_RUNTIME_TOPOLOGY_SPEC.md\`, \`../sdkwork-specs/CONFIG_SPEC.md\`, and \`../sdkwork-specs/TEST_SPEC.md\`.
+- Any code change: \`../sdkwork-specs/CODE_STYLE_SPEC.md\`, \`../sdkwork-specs/NAMING_SPEC.md\`, plus only the touched language/framework spec.
+- Rust code: \`../sdkwork-specs/RUST_CODE_SPEC.md\`; add \`../sdkwork-specs/RUST_RPC_SPEC.md\` when RPC is touched.
+- API/SDK changes: \`../sdkwork-specs/API_SPEC.md\`, \`../sdkwork-specs/WEB_FRAMEWORK_SPEC.md\`, \`../sdkwork-specs/WEB_BACKEND_SPEC.md\`, \`../sdkwork-specs/SDK_SPEC.md\`, \`../sdkwork-specs/SDK_WORKSPACE_GENERATION_SPEC.md\`, and \`../sdkwork-specs/TEST_SPEC.md\`.
+- Database changes: \`../sdkwork-specs/DATABASE_SPEC.md\`, \`../sdkwork-specs/DATABASE_FRAMEWORK_SPEC.md\`, \`../sdkwork-specs/PRIVACY_SPEC.md\`, and \`../sdkwork-specs/TEST_SPEC.md\`.
+- Runtime/deployment/release changes: \`../sdkwork-specs/CONFIG_SPEC.md\`, \`../sdkwork-specs/ENVIRONMENT_SPEC.md\`, \`../sdkwork-specs/DEPLOYMENT_SPEC.md\`, \`../sdkwork-specs/RELEASE_SPEC.md\`, and \`../sdkwork-specs/GITHUB_WORKFLOW_SPEC.md\`.
+- Provider/integration changes: \`../sdkwork-specs/INTEGRATION_SPEC.md\`, \`../sdkwork-specs/SECURITY_SPEC.md\`, and \`../sdkwork-specs/PRIVACY_SPEC.md\`.
+
+Language-specific specs are on-demand; do not load Rust, Java, TypeScript, and frontend specs for unrelated tasks.
 
 ## Code Style Rules
 
-Use the repository's existing patterns first. Generated SDK output under \`generated/server-openapi\` must not be hand-edited. Fix OpenAPI, route manifests, generator input, or approved composed facades, then regenerate.
+Read \`../sdkwork-specs/CODE_STYLE_SPEC.md\` and \`../sdkwork-specs/NAMING_SPEC.md\` before code changes. Generated SDK output under \`generated/server-openapi\` must not be hand-edited. Fix OpenAPI, route manifests, generator input, or approved composed facades, then regenerate. Use \`sdkwork-utils-rust\` and \`sdkwork-id-core\` for shared helpers instead of duplicating utility logic locally.
 
 ## Build, Test, and Verification
 
-Run commands from this repository root. Phase 1 contract verification:
+Use canonical root package scripts from \`PNPM_SCRIPT_SPEC.md\`:
 
 \`\`\`powershell
-node tools/materialize_phase1_contracts.mjs
-powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1
+pnpm verify
+pnpm check
+pnpm topology:validate
+pnpm db:validate
 \`\`\`
 
 ## Agent Execution Rules

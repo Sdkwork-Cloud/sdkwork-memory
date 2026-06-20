@@ -17,6 +17,13 @@ use sdkwork_memory_spi::{
     RetrieveMemoryRetrievalTraceQuery, UpsertMemoryHabitCommand,
 };
 
+fn assert_utc_timestamp(value: Option<&str>) {
+    let Some(text) = value else {
+        panic!("expected UTC timestamp");
+    };
+    assert!(text.ends_with('Z'), "timestamp must be UTC RFC3339: {text}");
+}
+
 fn outbox_command<'a>(
     scope: &'a MemoryScopeContext,
     outbox_id: &'a str,
@@ -354,10 +361,7 @@ async fn sqlite_store_soft_deletes_records_and_suppresses_retrieve() {
     assert!(retrieved.is_none());
     assert_eq!(lifecycle.memory_id, "rec-delete");
     assert_eq!(lifecycle.status, "deleted");
-    assert_eq!(
-        lifecycle.deleted_at.as_deref(),
-        Some("2026-06-10T00:00:00Z")
-    );
+    assert_utc_timestamp(lifecycle.deleted_at.as_deref());
 }
 
 #[tokio::test]
@@ -898,10 +902,7 @@ async fn sqlite_store_marks_outbox_published_and_excludes_it_from_pending() {
     let pending = store.list_pending_outbox_events(&scope, 10).await.unwrap();
 
     assert_eq!(published.publish_state, "published");
-    assert_eq!(
-        published.published_at.as_deref(),
-        Some("2026-06-10T00:00:00Z")
-    );
+    assert_utc_timestamp(published.published_at.as_deref());
     assert_eq!(retrieved.publish_state, "published");
     assert!(pending.is_empty());
 }
@@ -1057,10 +1058,7 @@ async fn sqlite_store_implements_outbox_delivery_lifecycle_spi_port() {
     assert_eq!(pending.len(), 1);
     assert_eq!(pending[0].outbox_id, "out-spi-lifecycle");
     assert_eq!(published.publish_state, "published");
-    assert_eq!(
-        published.published_at.as_deref(),
-        Some("2026-06-10T00:00:00Z")
-    );
+    assert_utc_timestamp(published.published_at.as_deref());
     assert!(pending_after_publish.is_empty());
     assert_eq!(failed.publish_state, "failed");
     assert_eq!(failed.retry_count, 1);
@@ -1119,7 +1117,7 @@ async fn sqlite_store_creates_and_decides_candidates_by_tenant_and_space_scope()
         Some("confirmed by user")
     );
     assert_eq!(approved.decided_by, Some(7));
-    assert_eq!(approved.decided_at.as_deref(), Some("2026-06-10T00:00:00Z"));
+    assert_utc_timestamp(approved.decided_at.as_deref());
     assert_eq!(rejected.decision_state, "rejected");
     assert_eq!(rejected.decision_reason.as_deref(), Some("stale signal"));
     assert!(MemoryCandidateStorePort::retrieve(

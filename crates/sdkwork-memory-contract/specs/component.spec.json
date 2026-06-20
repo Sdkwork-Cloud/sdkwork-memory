@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.component.spec",
+  "component": {
+    "name": "sdkwork-memory-contract",
+    "displayName": "SDKWork Memory Contract",
+    "version": "0.1.0",
+    "type": "rust-library",
+    "root": "sdkwork-memory/crates/sdkwork-memory-contract",
+    "domain": "intelligence",
+    "capability": "memory",
+    "surface": "contract",
+    "languages": ["rust"],
+    "generated": false,
+    "manifests": ["Cargo.toml"]
+  },
+  "canonicalSpecs": [
+    { "file": "API_SPEC.md", "path": "../../../sdkwork-specs/API_SPEC.md" },
+    { "file": "NAMING_SPEC.md", "path": "../../../sdkwork-specs/NAMING_SPEC.md" },
+    { "file": "TEST_SPEC.md", "path": "../../../sdkwork-specs/TEST_SPEC.md" }
+  ],
+  "contracts": {
+    "publicExports": ["MemoryOpenApi", "MemoryAppApi", "MemoryBackendApi"],
+    "runtimeEntrypoints": [],
+    "sdkClients": [],
+    "sdkDependencies": [],
+    "events": [],
+    "configKeys": []
+  },
+  "verification": {
+    "commands": ["cargo test -p sdkwork-memory-contract"]
+  }
+}

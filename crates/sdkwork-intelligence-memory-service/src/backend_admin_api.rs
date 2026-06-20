@@ -8,8 +8,7 @@ use sdkwork_memory_plugin_native_sql::{
 };
 
 use crate::open_api::OpenMemoryService;
-
-const ADMIN_TS: &str = "2026-06-10T00:00:00Z";
+use crate::platform;
 
 const RT_EXTRACTION_JOB: &str = "extraction_job";
 const RT_CONSOLIDATION_JOB: &str = "consolidation_job";
@@ -206,7 +205,7 @@ impl OpenMemoryService {
         request: serde_json::Value,
     ) -> MemoryServiceResult<serde_json::Value> {
         let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
-        let index_id = self.next_id().to_string();
+        let index_id = self.next_id()?.to_string();
         let config_json = request
             .get("config")
             .map(serde_json::to_string)
@@ -299,6 +298,7 @@ impl OpenMemoryService {
         _request: serde_json::Value,
     ) -> MemoryServiceResult<serde_json::Value> {
         let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let rebuilt_at = platform::current_timestamp();
         let row = self
             .store
             .update_mem_index_for_tenant(
@@ -306,7 +306,7 @@ impl OpenMemoryService {
                 &index_id.to_string(),
                 Some("active"),
                 None,
-                Some(ADMIN_TS),
+                Some(rebuilt_at.as_str()),
             )
             .await
             .map_err(OpenMemoryService::map_store_error)?
@@ -346,7 +346,7 @@ impl OpenMemoryService {
         request: serde_json::Value,
     ) -> MemoryServiceResult<serde_json::Value> {
         let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
-        let profile_id = self.next_id().to_string();
+        let profile_id = self.next_id()?.to_string();
         let retrievers_json = request
             .get("retrievers")
             .map(serde_json::to_string)
@@ -482,7 +482,7 @@ impl OpenMemoryService {
         request: serde_json::Value,
     ) -> MemoryServiceResult<serde_json::Value> {
         let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
-        let profile_id = self.next_id().to_string();
+        let profile_id = self.next_id()?.to_string();
         let capability_json = request
             .get("capabilities")
             .map(serde_json::to_string)
@@ -600,7 +600,7 @@ impl OpenMemoryService {
         request: serde_json::Value,
     ) -> MemoryServiceResult<serde_json::Value> {
         let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
-        let binding_id = self.next_id().to_string();
+        let binding_id = self.next_id()?.to_string();
         self.store
             .insert_mem_provider_binding(
                 tenant_id,
@@ -680,7 +680,7 @@ impl OpenMemoryService {
         request: serde_json::Value,
     ) -> MemoryServiceResult<serde_json::Value> {
         let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
-        let eval_run_id = self.next_id().to_string();
+        let eval_run_id = self.next_id()?.to_string();
         let metrics_json = request
             .get("metrics")
             .map(serde_json::to_string)
@@ -793,14 +793,15 @@ impl OpenMemoryService {
         request: serde_json::Value,
     ) -> MemoryServiceResult<serde_json::Value> {
         let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
-        let job_id = self.next_id();
+        let job_id = self.next_id()?;
+        let timestamp = platform::current_timestamp();
         let entity = serde_json::json!({
             "jobId": job_id.to_string(),
             "jobType": "consolidation",
             "state": "completed",
             "request": request,
-            "createdAt": ADMIN_TS,
-            "updatedAt": ADMIN_TS,
+            "createdAt": timestamp,
+            "updatedAt": timestamp,
         });
         self.persist_governance_job(
             tenant_id,
@@ -819,14 +820,15 @@ impl OpenMemoryService {
         request: serde_json::Value,
     ) -> MemoryServiceResult<serde_json::Value> {
         let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
-        let job_id = self.next_id();
+        let job_id = self.next_id()?;
+        let timestamp = platform::current_timestamp();
         let entity = serde_json::json!({
             "jobId": job_id.to_string(),
             "jobType": "retention",
             "state": "accepted",
             "request": request,
-            "createdAt": ADMIN_TS,
-            "updatedAt": ADMIN_TS,
+            "createdAt": timestamp,
+            "updatedAt": timestamp,
         });
         self.persist_governance_job(
             tenant_id,
@@ -845,14 +847,15 @@ impl OpenMemoryService {
         request: serde_json::Value,
     ) -> MemoryServiceResult<serde_json::Value> {
         let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
-        let job_id = self.next_id();
+        let job_id = self.next_id()?;
+        let timestamp = platform::current_timestamp();
         let entity = serde_json::json!({
             "jobId": job_id.to_string(),
             "jobType": "migration",
             "state": "accepted",
             "request": request,
-            "createdAt": ADMIN_TS,
-            "updatedAt": ADMIN_TS,
+            "createdAt": timestamp,
+            "updatedAt": timestamp,
         });
         self.persist_governance_job(
             tenant_id,

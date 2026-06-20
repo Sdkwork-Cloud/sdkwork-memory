@@ -21,8 +21,7 @@ use sdkwork_memory_spi::{
 };
 
 use crate::open_api::OpenMemoryService;
-
-const GOVERNANCE_JOB_TIMESTAMP: &str = "2026-06-10T00:00:00Z";
+use crate::platform;
 
 impl OpenMemoryService {
     pub(crate) fn map_space(row: NativeSqlMemorySpaceRow) -> MemoryServiceResult<MemorySpace> {
@@ -235,7 +234,8 @@ impl MemoryAppApi for OpenMemoryService {
         request: MemorySpaceRequest,
     ) -> MemoryServiceResult<MemorySpace> {
         let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
-        let space_id = self.next_id() as i64;
+        let space_id = i64::try_from(self.next_id()?)
+            .map_err(|_| MemoryServiceError::storage("generated space id out of range"))?;
         self.store
             .create_space_record(
                 tenant_id,
@@ -402,7 +402,7 @@ impl MemoryAppApi for OpenMemoryService {
         request: MemoryForgetRequest,
     ) -> MemoryServiceResult<MemoryForgetJob> {
         let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
-        let job_id = self.next_id();
+        let job_id = self.next_id()?;
         let mut deleted_count = 0_u32;
 
         match request.scope.as_str() {
@@ -462,8 +462,8 @@ impl MemoryAppApi for OpenMemoryService {
                 "scope": request.scope,
                 "reason": request.reason,
             })),
-            created_at: GOVERNANCE_JOB_TIMESTAMP.to_string(),
-            updated_at: GOVERNANCE_JOB_TIMESTAMP.to_string(),
+            created_at: platform::current_timestamp(),
+            updated_at: platform::current_timestamp(),
         };
         self.persist_governance_job(
             tenant_id,
@@ -494,7 +494,7 @@ impl MemoryAppApi for OpenMemoryService {
             return Err(MemoryServiceError::validation("spaceIds must not be empty"));
         }
         let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
-        let job_id = self.next_id();
+        let job_id = self.next_id()?;
         let mut exported_records = 0_u32;
         let mut exported_events = 0_u32;
 
@@ -531,8 +531,8 @@ impl MemoryAppApi for OpenMemoryService {
                 "exportedEvents": exported_events,
                 "spaceIds": request.space_ids,
             })),
-            created_at: GOVERNANCE_JOB_TIMESTAMP.to_string(),
-            updated_at: GOVERNANCE_JOB_TIMESTAMP.to_string(),
+            created_at: platform::current_timestamp(),
+            updated_at: platform::current_timestamp(),
         };
         self.persist_governance_job(tenant_id, job_id, "export_job", "export.job.create", &job)
             .await?;
@@ -825,7 +825,7 @@ impl MemoryAppApi for OpenMemoryService {
         Ok(MemoryLearningSettings {
             auto_promote_candidates: false,
             habit_learning_enabled: true,
-            updated_at: "2026-06-10T00:00:00Z".to_string(),
+            updated_at: platform::current_timestamp(),
         })
     }
 
@@ -837,7 +837,7 @@ impl MemoryAppApi for OpenMemoryService {
         Ok(MemoryLearningSettings {
             auto_promote_candidates: patch.auto_promote_candidates.unwrap_or(false),
             habit_learning_enabled: patch.habit_learning_enabled.unwrap_or(true),
-            updated_at: "2026-06-10T00:00:00Z".to_string(),
+            updated_at: platform::current_timestamp(),
         })
     }
 }

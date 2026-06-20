@@ -95,6 +95,11 @@
       "file": "OBSERVABILITY_SPEC.md",
       "path": "../sdkwork-specs/OBSERVABILITY_SPEC.md",
       "purpose": "Request, retrieval, provider, job, audit, and evaluation observability rules."
+    },
+    {
+      "file": "TEST_SPEC.md",
+      "path": "../sdkwork-specs/TEST_SPEC.md",
+      "purpose": "Verification, contract testing, and evidence-before-completion rules."
     }
   ],
   "contracts": {
@@ -144,6 +149,13 @@
       {
         "workspace": "sdkwork-appbase",
         "role": "appbase-platform-runtime",
+        "required": true,
+        "dependencyMode": "platform-framework",
+        "generatedTransportImportPolicy": "forbidden"
+      },
+      {
+        "workspace": "sdkwork-utils",
+        "role": "cross-language-utility-runtime",
         "required": true,
         "dependencyMode": "platform-framework",
         "generatedTransportImportPolicy": "forbidden"

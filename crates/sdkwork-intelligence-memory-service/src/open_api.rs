@@ -1,7 +1,4 @@
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    Arc,
-};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use sdkwork_memory_contract::{
@@ -27,16 +24,16 @@ use sdkwork_memory_spi::{
     MemoryScopeContext,
 };
 
+use crate::platform;
+
 pub struct OpenMemoryService {
     pub(crate) store: Arc<NativeSqlMemoryStore>,
-    id_seq: AtomicU64,
 }
 
 impl OpenMemoryService {
     pub fn new(store: NativeSqlMemoryStore) -> Self {
         Self {
             store: Arc::new(store),
-            id_seq: AtomicU64::new(1_000),
         }
     }
 
@@ -61,8 +58,8 @@ impl OpenMemoryService {
         }
     }
 
-    pub(crate) fn next_id(&self) -> u64 {
-        self.id_seq.fetch_add(1, Ordering::Relaxed)
+    pub(crate) fn next_id(&self) -> MemoryServiceResult<u64> {
+        platform::next_numeric_id()
     }
 
     fn scope(context: &MemoryOpenApiRequestContext, space_id: u64) -> MemoryScopeContext {
@@ -84,7 +81,7 @@ impl OpenMemoryService {
     }
 
     pub(crate) fn parse_id(value: &str) -> Option<u64> {
-        value.parse().ok()
+        platform::parse_numeric_id(value)
     }
 
     fn memory_type_to_db(value: MemoryType) -> &'static str {
@@ -190,7 +187,7 @@ impl MemoryOpenApi for OpenMemoryService {
             implementation_kinds: vec![MemoryImplementationKind::NativeSql],
             open_api_prefix: "/mem/v3/api".to_string(),
             sdk_family: "sdkwork-memory-sdk".to_string(),
-            checked_at: "2026-06-10T00:00:00Z".to_string(),
+            checked_at: platform::current_timestamp(),
             metadata: None,
         })
     }
@@ -201,7 +198,7 @@ impl MemoryOpenApi for OpenMemoryService {
         request: MemoryEventRequest,
     ) -> MemoryServiceResult<MemoryEvent> {
         let scope = Self::scope(&context, request.space_id);
-        let event_id = self.next_id().to_string();
+        let event_id = self.next_id()?.to_string();
         self.store
             .append_open_api_event(
                 &scope,
@@ -283,7 +280,7 @@ impl MemoryOpenApi for OpenMemoryService {
         request: MemoryRecordRequest,
     ) -> MemoryServiceResult<MemoryRecord> {
         let scope = Self::scope(&context, request.space_id);
-        let memory_id = self.next_id().to_string();
+        let memory_id = self.next_id()?.to_string();
         let object_text = request
             .object_text
             .unwrap_or_else(|| request.canonical_text.clone());
@@ -413,24 +410,26 @@ impl MemoryOpenApi for OpenMemoryService {
         }
 
         let fused = fuse_retrieval_candidates(candidates, request.top_k as usize);
-        let retrieval_id = self.next_id();
+        let retrieval_id = self.next_id()?;
         let trace_id = retrieval_id.to_string();
         let primary_scope = Self::scope(&context, request.space_ids[0]);
         let hits: Vec<MemoryRetrievalHit> = fused
             .iter()
             .enumerate()
-            .map(|(index, hit)| MemoryRetrievalHit {
-                hit_id: retrieval_id * 100 + index as u64 + 1,
-                memory: Some(hit.memory.clone()),
-                memory_id: Some(hit.memory.memory_id),
-                retriever_name: hit.retriever_name.clone(),
-                result_rank: hit.rank,
-                raw_score: Some(hit.raw_score),
-                fused_score: Some(hit.fused_score),
-                explanation: None,
-                status: "accepted".to_string(),
+            .map(|(_index, hit)| {
+                Ok(MemoryRetrievalHit {
+                    hit_id: self.next_id()?,
+                    memory: Some(hit.memory.clone()),
+                    memory_id: Some(hit.memory.memory_id),
+                    retriever_name: hit.retriever_name.clone(),
+                    result_rank: hit.rank,
+                    raw_score: Some(hit.raw_score),
+                    fused_score: Some(hit.fused_score),
+                    explanation: None,
+                    status: "accepted".to_string(),
+                })
             })
-            .collect();
+            .collect::<MemoryServiceResult<Vec<_>>>()?;
 
         let trace_hits: Vec<MemoryRetrievalHitDraft> = hits
             .iter()
@@ -474,7 +473,7 @@ impl MemoryOpenApi for OpenMemoryService {
                 query_hash: format!("query:{retrieval_id}"),
                 result_count: hits.len() as i32,
                 degraded: false,
-                created_at: "2026-06-10T00:00:00Z".to_string(),
+                created_at: platform::current_timestamp(),
             })
         } else {
             None
@@ -518,7 +517,9 @@ impl MemoryOpenApi for OpenMemoryService {
                 hit_id: hit
                     .hit_id
                     .parse()
-                    .unwrap_or(retrieval_id * 100 + index as u64 + 1),
+                    .ok()
+                    .or_else(|| Self::parse_id(&hit.hit_id))
+                    .unwrap_or_else(|| retrieval_id.saturating_add(index as u64 + 1)),
                 memory,
                 memory_id: hit.memory_id.as_deref().and_then(Self::parse_id),
                 retriever_name: hit.retriever_name.clone(),
@@ -544,7 +545,7 @@ impl MemoryOpenApi for OpenMemoryService {
                 query_hash: trace.query_hash,
                 result_count: trace.result_count as i32,
                 degraded: trace.degraded,
-                created_at: "2026-06-10T00:00:00Z".to_string(),
+                created_at: platform::current_timestamp(),
             }),
             hits,
             degraded: trace.degraded,
@@ -557,7 +558,7 @@ impl MemoryOpenApi for OpenMemoryService {
     ) -> MemoryServiceResult<MemoryProviderHealth> {
         Ok(MemoryProviderHealth {
             status: MemoryProviderHealthStatus::Healthy,
-            checked_at: "2026-06-10T00:00:00Z".to_string(),
+            checked_at: platform::current_timestamp(),
             providers: Vec::new(),
         })
     }
@@ -590,7 +591,7 @@ impl MemoryOpenApi for OpenMemoryService {
 
         let (pack, estimated_tokens, truncated) =
             build_context_pack_from_hits(&retrieval.hits, request.context_budget_tokens);
-        let context_pack_id = self.next_id();
+        let context_pack_id = self.next_id()?;
         let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
         let primary_space = request.space_ids[0] as i64;
 
@@ -616,7 +617,7 @@ impl MemoryOpenApi for OpenMemoryService {
             pack,
             estimated_tokens,
             truncated,
-            created_at: "2026-06-10T00:00:00Z".to_string(),
+            created_at: platform::current_timestamp(),
         })
     }
 
@@ -652,7 +653,7 @@ impl MemoryOpenApi for OpenMemoryService {
         context: MemoryOpenApiRequestContext,
         request: MemoryFeedbackRequest,
     ) -> MemoryServiceResult<MemoryFeedback> {
-        let feedback_id = self.next_id();
+        let feedback_id = self.next_id()?;
         let scope = Self::scope(&context, 1);
         self.store
             .append_audit(
@@ -671,7 +672,7 @@ impl MemoryOpenApi for OpenMemoryService {
             target_type: request.target_type,
             target_id: request.target_id,
             feedback_type: request.feedback_type,
-            created_at: "2026-06-10T00:00:00Z".to_string(),
+            created_at: platform::current_timestamp(),
         })
     }
 
@@ -680,7 +681,7 @@ impl MemoryOpenApi for OpenMemoryService {
         context: MemoryOpenApiRequestContext,
         request: MemoryExtractionRequest,
     ) -> MemoryServiceResult<MemoryLearningJob> {
-        let job_id = self.next_id();
+        let job_id = self.next_id()?;
         let scope = Self::scope(&context, request.space_id);
         let mut created_candidates = 0_u32;
 
@@ -696,7 +697,7 @@ impl MemoryOpenApi for OpenMemoryService {
                     .and_then(|value| value.as_str())
                     .unwrap_or("extracted memory candidate")
                     .to_string();
-                let candidate_id = self.next_id().to_string();
+                let candidate_id = self.next_id()?.to_string();
                 self.store
                     .create_candidate(&CreateMemoryCandidateCommand {
                         scope: scope.clone(),
@@ -728,8 +729,8 @@ impl MemoryOpenApi for OpenMemoryService {
                 "candidateCount": created_candidates,
                 "extractionMode": request.extraction_mode.unwrap_or_else(|| "deterministic".to_string()),
             })),
-            created_at: "2026-06-10T00:00:00Z".to_string(),
-            updated_at: "2026-06-10T00:00:00Z".to_string(),
+            created_at: platform::current_timestamp(),
+            updated_at: platform::current_timestamp(),
         })
     }
 

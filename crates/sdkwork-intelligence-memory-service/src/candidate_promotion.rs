@@ -1,12 +1,13 @@
 use sdkwork_memory_contract::{MemoryCandidate, MemoryServiceError, MemoryServiceResult};
 use sdkwork_memory_plugin_native_sql::NativeSqlCandidateDetailRow;
 use sdkwork_memory_spi::{ApproveMemoryCandidateCommand, MemoryScopeContext};
+use sdkwork_utils_rust::is_blank;
 use serde_json::Value;
 
 use crate::open_api::OpenMemoryService;
 
 pub(crate) fn parse_evidence_event_ids(evidence_json: Option<&str>) -> Vec<String> {
-    let Some(raw) = evidence_json.filter(|value| !value.trim().is_empty()) else {
+    let Some(raw) = evidence_json.filter(|value| !is_blank(Some(value))) else {
         return Vec::new();
     };
     let Ok(value) = serde_json::from_str::<Value>(raw) else {
@@ -59,7 +60,7 @@ impl OpenMemoryService {
         let memory_uuid = if let Some(memory_uuid) = detail.target_memory_uuid.clone() {
             memory_uuid
         } else {
-            let memory_uuid = self.next_id().to_string();
+            let memory_uuid = self.next_id()?.to_string();
             self.store
                 .create_record_open_api(
                     &scope,
@@ -75,7 +76,7 @@ impl OpenMemoryService {
                 .map_err(OpenMemoryService::map_store_error)?;
 
             for event_id in parse_evidence_event_ids(detail.evidence_json.as_deref()) {
-                let source_id = self.next_id().to_string();
+                let source_id = self.next_id()?.to_string();
                 let _ = self
                     .store
                     .append_record_source_for_tenant(

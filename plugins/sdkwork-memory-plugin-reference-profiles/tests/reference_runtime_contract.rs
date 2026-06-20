@@ -188,9 +188,11 @@ async fn reference_runtime_outbox_context_eval_and_bridge_fail_closed_are_determ
 
     assert_eq!(pending.len(), 1);
     assert_eq!(published.publish_state, "published");
-    assert_eq!(
-        published.published_at.as_deref(),
-        Some("2026-06-10T00:00:00Z")
+    assert!(
+        published
+            .published_at
+            .as_deref()
+            .is_some_and(|value| value.ends_with('Z'))
     );
     assert_eq!(context.context_text, "context line");
     assert_eq!(eval.eval_type, "baseline");

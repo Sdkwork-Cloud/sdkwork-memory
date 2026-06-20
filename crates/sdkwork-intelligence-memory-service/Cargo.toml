@@ -12,6 +12,8 @@ sdkwork-memory-spi.workspace = true
 sdkwork-memory-contract.workspace = true
 sdkwork-memory-core.workspace = true
 sdkwork-memory-plugin-native-sql.workspace = true
+sdkwork-id-core.workspace = true
+sdkwork-utils-rust.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
