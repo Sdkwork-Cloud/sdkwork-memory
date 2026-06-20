@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.database.prefix-registry",
+  "prefixes": [
+    {
+      "prefix": "mem_",
+      "owner": "memory-platform",
+      "domain": "memory"
+    }
+  ]
+}

@@ -23,9 +23,15 @@ pub async fn build_router() -> Result<Router, String> {
     let pool = connect_memory_pool_from_env()
         .await
         .map_err(|error| format!("connect memory database failed: {error}"))?;
-    install_sqlite_schema(&pool)
-        .await
-        .map_err(|error| format!("install memory schema failed: {error}"))?;
+    if pool.as_postgres().is_some() {
+        sdkwork_intelligence_memory_repository_sqlx::bootstrap_memory_database(pool.clone())
+            .await
+            .map_err(|error| format!("bootstrap memory database failed: {error}"))?;
+    } else {
+        install_sqlite_schema(&pool)
+            .await
+            .map_err(|error| format!("install memory schema failed: {error}"))?;
+    }
 
     let store = open_native_sql_store_from_pool(&pool)
         .await

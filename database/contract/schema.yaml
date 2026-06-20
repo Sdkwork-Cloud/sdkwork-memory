@@ -1,0 +1,58 @@
+schema_version: 1
+kind: sdkwork.database.schema
+module_id: memory
+contract_version: 1.0.0
+owner_team: memory-platform
+compliance_level: L2
+engines:
+  - postgres
+table_prefix: mem_
+tables:
+  - name: mem_space
+    lifecycle_status: active
+    owner: memory-platform
+  - name: mem_event
+    lifecycle_status: active
+    owner: memory-platform
+  - name: mem_record
+    lifecycle_status: active
+    owner: memory-platform
+  - name: mem_record_source
+    lifecycle_status: active
+    owner: memory-platform
+  - name: mem_candidate
+    lifecycle_status: active
+    owner: memory-platform
+  - name: mem_habit
+    lifecycle_status: active
+    owner: memory-platform
+  - name: mem_retrieval_trace
+    lifecycle_status: active
+    owner: memory-platform
+  - name: mem_retrieval_hit
+    lifecycle_status: active
+    owner: memory-platform
+  - name: mem_context_pack
+    lifecycle_status: active
+    owner: memory-platform
+  - name: mem_index
+    lifecycle_status: active
+    owner: memory-platform
+  - name: mem_retrieval_profile
+    lifecycle_status: active
+    owner: memory-platform
+  - name: mem_implementation_profile
+    lifecycle_status: active
+    owner: memory-platform
+  - name: mem_provider_binding
+    lifecycle_status: active
+    owner: memory-platform
+  - name: mem_eval_run
+    lifecycle_status: active
+    owner: memory-platform
+  - name: mem_audit_log
+    lifecycle_status: active
+    owner: memory-platform
+  - name: mem_outbox_event
+    lifecycle_status: active
+    owner: memory-platform
