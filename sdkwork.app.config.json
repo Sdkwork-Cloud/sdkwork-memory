@@ -28,7 +28,13 @@
     "platform": "API",
     "appId": null,
     "tenantId": "20001",
-    "organizationId": null
+    "organizationId": null,
+    "accessTokenPermissionScope": [
+      "iam.users.read",
+      "iam.organizations.read",
+      "iam.roles.read",
+      "iam.permissions.read"
+    ]
   },
   "runtime": {
     "family": "server",
