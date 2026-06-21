@@ -27,8 +27,8 @@
     "grantMode": "current",
     "platform": "API",
     "appId": null,
-    "tenantId": "20001",
-    "organizationId": null,
+    "tenantId": "100001",
+    "organizationId": "0",
     "accessTokenPermissionScope": [
       "iam.users.read",
       "iam.organizations.read",

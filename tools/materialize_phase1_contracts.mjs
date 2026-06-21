@@ -370,8 +370,8 @@ function writeAppManifest() {
       grantMode: "current",
       platform: "API",
       appId: null,
-      tenantId: "20001",
-      organizationId: null
+      tenantId: "100001",
+      organizationId: "0"
     },
     runtime: {
       family: "server",
