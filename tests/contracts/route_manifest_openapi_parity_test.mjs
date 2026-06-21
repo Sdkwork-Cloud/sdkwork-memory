@@ -59,3 +59,16 @@ test('apis authority manifest mirrors sdk openapi paths', () => {
     assert.ok(fs.existsSync(path.join(repoRoot, surface.sdkPath)));
   }
 });
+
+test('apis authority openapi content matches sdk openapi authority copies', () => {
+  const authorityManifest = readJson('apis/authority-manifest.json');
+  for (const surface of authorityManifest.surfaces ?? []) {
+    const authority = fs.readFileSync(path.join(repoRoot, surface.authorityPath), 'utf8');
+    const sdkCopy = fs.readFileSync(path.join(repoRoot, surface.sdkPath), 'utf8');
+    assert.equal(
+      authority,
+      sdkCopy,
+      `${surface.authorityPath} must match ${surface.sdkPath}`,
+    );
+  }
+});

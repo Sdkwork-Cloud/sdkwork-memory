@@ -5,7 +5,8 @@ use sdkwork_memory_plugin_native_sql::NativeSqlMemoryStore;
 pub type MemoryDatabasePool = DatabasePool;
 
 pub async fn connect_memory_pool_from_env() -> Result<MemoryDatabasePool, PoolError> {
-    let config = DatabaseConfig::from_env("memory")?;
+    // DATABASE_SPEC serviceCode `MEMORY` → env prefix `SDKWORK_MEMORY_*`
+    let config = DatabaseConfig::from_env("MEMORY")?;
     create_pool_from_config(config).await
 }
 

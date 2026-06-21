@@ -3,6 +3,9 @@ use std::sync::Arc;
 use axum::Router;
 use sdkwork_iam_web_adapter::IamDatabaseWebRequestContextResolver;
 use sdkwork_memory_contract::MemoryAppRequestContext;
+use sdkwork_router_memory_common::{
+    memory_web_auth_mode_from_env, MemoryWebAuthMode, ProductionFailClosedResolver,
+};
 use sdkwork_web_axum::{with_web_request_context, WebFrameworkLayer};
 use sdkwork_web_core::{
     DefaultWebRequestContextResolver, DomainContextInjector, WebRequestContext,
@@ -83,10 +86,16 @@ where
 }
 
 pub async fn wrap_router_with_web_framework_from_env(router: Router) -> Router {
-    if std::env::var("SDKWORK_MEMORY_DATABASE_URL").is_ok() {
-        let resolver = sdkwork_iam_web_adapter::iam_database_resolver_from_env().await;
-        return wrap_router_with_iam_database_web_framework(resolver, router);
+    match memory_web_auth_mode_from_env().await {
+        MemoryWebAuthMode::DevInline => {
+            wrap_router_with_web_framework(DefaultWebRequestContextResolver::default(), router)
+        }
+        MemoryWebAuthMode::ProductionFailClosed => with_web_request_context(
+            router,
+            build_memory_app_api_framework_layer(ProductionFailClosedResolver),
+        ),
+        MemoryWebAuthMode::IamDatabase(resolver) => {
+            wrap_router_with_iam_database_web_framework(resolver, router)
+        }
     }
-
-    wrap_router_with_web_framework(DefaultWebRequestContextResolver::default(), router)
 }

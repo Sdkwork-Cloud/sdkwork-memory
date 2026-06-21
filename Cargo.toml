@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
   "crates/sdkwork-memory-database-host",
+  "crates/sdkwork-router-memory-common",
   "crates/sdkwork-memory-spi",
   "crates/sdkwork-memory-runtime",
   "crates/sdkwork-memory-contract",
@@ -46,6 +47,7 @@ sdkwork-memory-plugin-native-sql = { path = "plugins/sdkwork-memory-plugin-nativ
 sdkwork-intelligence-memory-service = { path = "crates/sdkwork-intelligence-memory-service" }
 sdkwork-intelligence-memory-repository-sqlx = { path = "crates/sdkwork-intelligence-memory-repository-sqlx" }
 sdkwork-router-memory-open-api = { path = "crates/sdkwork-router-memory-open-api" }
+sdkwork-router-memory-common = { path = "crates/sdkwork-router-memory-common" }
 sdkwork-router-memory-app-api = { path = "crates/sdkwork-router-memory-app-api" }
 sdkwork-router-memory-backend-api = { path = "crates/sdkwork-router-memory-backend-api" }
 sdkwork-memory-api-server = { path = "crates/sdkwork-memory-api-server" }

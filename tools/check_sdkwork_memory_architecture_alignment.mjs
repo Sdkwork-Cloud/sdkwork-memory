@@ -96,8 +96,52 @@ assert(cargoToml.includes('sdkwork-database-repository'), 'Cargo.toml must decla
 assert(cargoToml.includes('sdkwork-utils-rust'), 'Cargo.toml must declare sdkwork-utils-rust');
 assert(cargoToml.includes('sdkwork-id-core'), 'Cargo.toml must declare sdkwork-id-core');
 assert(cargoToml.includes('sdkwork-memory-api-server'), 'Cargo.toml must include sdkwork-memory-api-server');
-assert(cargoToml.includes('sdkwork-intelligence-memory-repository-sqlx'), 'Cargo.toml must include repository-sqlx crate');
+assert(cargoToml.includes('sdkwork-router-memory-common'), 'Cargo.toml must include sdkwork-router-memory-common');
 assert(!cargoToml.includes('sdkwork-discovery'), 'sdkwork-discovery is not required until RPC services exist');
+
+const runtimeEnvSource = readText('crates/sdkwork-memory-contract/src/runtime_env.rs');
+assert(
+  runtimeEnvSource.includes('memory_use_dev_inline_auth_resolver'),
+  'runtime_env must gate dev inline auth resolver',
+);
+assert(
+  runtimeEnvSource.includes('SDKWORK_MEMORY_DEV_AUTH_BYPASS'),
+  'runtime_env must honor SDKWORK_MEMORY_DEV_AUTH_BYPASS',
+);
+
+const openWebBootstrap = readText('crates/sdkwork-router-memory-open-api/src/web_bootstrap.rs');
+assert(
+  openWebBootstrap.includes('memory_web_auth_mode_from_env'),
+  'open-api web bootstrap must use shared memory web auth mode',
+);
+assert(
+  !openWebBootstrap.includes('SDKWORK_MEMORY_DATABASE_URL").is_ok()'),
+  'open-api web bootstrap must not gate auth on DATABASE_URL presence',
+);
+
+const memoryWebAuth = readText('crates/sdkwork-router-memory-common/src/lib.rs');
+assert(
+  memoryWebAuth.includes('ProductionFailClosedResolver'),
+  'router-memory-common must provide production fail-closed auth resolver',
+);
+
+const k8sDeployment = readText('deployments/kubernetes/deployment.yaml');
+assert(k8sDeployment.includes('path: /healthz'), 'k8s probes must target /healthz');
+assert(
+  k8sDeployment.includes('SDKWORK_MEMORY_ENVIRONMENT'),
+  'k8s deployment must set SDKWORK_MEMORY_ENVIRONMENT',
+);
+assert(
+  k8sDeployment.includes('SDKWORK_MEMORY_APP_ROOT'),
+  'k8s deployment must set SDKWORK_MEMORY_APP_ROOT',
+);
+
+const dockerfile = readText('deployments/docker/Dockerfile');
+assert(dockerfile.includes('COPY --from=builder /src/database /app/database'), 'docker image must ship database lifecycle assets');
+assert(dockerfile.includes('SDKWORK_MEMORY_APP_ROOT=/app'), 'docker image must set SDKWORK_MEMORY_APP_ROOT');
+
+const databaseManifest = readJson('database/database.manifest.json');
+assert(databaseManifest.tablePrefix === 'mem_', 'database manifest tablePrefix must be mem_');
 
 const workflow = readJson('sdkwork.workflow.json');
 const dependencyIds = new Set((workflow.dependencies || []).map((dependency) => dependency.id));

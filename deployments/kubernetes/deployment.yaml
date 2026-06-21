@@ -28,23 +28,41 @@ spec:
               containerPort: 8080
               protocol: TCP
           env:
+            - name: SDKWORK_MEMORY_APP_ROOT
+              value: /app
+            - name: SDKWORK_MEMORY_ENVIRONMENT
+              value: production
+            - name: SDKWORK_MEMORY_CONFIG_PROFILE
+              value: production
+            - name: SDKWORK_MEMORY_DEPLOYMENT_PROFILE
+              value: standalone
+            - name: SDKWORK_MEMORY_SERVICE_LAYOUT
+              value: unified-process
+            - name: SDKWORK_MEMORY_RUNTIME_TARGET
+              value: container
             - name: SDKWORK_MEMORY_APPLICATION_PUBLIC_INGRESS_BIND
               value: "0.0.0.0:8080"
+            - name: SDKWORK_MEMORY_SNOWFLAKE_NODE_ID
+              value: "1"
             - name: SDKWORK_MEMORY_DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: sdkwork-memory-database
                   key: database-url
-                  optional: true
+            - name: SDKWORK_IAM_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: sdkwork-memory-iam-database
+                  key: database-url
           readinessProbe:
             httpGet:
-              path: /mem/v3/api/capabilities
+              path: /healthz
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
-              path: /mem/v3/api/capabilities
+              path: /healthz
               port: http
             initialDelaySeconds: 15
             periodSeconds: 20

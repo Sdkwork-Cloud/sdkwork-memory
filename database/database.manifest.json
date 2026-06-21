@@ -6,10 +6,11 @@
   "displayName": "MEMORY Database",
   "owner": "memory-platform",
   "engines": [
-    "postgres"
+    "postgres",
+    "sqlite"
   ],
   "defaultEngine": "postgres",
-  "tablePrefix": "memory_",
+  "tablePrefix": "mem_",
   "contractVersion": "1.0.0",
   "baselineStrategy": "baseline-plus-migrations",
   "modules": [],

@@ -65,6 +65,7 @@ fs.writeFileSync(path.join(root, 'database/contract/schema.yaml'), schemaYaml);
 const manifestPath = path.join(root, 'database/database.manifest.json');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 manifest.contractVersion = '1.0.0';
+manifest.tablePrefix = 'mem_';
 manifest.lifecycle.autoMigrate = true;
 fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 
