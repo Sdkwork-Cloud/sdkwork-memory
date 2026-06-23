@@ -108,6 +108,51 @@ assert(
   runtimeEnvSource.includes('SDKWORK_MEMORY_DEV_AUTH_BYPASS'),
   'runtime_env must honor SDKWORK_MEMORY_DEV_AUTH_BYPASS',
 );
+assert(
+  runtimeEnvSource.includes('sdkwork_utils_rust::parse_bool'),
+  'runtime_env must use sdkwork-utils-rust parse_bool for env flags',
+);
+
+const memoryContractToml = readText('crates/sdkwork-memory-contract/Cargo.toml');
+assert(
+  memoryContractToml.includes('sdkwork-utils-rust'),
+  'memory-contract Cargo.toml must declare sdkwork-utils-rust for env flag parsing',
+);
+
+const webAuthFixture = readText('crates/sdkwork-memory-test-support/src/web_auth.rs');
+assert(
+  webAuthFixture.includes('auth_token_jwt'),
+  'test-support must provide JWT dual-token fixtures for web-framework parsers',
+);
+assert(
+  webAuthFixture.includes('encode_unsigned_test_jwt'),
+  'test-support access tokens must use JWT fixtures with dev environment claims',
+);
+assert(
+  fs.existsSync(path.join(repoRoot, 'crates/sdkwork-memory-test-support/tests/web_auth_contract.rs')),
+  'test-support must verify JWT fixture contract against web-framework parsers',
+);
+
+const forbiddenInlineDualTokenPattern = /Bearer tenant_id=/;
+for (const relativePath of [
+  'crates/sdkwork-memory-integration-tests/tests/app_api_mvp_flow.rs',
+  'crates/sdkwork-memory-integration-tests/tests/app_backend_api_smoke_test.rs',
+  'crates/sdkwork-memory-integration-tests/tests/backend_api_admin_flow.rs',
+  'crates/sdkwork-memory-integration-tests/tests/governance_and_audit_flow.rs',
+  'crates/sdkwork-router-memory-app-api/tests/app_web_framework_routes.rs',
+  'crates/sdkwork-router-memory-backend-api/tests/backend_web_framework_routes.rs',
+]) {
+  const source = readText(relativePath);
+  assert(
+    !forbiddenInlineDualTokenPattern.test(source),
+    `${relativePath} must not use legacy semicolon claim-string dual tokens`,
+  );
+  assert(
+    source.includes('sdkwork_memory_test_support::web_auth')
+      || source.includes('memory_auth_token_bearer'),
+    `${relativePath} must use sdkwork-memory-test-support web_auth JWT fixtures`,
+  );
+}
 
 const openWebBootstrap = readText('crates/sdkwork-router-memory-open-api/src/web_bootstrap.rs');
 assert(
@@ -124,9 +169,247 @@ assert(
   memoryWebAuth.includes('ProductionFailClosedResolver'),
   'router-memory-common must provide production fail-closed auth resolver',
 );
+assert(
+  memoryWebAuth.includes('resolve_access_token'),
+  'production fail-closed resolver must reject access-token auth',
+);
+
+const memoryProblem = readText('crates/sdkwork-router-memory-common/src/problem.rs');
+assert(
+  memoryProblem.includes('MemoryApiProblem'),
+  'router-memory-common must provide shared MemoryApiProblem responses',
+);
+assert(
+  readText('crates/sdkwork-router-memory-open-api/src/error.rs').includes('sdkwork_router_memory_common'),
+  'open-api router must reuse shared problem responses',
+);
+
+for (const relativePath of [
+  'crates/sdkwork-router-memory-app-api/src/routes.rs',
+  'crates/sdkwork-router-memory-backend-api/src/routes.rs',
+]) {
+  const source = readText(relativePath);
+  assert(
+    !source.includes('Json<serde_json::Value>') && !source.includes('Query<serde_json::Value>'),
+    `${relativePath} must use typed contract DTO extractors instead of serde_json::Value`,
+  );
+}
+
+const backendPorts = readText('crates/sdkwork-memory-contract/src/backend_ports.rs');
+assert(
+  !backendPorts.includes('serde_json::Value'),
+  'backend_ports must not expose untyped serde_json::Value in MemoryBackendApi',
+);
+const appPorts = readText('crates/sdkwork-memory-contract/src/app_ports.rs');
+assert(
+  !appPorts.includes('serde_json::Value'),
+  'app_ports must not expose untyped serde_json::Value in MemoryAppApi',
+);
+assert(
+  readText('crates/sdkwork-memory-contract/src/admin_dto.rs').includes('MemoryIndex'),
+  'memory-contract must declare admin DTO types aligned to backend OpenAPI',
+);
+
+assert(
+  readText('plugins/sdkwork-memory-plugin-native-sql/src/admin_tables.rs').includes(
+    'capabilities_json',
+  ),
+  'native-sql admin tables must persist provider binding capabilities_json',
+);
+
+const adminTables = readText('plugins/sdkwork-memory-plugin-native-sql/src/admin_tables.rs');
+const nativeSqlStore = readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs');
+assert(
+  nativeSqlStore.includes('V202606100002__memory_phase1_indexes.sql'),
+  'native-sql store must apply schema-registry phase1 index migration',
+);
+assert(
+  fs.existsSync(
+    path.join(
+      repoRoot,
+      'plugins/sdkwork-memory-plugin-native-sql/migrations/sqlite/V202606100002__memory_phase1_indexes.sql',
+    ),
+  ),
+  'sqlite phase1 index migration must exist per DATABASE_SPEC schema-registry alignment',
+);
+for (const [needle, message] of [
+  ['implementation_profile_id', 'native-sql admin tables must persist index implementation_profile_id'],
+  ['provider_binding_id', 'native-sql admin tables must persist index provider_binding_id'],
+  ['fusion_policy_json', 'native-sql admin tables must persist retrieval fusion_policy_json'],
+  ['rerank_policy_json', 'native-sql admin tables must persist retrieval rerank_policy_json'],
+  ['config_json', 'native-sql admin tables must persist implementation profile config_json'],
+  ['rollout_json', 'native-sql admin tables must persist implementation profile rollout_json'],
+  ['endpoint_ref', 'native-sql admin tables must persist provider binding endpoint_ref'],
+]) {
+  assert(adminTables.includes(needle), message);
+}
+
+const backendAdminApi = readText(
+  'crates/sdkwork-intelligence-memory-service/src/backend_admin_api.rs',
+);
+assert(
+  backendAdminApi.includes('optional_i64_as_u64(row.implementation_profile_id)'),
+  'backend admin service must map index implementation_profile_id from SQL rows',
+);
+assert(
+  backendAdminApi.includes('decode_optional_json(row.fusion_policy_json.as_deref())'),
+  'backend admin service must map retrieval fusion_policy from SQL rows',
+);
 
 const k8sDeployment = readText('deployments/kubernetes/deployment.yaml');
 assert(k8sDeployment.includes('path: /healthz'), 'k8s probes must target /healthz');
+assert(
+  k8sDeployment.includes('path: /readyz'),
+  'k8s readiness probe must target /readyz for database-backed readiness',
+);
+assert(
+  readText('crates/sdkwork-memory-api-server/src/bootstrap.rs').includes('bootstrap_memory_runtime_from_env'),
+  'api-server bootstrap must use unified memory runtime bootstrap',
+);
+assert(
+  readText('crates/sdkwork-memory-api-server/src/bootstrap.rs').includes('route("/readyz"'),
+  'api-server must expose /readyz readiness endpoint',
+);
+assert(
+  readText('crates/sdkwork-memory-api-server/src/bootstrap.rs').includes('route("/metrics"'),
+  'api-server must expose /metrics for Prometheus scraping',
+);
+assert(
+  readText('deployments/kubernetes/service.yaml').includes('prometheus.io/scrape'),
+  'k8s service must annotate Prometheus scrape target for /metrics',
+);
+assert(
+  readText('deployments/kubernetes/migration-job.yaml').includes('db-migrate'),
+  'k8s migration job must run api-server db-migrate subcommand',
+);
+assert(
+  readText('crates/sdkwork-router-memory-common/src/metrics.rs').includes(
+    'memory_metric_environment_label',
+  ),
+  'memory metrics must export canonical environment label per OBSERVABILITY_SPEC',
+);
+assert(
+  readText('crates/sdkwork-router-memory-common/src/correlation.rs').includes('http_request'),
+  'correlation middleware must emit tracing spans for request correlation',
+);
+assert(
+  readText('crates/sdkwork-intelligence-memory-service/src/app_backend_api.rs').includes(
+    'memory.export.drive_upload_requested',
+  ),
+  'app backend must emit drive export outbox events instead of not_implemented stubs',
+);
+assert(
+  fs.existsSync(path.join(repoRoot, 'tools/check_sdkwork_memory_release_readiness.mjs')),
+  'release readiness gate script must exist for commercial deployment',
+);
+assert(
+  readText('scripts/generate-release-sbom.mjs').includes('syncReleaseChecksumToAppManifest'),
+  'release SBOM script must sync SHA-256 checksum into sdkwork.app.config.json',
+);
+assert(
+  readText('scripts/package-release-artifact.mjs').includes('release-manifest.json'),
+  'release packaging script must emit release manifest metadata',
+);
+assert(
+  k8sDeployment.includes('SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE'),
+  'k8s deployment must disable runtime auto-migrate (use migration Job)',
+);
+assert(
+  readText('crates/sdkwork-intelligence-memory-repository-sqlx/src/runtime.rs').includes(
+    'bootstrap_memory_runtime_from_env',
+  ),
+  'repository-sqlx must expose unified memory runtime bootstrap',
+);
+assert(
+  readText('plugins/sdkwork-memory-plugin-native-sql/src/privacy.rs').includes(
+    'forget_all_records_in_space',
+  ),
+  'native-sql privacy module must implement space-scoped forget',
+);
+assert(
+  readText('crates/sdkwork-intelligence-memory-service/src/app_backend_api.rs').includes(
+    'collect_export_payload_for_spaces',
+  ),
+  'app backend must produce inline export payloads per PRIVACY_SPEC',
+);
+assert(
+  readText('plugins/sdkwork-memory-plugin-native-sql/src/native_sql_phase1_runtime.rs').includes(
+    'validate_native_sql_phase1_ports',
+  ),
+  'native-sql plugin must validate required SPI ports at runtime',
+);
+assert(
+  readText('crates/sdkwork-intelligence-memory-repository-sqlx/src/runtime.rs').includes(
+    'validate_native_sql_port_builders',
+  ),
+  'memory runtime bootstrap must validate native-sql port builders before serving',
+);
+assert(
+  readText('crates/sdkwork-intelligence-memory-repository-sqlx/src/bootstrap.rs').includes(
+    'NativeSqlPhase1Runtime::connect',
+  ),
+  'data plane bootstrap must materialize store through NativeSqlPhase1Runtime',
+);
+assert(
+  readText('crates/sdkwork-intelligence-memory-repository-sqlx/src/bootstrap.rs').includes(
+    'connect_without_migration',
+  ) ||
+    readText('crates/sdkwork-intelligence-memory-repository-sqlx/src/bootstrap.rs').includes(
+      'open_native_sql_store_from_pool',
+    ),
+  'postgres data plane bootstrap must skip duplicate store migrations after database-host bootstrap',
+);
+assert(
+  readText('crates/sdkwork-intelligence-memory-service/src/open_api.rs').includes(
+    'from_phase1_runtime',
+  ),
+  'service layer must construct from NativeSqlPhase1Runtime without store clone',
+);
+assert(
+  readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs').includes(
+    'list_candidates_for_tenant',
+  ) &&
+    readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs').includes(
+      'uuid > ?',
+    ),
+  'candidate list store query must support cursor pagination via stable uuid ordering',
+);
+assert(
+  readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs').includes(
+    'list_spaces_for_tenant',
+  ) &&
+    readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs').includes(
+      'list_habits_for_tenant',
+    ) &&
+    readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs').includes(
+      'list_audit_logs_for_tenant',
+    ),
+  'tenant list store queries must support cursor pagination for spaces, habits, and audit logs',
+);
+assert(
+  readText('plugins/sdkwork-memory-plugin-native-sql/src/admin_tables.rs').includes(
+    'list_mem_indexes_for_tenant',
+  ) &&
+    readText('plugins/sdkwork-memory-plugin-native-sql/src/admin_tables.rs').includes(
+      'ORDER BY id ASC',
+    ) &&
+    readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs').includes(
+      'list_retrieval_traces_for_tenant',
+    ) &&
+    readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs').includes(
+      'ORDER BY id DESC',
+    ),
+  'admin config and retrieval trace list queries must support cursor pagination',
+);
+assert(
+  readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs').includes(
+    'list_record_sources_for_memory',
+  ) &&
+    readText('crates/sdkwork-router-memory-app-api/src/routes.rs').includes(
+      'ListMemorySourcesQuery',
+    ),
+  'memory record source list must wire OpenAPI cursor pagination query params',
+);
 assert(
   k8sDeployment.includes('SDKWORK_MEMORY_ENVIRONMENT'),
   'k8s deployment must set SDKWORK_MEMORY_ENVIRONMENT',
@@ -207,6 +490,40 @@ assert(
   fs.existsSync(path.join(repoRoot, 'scripts/memory-dev.mjs')),
   'scripts/memory-dev.mjs must exist',
 );
+assert(
+  fs.existsSync(path.join(repoRoot, 'scripts/cargo-test-workspace.mjs')),
+  'scripts/cargo-test-workspace.mjs must exist for reliable Windows workspace test linking',
+);
+assert(
+  packageJson.scripts?.verify?.includes('scripts/cargo-test-workspace.mjs'),
+  'package.json verify must run scripts/cargo-test-workspace.mjs',
+);
+assert(
+  packageJson.scripts?.test?.includes('scripts/cargo-test-workspace.mjs'),
+  'package.json test must run scripts/cargo-test-workspace.mjs',
+);
+
+const appRoutesSource = readText('crates/sdkwork-router-memory-app-api/src/routes.rs');
+assert(
+  appRoutesSource.includes('Json<MemoryReviewRequest>'),
+  'app-api routes must deserialize MemoryReviewRequest for review operations',
+);
+assert(
+  !appRoutesSource.includes('Json<Value>'),
+  'app-api routes must not accept untyped serde_json::Value request bodies',
+);
+
+const backendRoutesSource = readText('crates/sdkwork-router-memory-backend-api/src/routes.rs');
+assert(
+  backendRoutesSource.includes('Json<MemoryReviewRequest>'),
+  'backend-api routes must deserialize MemoryReviewRequest for review operations',
+);
+
+const apiServerSmoke = readText('crates/sdkwork-memory-integration-tests/tests/api_server_smoke_test.rs');
+assert(
+  apiServerSmoke.includes('memory_auth_token_bearer'),
+  'api-server smoke test must verify production fail-closed behavior for app-api dual tokens',
+);
 
 const repositorySqlxToml = readText('crates/sdkwork-intelligence-memory-repository-sqlx/Cargo.toml');
 assert(
@@ -220,6 +537,10 @@ assert(
 assert(
   repositorySqlxToml.includes('sdkwork-utils-rust'),
   'repository-sqlx crate must depend on sdkwork-utils-rust',
+);
+assert(
+  readText('crates/sdkwork-intelligence-memory-repository-sqlx/src/db.rs').includes('sdkwork_utils_rust::is_blank'),
+  'repository-sqlx db bootstrap must use sdkwork-utils-rust is_blank for engine validation',
 );
 assert(
   repositorySqlxToml.includes('migrate'),
@@ -381,6 +702,7 @@ for (const specFile of [
 
 const crateComponentSpecs = [
   'crates/sdkwork-memory-contract/specs/component.spec.json',
+  'crates/sdkwork-router-memory-common/specs/component.spec.json',
   'crates/sdkwork-intelligence-memory-service/specs/component.spec.json',
   'crates/sdkwork-intelligence-memory-repository-sqlx/specs/component.spec.json',
   'crates/sdkwork-memory-database-host/specs/component.spec.json',
@@ -432,6 +754,72 @@ for (const relativePath of openapiPaths) {
   if (!hasSurface) {
     assert(false, `${relativePath} must declare x-sdkwork-api-surface on operations`);
   }
+}
+
+const abuseSensitiveOperationIds = [
+  'forgetRequests.create',
+  'exportJobs.create',
+  'memories.delete',
+  'retentionJobs.create',
+  'migrationJobs.create',
+  'indexes.rebuild',
+];
+
+function collectOpenApiOperations(relativePath) {
+  const openapi = readJson(relativePath);
+  const operations = [];
+  for (const [pathKey, pathItem] of Object.entries(openapi.paths ?? {})) {
+    for (const [method, operation] of Object.entries(pathItem ?? {})) {
+      if (
+        operation
+        && typeof operation === 'object'
+        && operation.operationId
+        && ['get', 'post', 'patch', 'delete'].includes(method)
+      ) {
+        operations.push({ method, path: pathKey, operation });
+      }
+    }
+  }
+  return operations;
+}
+
+for (const operationId of abuseSensitiveOperationIds) {
+  for (const relativePath of openapiPaths) {
+    const match = collectOpenApiOperations(relativePath).find(
+      (entry) => entry.operation.operationId === operationId,
+    );
+    if (match) {
+      assert(
+        match.operation['x-sdkwork-rate-limit-tier'] === 'authCritical',
+        `${relativePath} operation ${operationId} must declare authCritical x-sdkwork-rate-limit-tier`,
+      );
+    }
+  }
+}
+
+const openApiRelativePath = 'sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json';
+for (const entry of collectOpenApiOperations(openApiRelativePath)) {
+  if (!['post', 'patch', 'delete'].includes(entry.method)) {
+    continue;
+  }
+  const expectedTier =
+    entry.operation.operationId === 'memories.delete' ? 'authCritical' : 'openApiDefault';
+  assert(
+    entry.operation['x-sdkwork-rate-limit-tier'] === expectedTier,
+    `${openApiRelativePath} ${entry.method.toUpperCase()} ${entry.path} must declare ${expectedTier} rate limit tier`,
+  );
+}
+
+for (const relativePath of [
+  'crates/sdkwork-router-memory-app-api/src/http_route_manifest.rs',
+  'crates/sdkwork-router-memory-open-api/src/http_route_manifest.rs',
+  'crates/sdkwork-router-memory-backend-api/src/http_route_manifest.rs',
+]) {
+  const manifest = readText(relativePath);
+  assert(
+    manifest.includes('RateLimitTier::'),
+    `${relativePath} must materialize rate limit tiers for web-framework enforcement`,
+  );
 }
 
 const requiredSkeletonPaths = [

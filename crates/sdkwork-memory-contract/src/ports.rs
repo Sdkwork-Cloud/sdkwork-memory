@@ -20,6 +20,7 @@ pub enum MemoryServiceErrorKind {
     NotFound,
     Conflict,
     Validation,
+    Forbidden,
     Storage,
     NotImplemented,
 }
@@ -56,7 +57,23 @@ impl MemoryServiceError {
         }
     }
 
-    pub fn storage(detail: impl Into<String>) -> Self {
+    pub fn forbidden(detail: impl Into<String>) -> Self {
+        Self {
+            kind: MemoryServiceErrorKind::Forbidden,
+            code: "forbidden".to_string(),
+            detail: detail.into(),
+        }
+    }
+
+    pub fn storage(_detail: impl Into<String>) -> Self {
+        Self {
+            kind: MemoryServiceErrorKind::Storage,
+            code: "storage_error".to_string(),
+            detail: "internal storage error".to_string(),
+        }
+    }
+
+    pub fn storage_internal(detail: impl Into<String>) -> Self {
         Self {
             kind: MemoryServiceErrorKind::Storage,
             code: "storage_error".to_string(),
@@ -96,6 +113,7 @@ pub trait MemoryOpenApi: Send + Sync + 'static {
         &self,
         _context: MemoryOpenApiRequestContext,
         _event_id: u64,
+        _space_id: u64,
     ) -> MemoryServiceResult<MemoryEvent> {
         Err(MemoryServiceError::not_implemented("events.retrieve"))
     }
@@ -120,6 +138,7 @@ pub trait MemoryOpenApi: Send + Sync + 'static {
         &self,
         _context: MemoryOpenApiRequestContext,
         _memory_id: u64,
+        _space_id: u64,
     ) -> MemoryServiceResult<MemoryRecord> {
         Err(MemoryServiceError::not_implemented("memories.retrieve"))
     }
@@ -128,6 +147,7 @@ pub trait MemoryOpenApi: Send + Sync + 'static {
         &self,
         _context: MemoryOpenApiRequestContext,
         _memory_id: u64,
+        _space_id: u64,
         _patch: MemoryRecordPatch,
     ) -> MemoryServiceResult<MemoryRecord> {
         Err(MemoryServiceError::not_implemented("memories.update"))
@@ -137,6 +157,7 @@ pub trait MemoryOpenApi: Send + Sync + 'static {
         &self,
         _context: MemoryOpenApiRequestContext,
         _memory_id: u64,
+        _space_id: u64,
     ) -> MemoryServiceResult<()> {
         Err(MemoryServiceError::not_implemented("memories.delete"))
     }

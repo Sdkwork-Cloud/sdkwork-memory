@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 
 use crate::dto::{
-    ListCandidatesQuery, ListHabitsQuery, ListMemoriesQuery, MemoryCandidate, MemoryCandidateList,
+    ListCandidatesQuery, ListHabitsQuery, ListMemoriesQuery, ListMemorySourcesQuery, MemoryCandidate, MemoryCandidateList,
     MemoryContextPack, MemoryContextPackRequest, MemoryEvent, MemoryEventRequest, MemoryExportJob,
     MemoryExportRequest, MemoryExtractionRequest, MemoryFeedback, MemoryFeedbackRequest,
     MemoryForgetJob, MemoryForgetRequest, MemoryHabit, MemoryHabitList, MemoryHabitRequest,
@@ -73,6 +73,7 @@ pub trait MemoryAppApi: Send + Sync + 'static {
         &self,
         _context: MemoryAppRequestContext,
         _event_id: u64,
+        _space_id: u64,
     ) -> MemoryServiceResult<MemoryEvent> {
         app_not_implemented!("events.retrieve", MemoryEvent)
     }
@@ -97,6 +98,7 @@ pub trait MemoryAppApi: Send + Sync + 'static {
         &self,
         _context: MemoryAppRequestContext,
         _memory_id: u64,
+        _space_id: u64,
     ) -> MemoryServiceResult<MemoryRecord> {
         app_not_implemented!("memories.retrieve", MemoryRecord)
     }
@@ -105,6 +107,7 @@ pub trait MemoryAppApi: Send + Sync + 'static {
         &self,
         _context: MemoryAppRequestContext,
         _memory_id: u64,
+        _space_id: u64,
         _patch: MemoryRecordPatch,
     ) -> MemoryServiceResult<MemoryRecord> {
         app_not_implemented!("memories.update", MemoryRecord)
@@ -114,6 +117,7 @@ pub trait MemoryAppApi: Send + Sync + 'static {
         &self,
         _context: MemoryAppRequestContext,
         _memory_id: u64,
+        _space_id: u64,
     ) -> MemoryServiceResult<()> {
         app_not_implemented!("memories.delete", ())
     }
@@ -122,6 +126,7 @@ pub trait MemoryAppApi: Send + Sync + 'static {
         &self,
         _context: MemoryAppRequestContext,
         _memory_id: u64,
+        _query: ListMemorySourcesQuery,
     ) -> MemoryServiceResult<MemoryRecordSourceList> {
         app_not_implemented!("memories.sources.list", MemoryRecordSourceList)
     }
@@ -170,7 +175,7 @@ pub trait MemoryAppApi: Send + Sync + 'static {
         &self,
         _context: MemoryAppRequestContext,
         _candidate_id: u64,
-        _request: serde_json::Value,
+        _request: MemoryReviewRequest,
     ) -> MemoryServiceResult<MemoryCandidate> {
         app_not_implemented!("candidates.approve", MemoryCandidate)
     }
@@ -179,7 +184,7 @@ pub trait MemoryAppApi: Send + Sync + 'static {
         &self,
         _context: MemoryAppRequestContext,
         _candidate_id: u64,
-        _request: serde_json::Value,
+        _request: MemoryReviewRequest,
     ) -> MemoryServiceResult<MemoryCandidate> {
         app_not_implemented!("candidates.reject", MemoryCandidate)
     }

@@ -6,9 +6,13 @@ use axum::{
     Extension, Json, Router,
 };
 use sdkwork_memory_contract::{
-    ListAuditLogsQuery, ListCandidatesQuery, ListEventsQuery, ListMemoriesQuery,
-    ListRetrievalTracesQuery, ListSpacesQuery, MemoryBackendApi, MemoryBackendRequestContext,
-    MemoryRecordPatch, MemoryServiceResult, MemorySpaceRequest,
+    ListAdminResourcesQuery, ListAuditLogsQuery, ListCandidatesQuery, ListEventsQuery,
+    ListMemoriesQuery, ListRetrievalTracesQuery, ListSpacesQuery, MemoryBackendApi,
+    MemoryBackendRequestContext, MemoryEvalRunRequest, MemoryExtractionRequest,
+    MemoryImplementationProfileRequest, MemoryIndexRequest, MemoryMigrationJobRequest,
+    MemoryProviderBindingRequest, MemoryRecordPatch, MemoryRecordRequest,
+    MemoryRetentionJobRequest, MemoryRetrievalProfileRequest, MemoryReviewRequest,
+    MemoryServiceResult, MemorySpaceRequest, MemorySpaceScopeQuery,
 };
 use std::sync::Arc;
 
@@ -118,26 +122,38 @@ async fn retrieve_memory(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(memory_id): Path<u64>,
+    Query(scope): Query<MemorySpaceScopeQuery>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
-    ok_json(state.api.retrieve_memory(context, memory_id).await)
+    ok_json(
+        state
+            .api
+            .retrieve_memory(context, memory_id, scope.space_id)
+            .await,
+    )
 }
 
 async fn update_memory(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(memory_id): Path<u64>,
+    Query(scope): Query<MemorySpaceScopeQuery>,
     Json(patch): Json<MemoryRecordPatch>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
-    ok_json(state.api.update_memory(context, memory_id, patch).await)
+    ok_json(
+        state
+            .api
+            .update_memory(context, memory_id, scope.space_id, patch)
+            .await,
+    )
 }
 
 async fn supersede_memory(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(memory_id): Path<u64>,
-    Json(request): Json<serde_json::Value>,
+    Json(request): Json<MemoryRecordRequest>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     ok_json(
@@ -161,9 +177,15 @@ async fn retrieve_event(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(event_id): Path<u64>,
+    Query(scope): Query<MemorySpaceScopeQuery>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
-    ok_json(state.api.retrieve_event(context, event_id).await)
+    ok_json(
+        state
+            .api
+            .retrieve_event(context, event_id, scope.space_id)
+            .await,
+    )
 }
 
 async fn list_candidates(
@@ -179,7 +201,7 @@ async fn approve_candidate(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(candidate_id): Path<u64>,
-    Json(request): Json<serde_json::Value>,
+    Json(request): Json<MemoryReviewRequest>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     ok_json(
@@ -194,7 +216,7 @@ async fn reject_candidate(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(candidate_id): Path<u64>,
-    Json(request): Json<serde_json::Value>,
+    Json(request): Json<MemoryReviewRequest>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     ok_json(
@@ -208,7 +230,7 @@ async fn reject_candidate(
 async fn create_extraction_job(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
-    Json(request): Json<serde_json::Value>,
+    Json(request): Json<MemoryExtractionRequest>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     created_json(state.api.create_extraction_job(context, request).await)
@@ -226,7 +248,7 @@ async fn retrieve_extraction_job(
 async fn create_consolidation_job(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
-    Json(request): Json<serde_json::Value>,
+    Json(request): Json<MemoryExtractionRequest>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     created_json(state.api.create_consolidation_job(context, request).await)
@@ -235,7 +257,7 @@ async fn create_consolidation_job(
 async fn list_indexes(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
-    Query(query): Query<serde_json::Value>,
+    Query(query): Query<ListAdminResourcesQuery>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     ok_json(state.api.list_indexes(context, query).await)
@@ -244,7 +266,7 @@ async fn list_indexes(
 async fn create_index(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
-    Json(request): Json<serde_json::Value>,
+    Json(request): Json<MemoryIndexRequest>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     created_json(state.api.create_index(context, request).await)
@@ -263,7 +285,7 @@ async fn update_index(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(index_id): Path<u64>,
-    Json(request): Json<serde_json::Value>,
+    Json(request): Json<MemoryIndexRequest>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     ok_json(state.api.update_index(context, index_id, request).await)
@@ -273,16 +295,15 @@ async fn rebuild_index(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(index_id): Path<u64>,
-    Json(request): Json<serde_json::Value>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
-    ok_json(state.api.rebuild_index(context, index_id, request).await)
+    created_json(state.api.rebuild_index(context, index_id).await)
 }
 
 async fn list_retrieval_profiles(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
-    Query(query): Query<serde_json::Value>,
+    Query(query): Query<ListAdminResourcesQuery>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     ok_json(state.api.list_retrieval_profiles(context, query).await)
@@ -291,7 +312,7 @@ async fn list_retrieval_profiles(
 async fn create_retrieval_profile(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
-    Json(request): Json<serde_json::Value>,
+    Json(request): Json<MemoryRetrievalProfileRequest>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     created_json(state.api.create_retrieval_profile(context, request).await)
@@ -315,7 +336,7 @@ async fn update_retrieval_profile(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(profile_id): Path<u64>,
-    Json(request): Json<serde_json::Value>,
+    Json(request): Json<MemoryRetrievalProfileRequest>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     ok_json(
@@ -329,7 +350,7 @@ async fn update_retrieval_profile(
 async fn list_implementation_profiles(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
-    Query(query): Query<serde_json::Value>,
+    Query(query): Query<ListAdminResourcesQuery>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     ok_json(state.api.list_implementation_profiles(context, query).await)
@@ -338,7 +359,7 @@ async fn list_implementation_profiles(
 async fn create_implementation_profile(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
-    Json(request): Json<serde_json::Value>,
+    Json(request): Json<MemoryImplementationProfileRequest>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     created_json(
@@ -367,7 +388,7 @@ async fn update_implementation_profile(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(implementation_profile_id): Path<u64>,
-    Json(request): Json<serde_json::Value>,
+    Json(request): Json<MemoryImplementationProfileRequest>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     ok_json(
@@ -381,7 +402,7 @@ async fn update_implementation_profile(
 async fn list_provider_bindings(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
-    Query(query): Query<serde_json::Value>,
+    Query(query): Query<ListAdminResourcesQuery>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     ok_json(state.api.list_provider_bindings(context, query).await)
@@ -390,7 +411,7 @@ async fn list_provider_bindings(
 async fn create_provider_binding(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
-    Json(request): Json<serde_json::Value>,
+    Json(request): Json<MemoryProviderBindingRequest>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     created_json(state.api.create_provider_binding(context, request).await)
@@ -400,7 +421,7 @@ async fn update_provider_binding(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(provider_binding_id): Path<u64>,
-    Json(request): Json<serde_json::Value>,
+    Json(request): Json<MemoryProviderBindingRequest>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     ok_json(
@@ -422,7 +443,7 @@ async fn retrieve_provider_health(
 async fn list_eval_runs(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
-    Query(query): Query<serde_json::Value>,
+    Query(query): Query<ListAdminResourcesQuery>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     ok_json(state.api.list_eval_runs(context, query).await)
@@ -431,7 +452,7 @@ async fn list_eval_runs(
 async fn create_eval_run(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
-    Json(request): Json<serde_json::Value>,
+    Json(request): Json<MemoryEvalRunRequest>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     created_json(state.api.create_eval_run(context, request).await)
@@ -476,7 +497,7 @@ async fn list_audit_logs(
 async fn create_retention_job(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
-    Json(request): Json<serde_json::Value>,
+    Json(request): Json<MemoryRetentionJobRequest>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     created_json(state.api.create_retention_job(context, request).await)
@@ -485,7 +506,7 @@ async fn create_retention_job(
 async fn create_migration_job(
     State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
-    Json(request): Json<serde_json::Value>,
+    Json(request): Json<MemoryMigrationJobRequest>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     created_json(state.api.create_migration_job(context, request).await)

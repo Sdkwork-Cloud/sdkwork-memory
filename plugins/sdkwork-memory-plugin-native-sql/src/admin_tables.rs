@@ -7,6 +7,8 @@ pub struct NativeSqlMemoryIndexRow {
     pub index_uuid: String,
     pub space_id: Option<i64>,
     pub index_kind: String,
+    pub implementation_profile_id: Option<i64>,
+    pub provider_binding_id: Option<i64>,
     pub schema_version: String,
     pub status: String,
     pub config_json: Option<String>,
@@ -23,6 +25,8 @@ pub struct NativeSqlRetrievalProfileRow {
     pub name: String,
     pub strategy: String,
     pub retrievers_json: String,
+    pub fusion_policy_json: Option<String>,
+    pub rerank_policy_json: Option<String>,
     pub top_k: i32,
     pub context_budget_tokens: i32,
     pub status: String,
@@ -39,6 +43,8 @@ pub struct NativeSqlImplementationProfileRow {
     pub role: String,
     pub status: String,
     pub capability_json: String,
+    pub config_json: Option<String>,
+    pub rollout_json: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     pub version: i64,
@@ -50,7 +56,13 @@ pub struct NativeSqlProviderBindingRow {
     pub provider_kind: String,
     pub provider_code: String,
     pub display_name: String,
+    pub endpoint_ref: Option<String>,
+    pub secret_ref: Option<String>,
+    pub model_ref: Option<String>,
+    pub capabilities_json: String,
+    pub config_json: Option<String>,
     pub health_state: String,
+    pub last_health_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     pub version: i64,
@@ -84,6 +96,8 @@ impl NativeSqlMemoryStore {
                 "2026-06-10",
                 "active",
                 None,
+                None,
+                None,
             )
             .await?;
         }
@@ -99,6 +113,8 @@ impl NativeSqlMemoryStore {
         schema_version: &str,
         status: &str,
         config_json: Option<&str>,
+        implementation_profile_id: Option<i64>,
+        provider_binding_id: Option<i64>,
     ) -> Result<(), NativeSqlStoreError> {
         sqlx::query(
             r#"
@@ -107,6 +123,8 @@ impl NativeSqlMemoryStore {
               tenant_id,
               space_id,
               index_kind,
+              implementation_profile_id,
+              provider_binding_id,
               schema_version,
               status,
               config_json,
@@ -114,13 +132,15 @@ impl NativeSqlMemoryStore {
               updated_at,
               version
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             "#,
         )
         .bind(index_uuid)
         .bind(tenant_id)
         .bind(space_id)
         .bind(index_kind)
+        .bind(implementation_profile_id)
+        .bind(provider_binding_id)
         .bind(schema_version)
         .bind(status)
         .bind(config_json)
@@ -134,20 +154,34 @@ impl NativeSqlMemoryStore {
     pub async fn list_mem_indexes_for_tenant(
         &self,
         tenant_id: i64,
+        space_id: Option<i64>,
         page_size: i32,
+        cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlMemoryIndexRow>, NativeSqlStoreError> {
+        let page_size = page_size.clamp(1, 100) as i64;
+        let cursor = cursor.unwrap_or("");
         let rows = sqlx::query(
             r#"
-            SELECT uuid, space_id, index_kind, schema_version, status, config_json,
+            SELECT uuid, space_id, index_kind, implementation_profile_id, provider_binding_id,
+                   schema_version, status, config_json,
                    last_rebuilt_at, created_at, updated_at, version
             FROM mem_index
             WHERE tenant_id = ?
-            ORDER BY updated_at DESC
+              AND (? IS NULL OR space_id = ?)
+              AND id > COALESCE(
+                (SELECT id FROM mem_index i2 WHERE i2.tenant_id = ? AND i2.uuid = ? LIMIT 1),
+                0
+              )
+            ORDER BY id ASC
             LIMIT ?
             "#,
         )
         .bind(tenant_id)
-        .bind(page_size.clamp(1, 100) as i64)
+        .bind(space_id)
+        .bind(space_id)
+        .bind(tenant_id)
+        .bind(cursor)
+        .bind(page_size + 1)
         .fetch_all(self.pool())
         .await?;
 
@@ -161,7 +195,8 @@ impl NativeSqlMemoryStore {
     ) -> Result<Option<NativeSqlMemoryIndexRow>, NativeSqlStoreError> {
         let row = sqlx::query(
             r#"
-            SELECT uuid, space_id, index_kind, schema_version, status, config_json,
+            SELECT uuid, space_id, index_kind, implementation_profile_id, provider_binding_id,
+                   schema_version, status, config_json,
                    last_rebuilt_at, created_at, updated_at, version
             FROM mem_index
             WHERE tenant_id = ? AND uuid = ?
@@ -182,6 +217,8 @@ impl NativeSqlMemoryStore {
         status: Option<&str>,
         config_json: Option<&str>,
         last_rebuilt_at: Option<&str>,
+        implementation_profile_id: Option<Option<i64>>,
+        provider_binding_id: Option<Option<i64>>,
     ) -> Result<Option<NativeSqlMemoryIndexRow>, NativeSqlStoreError> {
         let existing = self
             .retrieve_mem_index_for_tenant(tenant_id, index_uuid)
@@ -190,12 +227,19 @@ impl NativeSqlMemoryStore {
                 message: "memory index not found".to_string(),
             })?;
 
+        let implementation_profile_id = implementation_profile_id
+            .unwrap_or(existing.implementation_profile_id);
+        let provider_binding_id =
+            provider_binding_id.unwrap_or(existing.provider_binding_id);
+
         sqlx::query(
             r#"
             UPDATE mem_index
             SET status = ?,
                 config_json = ?,
                 last_rebuilt_at = ?,
+                implementation_profile_id = ?,
+                provider_binding_id = ?,
                 updated_at = ?,
                 version = version + 1
             WHERE tenant_id = ? AND uuid = ?
@@ -204,6 +248,8 @@ impl NativeSqlMemoryStore {
         .bind(status.unwrap_or(&existing.status))
         .bind(config_json.or(existing.config_json.as_deref()))
         .bind(last_rebuilt_at.or(existing.last_rebuilt_at.as_deref()))
+        .bind(implementation_profile_id)
+        .bind(provider_binding_id)
         .bind(now_text())
         .bind(tenant_id)
         .bind(index_uuid)
@@ -230,7 +276,9 @@ impl NativeSqlMemoryStore {
                 None,
                 "keyword-default",
                 "deterministic",
-                r#"[{"name":"keyword","weight":1.0}]"#,
+                r#"{"keyword":{"weight":1.0}}"#,
+                None,
+                None,
                 10,
                 2048,
                 "active",
@@ -248,6 +296,8 @@ impl NativeSqlMemoryStore {
         name: &str,
         strategy: &str,
         retrievers_json: &str,
+        fusion_policy_json: Option<&str>,
+        rerank_policy_json: Option<&str>,
         top_k: i32,
         context_budget_tokens: i32,
         status: &str,
@@ -256,9 +306,10 @@ impl NativeSqlMemoryStore {
             r#"
             INSERT INTO mem_retrieval_profile (
               uuid, tenant_id, space_id, name, strategy, retrievers_json,
+              fusion_policy_json, rerank_policy_json,
               top_k, context_budget_tokens, status, created_at, updated_at, version
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             "#,
         )
         .bind(profile_uuid)
@@ -267,6 +318,8 @@ impl NativeSqlMemoryStore {
         .bind(name)
         .bind(strategy)
         .bind(retrievers_json)
+        .bind(fusion_policy_json)
+        .bind(rerank_policy_json)
         .bind(top_k)
         .bind(context_budget_tokens)
         .bind(status)
@@ -280,20 +333,34 @@ impl NativeSqlMemoryStore {
     pub async fn list_mem_retrieval_profiles_for_tenant(
         &self,
         tenant_id: i64,
+        space_id: Option<i64>,
         page_size: i32,
+        cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlRetrievalProfileRow>, NativeSqlStoreError> {
+        let page_size = page_size.clamp(1, 100) as i64;
+        let cursor = cursor.unwrap_or("");
         let rows = sqlx::query(
             r#"
-            SELECT uuid, space_id, name, strategy, retrievers_json, top_k,
-                   context_budget_tokens, status, created_at, updated_at, version
+            SELECT uuid, space_id, name, strategy, retrievers_json,
+                   fusion_policy_json, rerank_policy_json,
+                   top_k, context_budget_tokens, status, created_at, updated_at, version
             FROM mem_retrieval_profile
             WHERE tenant_id = ?
-            ORDER BY updated_at DESC
+              AND (? IS NULL OR space_id = ?)
+              AND id > COALESCE(
+                (SELECT id FROM mem_retrieval_profile p2 WHERE p2.tenant_id = ? AND p2.uuid = ? LIMIT 1),
+                0
+              )
+            ORDER BY id ASC
             LIMIT ?
             "#,
         )
         .bind(tenant_id)
-        .bind(page_size.clamp(1, 100) as i64)
+        .bind(space_id)
+        .bind(space_id)
+        .bind(tenant_id)
+        .bind(cursor)
+        .bind(page_size + 1)
         .fetch_all(self.pool())
         .await?;
 
@@ -307,8 +374,9 @@ impl NativeSqlMemoryStore {
     ) -> Result<Option<NativeSqlRetrievalProfileRow>, NativeSqlStoreError> {
         let row = sqlx::query(
             r#"
-            SELECT uuid, space_id, name, strategy, retrievers_json, top_k,
-                   context_budget_tokens, status, created_at, updated_at, version
+            SELECT uuid, space_id, name, strategy, retrievers_json,
+                   fusion_policy_json, rerank_policy_json,
+                   top_k, context_budget_tokens, status, created_at, updated_at, version
             FROM mem_retrieval_profile
             WHERE tenant_id = ? AND uuid = ?
             "#,
@@ -328,6 +396,8 @@ impl NativeSqlMemoryStore {
         name: Option<&str>,
         strategy: Option<&str>,
         retrievers_json: Option<&str>,
+        fusion_policy_json: Option<Option<&str>>,
+        rerank_policy_json: Option<Option<&str>>,
         top_k: Option<i32>,
         context_budget_tokens: Option<i32>,
         status: Option<&str>,
@@ -339,12 +409,21 @@ impl NativeSqlMemoryStore {
                 message: "retrieval profile not found".to_string(),
             })?;
 
+        let fusion_policy_json = fusion_policy_json
+            .map(|value| value.map(str::to_string))
+            .unwrap_or_else(|| existing.fusion_policy_json.clone());
+        let rerank_policy_json = rerank_policy_json
+            .map(|value| value.map(str::to_string))
+            .unwrap_or_else(|| existing.rerank_policy_json.clone());
+
         sqlx::query(
             r#"
             UPDATE mem_retrieval_profile
             SET name = ?,
                 strategy = ?,
                 retrievers_json = ?,
+                fusion_policy_json = ?,
+                rerank_policy_json = ?,
                 top_k = ?,
                 context_budget_tokens = ?,
                 status = ?,
@@ -356,6 +435,8 @@ impl NativeSqlMemoryStore {
         .bind(name.unwrap_or(&existing.name))
         .bind(strategy.unwrap_or(&existing.strategy))
         .bind(retrievers_json.unwrap_or(&existing.retrievers_json))
+        .bind(fusion_policy_json.as_deref())
+        .bind(rerank_policy_json.as_deref())
         .bind(top_k.unwrap_or(existing.top_k))
         .bind(context_budget_tokens.unwrap_or(existing.context_budget_tokens))
         .bind(status.unwrap_or(&existing.status))
@@ -388,6 +469,8 @@ impl NativeSqlMemoryStore {
                 "primary",
                 "active",
                 r#"{"keyword":true,"embedding":false}"#,
+                None,
+                None,
             )
             .await?;
         }
@@ -403,14 +486,17 @@ impl NativeSqlMemoryStore {
         role: &str,
         status: &str,
         capability_json: &str,
+        config_json: Option<&str>,
+        rollout_json: Option<&str>,
     ) -> Result<(), NativeSqlStoreError> {
         sqlx::query(
             r#"
             INSERT INTO mem_implementation_profile (
               uuid, tenant_id, name, implementation_kind, role, status,
-              capability_json, created_at, updated_at, version
+              capability_json, config_json, rollout_json,
+              created_at, updated_at, version
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             "#,
         )
         .bind(profile_uuid)
@@ -420,6 +506,8 @@ impl NativeSqlMemoryStore {
         .bind(role)
         .bind(status)
         .bind(capability_json)
+        .bind(config_json)
+        .bind(rollout_json)
         .bind(now_text())
         .bind(now_text())
         .execute(self.pool())
@@ -431,19 +519,29 @@ impl NativeSqlMemoryStore {
         &self,
         tenant_id: i64,
         page_size: i32,
+        cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlImplementationProfileRow>, NativeSqlStoreError> {
+        let page_size = page_size.clamp(1, 100) as i64;
+        let cursor = cursor.unwrap_or("");
         let rows = sqlx::query(
             r#"
             SELECT uuid, name, implementation_kind, role, status, capability_json,
+                   config_json, rollout_json,
                    created_at, updated_at, version
             FROM mem_implementation_profile
             WHERE tenant_id = ?
-            ORDER BY updated_at DESC
+              AND id > COALESCE(
+                (SELECT id FROM mem_implementation_profile p2 WHERE p2.tenant_id = ? AND p2.uuid = ? LIMIT 1),
+                0
+              )
+            ORDER BY id ASC
             LIMIT ?
             "#,
         )
         .bind(tenant_id)
-        .bind(page_size.clamp(1, 100) as i64)
+        .bind(tenant_id)
+        .bind(cursor)
+        .bind(page_size + 1)
         .fetch_all(self.pool())
         .await?;
 
@@ -461,6 +559,7 @@ impl NativeSqlMemoryStore {
         let row = sqlx::query(
             r#"
             SELECT uuid, name, implementation_kind, role, status, capability_json,
+                   config_json, rollout_json,
                    created_at, updated_at, version
             FROM mem_implementation_profile
             WHERE tenant_id = ? AND uuid = ?
@@ -483,6 +582,8 @@ impl NativeSqlMemoryStore {
         role: Option<&str>,
         status: Option<&str>,
         capability_json: Option<&str>,
+        config_json: Option<Option<&str>>,
+        rollout_json: Option<Option<&str>>,
     ) -> Result<Option<NativeSqlImplementationProfileRow>, NativeSqlStoreError> {
         let existing = self
             .retrieve_mem_implementation_profile_for_tenant(tenant_id, profile_uuid)
@@ -490,6 +591,13 @@ impl NativeSqlMemoryStore {
             .ok_or_else(|| NativeSqlStoreError::InvariantViolation {
                 message: "implementation profile not found".to_string(),
             })?;
+
+        let config_json = config_json
+            .map(|value| value.map(str::to_string))
+            .unwrap_or_else(|| existing.config_json.clone());
+        let rollout_json = rollout_json
+            .map(|value| value.map(str::to_string))
+            .unwrap_or_else(|| existing.rollout_json.clone());
 
         sqlx::query(
             r#"
@@ -499,6 +607,8 @@ impl NativeSqlMemoryStore {
                 role = ?,
                 status = ?,
                 capability_json = ?,
+                config_json = ?,
+                rollout_json = ?,
                 updated_at = ?,
                 version = version + 1
             WHERE tenant_id = ? AND uuid = ?
@@ -509,6 +619,8 @@ impl NativeSqlMemoryStore {
         .bind(role.unwrap_or(&existing.role))
         .bind(status.unwrap_or(&existing.status))
         .bind(capability_json.unwrap_or(&existing.capability_json))
+        .bind(config_json.as_deref())
+        .bind(rollout_json.as_deref())
         .bind(now_text())
         .bind(tenant_id)
         .bind(profile_uuid)
@@ -526,15 +638,23 @@ impl NativeSqlMemoryStore {
         provider_kind: &str,
         provider_code: &str,
         display_name: &str,
+        capabilities_json: &str,
+        endpoint_ref: Option<&str>,
+        secret_ref: Option<&str>,
+        model_ref: Option<&str>,
+        config_json: Option<&str>,
         health_state: &str,
+        last_health_at: Option<&str>,
     ) -> Result<(), NativeSqlStoreError> {
         sqlx::query(
             r#"
             INSERT INTO mem_provider_binding (
               uuid, tenant_id, provider_kind, provider_code, display_name,
-              capabilities_json, health_state, created_at, updated_at, version
+              endpoint_ref, secret_ref, model_ref,
+              capabilities_json, config_json, health_state, last_health_at,
+              created_at, updated_at, version
             )
-            VALUES (?, ?, ?, ?, ?, '{}', ?, ?, ?, 1)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             "#,
         )
         .bind(binding_uuid)
@@ -542,7 +662,13 @@ impl NativeSqlMemoryStore {
         .bind(provider_kind)
         .bind(provider_code)
         .bind(display_name)
+        .bind(endpoint_ref)
+        .bind(secret_ref)
+        .bind(model_ref)
+        .bind(capabilities_json)
+        .bind(config_json)
         .bind(health_state)
+        .bind(last_health_at)
         .bind(now_text())
         .bind(now_text())
         .execute(self.pool())
@@ -554,19 +680,30 @@ impl NativeSqlMemoryStore {
         &self,
         tenant_id: i64,
         page_size: i32,
+        cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlProviderBindingRow>, NativeSqlStoreError> {
+        let page_size = page_size.clamp(1, 100) as i64;
+        let cursor = cursor.unwrap_or("");
         let rows = sqlx::query(
             r#"
-            SELECT uuid, provider_kind, provider_code, display_name, health_state,
+            SELECT uuid, provider_kind, provider_code, display_name,
+                   endpoint_ref, secret_ref, model_ref,
+                   capabilities_json, config_json, health_state, last_health_at,
                    created_at, updated_at, version
             FROM mem_provider_binding
             WHERE tenant_id = ?
-            ORDER BY updated_at DESC
+              AND id > COALESCE(
+                (SELECT id FROM mem_provider_binding b2 WHERE b2.tenant_id = ? AND b2.uuid = ? LIMIT 1),
+                0
+              )
+            ORDER BY id ASC
             LIMIT ?
             "#,
         )
         .bind(tenant_id)
-        .bind(page_size.clamp(1, 100) as i64)
+        .bind(tenant_id)
+        .bind(cursor)
+        .bind(page_size + 1)
         .fetch_all(self.pool())
         .await?;
 
@@ -580,7 +717,9 @@ impl NativeSqlMemoryStore {
     ) -> Result<Option<NativeSqlProviderBindingRow>, NativeSqlStoreError> {
         let row = sqlx::query(
             r#"
-            SELECT uuid, provider_kind, provider_code, display_name, health_state,
+            SELECT uuid, provider_kind, provider_code, display_name,
+                   endpoint_ref, secret_ref, model_ref,
+                   capabilities_json, config_json, health_state, last_health_at,
                    created_at, updated_at, version
             FROM mem_provider_binding
             WHERE tenant_id = ? AND uuid = ?
@@ -601,6 +740,12 @@ impl NativeSqlMemoryStore {
         display_name: Option<&str>,
         provider_code: Option<&str>,
         health_state: Option<&str>,
+        capabilities_json: Option<&str>,
+        endpoint_ref: Option<Option<&str>>,
+        secret_ref: Option<Option<&str>>,
+        model_ref: Option<Option<&str>>,
+        config_json: Option<Option<&str>>,
+        last_health_at: Option<Option<&str>>,
     ) -> Result<Option<NativeSqlProviderBindingRow>, NativeSqlStoreError> {
         let existing = self
             .retrieve_mem_provider_binding_for_tenant(tenant_id, binding_uuid)
@@ -609,12 +754,34 @@ impl NativeSqlMemoryStore {
                 message: "provider binding not found".to_string(),
             })?;
 
+        let endpoint_ref = endpoint_ref
+            .map(|value| value.map(str::to_string))
+            .unwrap_or_else(|| existing.endpoint_ref.clone());
+        let secret_ref = secret_ref
+            .map(|value| value.map(str::to_string))
+            .unwrap_or_else(|| existing.secret_ref.clone());
+        let model_ref = model_ref
+            .map(|value| value.map(str::to_string))
+            .unwrap_or_else(|| existing.model_ref.clone());
+        let config_json = config_json
+            .map(|value| value.map(str::to_string))
+            .unwrap_or_else(|| existing.config_json.clone());
+        let last_health_at = last_health_at
+            .map(|value| value.map(str::to_string))
+            .unwrap_or_else(|| existing.last_health_at.clone());
+
         sqlx::query(
             r#"
             UPDATE mem_provider_binding
             SET display_name = ?,
                 provider_code = ?,
                 health_state = ?,
+                capabilities_json = ?,
+                endpoint_ref = ?,
+                secret_ref = ?,
+                model_ref = ?,
+                config_json = ?,
+                last_health_at = ?,
                 updated_at = ?,
                 version = version + 1
             WHERE tenant_id = ? AND uuid = ?
@@ -623,6 +790,12 @@ impl NativeSqlMemoryStore {
         .bind(display_name.unwrap_or(&existing.display_name))
         .bind(provider_code.unwrap_or(&existing.provider_code))
         .bind(health_state.unwrap_or(&existing.health_state))
+        .bind(capabilities_json.unwrap_or(&existing.capabilities_json))
+        .bind(endpoint_ref.as_deref())
+        .bind(secret_ref.as_deref())
+        .bind(model_ref.as_deref())
+        .bind(config_json.as_deref())
+        .bind(last_health_at.as_deref())
         .bind(now_text())
         .bind(tenant_id)
         .bind(binding_uuid)
@@ -665,18 +838,27 @@ impl NativeSqlMemoryStore {
         &self,
         tenant_id: i64,
         page_size: i32,
+        cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlEvalRunRow>, NativeSqlStoreError> {
+        let page_size = page_size.clamp(1, 100) as i64;
+        let cursor = cursor.unwrap_or("");
         let rows = sqlx::query(
             r#"
             SELECT uuid, eval_type, state, metrics_json, created_at, updated_at
             FROM mem_eval_run
             WHERE tenant_id = ?
-            ORDER BY created_at DESC
+              AND id > COALESCE(
+                (SELECT id FROM mem_eval_run r2 WHERE r2.tenant_id = ? AND r2.uuid = ? LIMIT 1),
+                0
+              )
+            ORDER BY id ASC
             LIMIT ?
             "#,
         )
         .bind(tenant_id)
-        .bind(page_size.clamp(1, 100) as i64)
+        .bind(tenant_id)
+        .bind(cursor)
+        .bind(page_size + 1)
         .fetch_all(self.pool())
         .await?;
 
@@ -704,11 +886,13 @@ impl NativeSqlMemoryStore {
     }
 }
 
-fn map_index_row(row: sqlx::sqlite::SqliteRow) -> NativeSqlMemoryIndexRow {
+fn map_index_row(row: sqlx::any::AnyRow) -> NativeSqlMemoryIndexRow {
     NativeSqlMemoryIndexRow {
         index_uuid: row.get("uuid"),
         space_id: row.get("space_id"),
         index_kind: row.get("index_kind"),
+        implementation_profile_id: row.get("implementation_profile_id"),
+        provider_binding_id: row.get("provider_binding_id"),
         schema_version: row.get("schema_version"),
         status: row.get("status"),
         config_json: row.get("config_json"),
@@ -719,13 +903,15 @@ fn map_index_row(row: sqlx::sqlite::SqliteRow) -> NativeSqlMemoryIndexRow {
     }
 }
 
-fn map_retrieval_profile_row(row: sqlx::sqlite::SqliteRow) -> NativeSqlRetrievalProfileRow {
+fn map_retrieval_profile_row(row: sqlx::any::AnyRow) -> NativeSqlRetrievalProfileRow {
     NativeSqlRetrievalProfileRow {
         profile_uuid: row.get("uuid"),
         space_id: row.get("space_id"),
         name: row.get("name"),
         strategy: row.get("strategy"),
         retrievers_json: row.get("retrievers_json"),
+        fusion_policy_json: row.get("fusion_policy_json"),
+        rerank_policy_json: row.get("rerank_policy_json"),
         top_k: row.get("top_k"),
         context_budget_tokens: row.get("context_budget_tokens"),
         status: row.get("status"),
@@ -736,7 +922,7 @@ fn map_retrieval_profile_row(row: sqlx::sqlite::SqliteRow) -> NativeSqlRetrieval
 }
 
 fn map_implementation_profile_row(
-    row: sqlx::sqlite::SqliteRow,
+    row: sqlx::any::AnyRow,
 ) -> NativeSqlImplementationProfileRow {
     NativeSqlImplementationProfileRow {
         profile_uuid: row.get("uuid"),
@@ -745,26 +931,34 @@ fn map_implementation_profile_row(
         role: row.get("role"),
         status: row.get("status"),
         capability_json: row.get("capability_json"),
+        config_json: row.get("config_json"),
+        rollout_json: row.get("rollout_json"),
         created_at: row.get("created_at"),
         updated_at: row.get("updated_at"),
         version: row.get("version"),
     }
 }
 
-fn map_provider_binding_row(row: sqlx::sqlite::SqliteRow) -> NativeSqlProviderBindingRow {
+fn map_provider_binding_row(row: sqlx::any::AnyRow) -> NativeSqlProviderBindingRow {
     NativeSqlProviderBindingRow {
         binding_uuid: row.get("uuid"),
         provider_kind: row.get("provider_kind"),
         provider_code: row.get("provider_code"),
         display_name: row.get("display_name"),
+        endpoint_ref: row.get("endpoint_ref"),
+        secret_ref: row.get("secret_ref"),
+        model_ref: row.get("model_ref"),
+        capabilities_json: row.get("capabilities_json"),
+        config_json: row.get("config_json"),
         health_state: row.get("health_state"),
+        last_health_at: row.get("last_health_at"),
         created_at: row.get("created_at"),
         updated_at: row.get("updated_at"),
         version: row.get("version"),
     }
 }
 
-fn map_eval_run_row(row: sqlx::sqlite::SqliteRow) -> NativeSqlEvalRunRow {
+fn map_eval_run_row(row: sqlx::any::AnyRow) -> NativeSqlEvalRunRow {
     NativeSqlEvalRunRow {
         eval_run_uuid: row.get("uuid"),
         eval_type: row.get("eval_type"),

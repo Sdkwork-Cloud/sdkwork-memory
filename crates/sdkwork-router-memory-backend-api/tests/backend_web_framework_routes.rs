@@ -9,13 +9,11 @@ use sdkwork_memory_contract::{
 use sdkwork_router_memory_backend_api::{
     build_router_with_shared_backend_api, wrap_router_with_iam_database_web_framework,
 };
+use sdkwork_memory_test_support::web_auth::{
+    lock_integration_test_env, memory_access_token, memory_auth_token_bearer,
+};
 use std::sync::{Arc, Mutex};
 use tower::util::ServiceExt;
-
-const DEV_AUTH_TOKEN: &str =
-    "Bearer tenant_id=1001;user_id=9001;session_id=s-1;app_id=sdkwork-memory;auth_level=password";
-const DEV_ACCESS_TOKEN: &str =
-    "tenant_id=1001;user_id=9001;session_id=s-1;app_id=sdkwork-memory;environment=dev;deployment_mode=saas";
 
 #[tokio::test]
 async fn backend_router_web_framework_rejects_unauthenticated_requests() {
@@ -38,7 +36,8 @@ async fn backend_router_web_framework_rejects_unauthenticated_requests() {
 }
 
 #[tokio::test]
-async fn backend_router_web_framework_accepts_dev_inline_dual_tokens_before_handler() {
+async fn backend_router_web_framework_accepts_dev_jwt_dual_tokens_before_handler() {
+    let _env = lock_integration_test_env();
     let service = RecordingBackendApi::default();
     let app = wrap_router_with_iam_database_web_framework(
         IamDatabaseWebRequestContextResolver::new(None),
@@ -49,8 +48,8 @@ async fn backend_router_web_framework_accepts_dev_inline_dual_tokens_before_hand
         .oneshot(
             Request::builder()
                 .uri("/backend/v3/api/memory/provider_health")
-                .header("Authorization", DEV_AUTH_TOKEN)
-                .header("Access-Token", DEV_ACCESS_TOKEN)
+                .header("Authorization", memory_auth_token_bearer("9001"))
+                .header("Access-Token", memory_access_token("9001"))
                 .body(Body::empty())
                 .unwrap(),
         )

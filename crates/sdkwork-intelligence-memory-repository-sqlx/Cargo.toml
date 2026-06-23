@@ -15,7 +15,11 @@ sdkwork-database-repository.workspace = true
 sdkwork-database-sqlx.workspace = true
 sdkwork-memory-database-host.workspace = true
 sdkwork-memory-plugin-native-sql.workspace = true
+sdkwork-memory-runtime.workspace = true
+sdkwork-memory-spi.workspace = true
 sdkwork-utils-rust.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
+sdkwork-memory-contract = { path = "../../crates/sdkwork-memory-contract" }
+sdkwork-memory-plugin-native-sql = { path = "../../plugins/sdkwork-memory-plugin-native-sql" }

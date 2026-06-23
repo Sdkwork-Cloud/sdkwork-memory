@@ -453,7 +453,8 @@
         "apiAuthority": "sdkwork-memory.backend"
       },
       "requestContext": "WebRequestContext",
-      "apiSurface": "backend-api"
+      "apiSurface": "backend-api",
+      "rateLimitTier": "authCritical"
     },
     {
       "method": "GET",
@@ -871,7 +872,8 @@
         "apiAuthority": "sdkwork-memory.backend"
       },
       "requestContext": "WebRequestContext",
-      "apiSurface": "backend-api"
+      "apiSurface": "backend-api",
+      "rateLimitTier": "authCritical"
     },
     {
       "method": "POST",
@@ -893,7 +895,8 @@
         "apiAuthority": "sdkwork-memory.backend"
       },
       "requestContext": "WebRequestContext",
-      "apiSurface": "backend-api"
+      "apiSurface": "backend-api",
+      "rateLimitTier": "authCritical"
     },
     {
       "method": "GET",

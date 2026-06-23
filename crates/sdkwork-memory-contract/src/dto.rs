@@ -264,6 +264,16 @@ pub struct MemoryRecordList {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct MemorySpaceScopeQuery {
+    #[serde(
+        serialize_with = "serialize_u64_as_string",
+        deserialize_with = "deserialize_u64_from_string_or_number"
+    )]
+    pub space_id: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ListMemoriesQuery {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub q: Option<String>,
@@ -386,8 +396,18 @@ pub struct MemoryProviderBinding {
     pub provider_kind: String,
     pub provider_code: String,
     pub display_name: String,
-    pub capabilities: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub endpoint_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub secret_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_ref: Option<String>,
+    pub capabilities: Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config: Option<Value>,
     pub health_state: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_health_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     #[serde(
@@ -523,8 +543,21 @@ pub struct MemoryLearningJob {
     pub priority: i32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub result: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finished_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_option_u64_as_string",
+        deserialize_with = "deserialize_option_u64_from_string_or_number"
+    )]
+    pub version: Option<u64>,
 }
 
 /// Legacy alias kept for app-api extraction responses that mirror learning jobs.
@@ -752,6 +785,17 @@ pub struct MemoryRecordSource {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub confidence_delta: Option<f64>,
     pub created_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListMemorySourcesQuery {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub q: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_size: Option<i32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

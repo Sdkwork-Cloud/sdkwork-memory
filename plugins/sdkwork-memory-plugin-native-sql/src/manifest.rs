@@ -68,3 +68,40 @@ pub fn build_native_sql_retrieval_trace_store() -> NativeSqlPortBuilder {
         ready: true,
     }
 }
+
+pub fn native_sql_phase1_port_builders() -> [NativeSqlPortBuilder; 7] {
+    [
+        build_native_sql_record_store(),
+        build_native_sql_event_store(),
+        build_native_sql_audit_store(),
+        build_native_sql_outbox_store(),
+        build_native_sql_candidate_store(),
+        build_native_sql_habit_store(),
+        build_native_sql_retrieval_trace_store(),
+    ]
+}
+
+/// Manifest `build_ports` preflight: every declared builder must be executable.
+pub fn validate_native_sql_port_builders(manifest: &MemoryPluginManifest) -> Result<(), String> {
+    for builder in native_sql_phase1_port_builders() {
+        if !builder.ready {
+            return Err(format!(
+                "native sql port builder {} is not ready for {}",
+                builder.builder_name,
+                builder.port_name
+            ));
+        }
+        let declared = manifest
+            .port_exports
+            .iter()
+            .any(|export| export.port == builder.port_name && export.builder == builder.builder_name);
+        if !declared {
+            return Err(format!(
+                "native sql manifest must declare {} via {}",
+                builder.port_name,
+                builder.builder_name
+            ));
+        }
+    }
+    Ok(())
+}

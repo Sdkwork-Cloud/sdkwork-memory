@@ -8,11 +8,10 @@ use sdkwork_memory_contract::{
 use sdkwork_router_memory_open_api::{
     build_router_with_shared_open_api, wrap_router_with_web_framework,
 };
+use sdkwork_memory_test_support::web_auth::memory_dev_api_key;
 use sdkwork_web_core::DefaultWebRequestContextResolver;
 use std::sync::{Arc, Mutex};
 use tower::util::ServiceExt;
-
-const DEV_API_KEY: &str = "api_key_id=dev-key;tenant_id=1001;user_id=2001;app_id=sdkwork-memory";
 
 #[tokio::test]
 async fn open_router_web_framework_rejects_unauthenticated_requests() {
@@ -46,7 +45,7 @@ async fn open_router_web_framework_accepts_dev_inline_api_key_before_handler() {
         .oneshot(
             Request::builder()
                 .uri("/mem/v3/api/memory/capabilities")
-                .header("x-api-key", DEV_API_KEY)
+                .header("x-api-key", memory_dev_api_key("2001", "dev-key"))
                 .body(Body::empty())
                 .unwrap(),
         )

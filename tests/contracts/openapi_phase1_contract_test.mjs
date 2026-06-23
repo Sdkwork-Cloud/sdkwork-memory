@@ -24,4 +24,24 @@ for (const operation of operations) {
   assert.equal(operation["x-sdkwork-api-authority"], "sdkwork-memory-open-api");
 }
 
+for (const [pathKey, pathItem] of Object.entries(open.paths)) {
+  for (const method of ["post", "patch", "delete"]) {
+    const operation = pathItem[method];
+    if (!operation) {
+      continue;
+    }
+    const expectedTier =
+      operation.operationId === "memories.delete" ? "authCritical" : "openApiDefault";
+    assert.equal(
+      operation["x-sdkwork-rate-limit-tier"],
+      expectedTier,
+      `${method.toUpperCase()} ${pathKey} must declare ${expectedTier} rate limit tier`,
+    );
+  }
+}
+
+const deleteOp = operations.find((operation) => operation.operationId === "memories.delete");
+assert.ok(deleteOp);
+assert.equal(deleteOp["x-sdkwork-rate-limit-tier"], "authCritical");
+
 console.log("OpenAPI phase1 contract test passed");

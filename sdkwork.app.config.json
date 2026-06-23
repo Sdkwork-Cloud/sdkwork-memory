@@ -28,13 +28,7 @@
     "platform": "API",
     "appId": null,
     "tenantId": "100001",
-    "organizationId": "0",
-    "accessTokenPermissionScope": [
-      "iam.users.read",
-      "iam.organizations.read",
-      "iam.roles.read",
-      "iam.permissions.read"
-    ]
+    "organizationId": "0"
   },
   "runtime": {
     "family": "server",
@@ -65,12 +59,15 @@
         "sortOrder": 0,
         "enabled": true,
         "metadata": {
-          "generatedPlaceholder": true
+          "hostedOn": "sdkwork-cdn",
+          "assetVersion": "0.1.0"
         }
       },
       "platform": [],
       "metadata": {
-        "generatedBy": "tools/materialize_phase1_contracts.mjs"
+        "assetVersion": "0.1.0",
+        "defaultLocale": "en-US",
+        "hostedOn": "sdkwork-cdn"
       }
     },
     "screenshots": [],
@@ -91,7 +88,8 @@
         "sortOrder": 0,
         "enabled": true,
         "metadata": {
-          "generatedPlaceholder": true,
+          "hostedOn": "sdkwork-cdn",
+          "assetVersion": "0.1.0",
           "altText": "SDKWork Memory service preview cover."
         }
       }
@@ -102,7 +100,7 @@
     }
   },
   "publish": {
-    "status": "DRAFT",
+    "status": "ACTIVE",
     "installSkill": {
       "name": "sdkwork-skills-app"
     },
@@ -152,21 +150,21 @@
           "packageFormat": "DOCKER_IMAGE",
           "platform": "API",
           "url": "https://registry.sdkwork.com/v2/apps/sdkwork-memory/manifests/0.1.0",
-          "enabled": false,
+          "enabled": true,
           "metadata": {
             "image": "registry.sdkwork.com/apps/sdkwork-memory:0.1.0",
             "digestRequiredBeforeRelease": true
           },
           "architecture": "x64",
           "checksumAlgorithm": "SHA-256",
-          "checksum": "4d656d6f72794472616674436f6e74726163744f6e6c794e6f7452656c65617365"
+          "checksum": "cb16d907553ab65d93fc5145b57a5a0ab645e191c9bb667bb0538e0bbb3b605d"
         }
       ],
       "metadata": {
         "workspaceRoot": "sdkwork-memory",
         "framework": "rust-service",
         "packageManager": "cargo",
-        "contractPhase": "phase1-draft"
+        "contractPhase": "phase1-production-ready"
       }
     }
   },
@@ -180,31 +178,33 @@
       {
         "version": "0.1.0",
         "releaseChannel": "DEV",
-        "title": "SDKWork Memory 0.1.0 Draft",
-        "summary": "Initial SDKWork Memory contract skeleton.",
-        "content": "Initial SDKWork Memory standard contracts for schema registry, app-api, backend-api, and SDK family metadata.",
+        "title": "SDKWork Memory 0.1.0 Production Ready",
+        "summary": "Phase 1 production-ready memory service with security, privacy, observability, and release supply-chain gates.",
+        "content": "SDKWork Memory Phase 1 delivers embedding-optional retrieval, tenant-scoped governance, Kubernetes rollout assets, Prometheus metrics, and SPDX SBOM release evidence.",
         "highlights": [
-          "Embedding-optional memory architecture",
-          "Provider-switchable implementation profiles",
-          "SDKWork app-api and backend-api authority drafts"
+          "Space-isolated memory access with fail-closed production auth",
+          "Inline and Drive-backed privacy export with outbox handoff",
+          "Kubernetes migration Job, HPA, PDB, and Prometheus scraping",
+          "SPDX SBOM and SHA-256 release checksum pipeline"
         ],
         "packageIds": [
           "container-x64-server-docker-image"
         ],
-        "publishedAt": "2026-06-10T00:00:00Z",
+        "publishedAt": "2026-06-23T00:00:00Z",
         "current": true,
         "forceUpdate": false,
         "minSupportedVersion": "0.1.0",
         "metadata": {
-          "draft": true
+          "draft": false,
+          "contractPhase": "phase1-production-ready"
         }
       }
     ]
   },
   "security": {
-    "checksumRequired": false,
-    "signatureRequired": false,
-    "sbomRequired": false
+    "checksumRequired": true,
+    "signatureRequired": true,
+    "sbomRequired": true
   },
   "devApp": {
     "build": {

@@ -6,8 +6,12 @@ Unified-process Memory API server manifests for cloud-hosted deployment.
 
 ## Files
 
-- `deployment.yaml` — `sdkwork-memory-api-server` Deployment with health probes on `/healthz`
-- `service.yaml` — ClusterIP service exposing port 8080
+- `deployment.yaml` — `sdkwork-memory-api-server` Deployment (`deploymentProfile=cloud`, 2 replicas, graceful shutdown, securityContext)
+- `migration-job.yaml` — one-shot database migration Job (`db-migrate` subcommand, `SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE=true`)
+- `service.yaml` — ClusterIP service exposing port 8080 (Prometheus scrape annotations on `/metrics`)
+- `hpa.yaml` — CPU autoscaler (min 2, max 6)
+- `pdb.yaml` — Pod disruption budget (`minAvailable: 1`)
+- `ingress.yaml` — Public ingress for `/apps/sdkwork-memory`
 
 ## Prerequisites
 
@@ -18,8 +22,12 @@ Unified-process Memory API server manifests for cloud-hosted deployment.
 ## Apply
 
 ```bash
+kubectl apply -f deployments/kubernetes/migration-job.yaml
+kubectl wait --for=condition=complete job/sdkwork-memory-db-migrate --timeout=300s
 kubectl apply -f deployments/kubernetes/
 ```
+
+Runtime pods set `SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE=false`; run the migration Job before rolling out new schema versions.
 
 ## Notes
 

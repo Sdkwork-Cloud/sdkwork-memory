@@ -14,36 +14,107 @@ use sdkwork_memory_spi::{
     RetrieveMemoryHabitQuery, RetrieveMemoryOutboxQuery, RetrieveMemoryRecordQuery,
     RetrieveMemoryRetrievalTraceQuery, UpsertMemoryHabitCommand,
 };
+use sdkwork_database_config::DatabaseConfig;
 use serde_json::Value;
-use sqlx::{sqlite::SqliteRow, Row, SqlitePool};
+use sqlx::any::AnyRow;
+use sqlx::{AnyPool, Row};
 use thiserror::Error;
+
+use crate::pool_backend::{connect_any_pool, MemorySqlDialect};
+use crate::privacy::like_pattern;
 
 #[derive(Debug, Clone)]
 pub struct NativeSqlMemoryStore {
-    pool: SqlitePool,
+    pool: AnyPool,
+    dialect: MemorySqlDialect,
+}
+
+#[derive(Debug, Clone)]
+pub struct TenantRetrievalTraceLookup {
+    pub space_id: i64,
+    pub trace: MemoryRetrievalTrace,
 }
 
 impl NativeSqlMemoryStore {
-    pub async fn new_in_memory_sqlite() -> Result<Self, NativeSqlStoreError> {
-        let pool = SqlitePool::connect("sqlite::memory:").await?;
-        Self::from_sqlite_pool(pool).await
+    pub async fn connect(config: &DatabaseConfig) -> Result<Self, NativeSqlStoreError> {
+        Self::open_pool(config, true).await
     }
 
-    pub async fn from_sqlite_pool(pool: SqlitePool) -> Result<Self, NativeSqlStoreError> {
-        let store = Self { pool };
-        store.apply_sqlite_phase1_migration().await?;
+    pub async fn open_pool(
+        config: &DatabaseConfig,
+        apply_migration: bool,
+    ) -> Result<Self, NativeSqlStoreError> {
+        let (pool, dialect) = connect_any_pool(config).await?;
+        let store = Self { pool, dialect };
+        if apply_migration {
+            store.apply_phase1_migration().await?;
+        }
         Ok(store)
     }
 
-    pub async fn install_sqlite_phase1_schema(
-        pool: &SqlitePool,
-    ) -> Result<(), NativeSqlStoreError> {
-        Self::from_sqlite_pool(pool.clone()).await?;
-        Ok(())
+    pub async fn new_in_memory_sqlite() -> Result<Self, NativeSqlStoreError> {
+        let config = DatabaseConfig {
+            engine: sdkwork_database_config::DatabaseEngine::Sqlite,
+            url: "sqlite::memory:".to_string(),
+            ..DatabaseConfig::default()
+        };
+        Self::connect(&config).await
     }
 
-    pub fn pool(&self) -> &SqlitePool {
+    pub async fn from_any_pool(pool: AnyPool, dialect: MemorySqlDialect) -> Self {
+        Self { pool, dialect }
+    }
+
+    pub async fn from_database_pool(
+        pool: &sdkwork_database_sqlx::DatabasePool,
+    ) -> Result<Self, NativeSqlStoreError> {
+        let config = crate::pool_backend::normalize_memory_database_config(pool.config().clone());
+        Self::connect(&config).await
+    }
+
+    pub async fn install_sqlite_phase1_schema(pool: &AnyPool) -> Result<(), NativeSqlStoreError> {
+        let store = Self::from_any_pool(pool.clone(), MemorySqlDialect::Sqlite).await;
+        store.apply_phase1_migration().await
+    }
+
+    pub fn pool(&self) -> &AnyPool {
         &self.pool
+    }
+
+    pub fn dialect(&self) -> MemorySqlDialect {
+        self.dialect
+    }
+
+    async fn apply_phase1_migration(&self) -> Result<(), NativeSqlStoreError> {
+        match self.dialect {
+            MemorySqlDialect::Sqlite => self.apply_sqlite_phase1_migration().await,
+            MemorySqlDialect::Postgres => self.apply_postgres_phase1_migration().await,
+        }
+    }
+
+    async fn apply_postgres_phase1_migration(&self) -> Result<(), NativeSqlStoreError> {
+        const MIGRATIONS: &[&str] = &[
+            include_str!("../migrations/postgres/V202606100001__memory_phase1.sql"),
+            include_str!("../migrations/postgres/V202606100002__memory_phase1_indexes.sql"),
+            include_str!("../migrations/postgres/V202606230001__mem_tenant_preference.sql"),
+        ];
+        self.apply_embedded_sql_migrations(MIGRATIONS).await
+    }
+
+    async fn apply_embedded_sql_migrations(
+        &self,
+        migrations: &[&str],
+    ) -> Result<(), NativeSqlStoreError> {
+        let mut connection = self.pool.acquire().await?;
+        for migration in migrations {
+            for statement in migration.split(';') {
+                let statement = statement.trim();
+                if !statement.is_empty() {
+                    sqlx::query(statement).execute(&mut *connection).await?;
+                }
+            }
+        }
+        Ok(())
     }
 
     pub async fn append_open_api_event(
@@ -312,7 +383,7 @@ impl NativeSqlMemoryStore {
             .fetch_all(&self.pool)
             .await?
         } else {
-            let pattern = format!("%{query}%");
+            let pattern = crate::privacy::like_pattern(query);
             sqlx::query(
                 r#"
                 SELECT uuid, space_id, scope, memory_type, subject, predicate, object_text, canonical_text,
@@ -322,7 +393,9 @@ impl NativeSqlMemoryStore {
                   AND space_id = ?
                   AND status <> 'deleted'
                   AND uuid > ?
-                  AND (canonical_text LIKE ? OR object_text LIKE ? OR IFNULL(subject, '') LIKE ?)
+                  AND (canonical_text LIKE ? ESCAPE '\'
+                       OR object_text LIKE ? ESCAPE '\'
+                       OR COALESCE(subject, '') LIKE ? ESCAPE '\')
                 ORDER BY uuid ASC
                 LIMIT ?
                 "#,
@@ -389,7 +462,7 @@ impl NativeSqlMemoryStore {
         query: &str,
         top_k: i32,
     ) -> Result<Vec<NativeSqlMemoryRecordDetail>, NativeSqlStoreError> {
-        let pattern = format!("%{}%", query.trim());
+        let pattern = crate::privacy::like_pattern(query.trim());
         let rows = sqlx::query(
             r#"
             SELECT uuid, space_id, scope, memory_type, subject, predicate, object_text, canonical_text,
@@ -398,7 +471,9 @@ impl NativeSqlMemoryStore {
             WHERE tenant_id = ?
               AND space_id = ?
               AND status <> 'deleted'
-              AND (canonical_text LIKE ? OR object_text LIKE ? OR IFNULL(subject, '') LIKE ?)
+              AND (canonical_text LIKE ? ESCAPE '\'
+                   OR object_text LIKE ? ESCAPE '\'
+                   OR COALESCE(subject, '') LIKE ? ESCAPE '\')
             ORDER BY updated_at DESC
             LIMIT ?
             "#,
@@ -658,6 +733,26 @@ impl NativeSqlMemoryStore {
             deleted: true,
             already_deleted: false,
         })
+    }
+
+    pub async fn hard_delete_record(
+        &self,
+        scope: &MemoryScopeContext,
+        memory_id: &str,
+    ) -> Result<bool, NativeSqlStoreError> {
+        let deleted = sqlx::query(
+            r#"
+            DELETE FROM mem_record
+            WHERE tenant_id = ? AND space_id = ? AND uuid = ?
+            "#,
+        )
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
+        .bind(memory_id)
+        .execute(&self.pool)
+        .await?
+        .rows_affected();
+        Ok(deleted > 0)
     }
 
     pub async fn retrieve_record_lifecycle(
@@ -1078,6 +1173,201 @@ impl NativeSqlMemoryStore {
                 retry_count: row.get("retry_count"),
             })
             .collect())
+    }
+
+    pub async fn list_global_pending_outbox_events(
+        &self,
+        limit: u32,
+    ) -> Result<Vec<NativeSqlScopedOutboxEvent>, NativeSqlStoreError> {
+        let row_limit = i64::from(limit.max(1));
+        let rows = sqlx::query(
+            r#"
+            SELECT
+              tenant_id,
+              uuid,
+              aggregate_type,
+              aggregate_id,
+              event_type,
+              event_version,
+              payload_json,
+              publish_state,
+              published_at,
+              retry_count
+            FROM mem_outbox_event
+            WHERE publish_state = 'pending'
+            ORDER BY created_at ASC, id ASC
+            LIMIT ?
+            "#,
+        )
+        .bind(row_limit)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| NativeSqlScopedOutboxEvent {
+                tenant_id: row.get("tenant_id"),
+                outbox: NativeSqlMemoryOutboxEvent {
+                    outbox_id: row.get("uuid"),
+                    aggregate_type: row.get("aggregate_type"),
+                    aggregate_id: row.get("aggregate_id"),
+                    event_type: row.get("event_type"),
+                    event_version: row.get("event_version"),
+                    payload_json: row.get("payload_json"),
+                    publish_state: row.get("publish_state"),
+                    published_at: row.get("published_at"),
+                    retry_count: row.get("retry_count"),
+                },
+            })
+            .collect())
+    }
+
+    pub async fn retrieve_tenant_preference_json(
+        &self,
+        tenant_id: i64,
+        user_id: Option<i64>,
+        preference_key: &str,
+    ) -> Result<Option<String>, NativeSqlStoreError> {
+        let stored_user_id = preference_user_storage_key(user_id);
+        let row = sqlx::query(
+            r#"
+            SELECT preference_json
+            FROM mem_tenant_preference
+            WHERE tenant_id = ? AND user_id = ? AND preference_key = ?
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(stored_user_id)
+        .bind(preference_key)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|row| row.get("preference_json")))
+    }
+
+    pub async fn upsert_tenant_preference_json(
+        &self,
+        tenant_id: i64,
+        user_id: Option<i64>,
+        preference_key: &str,
+        preference_json: &str,
+    ) -> Result<(), NativeSqlStoreError> {
+        let stored_user_id = preference_user_storage_key(user_id);
+        let timestamp = now_text();
+        sqlx::query(
+            r#"
+            INSERT INTO mem_tenant_preference (
+              tenant_id, user_id, preference_key, preference_json, created_at, updated_at, version
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 0)
+            ON CONFLICT(tenant_id, user_id, preference_key) DO UPDATE SET
+              preference_json = excluded.preference_json,
+              updated_at = excluded.updated_at,
+              version = mem_tenant_preference.version + 1
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(stored_user_id)
+        .bind(preference_key)
+        .bind(preference_json)
+        .bind(&timestamp)
+        .bind(&timestamp)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn consolidate_duplicate_records_in_scope(
+        &self,
+        scope: &MemoryScopeContext,
+    ) -> Result<u32, NativeSqlStoreError> {
+        let rows = sqlx::query(
+            r#"
+            SELECT uuid, canonical_text
+            FROM mem_record
+            WHERE tenant_id = ? AND space_id = ? AND status <> 'deleted'
+            ORDER BY canonical_text ASC, updated_at DESC, id DESC
+            "#,
+        )
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut seen = std::collections::HashSet::new();
+        let mut duplicate_ids = Vec::new();
+        for row in rows {
+            let canonical_text: String = row.get("canonical_text");
+            if !seen.insert(canonical_text) {
+                duplicate_ids.push(row.get::<String, _>("uuid"));
+            }
+        }
+
+        let mut merged = 0u32;
+        let timestamp = now_text();
+        for memory_uuid in duplicate_ids {
+            let result = sqlx::query(
+                r#"
+                UPDATE mem_record
+                SET status = 'deleted',
+                    updated_at = ?,
+                    version = version + 1
+                WHERE tenant_id = ? AND space_id = ? AND uuid = ? AND status <> 'deleted'
+                "#,
+            )
+            .bind(&timestamp)
+            .bind(scope.tenant_id)
+            .bind(scope.space_id)
+            .bind(&memory_uuid)
+            .execute(&self.pool)
+            .await?;
+            if result.rows_affected() > 0 {
+                merged += 1;
+            }
+        }
+        Ok(merged)
+    }
+
+    pub async fn purge_expired_records_for_scope(
+        &self,
+        scope: &MemoryScopeContext,
+        dry_run: bool,
+    ) -> Result<u32, NativeSqlStoreError> {
+        if dry_run {
+            let count: i64 = sqlx::query_scalar(
+                r#"
+                SELECT COUNT(*)
+                FROM mem_record
+                WHERE tenant_id = ? AND space_id = ? AND status <> 'deleted'
+                  AND expires_at IS NOT NULL AND expires_at < ?
+                "#,
+            )
+            .bind(scope.tenant_id)
+            .bind(scope.space_id)
+            .bind(now_text())
+            .fetch_one(&self.pool)
+            .await?;
+            return Ok(u32::try_from(count.max(0)).unwrap_or(0));
+        }
+
+        let timestamp = now_text();
+        let result = sqlx::query(
+            r#"
+            UPDATE mem_record
+            SET status = 'deleted',
+                updated_at = ?,
+                version = version + 1
+            WHERE tenant_id = ? AND space_id = ? AND status <> 'deleted'
+              AND expires_at IS NOT NULL AND expires_at < ?
+            "#,
+        )
+        .bind(&timestamp)
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
+        .bind(&timestamp)
+        .execute(&self.pool)
+        .await?;
+        Ok(u32::try_from(result.rows_affected()).unwrap_or(0))
     }
 
     pub async fn mark_outbox_published(
@@ -1501,6 +1791,34 @@ impl NativeSqlMemoryStore {
             })
     }
 
+    pub async fn retrieve_retrieval_trace_lookup_for_tenant(
+        &self,
+        tenant_id: i64,
+        trace_id: &str,
+    ) -> Result<Option<TenantRetrievalTraceLookup>, NativeSqlStoreError> {
+        let row = sqlx::query(
+            "SELECT space_id FROM mem_retrieval_trace WHERE tenant_id = ? AND uuid = ?",
+        )
+        .bind(tenant_id)
+        .bind(trace_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let Some(row) = row else {
+            return Ok(None);
+        };
+
+        let space_id: i64 = row.get("space_id");
+        let scope = MemoryScopeContext {
+            tenant_id,
+            space_id,
+            organization_id: None,
+            user_id: None,
+        };
+        let trace = self.retrieve_retrieval_trace(&scope, trace_id).await?;
+        Ok(trace.map(|trace| TenantRetrievalTraceLookup { space_id, trace }))
+    }
+
     pub async fn retrieve_retrieval_trace_for_tenant(
         &self,
         tenant_id: i64,
@@ -1585,14 +1903,12 @@ impl NativeSqlMemoryStore {
     }
 
     async fn apply_sqlite_phase1_migration(&self) -> Result<(), NativeSqlStoreError> {
-        let migration = include_str!("../migrations/sqlite/V202606100001__memory_phase1.sql");
-        for statement in migration.split(';') {
-            let statement = statement.trim();
-            if !statement.is_empty() {
-                sqlx::query(statement).execute(&self.pool).await?;
-            }
-        }
-        Ok(())
+        const MIGRATIONS: &[&str] = &[
+            include_str!("../migrations/sqlite/V202606100001__memory_phase1.sql"),
+            include_str!("../migrations/sqlite/V202606100002__memory_phase1_indexes.sql"),
+            include_str!("../migrations/sqlite/V202606230001__mem_tenant_preference.sql"),
+        ];
+        self.apply_embedded_sql_migrations(MIGRATIONS).await
     }
 
     async fn retrieve_event_idempotency_state(
@@ -1695,7 +2011,7 @@ impl NativeSqlMemoryStore {
         scope: &MemoryScopeContext,
         user_id: i64,
         habit_key: &str,
-    ) -> Result<Option<SqliteRow>, NativeSqlStoreError> {
+    ) -> Result<Option<AnyRow>, NativeSqlStoreError> {
         let row = sqlx::query(
             r#"
             SELECT
@@ -1781,7 +2097,7 @@ impl NativeSqlMemoryStore {
     async fn retrieval_trace_from_row(
         &self,
         scope: &MemoryScopeContext,
-        row: SqliteRow,
+        row: AnyRow,
     ) -> Result<MemoryRetrievalTrace, NativeSqlStoreError> {
         let trace_row_id: i64 = row.get("id");
         let hits = self.fetch_retrieval_hits(scope, trace_row_id).await?;
@@ -1881,20 +2197,30 @@ impl NativeSqlMemoryStore {
         tenant_id: i64,
         space_id: Option<i64>,
         page_size: i32,
+        cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlRetrievalTraceSummaryRow>, NativeSqlStoreError> {
+        let page_size = page_size.clamp(1, 100) as i64;
+        let cursor = cursor.unwrap_or("");
         let rows = if let Some(space_id) = space_id {
             sqlx::query(
                 r#"
                 SELECT uuid, space_id, query_text, query_hash, result_count, degraded, created_at
                 FROM mem_retrieval_trace
-                WHERE tenant_id = ? AND space_id = ?
-                ORDER BY created_at DESC
+                WHERE tenant_id = ?
+                  AND space_id = ?
+                  AND id < COALESCE(
+                    (SELECT id FROM mem_retrieval_trace t2 WHERE t2.tenant_id = ? AND t2.uuid = ? LIMIT 1),
+                    9223372036854775807
+                  )
+                ORDER BY id DESC
                 LIMIT ?
                 "#,
             )
             .bind(tenant_id)
             .bind(space_id)
-            .bind(page_size.max(1) as i64)
+            .bind(tenant_id)
+            .bind(cursor)
+            .bind(page_size + 1)
             .fetch_all(&self.pool)
             .await?
         } else {
@@ -1903,12 +2229,18 @@ impl NativeSqlMemoryStore {
                 SELECT uuid, space_id, query_text, query_hash, result_count, degraded, created_at
                 FROM mem_retrieval_trace
                 WHERE tenant_id = ?
-                ORDER BY created_at DESC
+                  AND id < COALESCE(
+                    (SELECT id FROM mem_retrieval_trace t2 WHERE t2.tenant_id = ? AND t2.uuid = ? LIMIT 1),
+                    9223372036854775807
+                  )
+                ORDER BY id DESC
                 LIMIT ?
                 "#,
             )
             .bind(tenant_id)
-            .bind(page_size.max(1) as i64)
+            .bind(tenant_id)
+            .bind(cursor)
+            .bind(page_size + 1)
             .fetch_all(&self.pool)
             .await?
         };
@@ -2025,19 +2357,22 @@ impl NativeSqlMemoryStore {
         &self,
         tenant_id: i64,
         page_size: i32,
+        cursor_space_id: i64,
     ) -> Result<Vec<NativeSqlMemorySpaceRow>, NativeSqlStoreError> {
+        let page_size = page_size.clamp(1, 100) as i64;
         let rows = sqlx::query(
             r#"
             SELECT id, uuid, tenant_id, owner_subject_type, owner_subject_id, space_type,
                    display_name, default_scope, lifecycle_status, created_at, updated_at, version
             FROM mem_space
-            WHERE tenant_id = ?
+            WHERE tenant_id = ? AND id > ?
             ORDER BY id ASC
             LIMIT ?
             "#,
         )
         .bind(tenant_id)
-        .bind(page_size.max(1) as i64)
+        .bind(cursor_space_id)
+        .bind(page_size + 1)
         .fetch_all(&self.pool)
         .await?;
 
@@ -2136,20 +2471,24 @@ impl NativeSqlMemoryStore {
         tenant_id: i64,
         space_id: Option<i64>,
         page_size: i32,
+        cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlOpenApiEventRow>, NativeSqlStoreError> {
+        let page_size = page_size.clamp(1, 100) as i64;
+        let cursor = cursor.unwrap_or("");
         let rows = if let Some(space_id) = space_id {
             sqlx::query(
                 r#"
                 SELECT uuid, space_id, event_type, source_type, event_time, payload_json, payload_hash, ingestion_status, created_at
                 FROM mem_event
-                WHERE tenant_id = ? AND space_id = ?
-                ORDER BY created_at DESC
+                WHERE tenant_id = ? AND space_id = ? AND uuid > ?
+                ORDER BY uuid ASC
                 LIMIT ?
                 "#,
             )
             .bind(tenant_id)
             .bind(space_id)
-            .bind(page_size.max(1) as i64)
+            .bind(cursor)
+            .bind(page_size + 1)
             .fetch_all(&self.pool)
             .await?
         } else {
@@ -2157,13 +2496,14 @@ impl NativeSqlMemoryStore {
                 r#"
                 SELECT uuid, space_id, event_type, source_type, event_time, payload_json, payload_hash, ingestion_status, created_at
                 FROM mem_event
-                WHERE tenant_id = ?
-                ORDER BY created_at DESC
+                WHERE tenant_id = ? AND uuid > ?
+                ORDER BY uuid ASC
                 LIMIT ?
                 "#,
             )
             .bind(tenant_id)
-            .bind(page_size.max(1) as i64)
+            .bind(cursor)
+            .bind(page_size + 1)
             .fetch_all(&self.pool)
             .await?
         };
@@ -2192,21 +2532,25 @@ impl NativeSqlMemoryStore {
         tenant_id: i64,
         space_id: Option<i64>,
         page_size: i32,
+        cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlCandidateRow>, NativeSqlStoreError> {
+        let page_size = page_size.clamp(1, 100) as i64;
+        let cursor = cursor.unwrap_or("");
         let rows = if let Some(space_id) = space_id {
             sqlx::query(
                 r#"
                 SELECT uuid, space_id, candidate_type, memory_type, proposed_text, confidence,
                        decision_state, created_at, updated_at
                 FROM mem_candidate
-                WHERE tenant_id = ? AND space_id = ?
-                ORDER BY created_at DESC
+                WHERE tenant_id = ? AND space_id = ? AND uuid > ?
+                ORDER BY uuid ASC
                 LIMIT ?
                 "#,
             )
             .bind(tenant_id)
             .bind(space_id)
-            .bind(page_size.max(1) as i64)
+            .bind(cursor)
+            .bind(page_size + 1)
             .fetch_all(&self.pool)
             .await?
         } else {
@@ -2215,13 +2559,14 @@ impl NativeSqlMemoryStore {
                 SELECT uuid, space_id, candidate_type, memory_type, proposed_text, confidence,
                        decision_state, created_at, updated_at
                 FROM mem_candidate
-                WHERE tenant_id = ?
-                ORDER BY created_at DESC
+                WHERE tenant_id = ? AND uuid > ?
+                ORDER BY uuid ASC
                 LIMIT ?
                 "#,
             )
             .bind(tenant_id)
-            .bind(page_size.max(1) as i64)
+            .bind(cursor)
+            .bind(page_size + 1)
             .fetch_all(&self.pool)
             .await?
         };
@@ -2364,8 +2709,11 @@ impl NativeSqlMemoryStore {
         stage: Option<&str>,
         query_text: Option<&str>,
         page_size: i32,
+        cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlHabitRow>, NativeSqlStoreError> {
-        let like_pattern = query_text.map(|value| format!("%{value}%"));
+        let page_size = page_size.clamp(1, 100) as i64;
+        let cursor = cursor.unwrap_or("");
+        let like_pattern = query_text.map(like_pattern);
         let rows = sqlx::query(
             r#"
             SELECT
@@ -2396,10 +2744,11 @@ impl NativeSqlMemoryStore {
               AND (? IS NULL OR habit.stage = ?)
               AND (
                 ? IS NULL
-                OR habit.description LIKE ?
-                OR habit.habit_key LIKE ?
+                OR habit.description LIKE ? ESCAPE '\'
+                OR habit.habit_key LIKE ? ESCAPE '\'
               )
-            ORDER BY habit.updated_at DESC
+              AND habit.uuid > ?
+            ORDER BY habit.uuid ASC
             LIMIT ?
             "#,
         )
@@ -2411,7 +2760,8 @@ impl NativeSqlMemoryStore {
         .bind(like_pattern.as_deref())
         .bind(like_pattern.as_deref())
         .bind(like_pattern.as_deref())
-        .bind(page_size.max(1) as i64)
+        .bind(cursor)
+        .bind(page_size + 1)
         .fetch_all(&self.pool)
         .await?;
 
@@ -2523,8 +2873,12 @@ impl NativeSqlMemoryStore {
         tenant_id: i64,
         memory_uuid: &str,
         page_size: i32,
+        cursor: Option<&str>,
+        query_text: Option<&str>,
     ) -> Result<Vec<NativeSqlRecordSourceRow>, NativeSqlStoreError> {
-        let limit = page_size.clamp(1, 100) as i64 + 1;
+        let page_size = page_size.clamp(1, 100) as i64;
+        let cursor = cursor.unwrap_or("");
+        let like_pattern = query_text.map(like_pattern);
         let rows = sqlx::query(
             r#"
             SELECT
@@ -2543,13 +2897,27 @@ impl NativeSqlMemoryStore {
              AND event.tenant_id = source.tenant_id
             WHERE source.tenant_id = ?
               AND record.uuid = ?
-            ORDER BY source.created_at DESC, source.id DESC
+              AND (
+                ? IS NULL
+                OR source.source_role LIKE ? ESCAPE '\'
+                OR event.uuid LIKE ? ESCAPE '\'
+              )
+              AND source.id < COALESCE(
+                (SELECT s2.id FROM mem_record_source s2 WHERE s2.tenant_id = ? AND s2.uuid = ? LIMIT 1),
+                9223372036854775807
+              )
+            ORDER BY source.id DESC
             LIMIT ?
             "#,
         )
         .bind(tenant_id)
         .bind(memory_uuid)
-        .bind(limit)
+        .bind(like_pattern.as_deref())
+        .bind(like_pattern.as_deref())
+        .bind(like_pattern.as_deref())
+        .bind(tenant_id)
+        .bind(cursor)
+        .bind(page_size + 1)
         .fetch_all(&self.pool)
         .await?;
 
@@ -2571,21 +2939,26 @@ impl NativeSqlMemoryStore {
         tenant_id: i64,
         action: Option<&str>,
         page_size: i32,
+        cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlAuditLogRow>, NativeSqlStoreError> {
+        let page_size = page_size.clamp(1, 100) as i64;
+        let cursor = cursor.unwrap_or("");
         let rows = sqlx::query(
             r#"
             SELECT uuid, action, resource_type, resource_id, result, created_at
             FROM mem_audit_log
             WHERE tenant_id = ?
               AND (? IS NULL OR action = ?)
-            ORDER BY created_at DESC
+              AND uuid > ?
+            ORDER BY uuid ASC
             LIMIT ?
             "#,
         )
         .bind(tenant_id)
         .bind(action)
         .bind(action)
-        .bind(page_size.max(1) as i64)
+        .bind(cursor)
+        .bind(page_size + 1)
         .fetch_all(&self.pool)
         .await?;
 
@@ -2625,7 +2998,12 @@ impl NativeSqlMemoryStore {
         .bind(scope.space_id)
         .bind(format!("space-{}", scope.space_id))
         .bind(scope.tenant_id)
-        .bind(format!("tenant-{}-space-{}", scope.tenant_id, scope.space_id))
+        .bind(
+            scope
+                .user_id
+                .map(|id| id.to_string())
+                .unwrap_or_else(|| format!("tenant-{}-space-{}", scope.tenant_id, scope.space_id)),
+        )
         .bind(now_text())
         .bind(now_text())
         .execute(&self.pool)
@@ -2967,7 +3345,7 @@ pub struct NativeSqlMemoryRecordDetail {
     pub version: i64,
 }
 
-fn record_detail_from_row(row: SqliteRow) -> NativeSqlMemoryRecordDetail {
+fn record_detail_from_row(row: AnyRow) -> NativeSqlMemoryRecordDetail {
     NativeSqlMemoryRecordDetail {
         memory_id: row.get("uuid"),
         space_id: row.get("space_id"),
@@ -3111,7 +3489,7 @@ pub struct NativeSqlContextPackRow {
     pub retrieval_trace_id: Option<i64>,
 }
 
-fn space_row_from_sql(row: SqliteRow) -> NativeSqlMemorySpaceRow {
+fn space_row_from_sql(row: AnyRow) -> NativeSqlMemorySpaceRow {
     NativeSqlMemorySpaceRow {
         space_id: row.get("id"),
         uuid: row.get("uuid"),
@@ -3157,6 +3535,12 @@ pub struct NativeSqlMemoryAuditRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NativeSqlScopedOutboxEvent {
+    pub tenant_id: i64,
+    pub outbox: NativeSqlMemoryOutboxEvent,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeSqlMemoryOutboxEvent {
     pub outbox_id: String,
     pub aggregate_type: String,
@@ -3184,6 +3568,8 @@ pub struct NativeSqlAppendOutboxEventCommand<'a> {
 pub enum NativeSqlStoreError {
     #[error("native SQL store database error: {0}")]
     Database(#[from] sqlx::Error),
+    #[error("native SQL store pool error: {0}")]
+    Pool(#[from] sdkwork_database_sqlx::PoolError),
     #[error("native SQL store JSON payload error: {0}")]
     Json(#[from] serde_json::Error),
     #[error("native SQL event append conflict for tenant {tenant_id} event {event_id}")]
@@ -3229,6 +3615,10 @@ impl NativeSqlOutboxIdempotencyState {
     }
 }
 
+fn preference_user_storage_key(user_id: Option<i64>) -> i64 {
+    user_id.unwrap_or(-1)
+}
+
 fn into_spi_outbox_event(outbox: NativeSqlMemoryOutboxEvent) -> MemoryOutboxEvent {
     MemoryOutboxEvent {
         outbox_id: outbox.outbox_id,
@@ -3243,7 +3633,7 @@ fn into_spi_outbox_event(outbox: NativeSqlMemoryOutboxEvent) -> MemoryOutboxEven
     }
 }
 
-fn candidate_from_row(row: SqliteRow) -> MemoryCandidate {
+fn candidate_from_row(row: AnyRow) -> MemoryCandidate {
     MemoryCandidate {
         candidate_id: row.get("uuid"),
         candidate_type: row.get("candidate_type"),
@@ -3259,7 +3649,7 @@ fn candidate_from_row(row: SqliteRow) -> MemoryCandidate {
     }
 }
 
-fn map_habit_row(row: SqliteRow) -> NativeSqlHabitRow {
+fn map_habit_row(row: AnyRow) -> NativeSqlHabitRow {
     NativeSqlHabitRow {
         habit_id: row.get("uuid"),
         space_id: row.get("space_id"),
@@ -3281,7 +3671,7 @@ fn map_habit_row(row: SqliteRow) -> NativeSqlHabitRow {
     }
 }
 
-fn habit_from_row(row: SqliteRow) -> MemoryHabit {
+fn habit_from_row(row: AnyRow) -> MemoryHabit {
     MemoryHabit {
         habit_id: row.get("uuid"),
         user_id: row.get("user_id"),

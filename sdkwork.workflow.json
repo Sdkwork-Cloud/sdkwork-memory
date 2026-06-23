@@ -87,9 +87,9 @@
     ],
     "package": [
       {
-        "name": "Package Memory server artifact placeholder",
+        "name": "Package Memory server release artifact",
         "shell": "pwsh",
-        "run": "cargo build --release -p sdkwork-memory-api-server"
+        "run": "node scripts/package-release-artifact.mjs"
       }
     ],
     "validate": [
@@ -101,16 +101,16 @@
     ],
     "sign": [
       {
-        "name": "Sign artifacts placeholder",
+        "name": "Generate release checksums",
         "shell": "pwsh",
-        "run": "Write-Host \"Signing policy is configured by release environment for $env:SDKWORK_PACKAGE_ID\""
+        "run": "node scripts/generate-release-sbom.mjs"
       }
     ],
     "sbom": [
       {
-        "name": "SBOM placeholder",
+        "name": "Generate SPDX SBOM",
         "shell": "pwsh",
-        "run": "Write-Host \"SBOM generation deferred until release gate enables supply-chain evidence\""
+        "run": "node scripts/generate-release-sbom.mjs"
       }
     ]
   },
@@ -128,9 +128,9 @@
     }
   ],
   "security": {
-    "artifactAttestations": false,
-    "sbomRequired": false,
-    "signingRequired": false
+    "artifactAttestations": true,
+    "sbomRequired": true,
+    "signingRequired": true
   },
   "publish": {
     "workflowArtifact": true,

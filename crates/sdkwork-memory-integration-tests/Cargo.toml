@@ -20,3 +20,4 @@ sdkwork-router-memory-open-api.workspace = true
 sdkwork-router-memory-backend-api.workspace = true
 sdkwork-web-core.workspace = true
 sdkwork-memory-api-server = { path = "../sdkwork-memory-api-server" }
+sdkwork-memory-test-support.workspace = true

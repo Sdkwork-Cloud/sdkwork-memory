@@ -23,7 +23,7 @@
     "publicExports": ["MemoryOpenApi", "MemoryAppApi", "MemoryBackendApi"],
     "runtimeEntrypoints": [],
     "sdkClients": [],
-    "sdkDependencies": [],
+    "sdkDependencies": [{ "workspace": "sdkwork-utils" }],
     "events": [],
     "configKeys": []
   },

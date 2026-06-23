@@ -473,6 +473,16 @@
               "pattern": "^[0-9]+$",
               "x-sdkwork-int64-string": true
             }
+          },
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "x-sdkwork-int64-string": true
+            }
           }
         ],
         "responses": {
@@ -565,6 +575,16 @@
           {
             "name": "memoryId",
             "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "x-sdkwork-int64-string": true
+            }
+          },
+          {
+            "name": "space_id",
+            "in": "query",
             "required": true,
             "schema": {
               "type": "string",
@@ -913,6 +933,16 @@
           {
             "name": "eventId",
             "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "x-sdkwork-int64-string": true
+            }
+          },
+          {
+            "name": "space_id",
+            "in": "query",
             "required": true,
             "schema": {
               "type": "string",
@@ -2227,6 +2257,7 @@
         "x-sdkwork-auth-mode": "dual-token",
         "x-sdkwork-audit-event": "memory.backend.index.rebuild_requested",
         "x-sdkwork-idempotent": true,
+        "x-sdkwork-rate-limit-tier": "authCritical",
         "requestBody": {
           "required": true,
           "content": {
@@ -4291,6 +4322,7 @@
         "x-sdkwork-auth-mode": "dual-token",
         "x-sdkwork-audit-event": "memory.backend.retention_job.created",
         "x-sdkwork-idempotent": true,
+        "x-sdkwork-rate-limit-tier": "authCritical",
         "requestBody": {
           "required": true,
           "content": {
@@ -4402,6 +4434,7 @@
         "x-sdkwork-auth-mode": "dual-token",
         "x-sdkwork-audit-event": "memory.backend.migration_job.created",
         "x-sdkwork-idempotent": true,
+        "x-sdkwork-rate-limit-tier": "authCritical",
         "requestBody": {
           "required": true,
           "content": {

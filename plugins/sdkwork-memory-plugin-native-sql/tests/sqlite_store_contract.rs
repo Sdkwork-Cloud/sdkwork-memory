@@ -1,7 +1,7 @@
 use sdkwork_memory_plugin_native_sql::{
     build_native_sql_candidate_store, build_native_sql_habit_store,
     build_native_sql_retrieval_trace_store, NativeSqlAppendOutboxEventCommand,
-    NativeSqlMemoryStore, NativeSqlStoreError,
+    NativeSqlCreateSpaceCommand, NativeSqlMemoryStore, NativeSqlStoreError,
 };
 use sdkwork_memory_spi::{
     AppendMemoryAuditCommand, AppendMemoryEventCommand, AppendMemoryOutboxCommand,
@@ -1314,4 +1314,121 @@ fn native_sql_manifest_exports_candidate_habit_and_retrieval_trace_builders() {
         "build_native_sql_retrieval_trace_store"
     );
     assert!(retrieval_trace.ready);
+}
+
+#[tokio::test]
+async fn sqlite_store_lists_candidates_with_cursor_pagination() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let scope = MemoryScopeContext::for_test(1, 1);
+    for candidate_id in ["cand-a", "cand-b", "cand-c"] {
+        MemoryCandidateStorePort::create(
+            &store,
+            candidate_command(scope.clone(), candidate_id),
+        )
+        .await
+        .unwrap();
+    }
+
+    let first_page = store
+        .list_candidates_for_tenant(1, Some(1), 2, None)
+        .await
+        .unwrap();
+    assert_eq!(first_page.len(), 3);
+    let next_cursor = first_page[1].candidate_id.clone();
+
+    let second_page = store
+        .list_candidates_for_tenant(1, Some(1), 2, Some(next_cursor.as_str()))
+        .await
+        .unwrap();
+    assert_eq!(second_page.len(), 1);
+    assert_eq!(second_page[0].candidate_id, "cand-c");
+}
+
+#[tokio::test]
+async fn sqlite_store_lists_spaces_with_cursor_pagination() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    for space_id in [1_i64, 2, 3] {
+        store
+            .create_space_record(
+                1,
+                space_id,
+                &NativeSqlCreateSpaceCommand {
+                    organization_id: None,
+                    owner_subject_type: "user".to_string(),
+                    owner_subject_id: format!("user-{space_id}"),
+                    space_type: "personal".to_string(),
+                    display_name: format!("Space {space_id}"),
+                    default_scope: "user".to_string(),
+                },
+            )
+            .await
+            .unwrap();
+    }
+
+    let first_page = store.list_spaces_for_tenant(1, 2, 0).await.unwrap();
+    assert_eq!(first_page.len(), 3);
+    let next_cursor = first_page[1].space_id;
+
+    let second_page = store
+        .list_spaces_for_tenant(1, 2, next_cursor)
+        .await
+        .unwrap();
+    assert_eq!(second_page.len(), 1);
+    assert_eq!(second_page[0].space_id, 3);
+}
+
+#[tokio::test]
+async fn sqlite_store_lists_record_sources_with_cursor_pagination() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let scope = MemoryScopeContext::for_test(1, 1);
+    store
+        .create_space_record(
+            1,
+            1,
+            &NativeSqlCreateSpaceCommand {
+                organization_id: None,
+                owner_subject_type: "user".to_string(),
+                owner_subject_id: "user-1".to_string(),
+                space_type: "personal".to_string(),
+                display_name: "Source pagination space".to_string(),
+                default_scope: "user".to_string(),
+            },
+        )
+        .await
+        .unwrap();
+    store
+        .create_record(&scope, "100", "user", "concise answers")
+        .await
+        .unwrap();
+    for (source_id, event_id) in [("8101", "8001"), ("8102", "8002"), ("8103", "8003")] {
+        store
+            .append_open_api_event(
+                &scope,
+                event_id,
+                "message.user",
+                "chat",
+                "2026-06-10T00:00:00Z",
+                &serde_json::json!({ "text": "seed" }),
+            )
+            .await
+            .unwrap();
+        store
+            .append_record_source_for_tenant(1, source_id, "100", event_id, "evidence", Some(0.1))
+            .await
+            .unwrap();
+    }
+
+    let first_page = store
+        .list_record_sources_for_memory(1, "100", 2, None, None)
+        .await
+        .unwrap();
+    assert_eq!(first_page.len(), 3);
+    let next_cursor = first_page[1].source_uuid.clone();
+
+    let second_page = store
+        .list_record_sources_for_memory(1, "100", 2, Some(next_cursor.as_str()), None)
+        .await
+        .unwrap();
+    assert_eq!(second_page.len(), 1);
+    assert_eq!(second_page[0].source_uuid, "8101");
 }

@@ -4,7 +4,8 @@ use axum::Router;
 use sdkwork_iam_web_adapter::IamDatabaseWebRequestContextResolver;
 use sdkwork_memory_contract::MemoryAppRequestContext;
 use sdkwork_router_memory_common::{
-    memory_web_auth_mode_from_env, MemoryWebAuthMode, ProductionFailClosedResolver,
+    memory_http_metrics, memory_web_auth_mode_from_env, with_problem_correlation, MemoryWebAuthMode,
+    ProductionFailClosedResolver,
 };
 use sdkwork_web_axum::{with_web_request_context, WebFrameworkLayer};
 use sdkwork_web_core::{
@@ -56,14 +57,20 @@ pub fn wrap_router_with_web_framework(
     resolver: DefaultWebRequestContextResolver,
     router: Router,
 ) -> Router {
-    with_web_request_context(router, build_memory_app_api_framework_layer(resolver))
+    with_web_request_context(
+        with_problem_correlation(router),
+        build_memory_app_api_framework_layer(resolver),
+    )
 }
 
 pub fn wrap_router_with_iam_database_web_framework(
     resolver: IamDatabaseWebRequestContextResolver,
     router: Router,
 ) -> Router {
-    with_web_request_context(router, build_memory_app_api_framework_layer(resolver))
+    with_web_request_context(
+        with_problem_correlation(router),
+        build_memory_app_api_framework_layer(resolver),
+    )
 }
 
 fn build_memory_app_api_framework_layer<R>(resolver: R) -> WebFrameworkLayer<R>
@@ -83,6 +90,7 @@ where
         })
         .with_route_manifest(route_manifest)
         .with_domain_injector(Arc::new(MemoryAppContextInjector))
+        .with_metrics(memory_http_metrics())
 }
 
 pub async fn wrap_router_with_web_framework_from_env(router: Router) -> Router {
@@ -91,7 +99,7 @@ pub async fn wrap_router_with_web_framework_from_env(router: Router) -> Router {
             wrap_router_with_web_framework(DefaultWebRequestContextResolver::default(), router)
         }
         MemoryWebAuthMode::ProductionFailClosed => with_web_request_context(
-            router,
+            with_problem_correlation(router),
             build_memory_app_api_framework_layer(ProductionFailClosedResolver),
         ),
         MemoryWebAuthMode::IamDatabase(resolver) => {

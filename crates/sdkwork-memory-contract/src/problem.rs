@@ -10,4 +10,8 @@ pub struct ProblemDetails {
     pub detail: Option<String>,
     pub instance: Option<String>,
     pub code: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trace_id: Option<String>,
 }

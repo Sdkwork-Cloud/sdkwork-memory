@@ -1,10 +1,19 @@
 use async_trait::async_trait;
 
+use crate::admin_dto::{
+    ListAdminResourcesQuery, MemoryAuditLogList, MemoryEvalRun, MemoryEvalRunList,
+    MemoryEvalRunRequest, MemoryImplementationProfile, MemoryImplementationProfileList,
+    MemoryImplementationProfileRequest, MemoryIndex, MemoryIndexList, MemoryIndexRequest,
+    MemoryMigrationJobRequest, MemoryProviderBindingList, MemoryProviderBindingRequest,
+    MemoryRetentionJobRequest, MemoryRetrievalProfile, MemoryRetrievalProfileList,
+    MemoryRetrievalProfileRequest,
+};
 use crate::dto::{
     ListAuditLogsQuery, ListCandidatesQuery, ListEventsQuery, ListMemoriesQuery,
     ListRetrievalTracesQuery, MemoryCandidate, MemoryCandidateList, MemoryEvent, MemoryEventList,
-    MemoryProviderHealth, MemoryRecord, MemoryRecordList, MemoryRecordPatch,
-    MemoryRetrievalTraceList,
+    MemoryExtractionRequest, MemoryLearningJob, MemoryProviderHealth, MemoryRecord,
+    MemoryRecordList, MemoryRecordPatch, MemoryRecordRequest, MemoryRetrievalTrace,
+    MemoryRetrievalTraceList, MemoryReviewRequest,
 };
 use crate::ports::{MemoryServiceError, MemoryServiceResult};
 use crate::space::{ListSpacesQuery, MemorySpace, MemorySpaceList, MemorySpaceRequest};
@@ -60,6 +69,7 @@ pub trait MemoryBackendApi: Send + Sync + 'static {
         &self,
         _context: MemoryBackendRequestContext,
         _memory_id: u64,
+        _space_id: u64,
     ) -> MemoryServiceResult<MemoryRecord> {
         backend_not_implemented!("memories.retrieve", MemoryRecord)
     }
@@ -68,6 +78,7 @@ pub trait MemoryBackendApi: Send + Sync + 'static {
         &self,
         _context: MemoryBackendRequestContext,
         _memory_id: u64,
+        _space_id: u64,
         _patch: MemoryRecordPatch,
     ) -> MemoryServiceResult<MemoryRecord> {
         backend_not_implemented!("memories.update", MemoryRecord)
@@ -77,7 +88,7 @@ pub trait MemoryBackendApi: Send + Sync + 'static {
         &self,
         _context: MemoryBackendRequestContext,
         _memory_id: u64,
-        _request: serde_json::Value,
+        _request: MemoryRecordRequest,
     ) -> MemoryServiceResult<MemoryRecord> {
         backend_not_implemented!("memories.supersede", MemoryRecord)
     }
@@ -94,6 +105,7 @@ pub trait MemoryBackendApi: Send + Sync + 'static {
         &self,
         _context: MemoryBackendRequestContext,
         _event_id: u64,
+        _space_id: u64,
     ) -> MemoryServiceResult<MemoryEvent> {
         backend_not_implemented!("events.retrieve", MemoryEvent)
     }
@@ -110,7 +122,7 @@ pub trait MemoryBackendApi: Send + Sync + 'static {
         &self,
         _context: MemoryBackendRequestContext,
         _candidate_id: u64,
-        _request: serde_json::Value,
+        _request: MemoryReviewRequest,
     ) -> MemoryServiceResult<MemoryCandidate> {
         backend_not_implemented!("candidates.approve", MemoryCandidate)
     }
@@ -119,7 +131,7 @@ pub trait MemoryBackendApi: Send + Sync + 'static {
         &self,
         _context: MemoryBackendRequestContext,
         _candidate_id: u64,
-        _request: serde_json::Value,
+        _request: MemoryReviewRequest,
     ) -> MemoryServiceResult<MemoryCandidate> {
         backend_not_implemented!("candidates.reject", MemoryCandidate)
     }
@@ -127,158 +139,157 @@ pub trait MemoryBackendApi: Send + Sync + 'static {
     async fn create_extraction_job(
         &self,
         _context: MemoryBackendRequestContext,
-        _request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("extractionJobs.create", serde_json::Value)
+        _request: MemoryExtractionRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        backend_not_implemented!("extractionJobs.create", MemoryLearningJob)
     }
 
     async fn retrieve_extraction_job(
         &self,
         _context: MemoryBackendRequestContext,
         _job_id: u64,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("extractionJobs.retrieve", serde_json::Value)
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        backend_not_implemented!("extractionJobs.retrieve", MemoryLearningJob)
     }
 
     async fn create_consolidation_job(
         &self,
         _context: MemoryBackendRequestContext,
-        _request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("consolidationJobs.create", serde_json::Value)
+        _request: MemoryExtractionRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        backend_not_implemented!("consolidationJobs.create", MemoryLearningJob)
     }
 
     async fn list_indexes(
         &self,
         _context: MemoryBackendRequestContext,
-        _query: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("indexes.list", serde_json::Value)
+        _query: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryIndexList> {
+        backend_not_implemented!("indexes.list", MemoryIndexList)
     }
 
     async fn create_index(
         &self,
         _context: MemoryBackendRequestContext,
-        _request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("indexes.create", serde_json::Value)
+        _request: MemoryIndexRequest,
+    ) -> MemoryServiceResult<MemoryIndex> {
+        backend_not_implemented!("indexes.create", MemoryIndex)
     }
 
     async fn retrieve_index(
         &self,
         _context: MemoryBackendRequestContext,
         _index_id: u64,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("indexes.retrieve", serde_json::Value)
+    ) -> MemoryServiceResult<MemoryIndex> {
+        backend_not_implemented!("indexes.retrieve", MemoryIndex)
     }
 
     async fn update_index(
         &self,
         _context: MemoryBackendRequestContext,
         _index_id: u64,
-        _request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("indexes.update", serde_json::Value)
+        _request: MemoryIndexRequest,
+    ) -> MemoryServiceResult<MemoryIndex> {
+        backend_not_implemented!("indexes.update", MemoryIndex)
     }
 
     async fn rebuild_index(
         &self,
         _context: MemoryBackendRequestContext,
         _index_id: u64,
-        _request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("indexes.rebuild", serde_json::Value)
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        backend_not_implemented!("indexes.rebuild", MemoryLearningJob)
     }
 
     async fn list_retrieval_profiles(
         &self,
         _context: MemoryBackendRequestContext,
-        _query: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("retrievalProfiles.list", serde_json::Value)
+        _query: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryRetrievalProfileList> {
+        backend_not_implemented!("retrievalProfiles.list", MemoryRetrievalProfileList)
     }
 
     async fn create_retrieval_profile(
         &self,
         _context: MemoryBackendRequestContext,
-        _request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("retrievalProfiles.create", serde_json::Value)
+        _request: MemoryRetrievalProfileRequest,
+    ) -> MemoryServiceResult<MemoryRetrievalProfile> {
+        backend_not_implemented!("retrievalProfiles.create", MemoryRetrievalProfile)
     }
 
     async fn retrieve_retrieval_profile(
         &self,
         _context: MemoryBackendRequestContext,
         _profile_id: u64,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("retrievalProfiles.retrieve", serde_json::Value)
+    ) -> MemoryServiceResult<MemoryRetrievalProfile> {
+        backend_not_implemented!("retrievalProfiles.retrieve", MemoryRetrievalProfile)
     }
 
     async fn update_retrieval_profile(
         &self,
         _context: MemoryBackendRequestContext,
         _profile_id: u64,
-        _request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("retrievalProfiles.update", serde_json::Value)
+        _request: MemoryRetrievalProfileRequest,
+    ) -> MemoryServiceResult<MemoryRetrievalProfile> {
+        backend_not_implemented!("retrievalProfiles.update", MemoryRetrievalProfile)
     }
 
     async fn list_implementation_profiles(
         &self,
         _context: MemoryBackendRequestContext,
-        _query: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("implementationProfiles.list", serde_json::Value)
+        _query: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryImplementationProfileList> {
+        backend_not_implemented!("implementationProfiles.list", MemoryImplementationProfileList)
     }
 
     async fn create_implementation_profile(
         &self,
         _context: MemoryBackendRequestContext,
-        _request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("implementationProfiles.create", serde_json::Value)
+        _request: MemoryImplementationProfileRequest,
+    ) -> MemoryServiceResult<MemoryImplementationProfile> {
+        backend_not_implemented!("implementationProfiles.create", MemoryImplementationProfile)
     }
 
     async fn retrieve_implementation_profile(
         &self,
         _context: MemoryBackendRequestContext,
         _profile_id: u64,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("implementationProfiles.retrieve", serde_json::Value)
+    ) -> MemoryServiceResult<MemoryImplementationProfile> {
+        backend_not_implemented!("implementationProfiles.retrieve", MemoryImplementationProfile)
     }
 
     async fn update_implementation_profile(
         &self,
         _context: MemoryBackendRequestContext,
         _profile_id: u64,
-        _request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("implementationProfiles.update", serde_json::Value)
+        _request: MemoryImplementationProfileRequest,
+    ) -> MemoryServiceResult<MemoryImplementationProfile> {
+        backend_not_implemented!("implementationProfiles.update", MemoryImplementationProfile)
     }
 
     async fn list_provider_bindings(
         &self,
         _context: MemoryBackendRequestContext,
-        _query: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("providerBindings.list", serde_json::Value)
+        _query: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryProviderBindingList> {
+        backend_not_implemented!("providerBindings.list", MemoryProviderBindingList)
     }
 
     async fn create_provider_binding(
         &self,
         _context: MemoryBackendRequestContext,
-        _request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("providerBindings.create", serde_json::Value)
+        _request: MemoryProviderBindingRequest,
+    ) -> MemoryServiceResult<crate::dto::MemoryProviderBinding> {
+        backend_not_implemented!("providerBindings.create", crate::dto::MemoryProviderBinding)
     }
 
     async fn update_provider_binding(
         &self,
         _context: MemoryBackendRequestContext,
         _provider_binding_id: u64,
-        _request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("providerBindings.update", serde_json::Value)
+        _request: MemoryProviderBindingRequest,
+    ) -> MemoryServiceResult<crate::dto::MemoryProviderBinding> {
+        backend_not_implemented!("providerBindings.update", crate::dto::MemoryProviderBinding)
     }
 
     async fn retrieve_provider_health(
@@ -291,25 +302,25 @@ pub trait MemoryBackendApi: Send + Sync + 'static {
     async fn list_eval_runs(
         &self,
         _context: MemoryBackendRequestContext,
-        _query: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("evalRuns.list", serde_json::Value)
+        _query: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryEvalRunList> {
+        backend_not_implemented!("evalRuns.list", MemoryEvalRunList)
     }
 
     async fn create_eval_run(
         &self,
         _context: MemoryBackendRequestContext,
-        _request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("evalRuns.create", serde_json::Value)
+        _request: MemoryEvalRunRequest,
+    ) -> MemoryServiceResult<MemoryEvalRun> {
+        backend_not_implemented!("evalRuns.create", MemoryEvalRun)
     }
 
     async fn retrieve_eval_run(
         &self,
         _context: MemoryBackendRequestContext,
         _eval_run_id: u64,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("evalRuns.retrieve", serde_json::Value)
+    ) -> MemoryServiceResult<MemoryEvalRun> {
+        backend_not_implemented!("evalRuns.retrieve", MemoryEvalRun)
     }
 
     async fn list_retrieval_traces(
@@ -324,39 +335,39 @@ pub trait MemoryBackendApi: Send + Sync + 'static {
         &self,
         _context: MemoryBackendRequestContext,
         _trace_id: u64,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("retrievalTraces.retrieve", serde_json::Value)
+    ) -> MemoryServiceResult<MemoryRetrievalTrace> {
+        backend_not_implemented!("retrievalTraces.retrieve", MemoryRetrievalTrace)
     }
 
     async fn list_audit_logs(
         &self,
         _context: MemoryBackendRequestContext,
         _query: ListAuditLogsQuery,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("auditLogs.list", serde_json::Value)
+    ) -> MemoryServiceResult<MemoryAuditLogList> {
+        backend_not_implemented!("auditLogs.list", MemoryAuditLogList)
     }
 
     async fn create_retention_job(
         &self,
         _context: MemoryBackendRequestContext,
-        _request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("retentionJobs.create", serde_json::Value)
+        _request: MemoryRetentionJobRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        backend_not_implemented!("retentionJobs.create", MemoryLearningJob)
     }
 
     async fn create_migration_job(
         &self,
         _context: MemoryBackendRequestContext,
-        _request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("migrationJobs.create", serde_json::Value)
+        _request: MemoryMigrationJobRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        backend_not_implemented!("migrationJobs.create", MemoryLearningJob)
     }
 
     async fn retrieve_migration_job(
         &self,
         _context: MemoryBackendRequestContext,
         _migration_job_id: u64,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        backend_not_implemented!("migrationJobs.retrieve", serde_json::Value)
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        backend_not_implemented!("migrationJobs.retrieve", MemoryLearningJob)
     }
 }

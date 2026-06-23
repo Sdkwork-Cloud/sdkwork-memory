@@ -11,9 +11,11 @@ path = "src/main.rs"
 axum.workspace = true
 tokio.workspace = true
 tracing.workspace = true
-tracing-subscriber.workspace = true
+tracing-subscriber = { workspace = true, features = ["env-filter", "json"] }
 sdkwork-router-memory-open-api.workspace = true
 sdkwork-router-memory-app-api.workspace = true
 sdkwork-router-memory-backend-api.workspace = true
+sdkwork-router-memory-common.workspace = true
 sdkwork-intelligence-memory-repository-sqlx.workspace = true
 sdkwork-intelligence-memory-service.workspace = true
+sdkwork-memory-database-host.workspace = true

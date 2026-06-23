@@ -2,6 +2,7 @@
 
 mod bootstrap;
 pub mod db;
+pub mod runtime;
 
 // DATABASE_SPEC.md section 34: repository-sqlx anchors the shared repository crate.
 use sdkwork_database_repository as _;
@@ -12,6 +13,10 @@ pub use bootstrap::{
     MemoryDataPlane,
 };
 pub use db::{
-    connect_memory_pool_from_env, install_sqlite_schema, open_native_sql_store_from_pool,
+    connect_memory_pool_from_env, open_native_sql_store_from_pool,
     MemoryDatabasePool,
+};
+pub use runtime::{
+    bootstrap_memory_plugin_registry, bootstrap_memory_runtime_from_env,
+    resolve_native_sql_phase1_profile, validate_memory_plugin_registry, MemoryRuntime,
 };

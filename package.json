@@ -10,12 +10,13 @@
   "scripts": {
     "dev": "node scripts/memory-dev.mjs",
     "build": "cargo build --workspace --release",
-    "test": "cargo test --workspace && node --test tests/contracts/route_manifest_openapi_parity_test.mjs && node --test tests/contracts/openapi_phase1_contract_test.mjs && node --test tests/contracts/schema_registry_phase1_contract_test.mjs && node --test tests/contract/database-framework.contract.test.mjs && node --test sdks/test/verify-sdk-ownership-boundaries.test.mjs",
-    "check": "pnpm check:architecture-alignment && pnpm check:pnpm-script-standard && pnpm check:agent-workflow-standard && pnpm topology:validate && pnpm db:validate",
+    "test": "node scripts/cargo-test-workspace.mjs && node --test tests/contracts/route_manifest_openapi_parity_test.mjs && node --test tests/contracts/openapi_phase1_contract_test.mjs && node --test tests/contracts/schema_registry_phase1_contract_test.mjs && node --test tests/contracts/native_sql_migration_contract_test.mjs && node --test tests/contracts/runtime_plugin_layout_contract_test.mjs && node --test tests/contracts/open_api_prefix_contract_test.mjs && node --test tests/contracts/rust_spi_boundary_contract_test.mjs && node --test tests/contracts/spi_design_contract_test.mjs && node --test tests/contract/database-framework.contract.test.mjs && node --test sdks/test/verify-sdk-ownership-boundaries.test.mjs",
+    "check": "pnpm check:architecture-alignment && pnpm check:release-readiness && pnpm check:pnpm-script-standard && pnpm check:agent-workflow-standard && pnpm topology:validate && pnpm db:validate",
     "check:architecture-alignment": "node tools/check_sdkwork_memory_architecture_alignment.mjs",
+    "check:release-readiness": "node tools/check_sdkwork_memory_release_readiness.mjs",
     "check:pnpm-script-standard": "node ../sdkwork-specs/tools/check-pnpm-script-standard.mjs --root . --product-prefix memory,mem",
     "check:agent-workflow-standard": "node ../sdkwork-specs/tools/check-agent-workflow-standard.mjs --root .",
-    "verify": "node tools/materialize_phase1_contracts.mjs && node sdks/standardize-memory-sdk-family.mjs && powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1 && powershell -ExecutionPolicy Bypass -File tools/verify_sdkwork_structure.ps1 && powershell -ExecutionPolicy Bypass -File tools/verify_openapi_operation_ids.ps1 && cargo test --workspace && node --test tests/contracts/route_manifest_openapi_parity_test.mjs && node --test tests/contracts/openapi_phase1_contract_test.mjs && node --test tests/contracts/schema_registry_phase1_contract_test.mjs && node --test tests/contract/database-framework.contract.test.mjs && node --test sdks/test/verify-sdk-ownership-boundaries.test.mjs && pnpm check && node tools/check_sdkwork_memory_architecture_alignment.mjs",
+    "verify": "node tools/materialize_phase1_contracts.mjs && node sdks/standardize-memory-sdk-family.mjs && powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1 && powershell -ExecutionPolicy Bypass -File tools/verify_sdkwork_structure.ps1 && powershell -ExecutionPolicy Bypass -File tools/verify_openapi_operation_ids.ps1 && node scripts/cargo-test-workspace.mjs && node --test tests/contracts/route_manifest_openapi_parity_test.mjs && node --test tests/contracts/openapi_phase1_contract_test.mjs && node --test tests/contracts/schema_registry_phase1_contract_test.mjs && node --test tests/contracts/native_sql_migration_contract_test.mjs && node --test tests/contracts/runtime_plugin_layout_contract_test.mjs && node --test tests/contracts/open_api_prefix_contract_test.mjs && node --test tests/contracts/rust_spi_boundary_contract_test.mjs && node --test tests/contracts/spi_design_contract_test.mjs && node --test tests/contract/database-framework.contract.test.mjs && node --test sdks/test/verify-sdk-ownership-boundaries.test.mjs && pnpm check && node tools/check_sdkwork_memory_architecture_alignment.mjs",
     "clean": "cargo clean",
     "api:materialize": "node tools/materialize_phase1_contracts.mjs",
     "api:check": "powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1",
@@ -32,6 +33,10 @@
     "db:drift": "cargo run --manifest-path ../sdkwork-database/Cargo.toml -p sdkwork-database-cli -- --app-root . drift",
     "db:drift:check": "cargo run --manifest-path ../sdkwork-database/Cargo.toml -p sdkwork-database-cli -- --app-root . drift-check",
     "db:bootstrap": "cargo run --manifest-path ../sdkwork-database/Cargo.toml -p sdkwork-database-cli -- --app-root . bootstrap",
+    "release:sbom": "node scripts/generate-release-sbom.mjs",
+    "release:evidence": "cargo build --release -p sdkwork-memory-api-server && node scripts/generate-release-sbom.mjs",
+    "release:package": "node scripts/package-release-artifact.mjs",
+    "release:readiness": "node tools/check_sdkwork_memory_release_readiness.mjs",
     "test:contract:database": "node ../sdkwork-specs/tools/check-database-framework-standard.mjs --root ."
   }
 }

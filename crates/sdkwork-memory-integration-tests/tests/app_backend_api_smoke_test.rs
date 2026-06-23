@@ -10,15 +10,14 @@ use sdkwork_router_memory_backend_api::{
     build_router_with_backend_api,
     wrap_router_with_iam_database_web_framework as wrap_backend_router,
 };
+use sdkwork_memory_test_support::web_auth::{
+    lock_integration_test_env, memory_access_token, memory_auth_token_bearer,
+};
 use tower::util::ServiceExt;
-
-const DEV_AUTH_TOKEN: &str =
-    "Bearer tenant_id=1001;user_id=2001;session_id=s-1;app_id=sdkwork-memory;auth_level=password";
-const DEV_ACCESS_TOKEN: &str =
-    "tenant_id=1001;user_id=2001;session_id=s-1;app_id=sdkwork-memory;environment=dev;deployment_mode=saas";
 
 #[tokio::test]
 async fn app_api_rejects_unauthenticated_requests() {
+    let _env = lock_integration_test_env();
     let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
     let app = wrap_router_with_iam_database_web_framework(
         IamDatabaseWebRequestContextResolver::new(None),
@@ -41,6 +40,7 @@ async fn app_api_rejects_unauthenticated_requests() {
 
 #[tokio::test]
 async fn app_api_rejects_auth_token_without_access_token() {
+    let _env = lock_integration_test_env();
     let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
     let app = wrap_router_with_iam_database_web_framework(
         IamDatabaseWebRequestContextResolver::new(None),
@@ -52,7 +52,7 @@ async fn app_api_rejects_auth_token_without_access_token() {
             Request::builder()
                 .method("GET")
                 .uri("/app/v3/api/memory/learning_settings")
-                .header("Authorization", DEV_AUTH_TOKEN)
+                .header("Authorization", memory_auth_token_bearer("2001"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -64,6 +64,7 @@ async fn app_api_rejects_auth_token_without_access_token() {
 
 #[tokio::test]
 async fn app_api_accepts_dual_token_context() {
+    let _env = lock_integration_test_env();
     let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
     let app = wrap_router_with_iam_database_web_framework(
         IamDatabaseWebRequestContextResolver::new(None),
@@ -75,8 +76,8 @@ async fn app_api_accepts_dual_token_context() {
             Request::builder()
                 .method("GET")
                 .uri("/app/v3/api/memory/learning_settings")
-                .header("Authorization", DEV_AUTH_TOKEN)
-                .header("Access-Token", DEV_ACCESS_TOKEN)
+                .header("Authorization", memory_auth_token_bearer("2001"))
+                .header("Access-Token", memory_access_token("2001"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -88,6 +89,7 @@ async fn app_api_accepts_dual_token_context() {
 
 #[tokio::test]
 async fn backend_api_rejects_unauthenticated_requests() {
+    let _env = lock_integration_test_env();
     let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
     let app = wrap_backend_router(
         IamDatabaseWebRequestContextResolver::new(None),
@@ -110,6 +112,7 @@ async fn backend_api_rejects_unauthenticated_requests() {
 
 #[tokio::test]
 async fn backend_api_accepts_dual_token_context() {
+    let _env = lock_integration_test_env();
     let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
     let app = wrap_backend_router(
         IamDatabaseWebRequestContextResolver::new(None),
@@ -121,8 +124,8 @@ async fn backend_api_accepts_dual_token_context() {
             Request::builder()
                 .method("GET")
                 .uri("/backend/v3/api/memory/provider_health")
-                .header("Authorization", DEV_AUTH_TOKEN)
-                .header("Access-Token", DEV_ACCESS_TOKEN)
+                .header("Authorization", memory_auth_token_bearer("2001"))
+                .header("Access-Token", memory_access_token("2001"))
                 .body(Body::empty())
                 .unwrap(),
         )

@@ -6,37 +6,39 @@ use sdkwork_memory_plugin_native_sql::NativeSqlMemoryStore;
 use sdkwork_router_memory_backend_api::{
     build_router_with_backend_api, wrap_router_with_iam_database_web_framework,
 };
+use sdkwork_memory_test_support::web_auth::{
+    lock_integration_test_env, memory_access_token, memory_auth_token_bearer,
+    MEMORY_TEST_IDEMPOTENCY_KEY,
+};
 use serde_json::json;
 use tower::util::ServiceExt;
-
-const DEV_AUTH_TOKEN: &str =
-    "Bearer tenant_id=1001;user_id=9001;session_id=s-1;app_id=sdkwork-memory;auth_level=password";
-const DEV_ACCESS_TOKEN: &str =
-    "tenant_id=1001;user_id=9001;session_id=s-1;app_id=sdkwork-memory;environment=dev;deployment_mode=saas";
 
 fn authed_get(uri: &str) -> Request<Body> {
     Request::builder()
         .method("GET")
         .uri(uri)
-        .header("Authorization", DEV_AUTH_TOKEN)
-        .header("Access-Token", DEV_ACCESS_TOKEN)
+        .header("Authorization", memory_auth_token_bearer("9001"))
+        .header("Access-Token", memory_access_token("9001"))
         .body(Body::empty())
         .unwrap()
 }
 
 fn authed_json(method: &str, uri: &str, body: serde_json::Value) -> Request<Body> {
+    let idempotency_key = format!("{MEMORY_TEST_IDEMPOTENCY_KEY}:{method}:{uri}");
     Request::builder()
         .method(method)
         .uri(uri)
         .header("content-type", "application/json")
-        .header("Authorization", DEV_AUTH_TOKEN)
-        .header("Access-Token", DEV_ACCESS_TOKEN)
+        .header("Authorization", memory_auth_token_bearer("9001"))
+        .header("Access-Token", memory_access_token("9001"))
+        .header("Idempotency-Key", idempotency_key)
         .body(Body::from(body.to_string()))
         .unwrap()
 }
 
 #[tokio::test]
 async fn backend_api_indexes_and_retrieval_profiles_return_phase1_defaults() {
+    let _env = lock_integration_test_env();
     let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
     let app = wrap_router_with_iam_database_web_framework(
         IamDatabaseWebRequestContextResolver::new(None),
@@ -65,6 +67,7 @@ async fn backend_api_indexes_and_retrieval_profiles_return_phase1_defaults() {
 
 #[tokio::test]
 async fn backend_api_migration_job_round_trip_via_dual_token() {
+    let _env = lock_integration_test_env();
     let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
     let app = wrap_router_with_iam_database_web_framework(
         IamDatabaseWebRequestContextResolver::new(None),
@@ -77,7 +80,9 @@ async fn backend_api_migration_job_round_trip_via_dual_token() {
             "POST",
             "/backend/v3/api/memory/migration_jobs",
             json!({
-                "targetImplementationKind": "native_sql",
+                "sourceImplementationProfileId": "1",
+                "targetImplementationProfileId": "1",
+                "mode": "shadow",
                 "dryRun": true
             }),
         ))
@@ -102,6 +107,7 @@ async fn backend_api_migration_job_round_trip_via_dual_token() {
 
 #[tokio::test]
 async fn backend_api_admin_config_persists_in_sql_tables() {
+    let _env = lock_integration_test_env();
     let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
     let app = wrap_router_with_iam_database_web_framework(
         IamDatabaseWebRequestContextResolver::new(None),
@@ -115,7 +121,10 @@ async fn backend_api_admin_config_persists_in_sql_tables() {
         .unwrap();
     assert_eq!(indexes.status(), StatusCode::OK);
 
-    let index_rows = store.list_mem_indexes_for_tenant(1001, 20).await.unwrap();
+    let index_rows = store
+        .list_mem_indexes_for_tenant(1001, None, 20, None)
+        .await
+        .unwrap();
     assert!(!index_rows.is_empty());
     assert_eq!(index_rows[0].index_kind, "keyword");
 
@@ -143,6 +152,59 @@ async fn backend_api_admin_config_persists_in_sql_tables() {
         .expect("eval run should exist in mem_eval_run");
     assert_eq!(eval_row.eval_type, "retrieval");
 
+    let binding = app
+        .clone()
+        .oneshot(authed_json(
+            "POST",
+            "/backend/v3/api/memory/provider_bindings",
+            json!({
+                "providerKind": "memory",
+                "providerCode": "native_sql",
+                "displayName": "Native SQL Binding",
+                "endpointRef": "providers/native-sql",
+                "capabilities": { "keyword": true },
+                "config": { "timeoutMs": 5000 }
+            }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(binding.status(), StatusCode::CREATED);
+    let binding_body = to_bytes(binding.into_body(), usize::MAX).await.unwrap();
+    let binding_json: serde_json::Value = serde_json::from_slice(&binding_body).unwrap();
+    assert_eq!(binding_json["capabilities"]["keyword"], true);
+    assert_eq!(binding_json["endpointRef"], "providers/native-sql");
+    assert_eq!(binding_json["config"]["timeoutMs"], 5000);
+
+    let binding_id = binding_json["providerBindingId"].as_str().unwrap();
+    let binding_row = store
+        .retrieve_mem_provider_binding_for_tenant(1001, binding_id)
+        .await
+        .unwrap()
+        .expect("provider binding should exist in mem_provider_binding");
+    assert_eq!(binding_row.endpoint_ref.as_deref(), Some("providers/native-sql"));
+    assert!(binding_row.config_json.is_some());
+
+    let profile = app
+        .clone()
+        .oneshot(authed_json(
+            "POST",
+            "/backend/v3/api/memory/retrieval_profiles",
+            json!({
+                "name": "fusion-profile",
+                "strategy": "hybrid",
+                "retrievers": { "keyword": { "weight": 0.6 }, "vector": { "weight": 0.4 } },
+                "fusionPolicy": { "mode": "rrf" },
+                "topK": 8,
+                "contextBudgetTokens": 4096
+            }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(profile.status(), StatusCode::CREATED);
+    let profile_body = to_bytes(profile.into_body(), usize::MAX).await.unwrap();
+    let profile_json: serde_json::Value = serde_json::from_slice(&profile_body).unwrap();
+    assert_eq!(profile_json["fusionPolicy"]["mode"], "rrf");
+
     let audit_config = store
         .retrieve_admin_config_entity(1001, "eval_run", eval_run_id)
         .await
@@ -151,4 +213,69 @@ async fn backend_api_admin_config_persists_in_sql_tables() {
         audit_config.is_none(),
         "table-backed admin entities must not use mem_audit_log admin.config.save"
     );
+}
+
+#[tokio::test]
+async fn backend_api_governance_jobs_consolidation_and_retention_succeed() {
+    use sdkwork_memory_spi::MemoryScopeContext;
+
+    let _env = lock_integration_test_env();
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let scope = MemoryScopeContext::for_test(1001, 1);
+    store
+        .create_record(&scope, "rec-dup-1", "preference", "duplicate canonical text")
+        .await
+        .unwrap();
+    store
+        .create_record(&scope, "rec-dup-2", "preference", "duplicate canonical text")
+        .await
+        .unwrap();
+
+    let app = wrap_router_with_iam_database_web_framework(
+        IamDatabaseWebRequestContextResolver::new(None),
+        build_router_with_backend_api(OpenMemoryService::new(store)),
+    );
+
+    let consolidation = app
+        .clone()
+        .oneshot(authed_json(
+            "POST",
+            "/backend/v3/api/memory/consolidation_jobs",
+            json!({
+                "spaceId": "1",
+                "inputEvents": []
+            }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(consolidation.status(), StatusCode::CREATED);
+    let consolidation_body = to_bytes(consolidation.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let consolidation_json: serde_json::Value =
+        serde_json::from_slice(&consolidation_body).unwrap();
+    assert_eq!(consolidation_json["state"], "succeeded");
+    assert!(
+        consolidation_json["result"]["mergedDuplicates"]
+            .as_u64()
+            .unwrap_or(0)
+            >= 1
+    );
+
+    let retention = app
+        .oneshot(authed_json(
+            "POST",
+            "/backend/v3/api/memory/retention_jobs",
+            json!({
+                "scope": "space",
+                "spaceId": "1",
+                "dryRun": true
+            }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(retention.status(), StatusCode::CREATED);
+    let retention_body = to_bytes(retention.into_body(), usize::MAX).await.unwrap();
+    let retention_json: serde_json::Value = serde_json::from_slice(&retention_body).unwrap();
+    assert_eq!(retention_json["state"], "succeeded");
 }

@@ -255,7 +255,8 @@
         "apiAuthority": "sdkwork-memory.app"
       },
       "requestContext": "WebRequestContext",
-      "apiSurface": "app-api"
+      "apiSurface": "app-api",
+      "rateLimitTier": "authCritical"
     },
     {
       "method": "GET",
@@ -299,7 +300,8 @@
         "apiAuthority": "sdkwork-memory.app"
       },
       "requestContext": "WebRequestContext",
-      "apiSurface": "app-api"
+      "apiSurface": "app-api",
+      "rateLimitTier": "authCritical"
     },
     {
       "method": "GET",
@@ -673,7 +675,8 @@
         "apiAuthority": "sdkwork-memory.app"
       },
       "requestContext": "WebRequestContext",
-      "apiSurface": "app-api"
+      "apiSurface": "app-api",
+      "rateLimitTier": "authCritical"
     },
     {
       "method": "GET",

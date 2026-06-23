@@ -1,27 +1,47 @@
 use async_trait::async_trait;
 use sdkwork_memory_contract::ListSpacesQuery;
 use sdkwork_memory_contract::{
-    ListAuditLogsQuery, ListCandidatesQuery, ListEventsQuery, ListHabitsQuery, ListMemoriesQuery,
-    ListRetrievalTracesQuery, MemoryAppApi, MemoryAppRequestContext, MemoryBackendApi,
-    MemoryBackendRequestContext, MemoryCandidate, MemoryCandidateList, MemoryEventList,
-    MemoryExportJob, MemoryExportRequest, MemoryExtractionRequest, MemoryForgetJob,
-    MemoryForgetRequest, MemoryHabit, MemoryHabitList, MemoryHabitRequest, MemoryLearningJob,
-    MemoryLearningSettings, MemoryLearningSettingsPatch, MemoryOpenApi, MemoryPageInfo,
-    MemoryProviderHealth, MemoryRecordList, MemoryRecordSource, MemoryRecordSourceList,
-    MemoryRetrievalTrace, MemoryRetrievalTraceList, MemoryReviewRequest, MemoryServiceError,
-    MemoryServiceResult, MemorySpace, MemorySpaceList, MemorySpaceRequest,
+    ListAdminResourcesQuery, ListAuditLogsQuery, ListCandidatesQuery, ListEventsQuery,
+    ListHabitsQuery, ListMemoriesQuery, ListMemorySourcesQuery, ListRetrievalTracesQuery, MemoryAppApi,
+    MemoryAppRequestContext, MemoryAuditLog, MemoryAuditLogList, MemoryBackendApi,
+    MemoryBackendRequestContext, MemoryCandidate, MemoryCandidateList, MemoryEvalRun,
+    MemoryEvalRunList, MemoryEvalRunRequest, MemoryEventList, MemoryExportJob,
+    MemoryExportRequest, MemoryExtractionRequest, MemoryForgetJob, MemoryForgetRequest,
+    MemoryHabit, MemoryHabitList, MemoryHabitRequest, MemoryImplementationProfile,
+    MemoryImplementationProfileList, MemoryImplementationProfileRequest, MemoryIndex,
+    MemoryIndexList, MemoryIndexRequest, MemoryLearningJob, MemoryLearningSettings,
+    MemoryLearningSettingsPatch, MemoryMigrationJobRequest, MemoryOpenApi, MemoryPageInfo,
+    MemoryProviderBinding, MemoryProviderBindingList, MemoryProviderBindingRequest,
+    MemoryProviderHealth, MemoryRecordList, MemoryRecordRequest, MemoryRecordSource,
+    MemoryRecordSourceList, MemoryRetentionJobRequest, MemoryRetrievalProfile,
+    MemoryRetrievalProfileList, MemoryRetrievalProfileRequest, MemoryRetrievalTrace,
+    MemoryRetrievalTraceList, MemoryReviewRequest, MemoryServiceError, MemoryServiceResult,
+    MemorySpace, MemorySpaceList, MemorySpaceRequest,
 };
 use sdkwork_memory_plugin_native_sql::{
-    NativeSqlAuditLogRow, NativeSqlCandidateRow, NativeSqlCreateSpaceCommand, NativeSqlHabitRow,
-    NativeSqlMemorySpaceRow, NativeSqlRecordSourceRow, NativeSqlRetrievalTraceSummaryRow,
+    ExportCollectedPayload, NativeSqlAuditLogRow, NativeSqlCandidateRow, NativeSqlCreateSpaceCommand,
+    NativeSqlHabitRow, NativeSqlMemorySpaceRow, NativeSqlRecordSourceRow,
+    NativeSqlRetrievalTraceSummaryRow,
 };
 use sdkwork_memory_spi::{
     DecayMemoryHabitCommand, MemoryScopeContext, PromoteMemoryHabitCommand,
     RejectMemoryCandidateCommand, UpsertMemoryHabitCommand,
 };
 
+use tracing::info;
+
 use crate::open_api::OpenMemoryService;
 use crate::platform;
+
+const LEARNING_SETTINGS_KEY: &str = "learning_settings";
+
+fn default_learning_settings() -> MemoryLearningSettings {
+    MemoryLearningSettings {
+        auto_promote_candidates: false,
+        habit_learning_enabled: true,
+        updated_at: platform::current_timestamp(),
+    }
+}
 
 impl OpenMemoryService {
     pub(crate) fn map_space(row: NativeSqlMemorySpaceRow) -> MemoryServiceResult<MemorySpace> {
@@ -198,6 +218,45 @@ impl OpenMemoryService {
             MemoryServiceError::storage(format!("governance job metadata decode failed: {error}"))
         })
     }
+
+    fn encode_export_payload(
+        format: &str,
+        payload: &ExportCollectedPayload,
+    ) -> MemoryServiceResult<serde_json::Value> {
+        match format {
+            "json" => serde_json::to_value(payload).map_err(|error| {
+                MemoryServiceError::storage(format!("export encode failed: {error}"))
+            }),
+            "jsonl" => {
+                let mut lines = Vec::new();
+                for record in &payload.records {
+                    lines.push(serde_json::to_string(record).map_err(|error| {
+                        MemoryServiceError::storage(format!("export jsonl encode failed: {error}"))
+                    })?);
+                }
+                for event in &payload.events {
+                    lines.push(serde_json::to_string(event).map_err(|error| {
+                        MemoryServiceError::storage(format!("export jsonl encode failed: {error}"))
+                    })?);
+                }
+                Ok(serde_json::Value::String(lines.join("\n")))
+            }
+            "markdown" => {
+                let mut body = String::from("# Memory Export\n\n");
+                for record in &payload.records {
+                    let text = record
+                        .get("canonicalText")
+                        .and_then(|value| value.as_str())
+                        .unwrap_or("");
+                    body.push_str(&format!("- {text}\n"));
+                }
+                Ok(serde_json::Value::String(body))
+            }
+            other => Err(MemoryServiceError::validation(format!(
+                "unsupported export format: {other}"
+            ))),
+        }
+    }
 }
 
 #[async_trait]
@@ -207,22 +266,30 @@ impl MemoryAppApi for OpenMemoryService {
         context: MemoryAppRequestContext,
         query: ListSpacesQuery,
     ) -> MemoryServiceResult<MemorySpaceList> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let page_size = query.page_size.unwrap_or(20);
+        let cursor_space_id = query
+            .cursor
+            .as_deref()
+            .and_then(|value| value.parse::<i64>().ok())
+            .unwrap_or(0);
         let rows = self
             .store
-            .list_spaces_for_tenant(tenant_id, page_size)
+            .list_spaces_for_tenant(tenant_id, page_size, cursor_space_id)
             .await
             .map_err(OpenMemoryService::map_store_error)?;
+        let has_more = rows.len() > page_size as usize;
         let items = rows
             .into_iter()
+            .take(page_size as usize)
             .map(Self::map_space)
             .collect::<Result<Vec<_>, _>>()?;
+        let next_cursor = items.last().map(|space| space.space_id.to_string());
         Ok(MemorySpaceList {
             items,
             page_info: MemoryPageInfo {
-                next_cursor: None,
-                has_more: false,
+                next_cursor: if has_more { next_cursor } else { None },
+                has_more,
                 page_size: Some(page_size),
             },
         })
@@ -233,7 +300,7 @@ impl MemoryAppApi for OpenMemoryService {
         context: MemoryAppRequestContext,
         request: MemorySpaceRequest,
     ) -> MemoryServiceResult<MemorySpace> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let space_id = i64::try_from(self.next_id()?)
             .map_err(|_| MemoryServiceError::storage("generated space id out of range"))?;
         self.store
@@ -267,7 +334,7 @@ impl MemoryAppApi for OpenMemoryService {
         context: MemoryAppRequestContext,
         space_id: u64,
     ) -> MemoryServiceResult<MemorySpace> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         match self
             .store
             .retrieve_space_for_tenant(tenant_id, space_id as i64)
@@ -285,7 +352,7 @@ impl MemoryAppApi for OpenMemoryService {
         space_id: u64,
         request: MemorySpaceRequest,
     ) -> MemoryServiceResult<MemorySpace> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         match self
             .store
             .update_space_record(
@@ -314,8 +381,10 @@ impl MemoryAppApi for OpenMemoryService {
         &self,
         context: MemoryAppRequestContext,
         event_id: u64,
+        space_id: u64,
     ) -> MemoryServiceResult<sdkwork_memory_contract::MemoryEvent> {
-        MemoryOpenApi::retrieve_event(self, Self::to_open_context(&context), event_id).await
+        MemoryOpenApi::retrieve_event(self, Self::to_open_context(&context), event_id, space_id)
+            .await
     }
 
     async fn list_memories(
@@ -338,53 +407,90 @@ impl MemoryAppApi for OpenMemoryService {
         &self,
         context: MemoryAppRequestContext,
         memory_id: u64,
+        space_id: u64,
     ) -> MemoryServiceResult<sdkwork_memory_contract::MemoryRecord> {
-        MemoryOpenApi::retrieve_memory(self, Self::to_open_context(&context), memory_id).await
+        MemoryOpenApi::retrieve_memory(
+            self,
+            Self::to_open_context(&context),
+            memory_id,
+            space_id,
+        )
+        .await
     }
 
     async fn update_memory(
         &self,
         context: MemoryAppRequestContext,
         memory_id: u64,
+        space_id: u64,
         patch: sdkwork_memory_contract::MemoryRecordPatch,
     ) -> MemoryServiceResult<sdkwork_memory_contract::MemoryRecord> {
-        MemoryOpenApi::update_memory(self, Self::to_open_context(&context), memory_id, patch).await
+        MemoryOpenApi::update_memory(
+            self,
+            Self::to_open_context(&context),
+            memory_id,
+            space_id,
+            patch,
+        )
+        .await
     }
 
     async fn delete_memory(
         &self,
         context: MemoryAppRequestContext,
         memory_id: u64,
+        space_id: u64,
     ) -> MemoryServiceResult<()> {
-        MemoryOpenApi::delete_memory(self, Self::to_open_context(&context), memory_id).await
+        MemoryOpenApi::delete_memory(
+            self,
+            Self::to_open_context(&context),
+            memory_id,
+            space_id,
+        )
+        .await
     }
 
     async fn list_memory_sources(
         &self,
         context: MemoryAppRequestContext,
         memory_id: u64,
+        query: ListMemorySourcesQuery,
     ) -> MemoryServiceResult<MemoryRecordSourceList> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let memory_uuid = memory_id.to_string();
-        self.store
+        let memory = self
+            .store
             .retrieve_record_detail_for_tenant(tenant_id, &memory_uuid)
             .await
             .map_err(OpenMemoryService::map_store_error)?
             .ok_or_else(|| MemoryServiceError::not_found("memory not found"))?;
+        let space_id = u64::try_from(memory.space_id.max(0)).unwrap_or(0);
+        crate::access::assert_actor_can_access_space(
+            &self.store,
+            &Self::to_open_context(&context),
+            space_id,
+        )
+        .await?;
 
-        let page_size = 50_i32;
+        let page_size = query.page_size.unwrap_or(20);
         let rows = self
             .store
-            .list_record_sources_for_memory(tenant_id, &memory_uuid, page_size)
+            .list_record_sources_for_memory(
+                tenant_id,
+                &memory_uuid,
+                page_size,
+                query.cursor.as_deref(),
+                query.q.as_deref(),
+            )
             .await
             .map_err(OpenMemoryService::map_store_error)?;
         let has_more = rows.len() > page_size as usize;
-        let items = rows
+        let page_rows: Vec<_> = rows.into_iter().take(page_size as usize).collect();
+        let next_cursor = page_rows.last().map(|row| row.source_uuid.clone());
+        let items = page_rows
             .into_iter()
-            .take(page_size as usize)
             .map(Self::map_record_source)
             .collect::<Result<Vec<_>, _>>()?;
-        let next_cursor = items.last().map(|source| source.source_id.to_string());
 
         Ok(MemoryRecordSourceList {
             items,
@@ -401,69 +507,151 @@ impl MemoryAppApi for OpenMemoryService {
         context: MemoryAppRequestContext,
         request: MemoryForgetRequest,
     ) -> MemoryServiceResult<MemoryForgetJob> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let job_id = self.next_id()?;
-        let mut deleted_count = 0_u32;
+        let now = platform::current_timestamp();
 
-        match request.scope.as_str() {
+        let stats = match request.scope.as_str() {
             "memory" => {
                 let memory_ids = request.memory_ids.as_ref().ok_or_else(|| {
                     MemoryServiceError::validation("memoryIds is required when scope is memory")
                 })?;
+                let space_id = request.space_id.ok_or_else(|| {
+                    MemoryServiceError::validation("spaceId is required when scope is memory")
+                })?;
+                let scope = MemoryScopeContext {
+                    tenant_id,
+                    space_id: platform::space_id_i64(space_id)?,
+                    organization_id: context.organization_id.map(|value| value as i64),
+                    user_id: context.actor_id.map(|value| value as i64),
+                };
+                crate::access::assert_actor_can_access_space(
+                    &self.store,
+                    &Self::to_open_context(&context),
+                    space_id,
+                )
+                .await?;
+                let mut deleted_records = 0_u32;
+                let mut rejected_candidates = 0_u32;
                 for memory_id in memory_ids {
-                    if MemoryAppApi::delete_memory(self, context.clone(), *memory_id)
+                    let memory_key = memory_id.to_string();
+                    if self
+                        .store
+                        .retrieve_record_detail(&scope, &memory_key)
                         .await
-                        .is_ok()
+                        .map_err(OpenMemoryService::map_store_error)?
+                        .is_none()
                     {
-                        deleted_count += 1;
+                        continue;
                     }
+                    if self
+                        .store
+                        .hard_delete_record(&scope, &memory_key)
+                        .await
+                        .map_err(OpenMemoryService::map_store_error)?
+                    {
+                        deleted_records += 1;
+                    }
+                    let (rejected, _) = self
+                        .store
+                        .purge_derivatives_for_memory(tenant_id, &memory_key)
+                        .await
+                        .map_err(OpenMemoryService::map_store_error)?;
+                    rejected_candidates += rejected;
+                }
+                sdkwork_memory_plugin_native_sql::ForgetScopeStats {
+                    deleted_records,
+                    purged_events: 0,
+                    rejected_candidates,
                 }
             }
             "space" => {
                 let space_id = request.space_id.ok_or_else(|| {
                     MemoryServiceError::validation("spaceId is required when scope is space")
                 })?;
+                crate::access::assert_actor_can_access_space(
+                    &self.store,
+                    &Self::to_open_context(&context),
+                    space_id,
+                )
+                .await?;
                 let scope = MemoryScopeContext {
                     tenant_id,
-                    space_id: space_id as i64,
+                    space_id: platform::space_id_i64(space_id)?,
                     organization_id: context.organization_id.map(|value| value as i64),
                     user_id: context.actor_id.map(|value| value as i64),
                 };
-                let rows = self
-                    .store
-                    .list_record_details(&scope, None, 100, None)
+                self.store
+                    .forget_all_records_in_space(&scope)
                     .await
-                    .map_err(OpenMemoryService::map_store_error)?;
-                for row in rows {
-                    if self
-                        .store
-                        .mark_record_deleted(&scope, &row.memory_id)
-                        .await
-                        .map_err(OpenMemoryService::map_store_error)
-                        .is_ok()
-                    {
-                        deleted_count += 1;
-                    }
-                }
+                    .map_err(OpenMemoryService::map_store_error)?
             }
-            "user" | "query" => {}
+            "user" => {
+                let user_id = context.actor_id.ok_or_else(|| {
+                    MemoryServiceError::validation(
+                        "authenticated user context is required when scope is user",
+                    )
+                })?;
+                let space_id = request
+                    .space_id
+                    .map(platform::space_id_i64)
+                    .transpose()?;
+                self.store
+                    .forget_records_for_user(tenant_id, user_id as i64, space_id)
+                    .await
+                    .map_err(OpenMemoryService::map_store_error)?
+            }
+            "query" => {
+                let space_id = request.space_id.ok_or_else(|| {
+                    MemoryServiceError::validation("spaceId is required when scope is query")
+                })?;
+                let query = request.query.as_deref().ok_or_else(|| {
+                    MemoryServiceError::validation("query is required when scope is query")
+                })?;
+                if query.trim().is_empty() {
+                    return Err(MemoryServiceError::validation(
+                        "query must not be empty when scope is query",
+                    ));
+                }
+                let scope = MemoryScopeContext {
+                    tenant_id,
+                    space_id: platform::space_id_i64(space_id)?,
+                    organization_id: context.organization_id.map(|value| value as i64),
+                    user_id: context.actor_id.map(|value| value as i64),
+                };
+                self.store
+                    .forget_records_matching_query(&scope, query)
+                    .await
+                    .map_err(OpenMemoryService::map_store_error)?
+            }
             _ => {
                 return Err(MemoryServiceError::validation(
                     "scope must be one of memory, space, user, or query",
                 ));
             }
-        }
+        };
+
+        let state = if stats.deleted_records == 0
+            && stats.purged_events == 0
+            && stats.rejected_candidates == 0
+        {
+            "failed"
+        } else {
+            "succeeded"
+        };
 
         let job = MemoryForgetJob {
             forget_request_id: job_id,
-            state: "succeeded".to_string(),
+            state: state.to_string(),
             result: Some(serde_json::json!({
-                "deletedCount": deleted_count,
+                "deletedCount": stats.deleted_records,
+                "purgedEvents": stats.purged_events,
+                "rejectedCandidates": stats.rejected_candidates,
                 "scope": request.scope,
                 "reason": request.reason,
             })),
-            created_at: platform::current_timestamp(),
-            updated_at: platform::current_timestamp(),
+            created_at: now.clone(),
+            updated_at: now,
         };
         self.persist_governance_job(
             tenant_id,
@@ -473,6 +661,15 @@ impl MemoryAppApi for OpenMemoryService {
             &job,
         )
         .await?;
+        info!(
+            tenant_id,
+            forget_request_id = job_id,
+            scope = %request.scope,
+            state = %state,
+            deleted_records = stats.deleted_records,
+            purged_events = stats.purged_events,
+            "privacy forget request completed"
+        );
         Ok(job)
     }
 
@@ -481,7 +678,7 @@ impl MemoryAppApi for OpenMemoryService {
         context: MemoryAppRequestContext,
         forget_request_id: u64,
     ) -> MemoryServiceResult<MemoryForgetJob> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         Self::load_governance_job(self, tenant_id, forget_request_id, "forget_job").await
     }
 
@@ -493,49 +690,148 @@ impl MemoryAppApi for OpenMemoryService {
         if request.space_ids.is_empty() {
             return Err(MemoryServiceError::validation("spaceIds must not be empty"));
         }
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let job_id = self.next_id()?;
-        let mut exported_records = 0_u32;
-        let mut exported_events = 0_u32;
+        let now = platform::current_timestamp();
+        let space_ids = request
+            .space_ids
+            .iter()
+            .map(|space_id| platform::space_id_i64(*space_id))
+            .collect::<Result<Vec<_>, _>>()?;
+        let payload = self
+            .store
+            .collect_export_payload_for_spaces(
+                tenant_id,
+                &space_ids,
+                request.include_events.unwrap_or(false),
+            )
+            .await
+            .map_err(OpenMemoryService::map_store_error)?;
+        let exported_records = payload.records.len() as u32;
+        let exported_events = payload.events.len() as u32;
+        let export_body = Self::encode_export_payload(&request.format, &payload)?;
 
-        for space_id in &request.space_ids {
+        if let Some(drive_target_ref) = &request.drive_target_ref {
+            let drive_object_ref = format!("mem-export/{tenant_id}/{job_id}");
+            let export_ref = format!("export-job-{job_id}");
+            let artifact_json = serde_json::to_string(&serde_json::json!({
+                "exportRef": export_ref,
+                "format": request.format,
+                "exportPayload": export_body,
+            }))
+            .map_err(|error| {
+                MemoryServiceError::storage(format!("export artifact encode failed: {error}"))
+            })?;
+            self.store
+                .save_admin_config_entity(
+                    tenant_id,
+                    "export_artifact",
+                    &job_id.to_string(),
+                    &artifact_json,
+                )
+                .await
+                .map_err(OpenMemoryService::map_store_error)?;
+
             let scope = MemoryScopeContext {
                 tenant_id,
-                space_id: *space_id as i64,
-                organization_id: context.organization_id.map(|value| value as i64),
-                user_id: context.actor_id.map(|value| value as i64),
+                space_id: space_ids[0],
+                organization_id: context
+                    .organization_id
+                    .and_then(|id| i64::try_from(id).ok()),
+                user_id: context.actor_id.and_then(|id| i64::try_from(id).ok()),
             };
-            exported_records += self
-                .store
-                .list_record_details(&scope, None, 100, None)
-                .await
-                .map_err(OpenMemoryService::map_store_error)?
-                .len() as u32;
-            if request.include_events.unwrap_or(false) {
-                exported_events += self
-                    .store
-                    .list_open_api_events_for_tenant(tenant_id, Some(*space_id as i64), 100)
-                    .await
-                    .map_err(OpenMemoryService::map_store_error)?
-                    .len() as u32;
-            }
+            self.publish_domain_event(
+                &scope,
+                "memory.export.drive_upload_requested",
+                "export_job",
+                &job_id.to_string(),
+                serde_json::json!({
+                    "exportRef": export_ref,
+                    "driveTargetRef": drive_target_ref,
+                    "driveObjectRef": drive_object_ref,
+                    "format": request.format,
+                    "exportedRecords": exported_records,
+                    "exportedEvents": exported_events,
+                    "spaceIds": request.space_ids,
+                }),
+            )
+            .await?;
+
+            let job = MemoryExportJob {
+                export_job_id: job_id,
+                state: "accepted".to_string(),
+                format: request.format.clone(),
+                drive_object_ref: Some(drive_object_ref.clone()),
+                result: Some(serde_json::json!({
+                    "exportRef": export_ref,
+                    "driveTargetRef": drive_target_ref,
+                    "driveObjectRef": drive_object_ref,
+                    "exportedRecords": exported_records,
+                    "exportedEvents": exported_events,
+                    "spaceIds": request.space_ids,
+                })),
+                created_at: now.clone(),
+                updated_at: now,
+            };
+            self.persist_governance_job(
+                tenant_id,
+                job_id,
+                "export_job",
+                "export.job.create",
+                &job,
+            )
+            .await?;
+            info!(
+                tenant_id,
+                export_job_id = job_id,
+                exported_records,
+                exported_events,
+                format = %request.format,
+                drive_target_ref = %drive_target_ref,
+                "drive-backed export job accepted"
+            );
+            return Ok(job);
         }
 
         let job = MemoryExportJob {
             export_job_id: job_id,
             state: "succeeded".to_string(),
             format: request.format.clone(),
-            drive_object_ref: request.drive_target_ref.clone(),
+            drive_object_ref: None,
             result: Some(serde_json::json!({
                 "exportedRecords": exported_records,
                 "exportedEvents": exported_events,
                 "spaceIds": request.space_ids,
+                "exportPayload": export_body,
             })),
-            created_at: platform::current_timestamp(),
-            updated_at: platform::current_timestamp(),
+            created_at: now.clone(),
+            updated_at: now,
         };
-        self.persist_governance_job(tenant_id, job_id, "export_job", "export.job.create", &job)
-            .await?;
+        let stored_job = MemoryExportJob {
+            result: Some(serde_json::json!({
+                "exportedRecords": exported_records,
+                "exportedEvents": exported_events,
+                "spaceIds": request.space_ids,
+                "exportRef": format!("export-job-{job_id}"),
+            })),
+            ..job.clone()
+        };
+        self.persist_governance_job(
+            tenant_id,
+            job_id,
+            "export_job",
+            "export.job.create",
+            &stored_job,
+        )
+        .await?;
+        info!(
+            tenant_id,
+            export_job_id = job_id,
+            exported_records,
+            exported_events,
+            format = %request.format,
+            "privacy export job completed"
+        );
         Ok(job)
     }
 
@@ -544,7 +840,7 @@ impl MemoryAppApi for OpenMemoryService {
         context: MemoryAppRequestContext,
         export_job_id: u64,
     ) -> MemoryServiceResult<MemoryExportJob> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         Self::load_governance_job(self, tenant_id, export_job_id, "export_job").await
     }
 
@@ -553,7 +849,7 @@ impl MemoryAppApi for OpenMemoryService {
         context: MemoryAppRequestContext,
         query: ListCandidatesQuery,
     ) -> MemoryServiceResult<MemoryCandidateList> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let page_size = query.page_size.unwrap_or(20);
         let rows = self
             .store
@@ -561,18 +857,24 @@ impl MemoryAppApi for OpenMemoryService {
                 tenant_id,
                 query.space_id.map(|value| value as i64),
                 page_size,
+                query.cursor.as_deref(),
             )
             .await
             .map_err(OpenMemoryService::map_store_error)?;
+        let has_more = rows.len() > page_size as usize;
         let items = rows
             .into_iter()
+            .take(page_size as usize)
             .map(Self::map_candidate)
             .collect::<Result<Vec<_>, _>>()?;
+        let next_cursor = items
+            .last()
+            .map(|candidate| candidate.candidate_id.to_string());
         Ok(MemoryCandidateList {
             items,
             page_info: MemoryPageInfo {
-                next_cursor: None,
-                has_more: false,
+                next_cursor: if has_more { next_cursor } else { None },
+                has_more,
                 page_size: Some(page_size),
             },
         })
@@ -583,7 +885,7 @@ impl MemoryAppApi for OpenMemoryService {
         context: MemoryAppRequestContext,
         candidate_id: u64,
     ) -> MemoryServiceResult<MemoryCandidate> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         match self
             .store
             .retrieve_candidate_for_tenant(tenant_id, &candidate_id.to_string())
@@ -623,7 +925,7 @@ impl MemoryAppApi for OpenMemoryService {
         &self,
         context: MemoryAppRequestContext,
         candidate_id: u64,
-        _request: serde_json::Value,
+        request: MemoryReviewRequest,
     ) -> MemoryServiceResult<MemoryCandidate> {
         MemoryBackendApi::approve_candidate(
             self,
@@ -632,7 +934,7 @@ impl MemoryAppApi for OpenMemoryService {
                 operator_id: context.actor_id,
             },
             candidate_id,
-            serde_json::Value::Null,
+            request,
         )
         .await
     }
@@ -641,7 +943,7 @@ impl MemoryAppApi for OpenMemoryService {
         &self,
         context: MemoryAppRequestContext,
         candidate_id: u64,
-        _request: serde_json::Value,
+        request: MemoryReviewRequest,
     ) -> MemoryServiceResult<MemoryCandidate> {
         MemoryBackendApi::reject_candidate(
             self,
@@ -650,7 +952,7 @@ impl MemoryAppApi for OpenMemoryService {
                 operator_id: context.actor_id,
             },
             candidate_id,
-            serde_json::Value::Null,
+            request,
         )
         .await
     }
@@ -685,7 +987,7 @@ impl MemoryAppApi for OpenMemoryService {
         context: MemoryAppRequestContext,
         query: ListHabitsQuery,
     ) -> MemoryServiceResult<MemoryHabitList> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let page_size = query.page_size.unwrap_or(20);
         let rows = self
             .store
@@ -695,18 +997,22 @@ impl MemoryAppApi for OpenMemoryService {
                 query.stage.as_deref(),
                 query.q.as_deref(),
                 page_size,
+                query.cursor.as_deref(),
             )
             .await
             .map_err(OpenMemoryService::map_store_error)?;
-        let items = rows
+        let has_more = rows.len() > page_size as usize;
+        let page_rows: Vec<_> = rows.into_iter().take(page_size as usize).collect();
+        let next_cursor = page_rows.last().map(|row| row.habit_id.clone());
+        let items = page_rows
             .into_iter()
             .map(Self::map_habit)
             .collect::<Result<Vec<_>, _>>()?;
         Ok(MemoryHabitList {
             items,
             page_info: MemoryPageInfo {
-                next_cursor: None,
-                has_more: false,
+                next_cursor: if has_more { next_cursor } else { None },
+                has_more,
                 page_size: Some(page_size),
             },
         })
@@ -717,7 +1023,7 @@ impl MemoryAppApi for OpenMemoryService {
         context: MemoryAppRequestContext,
         habit_id: u64,
     ) -> MemoryServiceResult<MemoryHabit> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         match self
             .store
             .retrieve_habit_for_tenant(tenant_id, &habit_id.to_string())
@@ -735,7 +1041,7 @@ impl MemoryAppApi for OpenMemoryService {
         habit_id: u64,
         request: MemoryHabitRequest,
     ) -> MemoryServiceResult<MemoryHabit> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let existing = self.load_habit_row(tenant_id, habit_id).await?;
         let scope = MemoryScopeContext {
             tenant_id,
@@ -772,7 +1078,7 @@ impl MemoryAppApi for OpenMemoryService {
         habit_id: u64,
         _request: MemoryReviewRequest,
     ) -> MemoryServiceResult<MemoryHabit> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let existing = self.load_habit_row(tenant_id, habit_id).await?;
         let scope = MemoryScopeContext {
             tenant_id,
@@ -798,7 +1104,7 @@ impl MemoryAppApi for OpenMemoryService {
         habit_id: u64,
         _request: MemoryReviewRequest,
     ) -> MemoryServiceResult<MemoryHabit> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let existing = self.load_habit_row(tenant_id, habit_id).await?;
         let scope = MemoryScopeContext {
             tenant_id,
@@ -820,25 +1126,53 @@ impl MemoryAppApi for OpenMemoryService {
 
     async fn retrieve_learning_settings(
         &self,
-        _context: MemoryAppRequestContext,
+        context: MemoryAppRequestContext,
     ) -> MemoryServiceResult<MemoryLearningSettings> {
-        Ok(MemoryLearningSettings {
-            auto_promote_candidates: false,
-            habit_learning_enabled: true,
-            updated_at: platform::current_timestamp(),
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
+        let user_id = context.actor_id.map(|value| value as i64);
+        let Some(raw) = self
+            .store
+            .retrieve_tenant_preference_json(tenant_id, user_id, LEARNING_SETTINGS_KEY)
+            .await
+            .map_err(OpenMemoryService::map_store_error)?
+        else {
+            return Ok(default_learning_settings());
+        };
+        serde_json::from_str(&raw).map_err(|error| {
+            MemoryServiceError::storage_internal(format!(
+                "learning settings decode failed: {error}"
+            ))
         })
     }
 
     async fn update_learning_settings(
         &self,
-        _context: MemoryAppRequestContext,
+        context: MemoryAppRequestContext,
         patch: MemoryLearningSettingsPatch,
     ) -> MemoryServiceResult<MemoryLearningSettings> {
-        Ok(MemoryLearningSettings {
-            auto_promote_candidates: patch.auto_promote_candidates.unwrap_or(false),
-            habit_learning_enabled: patch.habit_learning_enabled.unwrap_or(true),
-            updated_at: platform::current_timestamp(),
-        })
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
+        let user_id = context.actor_id.map(|value| value as i64);
+        let mut settings = self.retrieve_learning_settings(context.clone()).await?;
+        if let Some(auto_promote_candidates) = patch.auto_promote_candidates {
+            settings.auto_promote_candidates = auto_promote_candidates;
+        }
+        if let Some(habit_learning_enabled) = patch.habit_learning_enabled {
+            settings.habit_learning_enabled = habit_learning_enabled;
+        }
+        settings.updated_at = platform::current_timestamp();
+        let encoded = serde_json::to_string(&settings).map_err(|error| {
+            MemoryServiceError::storage_internal(format!("learning settings encode failed: {error}"))
+        })?;
+        self.store
+            .upsert_tenant_preference_json(
+                tenant_id,
+                user_id,
+                LEARNING_SETTINGS_KEY,
+                &encoded,
+            )
+            .await
+            .map_err(OpenMemoryService::map_store_error)?;
+        Ok(settings)
     }
 }
 
@@ -912,21 +1246,29 @@ impl MemoryBackendApi for OpenMemoryService {
         &self,
         context: MemoryBackendRequestContext,
         memory_id: u64,
+        space_id: u64,
     ) -> MemoryServiceResult<sdkwork_memory_contract::MemoryRecord> {
-        MemoryOpenApi::retrieve_memory(self, Self::to_open_context_backend(&context), memory_id)
-            .await
+        MemoryOpenApi::retrieve_memory(
+            self,
+            Self::to_open_context_backend(&context),
+            memory_id,
+            space_id,
+        )
+        .await
     }
 
     async fn update_memory(
         &self,
         context: MemoryBackendRequestContext,
         memory_id: u64,
+        space_id: u64,
         patch: sdkwork_memory_contract::MemoryRecordPatch,
     ) -> MemoryServiceResult<sdkwork_memory_contract::MemoryRecord> {
         MemoryOpenApi::update_memory(
             self,
             Self::to_open_context_backend(&context),
             memory_id,
+            space_id,
             patch,
         )
         .await
@@ -937,7 +1279,7 @@ impl MemoryBackendApi for OpenMemoryService {
         context: MemoryBackendRequestContext,
         query: ListEventsQuery,
     ) -> MemoryServiceResult<MemoryEventList> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let page_size = query.page_size.unwrap_or(20);
         let rows = self
             .store
@@ -945,18 +1287,22 @@ impl MemoryBackendApi for OpenMemoryService {
                 tenant_id,
                 query.space_id.map(|value| value as i64),
                 page_size,
+                query.cursor.as_deref(),
             )
             .await
             .map_err(OpenMemoryService::map_store_error)?;
-        let items = rows
+        let has_more = rows.len() > page_size as usize;
+        let page_rows: Vec<_> = rows.into_iter().take(page_size as usize).collect();
+        let next_cursor = page_rows.last().map(|row| row.event_id.clone());
+        let items = page_rows
             .into_iter()
             .map(OpenMemoryService::map_event)
             .collect::<Result<Vec<_>, _>>()?;
         Ok(MemoryEventList {
             items,
             page_info: MemoryPageInfo {
-                next_cursor: None,
-                has_more: false,
+                next_cursor: if has_more { next_cursor } else { None },
+                has_more,
                 page_size: Some(page_size),
             },
         })
@@ -966,8 +1312,15 @@ impl MemoryBackendApi for OpenMemoryService {
         &self,
         context: MemoryBackendRequestContext,
         event_id: u64,
+        space_id: u64,
     ) -> MemoryServiceResult<sdkwork_memory_contract::MemoryEvent> {
-        MemoryOpenApi::retrieve_event(self, Self::to_open_context_backend(&context), event_id).await
+        MemoryOpenApi::retrieve_event(
+            self,
+            Self::to_open_context_backend(&context),
+            event_id,
+            space_id,
+        )
+        .await
     }
 
     async fn list_candidates(
@@ -992,9 +1345,9 @@ impl MemoryBackendApi for OpenMemoryService {
         &self,
         context: MemoryBackendRequestContext,
         candidate_id: u64,
-        _request: serde_json::Value,
+        _request: MemoryReviewRequest,
     ) -> MemoryServiceResult<MemoryCandidate> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let existing = self
             .store
             .retrieve_candidate_detail_for_tenant(tenant_id, &candidate_id.to_string())
@@ -1015,9 +1368,9 @@ impl MemoryBackendApi for OpenMemoryService {
         &self,
         context: MemoryBackendRequestContext,
         candidate_id: u64,
-        _request: serde_json::Value,
+        _request: MemoryReviewRequest,
     ) -> MemoryServiceResult<MemoryCandidate> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let existing = self
             .store
             .retrieve_candidate_for_tenant(tenant_id, &candidate_id.to_string())
@@ -1064,7 +1417,7 @@ impl MemoryBackendApi for OpenMemoryService {
         context: MemoryBackendRequestContext,
         query: ListRetrievalTracesQuery,
     ) -> MemoryServiceResult<MemoryRetrievalTraceList> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let page_size = query.page_size.unwrap_or(20);
         let rows = self
             .store
@@ -1072,18 +1425,22 @@ impl MemoryBackendApi for OpenMemoryService {
                 tenant_id,
                 query.space_id.map(|value| value as i64),
                 page_size,
+                query.cursor.as_deref(),
             )
             .await
             .map_err(OpenMemoryService::map_store_error)?;
-        let items = rows
+        let has_more = rows.len() > page_size as usize;
+        let page_rows: Vec<_> = rows.into_iter().take(page_size as usize).collect();
+        let next_cursor = page_rows.last().map(|row| row.trace_id.clone());
+        let items = page_rows
             .into_iter()
             .map(Self::map_trace_summary)
             .collect::<Result<Vec<_>, _>>()?;
         Ok(MemoryRetrievalTraceList {
             items,
             page_info: MemoryPageInfo {
-                next_cursor: None,
-                has_more: false,
+                next_cursor: if has_more { next_cursor } else { None },
+                has_more,
                 page_size: Some(page_size),
             },
         })
@@ -1093,43 +1450,62 @@ impl MemoryBackendApi for OpenMemoryService {
         &self,
         context: MemoryBackendRequestContext,
         trace_id: u64,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        let result = MemoryOpenApi::retrieve_retrieval(
-            self,
-            Self::to_open_context_backend(&context),
+    ) -> MemoryServiceResult<MemoryRetrievalTrace> {
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
+        let trace = self
+            .store
+            .retrieve_retrieval_trace_for_tenant(tenant_id, &trace_id.to_string())
+            .await
+            .map_err(OpenMemoryService::map_store_error)?
+            .ok_or_else(|| MemoryServiceError::not_found("retrieval trace not found"))?;
+        Ok(MemoryRetrievalTrace {
             trace_id,
-        )
-        .await?;
-        Ok(serde_json::to_value(result).unwrap_or(serde_json::Value::Null))
+            space_id: None,
+            retrieval_profile_id: None,
+            actor_id: trace.actor_id,
+            query_text: trace.query_text,
+            query_hash: trace.query_hash,
+            result_count: trace.result_count as i32,
+            degraded: trace.degraded,
+            created_at: platform::current_timestamp(),
+        })
     }
 
     async fn list_audit_logs(
         &self,
         context: MemoryBackendRequestContext,
         query: ListAuditLogsQuery,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        let tenant_id = i64::try_from(context.tenant_id).unwrap_or(i64::MAX);
+    ) -> MemoryServiceResult<MemoryAuditLogList> {
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let page_size = query.page_size.unwrap_or(20);
         let rows = self
             .store
-            .list_audit_logs_for_tenant(tenant_id, query.action.as_deref(), page_size)
+            .list_audit_logs_for_tenant(
+                tenant_id,
+                query.action.as_deref(),
+                page_size,
+                query.cursor.as_deref(),
+            )
             .await
             .map_err(OpenMemoryService::map_store_error)?;
-        Ok(serde_json::json!({
-            "items": rows.into_iter().map(audit_log_to_json).collect::<Vec<_>>(),
-            "pageInfo": {
-                "nextCursor": null,
-                "hasMore": false,
-                "pageSize": page_size,
-            }
-        }))
+        let has_more = rows.len() > page_size as usize;
+        let page_rows: Vec<_> = rows.into_iter().take(page_size as usize).collect();
+        let next_cursor = page_rows.last().map(|row| row.audit_id.clone());
+        Ok(MemoryAuditLogList {
+            items: page_rows.into_iter().map(map_audit_log).collect(),
+            page_info: MemoryPageInfo {
+                next_cursor: if has_more { next_cursor } else { None },
+                has_more,
+                page_size: Some(page_size),
+            },
+        })
     }
 
     async fn supersede_memory(
         &self,
         context: MemoryBackendRequestContext,
         memory_id: u64,
-        request: serde_json::Value,
+        request: MemoryRecordRequest,
     ) -> MemoryServiceResult<sdkwork_memory_contract::MemoryRecord> {
         self.backend_supersede_memory(context, memory_id, request)
             .await
@@ -1138,8 +1514,8 @@ impl MemoryBackendApi for OpenMemoryService {
     async fn create_extraction_job(
         &self,
         context: MemoryBackendRequestContext,
-        request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
+        request: MemoryExtractionRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
         self.backend_create_extraction_job(context, request).await
     }
 
@@ -1147,15 +1523,15 @@ impl MemoryBackendApi for OpenMemoryService {
         &self,
         context: MemoryBackendRequestContext,
         job_id: u64,
-    ) -> MemoryServiceResult<serde_json::Value> {
+    ) -> MemoryServiceResult<MemoryLearningJob> {
         self.backend_retrieve_extraction_job(context, job_id).await
     }
 
     async fn create_consolidation_job(
         &self,
         context: MemoryBackendRequestContext,
-        request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
+        request: MemoryExtractionRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
         self.backend_create_consolidation_job(context, request)
             .await
     }
@@ -1163,16 +1539,16 @@ impl MemoryBackendApi for OpenMemoryService {
     async fn list_indexes(
         &self,
         context: MemoryBackendRequestContext,
-        query: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
+        query: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryIndexList> {
         self.backend_list_indexes(context, query).await
     }
 
     async fn create_index(
         &self,
         context: MemoryBackendRequestContext,
-        request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
+        request: MemoryIndexRequest,
+    ) -> MemoryServiceResult<MemoryIndex> {
         self.backend_create_index(context, request).await
     }
 
@@ -1180,7 +1556,7 @@ impl MemoryBackendApi for OpenMemoryService {
         &self,
         context: MemoryBackendRequestContext,
         index_id: u64,
-    ) -> MemoryServiceResult<serde_json::Value> {
+    ) -> MemoryServiceResult<MemoryIndex> {
         self.backend_retrieve_index(context, index_id).await
     }
 
@@ -1188,8 +1564,8 @@ impl MemoryBackendApi for OpenMemoryService {
         &self,
         context: MemoryBackendRequestContext,
         index_id: u64,
-        request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
+        request: MemoryIndexRequest,
+    ) -> MemoryServiceResult<MemoryIndex> {
         self.backend_update_index(context, index_id, request).await
     }
 
@@ -1197,24 +1573,23 @@ impl MemoryBackendApi for OpenMemoryService {
         &self,
         context: MemoryBackendRequestContext,
         index_id: u64,
-        request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
-        self.backend_rebuild_index(context, index_id, request).await
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        self.backend_rebuild_index(context, index_id).await
     }
 
     async fn list_retrieval_profiles(
         &self,
         context: MemoryBackendRequestContext,
-        query: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
+        query: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryRetrievalProfileList> {
         self.backend_list_retrieval_profiles(context, query).await
     }
 
     async fn create_retrieval_profile(
         &self,
         context: MemoryBackendRequestContext,
-        request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
+        request: MemoryRetrievalProfileRequest,
+    ) -> MemoryServiceResult<MemoryRetrievalProfile> {
         self.backend_create_retrieval_profile(context, request)
             .await
     }
@@ -1223,7 +1598,7 @@ impl MemoryBackendApi for OpenMemoryService {
         &self,
         context: MemoryBackendRequestContext,
         profile_id: u64,
-    ) -> MemoryServiceResult<serde_json::Value> {
+    ) -> MemoryServiceResult<MemoryRetrievalProfile> {
         self.backend_retrieve_retrieval_profile(context, profile_id)
             .await
     }
@@ -1232,8 +1607,8 @@ impl MemoryBackendApi for OpenMemoryService {
         &self,
         context: MemoryBackendRequestContext,
         profile_id: u64,
-        request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
+        request: MemoryRetrievalProfileRequest,
+    ) -> MemoryServiceResult<MemoryRetrievalProfile> {
         self.backend_update_retrieval_profile(context, profile_id, request)
             .await
     }
@@ -1241,8 +1616,8 @@ impl MemoryBackendApi for OpenMemoryService {
     async fn list_implementation_profiles(
         &self,
         context: MemoryBackendRequestContext,
-        query: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
+        query: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryImplementationProfileList> {
         self.backend_list_implementation_profiles(context, query)
             .await
     }
@@ -1250,8 +1625,8 @@ impl MemoryBackendApi for OpenMemoryService {
     async fn create_implementation_profile(
         &self,
         context: MemoryBackendRequestContext,
-        request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
+        request: MemoryImplementationProfileRequest,
+    ) -> MemoryServiceResult<MemoryImplementationProfile> {
         self.backend_create_implementation_profile(context, request)
             .await
     }
@@ -1260,7 +1635,7 @@ impl MemoryBackendApi for OpenMemoryService {
         &self,
         context: MemoryBackendRequestContext,
         profile_id: u64,
-    ) -> MemoryServiceResult<serde_json::Value> {
+    ) -> MemoryServiceResult<MemoryImplementationProfile> {
         self.backend_retrieve_implementation_profile(context, profile_id)
             .await
     }
@@ -1269,8 +1644,8 @@ impl MemoryBackendApi for OpenMemoryService {
         &self,
         context: MemoryBackendRequestContext,
         profile_id: u64,
-        request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
+        request: MemoryImplementationProfileRequest,
+    ) -> MemoryServiceResult<MemoryImplementationProfile> {
         self.backend_update_implementation_profile(context, profile_id, request)
             .await
     }
@@ -1278,16 +1653,16 @@ impl MemoryBackendApi for OpenMemoryService {
     async fn list_provider_bindings(
         &self,
         context: MemoryBackendRequestContext,
-        query: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
+        query: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryProviderBindingList> {
         self.backend_list_provider_bindings(context, query).await
     }
 
     async fn create_provider_binding(
         &self,
         context: MemoryBackendRequestContext,
-        request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
+        request: MemoryProviderBindingRequest,
+    ) -> MemoryServiceResult<MemoryProviderBinding> {
         self.backend_create_provider_binding(context, request).await
     }
 
@@ -1295,8 +1670,8 @@ impl MemoryBackendApi for OpenMemoryService {
         &self,
         context: MemoryBackendRequestContext,
         binding_id: u64,
-        request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
+        request: MemoryProviderBindingRequest,
+    ) -> MemoryServiceResult<MemoryProviderBinding> {
         self.backend_update_provider_binding(context, binding_id, request)
             .await
     }
@@ -1304,16 +1679,16 @@ impl MemoryBackendApi for OpenMemoryService {
     async fn list_eval_runs(
         &self,
         context: MemoryBackendRequestContext,
-        query: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
+        query: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryEvalRunList> {
         self.backend_list_eval_runs(context, query).await
     }
 
     async fn create_eval_run(
         &self,
         context: MemoryBackendRequestContext,
-        request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
+        request: MemoryEvalRunRequest,
+    ) -> MemoryServiceResult<MemoryEvalRun> {
         self.backend_create_eval_run(context, request).await
     }
 
@@ -1321,23 +1696,23 @@ impl MemoryBackendApi for OpenMemoryService {
         &self,
         context: MemoryBackendRequestContext,
         eval_run_id: u64,
-    ) -> MemoryServiceResult<serde_json::Value> {
+    ) -> MemoryServiceResult<MemoryEvalRun> {
         self.backend_retrieve_eval_run(context, eval_run_id).await
     }
 
     async fn create_retention_job(
         &self,
         context: MemoryBackendRequestContext,
-        request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
+        request: MemoryRetentionJobRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
         self.backend_create_retention_job(context, request).await
     }
 
     async fn create_migration_job(
         &self,
         context: MemoryBackendRequestContext,
-        request: serde_json::Value,
-    ) -> MemoryServiceResult<serde_json::Value> {
+        request: MemoryMigrationJobRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
         self.backend_create_migration_job(context, request).await
     }
 
@@ -1345,19 +1720,25 @@ impl MemoryBackendApi for OpenMemoryService {
         &self,
         context: MemoryBackendRequestContext,
         migration_job_id: u64,
-    ) -> MemoryServiceResult<serde_json::Value> {
+    ) -> MemoryServiceResult<MemoryLearningJob> {
         self.backend_retrieve_migration_job(context, migration_job_id)
             .await
     }
 }
 
-fn audit_log_to_json(row: NativeSqlAuditLogRow) -> serde_json::Value {
-    serde_json::json!({
-        "auditLogId": row.audit_id,
-        "action": row.action,
-        "resourceType": row.resource_type,
-        "resourceId": row.resource_id,
-        "result": row.result,
-        "createdAt": row.created_at,
-    })
+fn map_audit_log(row: NativeSqlAuditLogRow) -> MemoryAuditLog {
+    MemoryAuditLog {
+        audit_log_id: row.audit_id.parse().unwrap_or(0),
+        actor_type: "system".to_string(),
+        actor_id: None,
+        action: row.action,
+        resource_type: row.resource_type,
+        resource_id: Some(row.resource_id),
+        request_id: None,
+        trace_id: None,
+        result: row.result,
+        reason: None,
+        metadata: None,
+        created_at: row.created_at,
+    }
 }

@@ -1,5 +1,7 @@
 //! Memory runtime environment helpers shared by routers and the API server.
 
+use sdkwork_utils_rust::parse_bool;
+
 static ENV_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Serializes env-mutating tests across crates that share process environment state.
@@ -26,12 +28,8 @@ pub fn memory_is_production_like_environment() -> bool {
 
 fn env_truthy(key: &str) -> bool {
     std::env::var(key)
-        .map(|value| {
-            matches!(
-                value.trim().to_ascii_lowercase().as_str(),
-                "1" | "true" | "yes" | "on"
-            )
-        })
+        .ok()
+        .and_then(|value| parse_bool(&value))
         .unwrap_or(false)
 }
 
@@ -81,6 +79,19 @@ mod tests {
             });
             with_env("SDKWORK_MEMORY_DEV_AUTH_BYPASS", Some("true"), || {
                 assert!(memory_use_dev_inline_auth_resolver());
+            });
+        });
+    }
+
+    #[test]
+    fn dev_auth_bypass_rejects_non_boolean_env_values() {
+        let _guard = env_test_lock();
+        with_env("SDKWORK_MEMORY_ENVIRONMENT", Some("development"), || {
+            with_env("SDKWORK_MEMORY_DEV_AUTH_BYPASS", Some("maybe"), || {
+                assert!(!memory_dev_auth_bypass_enabled());
+            });
+            with_env("SDKWORK_MEMORY_DEV_AUTH_BYPASS", Some("false"), || {
+                assert!(!memory_dev_auth_bypass_enabled());
             });
         });
     }

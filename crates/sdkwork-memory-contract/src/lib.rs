@@ -1,3 +1,4 @@
+pub mod admin_dto;
 pub mod app_ports;
 pub mod backend_ports;
 pub mod dto;
@@ -7,6 +8,7 @@ pub mod runtime_env;
 mod serde_int64;
 pub mod space;
 
+pub use admin_dto::*;
 pub use app_ports::{MemoryAppApi, MemoryAppRequestContext};
 pub use backend_ports::{MemoryBackendApi, MemoryBackendRequestContext};
 pub use dto::*;

@@ -9,6 +9,7 @@ use sdkwork_memory_contract::{
     ListCandidatesQuery, ListMemoriesQuery, MemoryContextPackRequest, MemoryEventRequest,
     MemoryExtractionRequest, MemoryFeedbackRequest, MemoryOpenApi, MemoryOpenApiRequestContext,
     MemoryRecordPatch, MemoryRecordRequest, MemoryRetrievalRequest, MemoryServiceResult,
+    MemorySpaceScopeQuery,
 };
 use std::sync::Arc;
 
@@ -71,9 +72,15 @@ async fn retrieve_event(
     State(state): State<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(event_id): Path<u64>,
+    Query(scope): Query<MemorySpaceScopeQuery>,
 ) -> Result<Response, ApiProblem> {
     let context = require_context(context)?;
-    ok_json(state.api.retrieve_event(context, event_id).await)
+    ok_json(
+        state
+            .api
+            .retrieve_event(context, event_id, scope.space_id)
+            .await,
+    )
 }
 
 async fn list_memories(
@@ -98,28 +105,46 @@ async fn retrieve_memory(
     State(state): State<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(memory_id): Path<u64>,
+    Query(scope): Query<MemorySpaceScopeQuery>,
 ) -> Result<Response, ApiProblem> {
     let context = require_context(context)?;
-    ok_json(state.api.retrieve_memory(context, memory_id).await)
+    ok_json(
+        state
+            .api
+            .retrieve_memory(context, memory_id, scope.space_id)
+            .await,
+    )
 }
 
 async fn update_memory(
     State(state): State<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(memory_id): Path<u64>,
+    Query(scope): Query<MemorySpaceScopeQuery>,
     Json(patch): Json<MemoryRecordPatch>,
 ) -> Result<Response, ApiProblem> {
     let context = require_context(context)?;
-    ok_json(state.api.update_memory(context, memory_id, patch).await)
+    ok_json(
+        state
+            .api
+            .update_memory(context, memory_id, scope.space_id, patch)
+            .await,
+    )
 }
 
 async fn delete_memory(
     State(state): State<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(memory_id): Path<u64>,
+    Query(scope): Query<MemorySpaceScopeQuery>,
 ) -> Result<Response, ApiProblem> {
     let context = require_context(context)?;
-    no_content(state.api.delete_memory(context, memory_id).await)
+    no_content(
+        state
+            .api
+            .delete_memory(context, memory_id, scope.space_id)
+            .await,
+    )
 }
 
 async fn create_retrieval(

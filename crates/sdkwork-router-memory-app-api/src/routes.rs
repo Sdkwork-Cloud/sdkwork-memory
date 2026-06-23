@@ -6,11 +6,11 @@ use axum::{
     Extension, Json, Router,
 };
 use sdkwork_memory_contract::{
-    ListCandidatesQuery, ListHabitsQuery, ListMemoriesQuery, ListSpacesQuery, MemoryAppApi,
+    ListCandidatesQuery, ListHabitsQuery, ListMemoriesQuery, ListMemorySourcesQuery, ListSpacesQuery, MemoryAppApi,
     MemoryAppRequestContext, MemoryContextPackRequest, MemoryEventRequest, MemoryExportRequest,
     MemoryExtractionRequest, MemoryFeedbackRequest, MemoryForgetRequest, MemoryHabitRequest,
     MemoryLearningSettingsPatch, MemoryRecordPatch, MemoryRecordRequest, MemoryRetrievalRequest,
-    MemoryReviewRequest, MemoryServiceResult, MemorySpaceRequest,
+    MemoryReviewRequest, MemoryServiceResult, MemorySpaceRequest, MemorySpaceScopeQuery,
 };
 use std::sync::Arc;
 
@@ -117,9 +117,15 @@ async fn retrieve_event(
     State(state): State<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(event_id): Path<u64>,
+    Query(scope): Query<MemorySpaceScopeQuery>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(state.api.retrieve_event(context, event_id).await)
+    ok_json(
+        state
+            .api
+            .retrieve_event(context, event_id, scope.space_id)
+            .await,
+    )
 }
 
 async fn list_memories(
@@ -144,37 +150,61 @@ async fn retrieve_memory(
     State(state): State<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(memory_id): Path<u64>,
+    Query(scope): Query<MemorySpaceScopeQuery>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(state.api.retrieve_memory(context, memory_id).await)
+    ok_json(
+        state
+            .api
+            .retrieve_memory(context, memory_id, scope.space_id)
+            .await,
+    )
 }
 
 async fn update_memory(
     State(state): State<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(memory_id): Path<u64>,
+    Query(scope): Query<MemorySpaceScopeQuery>,
     Json(patch): Json<MemoryRecordPatch>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(state.api.update_memory(context, memory_id, patch).await)
+    ok_json(
+        state
+            .api
+            .update_memory(context, memory_id, scope.space_id, patch)
+            .await,
+    )
 }
 
 async fn delete_memory(
     State(state): State<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(memory_id): Path<u64>,
+    Query(scope): Query<MemorySpaceScopeQuery>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    no_content(state.api.delete_memory(context, memory_id).await)
+    no_content(
+        state
+            .api
+            .delete_memory(context, memory_id, scope.space_id)
+            .await,
+    )
 }
 
 async fn list_memory_sources(
     State(state): State<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(memory_id): Path<u64>,
+    Query(query): Query<ListMemorySourcesQuery>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(state.api.list_memory_sources(context, memory_id).await)
+    ok_json(
+        state
+            .api
+            .list_memory_sources(context, memory_id, query)
+            .await,
+    )
 }
 
 async fn create_forget_request(
@@ -231,7 +261,7 @@ async fn approve_candidate(
     State(state): State<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(candidate_id): Path<u64>,
-    Json(request): Json<serde_json::Value>,
+    Json(request): Json<MemoryReviewRequest>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
     ok_json(
@@ -246,7 +276,7 @@ async fn reject_candidate(
     State(state): State<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(candidate_id): Path<u64>,
-    Json(request): Json<serde_json::Value>,
+    Json(request): Json<MemoryReviewRequest>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
     ok_json(

@@ -1198,7 +1198,8 @@
         "x-sdkwork-data-scope": "owner",
         "x-sdkwork-auth-mode": "dual-token",
         "x-sdkwork-audit-event": "memory.record.deleted",
-        "x-sdkwork-idempotent": false
+        "x-sdkwork-idempotent": false,
+        "x-sdkwork-rate-limit-tier": "authCritical"
       }
     },
     "/app/v3/api/memory/memories/{memoryId}/sources": {
@@ -1427,6 +1428,7 @@
         "x-sdkwork-auth-mode": "dual-token",
         "x-sdkwork-audit-event": "memory.forget.requested",
         "x-sdkwork-idempotent": true,
+        "x-sdkwork-rate-limit-tier": "authCritical",
         "requestBody": {
           "required": true,
           "content": {
@@ -3322,6 +3324,7 @@
         "x-sdkwork-auth-mode": "dual-token",
         "x-sdkwork-audit-event": "memory.export.requested",
         "x-sdkwork-idempotent": true,
+        "x-sdkwork-rate-limit-tier": "authCritical",
         "requestBody": {
           "required": true,
           "content": {

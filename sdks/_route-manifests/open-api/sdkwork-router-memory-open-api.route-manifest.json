@@ -57,7 +57,8 @@
         "apiAuthority": "sdkwork-memory-open-api"
       },
       "requestContext": "WebRequestContext",
-      "apiSurface": "open-api"
+      "apiSurface": "open-api",
+      "rateLimitTier": "openApiDefault"
     },
     {
       "method": "GET",
@@ -123,7 +124,8 @@
         "apiAuthority": "sdkwork-memory-open-api"
       },
       "requestContext": "WebRequestContext",
-      "apiSurface": "open-api"
+      "apiSurface": "open-api",
+      "rateLimitTier": "openApiDefault"
     },
     {
       "method": "GET",
@@ -167,7 +169,8 @@
         "apiAuthority": "sdkwork-memory-open-api"
       },
       "requestContext": "WebRequestContext",
-      "apiSurface": "open-api"
+      "apiSurface": "open-api",
+      "rateLimitTier": "openApiDefault"
     },
     {
       "method": "DELETE",
@@ -189,7 +192,8 @@
         "apiAuthority": "sdkwork-memory-open-api"
       },
       "requestContext": "WebRequestContext",
-      "apiSurface": "open-api"
+      "apiSurface": "open-api",
+      "rateLimitTier": "authCritical"
     },
     {
       "method": "POST",
@@ -211,7 +215,8 @@
         "apiAuthority": "sdkwork-memory-open-api"
       },
       "requestContext": "WebRequestContext",
-      "apiSurface": "open-api"
+      "apiSurface": "open-api",
+      "rateLimitTier": "openApiDefault"
     },
     {
       "method": "GET",
@@ -255,7 +260,8 @@
         "apiAuthority": "sdkwork-memory-open-api"
       },
       "requestContext": "WebRequestContext",
-      "apiSurface": "open-api"
+      "apiSurface": "open-api",
+      "rateLimitTier": "openApiDefault"
     },
     {
       "method": "GET",
@@ -299,7 +305,8 @@
         "apiAuthority": "sdkwork-memory-open-api"
       },
       "requestContext": "WebRequestContext",
-      "apiSurface": "open-api"
+      "apiSurface": "open-api",
+      "rateLimitTier": "openApiDefault"
     },
     {
       "method": "POST",
@@ -321,7 +328,8 @@
         "apiAuthority": "sdkwork-memory-open-api"
       },
       "requestContext": "WebRequestContext",
-      "apiSurface": "open-api"
+      "apiSurface": "open-api",
+      "rateLimitTier": "openApiDefault"
     },
     {
       "method": "GET",

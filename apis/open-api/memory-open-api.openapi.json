@@ -201,6 +201,7 @@
         "x-sdkwork-auth-mode": "api-key",
         "x-sdkwork-audit-event": "memory.open.event.appended",
         "x-sdkwork-idempotent": true,
+        "x-sdkwork-rate-limit-tier": "openApiDefault",
         "requestBody": {
           "required": true,
           "content": {
@@ -223,6 +224,16 @@
           {
             "name": "eventId",
             "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "x-sdkwork-int64-string": true
+            }
+          },
+          {
+            "name": "space_id",
+            "in": "query",
             "required": true,
             "schema": {
               "type": "string",
@@ -349,6 +360,7 @@
           {
             "name": "space_id",
             "in": "query",
+            "required": true,
             "schema": {
               "type": "string",
               "pattern": "^[0-9]+$",
@@ -547,6 +559,7 @@
         "x-sdkwork-auth-mode": "api-key",
         "x-sdkwork-audit-event": "memory.open.record.created",
         "x-sdkwork-idempotent": true,
+        "x-sdkwork-rate-limit-tier": "openApiDefault",
         "requestBody": {
           "required": true,
           "content": {
@@ -569,6 +582,16 @@
           {
             "name": "memoryId",
             "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "x-sdkwork-int64-string": true
+            }
+          },
+          {
+            "name": "space_id",
+            "in": "query",
             "required": true,
             "schema": {
               "type": "string",
@@ -672,6 +695,16 @@
               "pattern": "^[0-9]+$",
               "x-sdkwork-int64-string": true
             }
+          },
+          {
+            "name": "space_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "x-sdkwork-int64-string": true
+            }
           }
         ],
         "responses": {
@@ -753,6 +786,7 @@
         "x-sdkwork-auth-mode": "api-key",
         "x-sdkwork-audit-event": "memory.open.record.updated",
         "x-sdkwork-idempotent": false,
+        "x-sdkwork-rate-limit-tier": "openApiDefault",
         "requestBody": {
           "required": true,
           "content": {
@@ -773,6 +807,16 @@
           {
             "name": "memoryId",
             "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9]+$",
+              "x-sdkwork-int64-string": true
+            }
+          },
+          {
+            "name": "space_id",
+            "in": "query",
             "required": true,
             "schema": {
               "type": "string",
@@ -852,7 +896,8 @@
         "x-sdkwork-data-scope": "owner",
         "x-sdkwork-auth-mode": "api-key",
         "x-sdkwork-audit-event": "memory.open.record.deleted",
-        "x-sdkwork-idempotent": false
+        "x-sdkwork-idempotent": false,
+        "x-sdkwork-rate-limit-tier": "authCritical"
       }
     },
     "/mem/v3/api/memory/retrievals": {
@@ -953,6 +998,7 @@
         "x-sdkwork-auth-mode": "api-key",
         "x-sdkwork-audit-event": "memory.open.retrieval.created",
         "x-sdkwork-idempotent": true,
+        "x-sdkwork-rate-limit-tier": "openApiDefault",
         "requestBody": {
           "required": true,
           "content": {
@@ -1162,6 +1208,7 @@
         "x-sdkwork-auth-mode": "api-key",
         "x-sdkwork-audit-event": "memory.open.context_pack.created",
         "x-sdkwork-idempotent": true,
+        "x-sdkwork-rate-limit-tier": "openApiDefault",
         "requestBody": {
           "required": true,
           "content": {
@@ -1371,6 +1418,7 @@
         "x-sdkwork-auth-mode": "api-key",
         "x-sdkwork-audit-event": "memory.open.feedback.created",
         "x-sdkwork-idempotent": true,
+        "x-sdkwork-rate-limit-tier": "openApiDefault",
         "requestBody": {
           "required": true,
           "content": {
@@ -1481,6 +1529,7 @@
         "x-sdkwork-auth-mode": "api-key",
         "x-sdkwork-audit-event": "memory.open.extraction.requested",
         "x-sdkwork-idempotent": true,
+        "x-sdkwork-rate-limit-tier": "openApiDefault",
         "requestBody": {
           "required": true,
           "content": {

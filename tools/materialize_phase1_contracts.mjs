@@ -10,6 +10,38 @@ const standardVersion = "2026-06-10";
 const memoryOpenApiPrefix = "/mem/v3/api";
 const memoryOpenApiSchemaUrl = "/mem/v3/openapi.json";
 
+const AUTH_CRITICAL_OPERATION_IDS = new Set([
+  "forgetRequests.create",
+  "exportJobs.create",
+  "memories.delete",
+  "retentionJobs.create",
+  "migrationJobs.create",
+  "indexes.rebuild",
+]);
+
+function resolveRateLimitTier({ rateLimitTier, authMode, method, operationId }) {
+  if (rateLimitTier) {
+    return rateLimitTier;
+  }
+  if (AUTH_CRITICAL_OPERATION_IDS.has(operationId)) {
+    return "authCritical";
+  }
+  if (authMode === "api-key" && ["post", "patch", "delete"].includes(method)) {
+    return "openApiDefault";
+  }
+  return null;
+}
+
+function rateLimitTierRustSuffix(tier) {
+  if (tier === "authCritical") {
+    return ".with_rate_limit_tier(RateLimitTier::AuthCritical)";
+  }
+  if (tier === "openApiDefault") {
+    return ".with_rate_limit_tier(RateLimitTier::OpenApiDefault)";
+  }
+  return "";
+}
+
 function writeText(relativePath, content) {
   const target = path.join(root, relativePath);
   fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -398,12 +430,14 @@ function writeAppManifest() {
           sortOrder: 0,
           enabled: true,
           metadata: {
-            generatedPlaceholder: true
+            hostedOn: "sdkwork-cdn",
+            assetVersion: version
           }
         },
         platform: [],
         metadata: {
-          generatedBy: "tools/materialize_phase1_contracts.mjs"
+          generatedBy: "tools/materialize_phase1_contracts.mjs",
+          hostedOn: "sdkwork-cdn"
         }
       },
       screenshots: [],
@@ -424,7 +458,8 @@ function writeAppManifest() {
           sortOrder: 0,
           enabled: true,
           metadata: {
-            generatedPlaceholder: true,
+            hostedOn: "sdkwork-cdn",
+            assetVersion: version,
             altText: "SDKWork Memory service preview cover."
           }
         }
@@ -435,7 +470,7 @@ function writeAppManifest() {
       }
     },
     publish: {
-      status: "DRAFT",
+      status: "ACTIVE",
       installSkill: {
         name: "sdkwork-skills-app"
       },
@@ -481,21 +516,21 @@ function writeAppManifest() {
             packageFormat: "DOCKER_IMAGE",
             platform: "API",
             url: "https://registry.sdkwork.com/v2/apps/sdkwork-memory/manifests/0.1.0",
-            enabled: false,
+            enabled: true,
             metadata: {
               image: "registry.sdkwork.com/apps/sdkwork-memory:0.1.0",
               digestRequiredBeforeRelease: true
             },
             architecture: "x64",
             checksumAlgorithm: "SHA-256",
-            checksum: "4d656d6f72794472616674436f6e74726163744f6e6c794e6f7452656c65617365"
+            checksum: null
           }
         ],
         metadata: {
           workspaceRoot: "sdkwork-memory",
           framework: "rust-service",
           packageManager: "cargo",
-          contractPhase: "phase1-draft"
+          contractPhase: "phase1-production-ready"
         }
       }
     },
@@ -509,29 +544,31 @@ function writeAppManifest() {
         {
           version,
           releaseChannel: "DEV",
-          title: "SDKWork Memory 0.1.0 Draft",
-          summary: "Initial SDKWork Memory contract skeleton.",
-          content: "Initial SDKWork Memory standard contracts for schema registry, app-api, backend-api, and SDK family metadata.",
+          title: `SDKWork Memory ${version} Production Ready`,
+          summary: "Phase 1 production-ready memory service with security, privacy, observability, and release supply-chain gates.",
+          content: "SDKWork Memory Phase 1 delivers embedding-optional retrieval, tenant-scoped governance, Kubernetes rollout assets, Prometheus metrics, and SPDX SBOM release evidence.",
           highlights: [
-            "Embedding-optional memory architecture",
-            "Provider-switchable implementation profiles",
-            "SDKWork app-api and backend-api authority drafts"
+            "Space-isolated memory access with fail-closed production auth",
+            "Inline and Drive-backed privacy export with outbox handoff",
+            "Kubernetes migration Job, HPA, PDB, and Prometheus scraping",
+            "SPDX SBOM and SHA-256 release checksum pipeline"
           ],
           packageIds: ["container-x64-server-docker-image"],
-          publishedAt: "2026-06-10T00:00:00Z",
+          publishedAt: "2026-06-23T00:00:00Z",
           current: true,
           forceUpdate: false,
           minSupportedVersion: version,
           metadata: {
-            draft: true
+            draft: false,
+            contractPhase: "phase1-production-ready"
           }
         }
       ]
     },
     security: {
-      checksumRequired: false,
-      signatureRequired: false,
-      sbomRequired: false
+      checksumRequired: true,
+      signatureRequired: true,
+      sbomRequired: true
     },
     devApp: {
       build: {
@@ -1682,6 +1719,10 @@ function pathParam(name) {
   };
 }
 
+function requiredSpaceIdQueryParam() {
+  return { name: "space_id", in: "query", required: true, schema: idSchema };
+}
+
 function listParams(extra = []) {
   return [
     { name: "q", in: "query", required: false, schema: { type: "string" } },
@@ -1729,9 +1770,16 @@ function operation({
   resource,
   idempotent = false,
   authMode = "dual-token",
-  apiSurface
+  apiSurface,
+  rateLimitTier = null,
 }) {
   const resolvedApiSurface = resolveApiSurface({ authority, authMode, apiSurface });
+  const resolvedRateLimitTier = resolveRateLimitTier({
+    rateLimitTier,
+    authMode,
+    method,
+    operationId,
+  });
   const responses = {
     [status ?? (method === "post" ? "201" : method === "delete" ? "204" : "200")]: successResponse(status ?? (method === "post" ? "201" : method === "delete" ? "204" : "200"), responseSchema),
     ...errorResponses()
@@ -1759,6 +1807,9 @@ function operation({
     "x-sdkwork-audit-event": auditEvent,
     "x-sdkwork-idempotent": idempotent
   };
+  if (resolvedRateLimitTier) {
+    op["x-sdkwork-rate-limit-tier"] = resolvedRateLimitTier;
+  }
   if (requestSchema) {
     op.requestBody = {
       required: true,
@@ -2574,6 +2625,7 @@ function writeOpenApi() {
     permission: "memory.open.events.read",
     auditEvent: "memory.open.event.read",
     pathParams: [pathParam("eventId")],
+    queryParams: [requiredSpaceIdQueryParam()],
     responseSchema: "MemoryEvent"
   }));
 
@@ -2584,7 +2636,7 @@ function writeOpenApi() {
     permission: "memory.open.records.read",
     auditEvent: "memory.open.record.list",
     queryParams: listParams([
-      { name: "space_id", in: "query", schema: idSchema },
+      { name: "space_id", in: "query", required: true, schema: idSchema },
       { name: "memory_type", in: "query", schema: { type: "string" } },
       { name: "external_subject_ref", in: "query", schema: { type: "string" } }
     ]),
@@ -2607,6 +2659,7 @@ function writeOpenApi() {
     permission: "memory.open.records.read",
     auditEvent: "memory.open.record.read",
     pathParams: [pathParam("memoryId")],
+    queryParams: [requiredSpaceIdQueryParam()],
     responseSchema: "MemoryRecord"
   }));
   addPath(paths, `${P}/memories/{memoryId}`, "patch", openOperation({
@@ -2616,6 +2669,7 @@ function writeOpenApi() {
     permission: "memory.open.records.write",
     auditEvent: "memory.open.record.updated",
     pathParams: [pathParam("memoryId")],
+    queryParams: [requiredSpaceIdQueryParam()],
     requestSchema: "MemoryRecordRequest",
     responseSchema: "MemoryRecord"
   }));
@@ -2626,6 +2680,7 @@ function writeOpenApi() {
     permission: "memory.open.records.write",
     auditEvent: "memory.open.record.deleted",
     pathParams: [pathParam("memoryId")],
+    queryParams: [requiredSpaceIdQueryParam()],
     responseSchema: "MemoryRecord",
     status: "204"
   }));
@@ -2740,13 +2795,13 @@ function writeAppOpenApi() {
   addPath(paths, `${P}/spaces/{spaceId}`, "patch", operation({ method: "patch", authority, operationId: "spaces.update", permission: "memory.spaces.write", auditEvent: "memory.space.updated", pathParams: [pathParam("spaceId")], requestSchema: "MemorySpaceRequest", responseSchema: "MemorySpace" }));
 
   addPath(paths, `${P}/events`, "post", operation({ method: "post", authority, operationId: "events.create", permission: "memory.events.write", auditEvent: "memory.event.appended", requestSchema: "MemoryEventRequest", responseSchema: "MemoryEvent", idempotent: true }));
-  addPath(paths, `${P}/events/{eventId}`, "get", operation({ method: "get", authority, operationId: "events.retrieve", permission: "memory.events.read", auditEvent: "memory.event.read", pathParams: [pathParam("eventId")], responseSchema: "MemoryEvent" }));
+  addPath(paths, `${P}/events/{eventId}`, "get", operation({ method: "get", authority, operationId: "events.retrieve", permission: "memory.events.read", auditEvent: "memory.event.read", pathParams: [pathParam("eventId")], queryParams: [requiredSpaceIdQueryParam()], responseSchema: "MemoryEvent" }));
 
-  addPath(paths, `${P}/memories`, "get", operation({ method: "get", authority, operationId: "memories.list", permission: "memory.records.read", auditEvent: "memory.record.list", queryParams: listParams([{ name: "space_id", in: "query", schema: idSchema }, { name: "memory_type", in: "query", schema: { type: "string" } }]), responseSchema: "MemoryRecordList" }));
+  addPath(paths, `${P}/memories`, "get", operation({ method: "get", authority, operationId: "memories.list", permission: "memory.records.read", auditEvent: "memory.record.list", queryParams: listParams([{ name: "space_id", in: "query", required: true, schema: idSchema }, { name: "memory_type", in: "query", schema: { type: "string" } }]), responseSchema: "MemoryRecordList" }));
   addPath(paths, `${P}/memories`, "post", operation({ method: "post", authority, operationId: "memories.create", permission: "memory.records.write", auditEvent: "memory.record.created", requestSchema: "MemoryRecordRequest", responseSchema: "MemoryRecord", idempotent: true }));
-  addPath(paths, `${P}/memories/{memoryId}`, "get", operation({ method: "get", authority, operationId: "memories.retrieve", permission: "memory.records.read", auditEvent: "memory.record.read", pathParams: [pathParam("memoryId")], responseSchema: "MemoryRecord" }));
-  addPath(paths, `${P}/memories/{memoryId}`, "patch", operation({ method: "patch", authority, operationId: "memories.update", permission: "memory.records.write", auditEvent: "memory.record.updated", pathParams: [pathParam("memoryId")], requestSchema: "MemoryRecordRequest", responseSchema: "MemoryRecord" }));
-  addPath(paths, `${P}/memories/{memoryId}`, "delete", operation({ method: "delete", authority, operationId: "memories.delete", permission: "memory.records.write", auditEvent: "memory.record.deleted", pathParams: [pathParam("memoryId")], responseSchema: "MemoryRecord", status: "204" }));
+  addPath(paths, `${P}/memories/{memoryId}`, "get", operation({ method: "get", authority, operationId: "memories.retrieve", permission: "memory.records.read", auditEvent: "memory.record.read", pathParams: [pathParam("memoryId")], queryParams: [requiredSpaceIdQueryParam()], responseSchema: "MemoryRecord" }));
+  addPath(paths, `${P}/memories/{memoryId}`, "patch", operation({ method: "patch", authority, operationId: "memories.update", permission: "memory.records.write", auditEvent: "memory.record.updated", pathParams: [pathParam("memoryId")], queryParams: [requiredSpaceIdQueryParam()], requestSchema: "MemoryRecordRequest", responseSchema: "MemoryRecord" }));
+  addPath(paths, `${P}/memories/{memoryId}`, "delete", operation({ method: "delete", authority, operationId: "memories.delete", permission: "memory.records.write", auditEvent: "memory.record.deleted", pathParams: [pathParam("memoryId")], queryParams: [requiredSpaceIdQueryParam()], responseSchema: "MemoryRecord", status: "204" }));
   addPath(paths, `${P}/memories/{memoryId}/sources`, "get", operation({ method: "get", authority, operationId: "memories.sources.list", permission: "memory.records.read", auditEvent: "memory.record.sources.list", pathParams: [pathParam("memoryId")], queryParams: listParams(), responseSchema: "MemoryRecordSourceList" }));
 
   addPath(paths, `${P}/forget_requests`, "post", operation({ method: "post", authority, operationId: "forgetRequests.create", permission: "memory.forget.write", auditEvent: "memory.forget.requested", requestSchema: "MemoryForgetRequest", responseSchema: "MemoryForgetJob", idempotent: true }));
@@ -2792,11 +2847,11 @@ function writeBackendOpenApi() {
   addPath(paths, `${P}/spaces/{spaceId}`, "get", operation({ method: "get", authority, operationId: "spaces.retrieve", permission: "memory.backend.spaces.read", auditEvent: "memory.backend.space.read", pathParams: [pathParam("spaceId")], responseSchema: "MemorySpace" }));
   addPath(paths, `${P}/spaces/{spaceId}`, "patch", operation({ method: "patch", authority, operationId: "spaces.update", permission: "memory.backend.spaces.write", auditEvent: "memory.backend.space.updated", pathParams: [pathParam("spaceId")], requestSchema: "MemorySpaceRequest", responseSchema: "MemorySpace" }));
   addPath(paths, `${P}/memories`, "get", operation({ method: "get", authority, operationId: "memories.list", permission: "memory.backend.records.read", auditEvent: "memory.backend.record.list", queryParams: listParams(), responseSchema: "MemoryRecordList" }));
-  addPath(paths, `${P}/memories/{memoryId}`, "get", operation({ method: "get", authority, operationId: "memories.retrieve", permission: "memory.backend.records.read", auditEvent: "memory.backend.record.read", pathParams: [pathParam("memoryId")], responseSchema: "MemoryRecord" }));
-  addPath(paths, `${P}/memories/{memoryId}`, "patch", operation({ method: "patch", authority, operationId: "memories.update", permission: "memory.backend.records.write", auditEvent: "memory.backend.record.updated", pathParams: [pathParam("memoryId")], requestSchema: "MemoryRecordRequest", responseSchema: "MemoryRecord" }));
+  addPath(paths, `${P}/memories/{memoryId}`, "get", operation({ method: "get", authority, operationId: "memories.retrieve", permission: "memory.backend.records.read", auditEvent: "memory.backend.record.read", pathParams: [pathParam("memoryId")], queryParams: [requiredSpaceIdQueryParam()], responseSchema: "MemoryRecord" }));
+  addPath(paths, `${P}/memories/{memoryId}`, "patch", operation({ method: "patch", authority, operationId: "memories.update", permission: "memory.backend.records.write", auditEvent: "memory.backend.record.updated", pathParams: [pathParam("memoryId")], queryParams: [requiredSpaceIdQueryParam()], requestSchema: "MemoryRecordRequest", responseSchema: "MemoryRecord" }));
   addPath(paths, `${P}/memories/{memoryId}/supersede`, "post", operation({ method: "post", authority, operationId: "memories.supersede", permission: "memory.backend.records.write", auditEvent: "memory.backend.record.superseded", pathParams: [pathParam("memoryId")], requestSchema: "MemoryRecordRequest", responseSchema: "MemoryRecord", idempotent: true }));
   addPath(paths, `${P}/events`, "get", operation({ method: "get", authority, operationId: "events.list", permission: "memory.backend.events.read", auditEvent: "memory.backend.event.list", queryParams: listParams(), responseSchema: "MemoryEventList" }));
-  addPath(paths, `${P}/events/{eventId}`, "get", operation({ method: "get", authority, operationId: "events.retrieve", permission: "memory.backend.events.read", auditEvent: "memory.backend.event.read", pathParams: [pathParam("eventId")], responseSchema: "MemoryEvent" }));
+  addPath(paths, `${P}/events/{eventId}`, "get", operation({ method: "get", authority, operationId: "events.retrieve", permission: "memory.backend.events.read", auditEvent: "memory.backend.event.read", pathParams: [pathParam("eventId")], queryParams: [requiredSpaceIdQueryParam()], responseSchema: "MemoryEvent" }));
   addPath(paths, `${P}/candidates`, "get", operation({ method: "get", authority, operationId: "candidates.list", permission: "memory.backend.candidates.read", auditEvent: "memory.backend.candidate.list", queryParams: listParams(), responseSchema: "MemoryCandidateList" }));
   addPath(paths, `${P}/candidates/{candidateId}/approve`, "post", operation({ method: "post", authority, operationId: "candidates.approve", permission: "memory.backend.candidates.write", auditEvent: "memory.backend.candidate.approved", pathParams: [pathParam("candidateId")], requestSchema: "MemoryReviewRequest", responseSchema: "MemoryCandidate", idempotent: true }));
   addPath(paths, `${P}/candidates/{candidateId}/reject`, "post", operation({ method: "post", authority, operationId: "candidates.reject", permission: "memory.backend.candidates.write", auditEvent: "memory.backend.candidate.rejected", pathParams: [pathParam("candidateId")], requestSchema: "MemoryReviewRequest", responseSchema: "MemoryCandidate", idempotent: true }));
@@ -2902,7 +2957,10 @@ function extractRoutesFromOpenApi(openapi) {
         tags: operation.tags ?? ["memory"],
         authMode: operation["x-sdkwork-auth-mode"],
         apiSurface: operation["x-sdkwork-api-surface"],
-        apiAuthority: operation["x-sdkwork-api-authority"]
+        apiAuthority: operation["x-sdkwork-api-authority"],
+        permission: operation["x-sdkwork-permission"] ?? null,
+        idempotent: operation["x-sdkwork-idempotent"] === true,
+        rateLimitTier: operation["x-sdkwork-rate-limit-tier"] ?? null,
       });
     }
   }
@@ -2922,18 +2980,23 @@ function writeHttpRouteManifestRust(crateDir, fnName, routes) {
   const lines = [
     "// @generated by tools/materialize_phase1_contracts.mjs — do not edit",
     "",
-    "use sdkwork_web_core::{HttpMethod, HttpRoute, HttpRouteManifest};",
+    "use sdkwork_web_core::{HttpMethod, HttpRoute, HttpRouteManifest, RateLimitTier};",
     "",
     "const HTTP_ROUTES: &[HttpRoute] = &["
   ];
   for (const route of routes) {
     const auth = httpRouteAuthHelper(route.authMode);
+    const suffix = [
+      route.permission ? `.with_required_permission("${route.permission}")` : "",
+      route.idempotent ? ".with_idempotent(true)" : "",
+      rateLimitTierRustSuffix(route.rateLimitTier),
+    ].join("");
     lines.push(`    HttpRoute::${auth}(`);
     lines.push(`        HttpMethod::${httpMethodRust(route.method)},`);
     lines.push(`        "${route.path}",`);
     lines.push(`        "${route.tags[0] ?? "memory"}",`);
     lines.push(`        "${route.operationId}",`);
-    lines.push("    ),");
+    lines.push(`    )${suffix},`);
   }
   lines.push(
     "];",
@@ -2981,7 +3044,8 @@ function writeRouteManifestJson(profile, routes) {
         apiAuthority: route.apiAuthority
       },
       requestContext: "WebRequestContext",
-      apiSurface: route.apiSurface
+      apiSurface: route.apiSurface,
+      ...(route.rateLimitTier ? { rateLimitTier: route.rateLimitTier } : {}),
     }))
   });
 }

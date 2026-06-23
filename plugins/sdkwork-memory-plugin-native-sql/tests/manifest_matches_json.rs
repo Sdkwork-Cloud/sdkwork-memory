@@ -3,7 +3,7 @@ use std::fs;
 use sdkwork_memory_plugin_native_sql::{
     build_native_sql_audit_store, build_native_sql_candidate_store, build_native_sql_event_store,
     build_native_sql_habit_store, build_native_sql_outbox_store, build_native_sql_record_store,
-    build_native_sql_retrieval_trace_store, native_sql_manifest,
+    build_native_sql_retrieval_trace_store, native_sql_manifest, validate_native_sql_port_builders,
 };
 use sdkwork_memory_spi::{MemoryImplementationKind, MemoryPluginManifest};
 
@@ -135,4 +135,10 @@ fn manifest_declares_native_sql_store_ports() {
     assert!(ports.contains(&"MemoryCandidateStorePort"));
     assert!(ports.contains(&"MemoryHabitStorePort"));
     assert!(ports.contains(&"MemoryRetrievalTraceStorePort"));
+}
+
+#[test]
+fn validate_native_sql_port_builders_matches_manifest_exports() {
+    let manifest = native_sql_manifest();
+    validate_native_sql_port_builders(&manifest).expect("phase1 port builders must be ready");
 }
