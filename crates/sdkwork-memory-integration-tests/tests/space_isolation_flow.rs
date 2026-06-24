@@ -10,13 +10,12 @@ use tower::util::ServiceExt;
 
 #[tokio::test]
 async fn open_api_rejects_memory_retrieve_when_space_id_does_not_match_record() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = build_router_with_open_api(OpenMemoryService::new(store));
-    let context = sdkwork_memory_contract::MemoryOpenApiRequestContext {
-        api_key_id: "key-1".to_string(),
-        tenant_id: 1001,
-        actor_id: Some(2001),
-    };
+    let context = sdkwork_memory_contract::MemoryOpenApiRequestContext::for_backend_surface(
+        1001,
+        Some(9001),
+    );
 
     let create = app
         .clone()
@@ -60,7 +59,7 @@ async fn open_api_rejects_memory_retrieve_when_space_id_does_not_match_record() 
 
 #[tokio::test]
 async fn open_api_list_memories_requires_space_id_query_parameter() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = build_router_with_open_api(OpenMemoryService::new(store));
 
     let response = app
@@ -68,11 +67,11 @@ async fn open_api_list_memories_requires_space_id_query_parameter() {
             Request::builder()
                 .method("GET")
                 .uri("/mem/v3/api/memory/memories")
-                .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext {
-                    api_key_id: "key-1".to_string(),
-                    tenant_id: 1001,
-                    actor_id: Some(2001),
-                })
+                .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
+                    "key-1",
+                    1001,
+                    Some(2001),
+                ))
                 .body(Body::empty())
                 .unwrap(),
         )

@@ -39,7 +39,11 @@ pub async fn bootstrap_memory_data_plane_from_env() -> Result<MemoryDataPlane, S
     let config = DatabaseConfig::from_env("MEMORY").map_err(|error| error.to_string())?;
     let config = normalize_memory_database_config(config);
 
-    let host_pool = if config.engine == DatabaseEngine::Postgres {
+    let auto_migrate = std::env::var("SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE")
+        .map(|value| value == "true" || value == "1")
+        .unwrap_or(false);
+
+    let host_pool = if config.engine == DatabaseEngine::Postgres && auto_migrate {
         let pool = create_pool_from_config(config.clone())
             .await
             .map_err(|error| error.to_string())?;

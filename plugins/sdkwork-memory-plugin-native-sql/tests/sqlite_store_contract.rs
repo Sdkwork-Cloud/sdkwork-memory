@@ -122,9 +122,66 @@ fn retrieval_trace_command(
     }
 }
 
+async fn seed_contract_spaces(store: &NativeSqlMemoryStore) {
+    let spaces = [
+        (1_i64, 1_i64, "tenant", "1", "workspace"),
+        (1_i64, 2_i64, "tenant", "1", "shared"),
+        (2_i64, 3_i64, "tenant", "2", "workspace"),
+    ];
+    for (tenant_id, space_id, owner_type, owner_id, space_type) in spaces {
+        store
+            .create_space_record(
+                tenant_id,
+                space_id,
+                &NativeSqlCreateSpaceCommand {
+                    organization_id: None,
+                    owner_subject_type: owner_type.to_string(),
+                    owner_subject_id: owner_id.to_string(),
+                    space_type: space_type.to_string(),
+                    display_name: format!("Contract Space {space_id}"),
+                    default_scope: "user".to_string(),
+                },
+            )
+            .await
+            .expect("seed contract space");
+    }
+}
+
+async fn new_contract_store() -> NativeSqlMemoryStore {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite()
+        .await
+        .expect("contract sqlite store must initialize");
+    seed_contract_spaces(&store).await;
+    store
+}
+
+#[tokio::test]
+async fn sqlite_store_rejects_duplicate_owner_space_type() {
+    let store = new_contract_store().await;
+    let err = store
+        .create_space_record(
+            1,
+            99,
+            &NativeSqlCreateSpaceCommand {
+                organization_id: None,
+                owner_subject_type: "tenant".to_string(),
+                owner_subject_id: "1".to_string(),
+                space_type: "workspace".to_string(),
+                display_name: "Duplicate workspace".to_string(),
+                default_scope: "user".to_string(),
+            },
+        )
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, NativeSqlStoreError::Database(_)),
+        "expected unique constraint violation, got {err:?}"
+    );
+}
+
 #[tokio::test]
 async fn sqlite_store_applies_phase1_migration_and_round_trips_event_and_record() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
 
     store
@@ -155,7 +212,7 @@ async fn sqlite_store_applies_phase1_migration_and_round_trips_event_and_record(
 
 #[tokio::test]
 async fn sqlite_store_preserves_event_content_with_json_sensitive_characters() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
 
     let content = r#"User said "use C:\sdkwork\memory" for local tests"#;
@@ -175,7 +232,7 @@ async fn sqlite_store_preserves_event_content_with_json_sensitive_characters() {
 
 #[tokio::test]
 async fn sqlite_store_reads_event_payload_as_structured_json() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
 
     let content = "line one\nline two";
@@ -195,7 +252,7 @@ async fn sqlite_store_reads_event_payload_as_structured_json() {
 
 #[tokio::test]
 async fn sqlite_store_implements_record_and_event_store_spi_ports() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
 
     let event = MemoryEventStorePort::append(
@@ -227,9 +284,9 @@ async fn sqlite_store_implements_record_and_event_store_spi_ports() {
 
 #[tokio::test]
 async fn sqlite_store_keeps_records_and_events_isolated_by_tenant_and_space() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let tenant_one = MemoryScopeContext::for_test(1, 1);
-    let tenant_two = MemoryScopeContext::for_test(2, 2);
+    let tenant_two = MemoryScopeContext::for_test(2, 3);
     let wrong_space = MemoryScopeContext::for_test(1, 2);
 
     store
@@ -288,9 +345,9 @@ async fn sqlite_store_keeps_records_and_events_isolated_by_tenant_and_space() {
 
 #[tokio::test]
 async fn sqlite_store_spi_retrieve_methods_require_matching_scope() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let tenant_one = MemoryScopeContext::for_test(1, 1);
-    let tenant_two = MemoryScopeContext::for_test(2, 2);
+    let tenant_two = MemoryScopeContext::for_test(2, 3);
 
     MemoryEventStorePort::append(
         &store,
@@ -337,7 +394,7 @@ async fn sqlite_store_spi_retrieve_methods_require_matching_scope() {
 
 #[tokio::test]
 async fn sqlite_store_soft_deletes_records_and_suppresses_retrieve() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
 
     store
@@ -366,7 +423,7 @@ async fn sqlite_store_soft_deletes_records_and_suppresses_retrieve() {
 
 #[tokio::test]
 async fn sqlite_store_record_delete_is_idempotent_for_already_deleted_records() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
 
     store
@@ -391,9 +448,9 @@ async fn sqlite_store_record_delete_is_idempotent_for_already_deleted_records() 
 
 #[tokio::test]
 async fn sqlite_store_record_delete_does_not_cross_tenant_or_space_scope() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let tenant_one = MemoryScopeContext::for_test(1, 1);
-    let tenant_two = MemoryScopeContext::for_test(2, 2);
+    let tenant_two = MemoryScopeContext::for_test(2, 3);
     let wrong_space = MemoryScopeContext::for_test(1, 2);
 
     store
@@ -431,7 +488,7 @@ async fn sqlite_store_record_delete_does_not_cross_tenant_or_space_scope() {
 
 #[tokio::test]
 async fn sqlite_store_implements_record_delete_spi_port() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
 
     MemoryRecordStorePort::create(
@@ -471,7 +528,7 @@ async fn sqlite_store_implements_record_delete_spi_port() {
 
 #[tokio::test]
 async fn sqlite_store_event_append_is_idempotent_for_same_scope_event_and_content() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
 
     store
@@ -494,7 +551,7 @@ async fn sqlite_store_event_append_is_idempotent_for_same_scope_event_and_conten
 
 #[tokio::test]
 async fn sqlite_store_event_append_rejects_same_scope_event_with_different_content() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
 
     store
@@ -511,7 +568,7 @@ async fn sqlite_store_event_append_rejects_same_scope_event_with_different_conte
 
 #[tokio::test]
 async fn sqlite_store_event_append_rejects_same_tenant_event_reuse_in_different_space() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let first_space = MemoryScopeContext::for_test(1, 1);
     let second_space = MemoryScopeContext::for_test(1, 2);
 
@@ -534,7 +591,7 @@ async fn sqlite_store_event_append_rejects_same_tenant_event_reuse_in_different_
 
 #[tokio::test]
 async fn sqlite_store_spi_event_append_maps_idempotency_conflict_to_spi_conflict() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
 
     MemoryEventStorePort::append(
@@ -563,9 +620,9 @@ async fn sqlite_store_spi_event_append_maps_idempotency_conflict_to_spi_conflict
 
 #[tokio::test]
 async fn sqlite_store_appends_and_retrieves_audit_records_by_scope() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let tenant_one = MemoryScopeContext::for_test(1, 1);
-    let tenant_two = MemoryScopeContext::for_test(2, 2);
+    let tenant_two = MemoryScopeContext::for_test(2, 3);
 
     store
         .append_audit(
@@ -613,7 +670,7 @@ async fn sqlite_store_appends_and_retrieves_audit_records_by_scope() {
 
 #[tokio::test]
 async fn sqlite_store_implements_audit_store_spi_port() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
 
     let audit = MemoryAuditStorePort::append(
@@ -649,9 +706,9 @@ async fn sqlite_store_implements_audit_store_spi_port() {
 
 #[tokio::test]
 async fn sqlite_store_appends_and_retrieves_outbox_events_by_tenant_scope() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let tenant_one = MemoryScopeContext::for_test(1, 1);
-    let tenant_two = MemoryScopeContext::for_test(2, 2);
+    let tenant_two = MemoryScopeContext::for_test(2, 3);
 
     store
         .append_outbox_event(outbox_command(
@@ -696,7 +753,7 @@ async fn sqlite_store_appends_and_retrieves_outbox_events_by_tenant_scope() {
 
 #[tokio::test]
 async fn sqlite_store_outbox_append_is_idempotent_for_same_tenant_event_and_payload() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
 
     store
@@ -729,7 +786,7 @@ async fn sqlite_store_outbox_append_is_idempotent_for_same_tenant_event_and_payl
 
 #[tokio::test]
 async fn sqlite_store_outbox_append_rejects_same_tenant_event_with_different_payload() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
 
     store
@@ -756,7 +813,7 @@ async fn sqlite_store_outbox_append_rejects_same_tenant_event_with_different_pay
 
 #[tokio::test]
 async fn sqlite_store_implements_outbox_store_spi_port() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
 
     let outbox = MemoryOutboxStorePort::append(
@@ -795,7 +852,7 @@ async fn sqlite_store_implements_outbox_store_spi_port() {
 
 #[tokio::test]
 async fn sqlite_store_spi_outbox_append_maps_idempotency_conflict_to_spi_conflict() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
 
     MemoryOutboxStorePort::append(
@@ -832,9 +889,9 @@ async fn sqlite_store_spi_outbox_append_maps_idempotency_conflict_to_spi_conflic
 
 #[tokio::test]
 async fn sqlite_store_lists_pending_outbox_events_by_tenant_scope_and_limit() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let tenant_one = MemoryScopeContext::for_test(1, 1);
-    let tenant_two = MemoryScopeContext::for_test(2, 2);
+    let tenant_two = MemoryScopeContext::for_test(2, 3);
 
     store
         .append_outbox_event(outbox_command(
@@ -876,7 +933,7 @@ async fn sqlite_store_lists_pending_outbox_events_by_tenant_scope_and_limit() {
 
 #[tokio::test]
 async fn sqlite_store_marks_outbox_published_and_excludes_it_from_pending() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
 
     store
@@ -908,8 +965,102 @@ async fn sqlite_store_marks_outbox_published_and_excludes_it_from_pending() {
 }
 
 #[tokio::test]
+async fn sqlite_store_claim_global_pending_outbox_events_publishes_once() {
+    let store = new_contract_store().await;
+    let scope = MemoryScopeContext::for_test(1, 1);
+
+    store
+        .append_outbox_event(outbox_command(
+            &scope,
+            "out-claim-1",
+            "rec-1",
+            r#"{"memoryId":"rec-1"}"#,
+        ))
+        .await
+        .unwrap();
+    store
+        .append_outbox_event(outbox_command(
+            &scope,
+            "out-claim-2",
+            "rec-2",
+            r#"{"memoryId":"rec-2"}"#,
+        ))
+        .await
+        .unwrap();
+
+    let first = store.claim_global_pending_outbox_events(10).await.unwrap();
+    assert_eq!(first.len(), 2);
+    assert!(first
+        .iter()
+        .all(|row| row.outbox.publish_state == "processing"));
+
+    let second = store.claim_global_pending_outbox_events(10).await.unwrap();
+    assert!(second.is_empty());
+
+    for row in &first {
+        let published = store
+            .ack_outbox_delivery_success(row.tenant_id, &row.outbox.outbox_id)
+            .await
+            .unwrap()
+            .expect("ack must return published row");
+        assert_eq!(published.publish_state, "published");
+        assert!(published.published_at.is_some());
+    }
+
+    let pending = store.list_pending_outbox_events(&scope, 10).await.unwrap();
+    assert!(pending.is_empty());
+}
+
+#[tokio::test]
+async fn sqlite_store_outbox_delivery_failure_requeues_until_max_retries() {
+    let store = new_contract_store().await;
+    let scope = MemoryScopeContext::for_test(1, 1);
+
+    store
+        .append_outbox_event(outbox_command(
+            &scope,
+            "out-retry",
+            "rec-1",
+            r#"{"memoryId":"rec-1"}"#,
+        ))
+        .await
+        .unwrap();
+
+    let claimed = store.claim_global_pending_outbox_events(10).await.unwrap();
+    assert_eq!(claimed.len(), 1);
+    assert_eq!(claimed[0].outbox.publish_state, "processing");
+
+    let first_failure = store
+        .record_outbox_delivery_failure(1, "out-retry", 3)
+        .await
+        .unwrap()
+        .expect("first failure row");
+    assert_eq!(first_failure.publish_state, "pending");
+    assert_eq!(first_failure.retry_count, 1);
+
+    let reclaimed = store.claim_global_pending_outbox_events(10).await.unwrap();
+    assert_eq!(reclaimed.len(), 1);
+    let terminal_failure = store
+        .record_outbox_delivery_failure(1, "out-retry", 3)
+        .await
+        .unwrap()
+        .expect("second failure row");
+    assert_eq!(terminal_failure.publish_state, "pending");
+    assert_eq!(terminal_failure.retry_count, 2);
+
+    store.claim_global_pending_outbox_events(10).await.unwrap();
+    let failed = store
+        .record_outbox_delivery_failure(1, "out-retry", 3)
+        .await
+        .unwrap()
+        .expect("terminal failure row");
+    assert_eq!(failed.publish_state, "failed");
+    assert_eq!(failed.retry_count, 3);
+}
+
+#[tokio::test]
 async fn sqlite_store_marks_outbox_failed_increments_retry_and_excludes_it_from_pending() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
 
     store
@@ -937,9 +1088,9 @@ async fn sqlite_store_marks_outbox_failed_increments_retry_and_excludes_it_from_
 
 #[tokio::test]
 async fn sqlite_store_outbox_delivery_lifecycle_does_not_cross_tenant_scope() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let tenant_one = MemoryScopeContext::for_test(1, 1);
-    let tenant_two = MemoryScopeContext::for_test(2, 2);
+    let tenant_two = MemoryScopeContext::for_test(2, 3);
     let missing_tenant = MemoryScopeContext::for_test(3, 3);
 
     store
@@ -983,7 +1134,7 @@ async fn sqlite_store_outbox_delivery_lifecycle_does_not_cross_tenant_scope() {
 
 #[tokio::test]
 async fn sqlite_store_implements_outbox_delivery_lifecycle_spi_port() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
 
     MemoryOutboxStorePort::append(
@@ -1066,9 +1217,9 @@ async fn sqlite_store_implements_outbox_delivery_lifecycle_spi_port() {
 
 #[tokio::test]
 async fn sqlite_store_creates_and_decides_candidates_by_tenant_and_space_scope() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let tenant_one = MemoryScopeContext::for_test(1, 1);
-    let tenant_two = MemoryScopeContext::for_test(2, 2);
+    let tenant_two = MemoryScopeContext::for_test(2, 3);
     let wrong_space = MemoryScopeContext::for_test(1, 2);
 
     let tenant_one_candidate = MemoryCandidateStorePort::create(
@@ -1134,9 +1285,9 @@ async fn sqlite_store_creates_and_decides_candidates_by_tenant_and_space_scope()
 
 #[tokio::test]
 async fn sqlite_store_upserts_promotes_and_decays_habits_by_tenant_space_and_user_scope() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let tenant_one = MemoryScopeContext::for_test(1, 1);
-    let tenant_two = MemoryScopeContext::for_test(2, 2);
+    let tenant_two = MemoryScopeContext::for_test(2, 3);
     let wrong_user = 43;
 
     store
@@ -1209,9 +1360,9 @@ async fn sqlite_store_upserts_promotes_and_decays_habits_by_tenant_space_and_use
 
 #[tokio::test]
 async fn sqlite_store_appends_retrieval_trace_with_hits_and_context_pack_by_scope() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let tenant_one = MemoryScopeContext::for_test(1, 1);
-    let tenant_two = MemoryScopeContext::for_test(2, 2);
+    let tenant_two = MemoryScopeContext::for_test(2, 3);
     let wrong_space = MemoryScopeContext::for_test(1, 2);
 
     store
@@ -1318,7 +1469,7 @@ fn native_sql_manifest_exports_candidate_habit_and_retrieval_trace_builders() {
 
 #[tokio::test]
 async fn sqlite_store_lists_candidates_with_cursor_pagination() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
     for candidate_id in ["cand-a", "cand-b", "cand-c"] {
         MemoryCandidateStorePort::create(
@@ -1346,8 +1497,39 @@ async fn sqlite_store_lists_candidates_with_cursor_pagination() {
 
 #[tokio::test]
 async fn sqlite_store_lists_spaces_with_cursor_pagination() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
-    for space_id in [1_i64, 2, 3] {
+    let store = new_contract_store().await;
+    store
+        .create_space_record(
+            1,
+            10,
+            &NativeSqlCreateSpaceCommand {
+                organization_id: None,
+                owner_subject_type: "user".to_string(),
+                owner_subject_id: "user-10".to_string(),
+                space_type: "personal".to_string(),
+                display_name: "Space 10".to_string(),
+                default_scope: "user".to_string(),
+            },
+        )
+        .await
+        .unwrap();
+
+    let first_page = store.list_spaces_for_tenant(1, 2, 0, None).await.unwrap();
+    assert_eq!(first_page.len(), 3);
+    let next_cursor = first_page[1].space_id;
+
+    let second_page = store
+        .list_spaces_for_tenant(1, 2, next_cursor, None)
+        .await
+        .unwrap();
+    assert_eq!(second_page.len(), 1);
+    assert_eq!(second_page[0].space_id, 10);
+}
+
+#[tokio::test]
+async fn sqlite_store_lists_spaces_scoped_to_actor_owner() {
+    let store = new_contract_store().await;
+    for (space_id, owner) in [(4_i64, "2001"), (5, "3002")] {
         store
             .create_space_record(
                 1,
@@ -1355,7 +1537,7 @@ async fn sqlite_store_lists_spaces_with_cursor_pagination() {
                 &NativeSqlCreateSpaceCommand {
                     organization_id: None,
                     owner_subject_type: "user".to_string(),
-                    owner_subject_id: format!("user-{space_id}"),
+                    owner_subject_id: owner.to_string(),
                     space_type: "personal".to_string(),
                     display_name: format!("Space {space_id}"),
                     default_scope: "user".to_string(),
@@ -1365,37 +1547,18 @@ async fn sqlite_store_lists_spaces_with_cursor_pagination() {
             .unwrap();
     }
 
-    let first_page = store.list_spaces_for_tenant(1, 2, 0).await.unwrap();
-    assert_eq!(first_page.len(), 3);
-    let next_cursor = first_page[1].space_id;
-
-    let second_page = store
-        .list_spaces_for_tenant(1, 2, next_cursor)
+    let scoped = store
+        .list_spaces_for_tenant(1, 10, 0, Some("2001"))
         .await
         .unwrap();
-    assert_eq!(second_page.len(), 1);
-    assert_eq!(second_page[0].space_id, 3);
+    assert_eq!(scoped.len(), 1);
+    assert_eq!(scoped[0].space_id, 4);
 }
 
 #[tokio::test]
 async fn sqlite_store_lists_record_sources_with_cursor_pagination() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = new_contract_store().await;
     let scope = MemoryScopeContext::for_test(1, 1);
-    store
-        .create_space_record(
-            1,
-            1,
-            &NativeSqlCreateSpaceCommand {
-                organization_id: None,
-                owner_subject_type: "user".to_string(),
-                owner_subject_id: "user-1".to_string(),
-                space_type: "personal".to_string(),
-                display_name: "Source pagination space".to_string(),
-                default_scope: "user".to_string(),
-            },
-        )
-        .await
-        .unwrap();
     store
         .create_record(&scope, "100", "user", "concise answers")
         .await
@@ -1409,6 +1572,7 @@ async fn sqlite_store_lists_record_sources_with_cursor_pagination() {
                 "chat",
                 "2026-06-10T00:00:00Z",
                 &serde_json::json!({ "text": "seed" }),
+                "internal",
             )
             .await
             .unwrap();

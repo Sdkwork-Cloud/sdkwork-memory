@@ -7,11 +7,7 @@ use sdkwork_router_memory_open_api::{build_router_with_open_api, open_route_mani
 use tower::util::ServiceExt;
 
 fn open_context() -> MemoryOpenApiRequestContext {
-    MemoryOpenApiRequestContext {
-        api_key_id: "api-key-001".to_string(),
-        tenant_id: 1001,
-        actor_id: Some(2001),
-    }
+    MemoryOpenApiRequestContext::for_open_surface("api-key-001", 1001, Some(2001))
 }
 
 #[tokio::test]

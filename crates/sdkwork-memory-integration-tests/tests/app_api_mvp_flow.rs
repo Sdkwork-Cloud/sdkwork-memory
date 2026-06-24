@@ -41,32 +41,13 @@ fn authed_get_request(uri: &str) -> Request<Body> {
 #[tokio::test]
 async fn app_api_mvp_flow_space_memory_and_retrieval_via_dual_token() {
     let _env = lock_integration_test_env();
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamDatabaseWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
     );
 
-    let create_space = app
-        .clone()
-        .oneshot(authed_json_request(
-            "POST",
-            "/app/v3/api/memory/spaces",
-            json!({
-                "ownerSubjectType": "user",
-                "ownerSubjectId": "2001",
-                "spaceType": "personal",
-                "displayName": "Personal memory space"
-            }),
-        ))
-        .await
-        .unwrap();
-    assert_eq!(create_space.status(), StatusCode::CREATED);
-    let space_body = to_bytes(create_space.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let space_json: serde_json::Value = serde_json::from_slice(&space_body).unwrap();
-    let space_id = space_json["spaceId"].as_str().unwrap();
+    let space_id = "2";
 
     let create_memory = app
         .clone()
@@ -110,8 +91,13 @@ async fn app_api_mvp_flow_space_memory_and_retrieval_via_dual_token() {
 #[tokio::test]
 async fn app_api_habit_confirm_flow_via_dual_token() {
     let _env = lock_integration_test_env();
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
-    let scope = MemoryScopeContext::for_test(1001, 1);
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
+    let scope = MemoryScopeContext {
+        tenant_id: 1001,
+        space_id: 2,
+        organization_id: None,
+        user_id: Some(2001),
+    };
     MemoryHabitStorePort::upsert(
         &store,
         UpsertMemoryHabitCommand {
@@ -153,33 +139,13 @@ async fn app_api_habit_confirm_flow_via_dual_token() {
 #[tokio::test]
 async fn app_api_memory_sources_list_returns_linked_event_sources() {
     let _env = lock_integration_test_env();
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let pool = store.pool().clone();
+    let space_id = "2";
     let app = wrap_router_with_iam_database_web_framework(
         IamDatabaseWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
     );
-
-    let create_space = app
-        .clone()
-        .oneshot(authed_json_request(
-            "POST",
-            "/app/v3/api/memory/spaces",
-            json!({
-                "ownerSubjectType": "user",
-                "ownerSubjectId": "2001",
-                "spaceType": "personal",
-                "displayName": "Source test space"
-            }),
-        ))
-        .await
-        .unwrap();
-    assert_eq!(create_space.status(), StatusCode::CREATED);
-    let space_body = to_bytes(create_space.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let space_json: serde_json::Value = serde_json::from_slice(&space_body).unwrap();
-    let space_id = space_json["spaceId"].as_str().unwrap();
 
     let create_memory = app
         .clone()
@@ -212,6 +178,7 @@ async fn app_api_memory_sources_list_returns_linked_event_sources() {
             "chat",
             "2026-06-10T00:00:00Z",
             &json!({ "text": "keep answers concise" }),
+            "internal",
         )
         .await
         .expect("seed event");
@@ -239,33 +206,13 @@ async fn app_api_memory_sources_list_returns_linked_event_sources() {
 #[tokio::test]
 async fn app_api_candidate_approve_promotes_memory_and_links_event_sources() {
     let _env = lock_integration_test_env();
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let pool = store.pool().clone();
+    let space_id = "2";
     let app = wrap_router_with_iam_database_web_framework(
         IamDatabaseWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
     );
-
-    let create_space = app
-        .clone()
-        .oneshot(authed_json_request(
-            "POST",
-            "/app/v3/api/memory/spaces",
-            json!({
-                "ownerSubjectType": "user",
-                "ownerSubjectId": "2001",
-                "spaceType": "personal",
-                "displayName": "Candidate promotion space"
-            }),
-        ))
-        .await
-        .unwrap();
-    assert_eq!(create_space.status(), StatusCode::CREATED);
-    let space_body = to_bytes(create_space.into_body(), usize::MAX)
-        .await
-        .unwrap();
-    let space_json: serde_json::Value = serde_json::from_slice(&space_body).unwrap();
-    let space_id = space_json["spaceId"].as_str().unwrap();
 
     let seed_store = NativeSqlMemoryStore::from_any_pool(pool, MemorySqlDialect::Sqlite).await;
     let scope = MemoryScopeContext::for_test(1001, space_id.parse().unwrap());
@@ -277,6 +224,7 @@ async fn app_api_candidate_approve_promotes_memory_and_links_event_sources() {
             "chat",
             "2026-06-10T00:00:00Z",
             &json!({ "content": "User prefers concise answers" }),
+            "internal",
         )
         .await
         .expect("seed event");

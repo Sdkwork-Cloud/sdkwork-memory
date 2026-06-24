@@ -40,7 +40,11 @@
       "CONTAINER_IMAGE"
     ],
     "defaultPlatform": "API",
-    "defaultArchitecture": "x64"
+    "defaultArchitecture": "x64",
+    "supportedDeploymentProfiles": [
+      "standalone",
+      "cloud"
+    ]
   },
   "media": {
     "icons": {
@@ -65,8 +69,7 @@
       },
       "platform": [],
       "metadata": {
-        "assetVersion": "0.1.0",
-        "defaultLocale": "en-US",
+        "generatedBy": "tools/materialize_phase1_contracts.mjs",
         "hostedOn": "sdkwork-cdn"
       }
     },
@@ -157,7 +160,7 @@
           },
           "architecture": "x64",
           "checksumAlgorithm": "SHA-256",
-          "checksum": "cb16d907553ab65d93fc5145b57a5a0ab645e191c9bb667bb0538e0bbb3b605d"
+          "checksum": "4865e4e05087d554a131636247b4582bd681af1e6a17aa0512fe92ba6c625651"
         }
       ],
       "metadata": {

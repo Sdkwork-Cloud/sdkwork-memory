@@ -6,7 +6,9 @@ use axum::{
     Router,
 };
 use sdkwork_intelligence_memory_repository_sqlx::bootstrap_memory_runtime_from_env;
-use sdkwork_intelligence_memory_service::OpenMemoryService;
+use sdkwork_intelligence_memory_service::{
+    memory_domain_metrics, render_memory_domain_prometheus, OpenMemoryService,
+};
 use sdkwork_router_memory_app_api::{
     build_router_with_shared_app_api, wrap_router_with_web_framework_from_env as wrap_app_router,
 };
@@ -15,7 +17,7 @@ use sdkwork_router_memory_backend_api::{
     wrap_router_with_web_framework_from_env as wrap_backend_router,
 };
 use sdkwork_router_memory_common::{
-    memory_http_metrics, refresh_memory_http_metric_dimensions,
+    memory_http_metrics, memory_metric_environment_label, refresh_memory_http_metric_dimensions,
 };
 use sdkwork_router_memory_open_api::{
     build_router_with_shared_open_api, wrap_router_with_web_framework_from_env as wrap_open_router,
@@ -28,21 +30,43 @@ async fn healthz() -> &'static str {
 }
 
 async fn readyz(Extension(product): Extension<Arc<OpenMemoryService>>) -> Result<&'static str, StatusCode> {
-    product
-        .ready_check()
-        .await
-        .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+    if product.ready_check().await.is_err() {
+        memory_domain_metrics().set_serving(false);
+        return Err(StatusCode::SERVICE_UNAVAILABLE);
+    }
+    if !sdkwork_router_memory_common::memory_dependency_ready_check().await {
+        memory_domain_metrics().set_serving(false);
+        return Err(StatusCode::SERVICE_UNAVAILABLE);
+    }
+    memory_domain_metrics().set_serving(true);
     Ok("ok")
 }
 
-async fn metrics() -> impl IntoResponse {
+async fn metrics(Extension(product): Extension<Arc<OpenMemoryService>>) -> impl IntoResponse {
+    let environment = memory_metric_environment_label();
+    let deployment_profile = std::env::var("SDKWORK_MEMORY_DEPLOYMENT_PROFILE")
+        .unwrap_or_else(|_| "standalone".to_owned());
+    let runtime_target = std::env::var("SDKWORK_MEMORY_RUNTIME_TARGET")
+        .unwrap_or_else(|_| "server".to_owned());
+    let runtime_profile = product.runtime_profile_label();
+    let body = format!(
+        "{}{}",
+        memory_http_metrics().render_prometheus(),
+        render_memory_domain_prometheus(
+            "sdkwork-memory-api-server",
+            &environment,
+            &deployment_profile,
+            &runtime_target,
+            &runtime_profile,
+        )
+    );
     (
         StatusCode::OK,
         [(
             axum::http::header::CONTENT_TYPE,
             "text/plain; version=0.0.4; charset=utf-8",
         )],
-        memory_http_metrics().render_prometheus(),
+        body,
     )
 }
 

@@ -19,33 +19,33 @@ use serde_json::json;
 use std::sync::Arc;
 use tower::util::ServiceExt;
 
-fn authed_json_request(method: &str, uri: &str, body: serde_json::Value) -> Request<Body> {
+fn authed_get(user_id: &str, uri: &str) -> Request<Body> {
+    Request::builder()
+        .method("GET")
+        .uri(uri)
+        .header("Authorization", memory_auth_token_bearer(user_id))
+        .header("Access-Token", memory_access_token(user_id))
+        .body(Body::empty())
+        .unwrap()
+}
+
+fn authed_json_request(user_id: &str, method: &str, uri: &str, body: serde_json::Value) -> Request<Body> {
     let idempotency_key = format!("{MEMORY_TEST_IDEMPOTENCY_KEY}:{method}:{uri}");
     Request::builder()
         .method(method)
         .uri(uri)
         .header("content-type", "application/json")
-        .header("Authorization", memory_auth_token_bearer("2001"))
-        .header("Access-Token", memory_access_token("2001"))
+        .header("Authorization", memory_auth_token_bearer(user_id))
+        .header("Access-Token", memory_access_token(user_id))
         .header("Idempotency-Key", idempotency_key)
         .body(Body::from(body.to_string()))
-        .unwrap()
-}
-
-fn authed_get(uri: &str) -> Request<Body> {
-    Request::builder()
-        .method("GET")
-        .uri(uri)
-        .header("Authorization", memory_auth_token_bearer("2001"))
-        .header("Access-Token", memory_access_token("2001"))
-        .body(Body::empty())
         .unwrap()
 }
 
 #[tokio::test]
 async fn app_api_forget_and_export_jobs_round_trip_via_dual_token() {
     let _env = lock_integration_test_env();
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamDatabaseWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
@@ -54,10 +54,11 @@ async fn app_api_forget_and_export_jobs_round_trip_via_dual_token() {
     let create_memory = app
         .clone()
         .oneshot(authed_json_request(
+            "2001",
             "POST",
             "/app/v3/api/memory/memories",
             json!({
-                "spaceId": "1",
+                "spaceId": "2",
                 "scope": "user",
                 "memoryType": "semantic",
                 "canonicalText": "temporary preference"
@@ -75,11 +76,12 @@ async fn app_api_forget_and_export_jobs_round_trip_via_dual_token() {
     let forget = app
         .clone()
         .oneshot(authed_json_request(
+            "2001",
             "POST",
             "/app/v3/api/memory/forget_requests",
             json!({
                 "scope": "memory",
-                "spaceId": "1",
+                "spaceId": "2",
                 "memoryIds": [memory_id],
                 "reason": "user requested deletion"
             }),
@@ -95,18 +97,20 @@ async fn app_api_forget_and_export_jobs_round_trip_via_dual_token() {
 
     let deleted_memory = app
         .clone()
-        .oneshot(authed_get(&format!(
-            "/app/v3/api/memory/memories/{memory_id}?spaceId=1"
-        )))
+        .oneshot(authed_get(
+            "2001",
+            &format!("/app/v3/api/memory/memories/{memory_id}?spaceId=2"),
+        ))
         .await
         .unwrap();
     assert_eq!(deleted_memory.status(), StatusCode::NOT_FOUND);
 
     let retrieve_forget = app
         .clone()
-        .oneshot(authed_get(&format!(
-            "/app/v3/api/memory/forget_requests/{forget_request_id}"
-        )))
+        .oneshot(authed_get(
+            "2001",
+            &format!("/app/v3/api/memory/forget_requests/{forget_request_id}"),
+        ))
         .await
         .unwrap();
     assert_eq!(retrieve_forget.status(), StatusCode::OK);
@@ -114,10 +118,11 @@ async fn app_api_forget_and_export_jobs_round_trip_via_dual_token() {
     let export = app
         .clone()
         .oneshot(authed_json_request(
+            "2001",
             "POST",
             "/app/v3/api/memory/export_jobs",
             json!({
-                "spaceIds": ["1"],
+                "spaceIds": ["2"],
                 "format": "json",
                 "includeEvents": true
             }),
@@ -132,9 +137,10 @@ async fn app_api_forget_and_export_jobs_round_trip_via_dual_token() {
     let export_job_id = export_json["exportJobId"].as_str().unwrap();
 
     let retrieve_export = app
-        .oneshot(authed_get(&format!(
-            "/app/v3/api/memory/export_jobs/{export_job_id}"
-        )))
+        .oneshot(authed_get(
+            "2001",
+            &format!("/app/v3/api/memory/export_jobs/{export_job_id}"),
+        ))
         .await
         .unwrap();
     assert_eq!(retrieve_export.status(), StatusCode::OK);
@@ -149,7 +155,7 @@ async fn app_api_forget_and_export_jobs_round_trip_via_dual_token() {
 #[tokio::test]
 async fn app_api_drive_export_job_stages_artifact_and_emits_outbox_event() {
     let _env = lock_integration_test_env();
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamDatabaseWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store.clone())),
@@ -158,10 +164,11 @@ async fn app_api_drive_export_job_stages_artifact_and_emits_outbox_event() {
     let create_memory = app
         .clone()
         .oneshot(authed_json_request(
+            "2001",
             "POST",
             "/app/v3/api/memory/memories",
             json!({
-                "spaceId": "1",
+                "spaceId": "2",
                 "scope": "user",
                 "memoryType": "semantic",
                 "canonicalText": "drive export preference"
@@ -174,10 +181,11 @@ async fn app_api_drive_export_job_stages_artifact_and_emits_outbox_event() {
     let export = app
         .clone()
         .oneshot(authed_json_request(
+            "2001",
             "POST",
             "/app/v3/api/memory/export_jobs",
             json!({
-                "spaceIds": ["1"],
+                "spaceIds": ["2"],
                 "format": "json",
                 "driveTargetRef": "drive://app-upload/sdkwork-memory/exports"
             }),
@@ -213,7 +221,7 @@ async fn app_api_drive_export_job_stages_artifact_and_emits_outbox_event() {
 #[tokio::test]
 async fn backend_api_lists_audit_logs_after_open_api_feedback() {
     let _env = lock_integration_test_env();
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let service = Arc::new(OpenMemoryService::new(store));
     let open_app = build_router_with_shared_open_api(service.clone());
     let backend_app = wrap_backend_router(
@@ -228,14 +236,14 @@ async fn backend_api_lists_audit_logs_after_open_api_feedback() {
                 .method("POST")
                 .uri("/mem/v3/api/memory/memories")
                 .header("content-type", "application/json")
-                .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext {
-                    api_key_id: "key-1".to_string(),
-                    tenant_id: 1001,
-                    actor_id: Some(2001),
-                })
+                .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
+                    "key-1",
+                    1001,
+                    Some(2001),
+                ))
                 .body(Body::from(
                     json!({
-                        "spaceId": "1",
+                        "spaceId": "2",
                         "scope": "user",
                         "memoryType": "semantic",
                         "canonicalText": "feedback target memory"
@@ -259,11 +267,11 @@ async fn backend_api_lists_audit_logs_after_open_api_feedback() {
                 .method("POST")
                 .uri("/mem/v3/api/memory/feedback")
                 .header("content-type", "application/json")
-                .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext {
-                    api_key_id: "key-1".to_string(),
-                    tenant_id: 1001,
-                    actor_id: Some(2001),
-                })
+                .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
+                    "key-1",
+                    1001,
+                    Some(2001),
+                ))
                 .body(Body::from(
                     json!({
                         "targetType": "memory",
@@ -280,6 +288,7 @@ async fn backend_api_lists_audit_logs_after_open_api_feedback() {
 
     let audits = backend_app
         .oneshot(authed_get(
+            "9001",
             "/backend/v3/api/memory/audit_logs?action=feedback.create",
         ))
         .await
@@ -292,4 +301,65 @@ async fn backend_api_lists_audit_logs_after_open_api_feedback() {
         .unwrap()
         .iter()
         .any(|item| item["action"] == "feedback.create"));
+}
+
+#[tokio::test]
+async fn app_api_rejects_foreign_actor_retrieving_forget_job() {
+    let _env = lock_integration_test_env();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
+    let app = wrap_router_with_iam_database_web_framework(
+        IamDatabaseWebRequestContextResolver::new(None),
+        build_router_with_app_api(OpenMemoryService::new(store)),
+    );
+
+    let create_memory = app
+        .clone()
+        .oneshot(authed_json_request(
+            "2001",
+            "POST",
+            "/app/v3/api/memory/memories",
+            json!({
+                "spaceId": "2",
+                "scope": "user",
+                "memoryType": "semantic",
+                "canonicalText": "forget idor target"
+            }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(create_memory.status(), StatusCode::CREATED);
+    let memory_body = to_bytes(create_memory.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let memory_json: serde_json::Value = serde_json::from_slice(&memory_body).unwrap();
+    let memory_id = memory_json["memoryId"].as_str().unwrap();
+
+    let forget = app
+        .clone()
+        .oneshot(authed_json_request(
+            "2001",
+            "POST",
+            "/app/v3/api/memory/forget_requests",
+            json!({
+                "scope": "memory",
+                "spaceId": "2",
+                "memoryIds": [memory_id],
+                "reason": "user requested deletion"
+            }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(forget.status(), StatusCode::CREATED);
+    let forget_body = to_bytes(forget.into_body(), usize::MAX).await.unwrap();
+    let forget_json: serde_json::Value = serde_json::from_slice(&forget_body).unwrap();
+    let forget_request_id = forget_json["forgetRequestId"].as_str().unwrap();
+
+    let foreign_retrieve = app
+        .oneshot(authed_get(
+            "3002",
+            &format!("/app/v3/api/memory/forget_requests/{forget_request_id}"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(foreign_retrieve.status(), StatusCode::FORBIDDEN);
 }

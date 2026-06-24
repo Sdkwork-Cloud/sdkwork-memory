@@ -50,6 +50,7 @@ fn memory_open_api_context_from_web_request(
         api_key_id: credential_id,
         tenant_id,
         actor_id,
+        elevated_tenant_access: false,
     })
 }
 

@@ -66,6 +66,16 @@ pub fn elapsed_millis_i64(started: std::time::Instant) -> i64 {
     i64::try_from(started.elapsed().as_millis()).unwrap_or(i64::MAX).max(0)
 }
 
+pub fn stable_query_hash(query: &str) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+
+    let normalized = query.trim().to_lowercase();
+    let mut hasher = DefaultHasher::new();
+    normalized.hash(&mut hasher);
+    format!("query:{:016x}", hasher.finish())
+}
+
 pub fn parse_numeric_id(value: &str) -> Option<u64> {
     value.parse().ok()
 }

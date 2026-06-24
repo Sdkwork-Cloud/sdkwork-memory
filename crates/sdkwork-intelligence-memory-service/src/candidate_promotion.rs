@@ -61,6 +61,12 @@ impl OpenMemoryService {
             memory_uuid
         } else {
             let memory_uuid = self.next_id()?.to_string();
+            crate::tenant_quota::assert_space_record_quota(
+                &self.store,
+                &scope,
+                crate::tenant_quota::MemoryQuotaLimits::from_env(),
+            )
+            .await?;
             self.store
                 .create_record_open_api(
                     &scope,
@@ -71,6 +77,7 @@ impl OpenMemoryService {
                     None,
                     &detail.proposed_text,
                     &detail.proposed_text,
+                    "internal",
                 )
                 .await
                 .map_err(OpenMemoryService::map_store_error)?;

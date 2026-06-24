@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const migrationPaths = [
+  "database/migrations/sqlite/0001_memory_phase1.up.sql",
+  "database/migrations/postgres/0001_memory_phase1.up.sql",
   "plugins/sdkwork-memory-plugin-native-sql/migrations/sqlite/V202606100001__memory_phase1.sql",
   "plugins/sdkwork-memory-plugin-native-sql/migrations/postgres/V202606100001__memory_phase1.sql",
 ];

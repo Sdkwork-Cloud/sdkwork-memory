@@ -276,7 +276,7 @@ impl NativeSqlMemoryStore {
                 None,
                 "keyword-default",
                 "deterministic",
-                r#"{"keyword":{"weight":1.0}}"#,
+                r#"{"keyword":{"weight":1.0},"dictionary":{"weight":0.85},"time":{"weight":0.5},"event":{"weight":0.6},"sql":{"weight":0.75}}"#,
                 None,
                 None,
                 10,

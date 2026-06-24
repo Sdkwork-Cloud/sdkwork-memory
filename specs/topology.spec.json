@@ -6,19 +6,37 @@
   "profileRoot": "configs/topology",
   "profilePattern": "{deploymentProfile}.{serviceLayout}.{environment}.env",
   "vocabulary": {
-    "deploymentProfile": { "allowed": ["standalone", "cloud"] },
-    "serviceLayout": { "allowed": ["unified-process", "split-services"] },
-    "environment": { "allowed": ["development", "production"] }
+    "deploymentProfile": {
+      "allowed": [
+        "standalone",
+        "cloud"
+      ]
+    },
+    "serviceLayout": {
+      "allowed": [
+        "unified-process",
+        "split-services"
+      ]
+    },
+    "environment": {
+      "allowed": [
+        "development",
+        "production"
+      ]
+    }
   },
   "defaults": {
     "developmentProfileId": "standalone.unified-process.development",
-    "productionProfileId": "standalone.unified-process.production",
+    "productionProfileId": "cloud.split-services.production",
     "desktopBuildProfileId": "standalone.unified-process.production",
     "gatewayBind": "127.0.0.1:8080"
   },
   "profileFiles": {
     "standalone.unified-process.development": "configs/topology/standalone.unified-process.development.env",
-    "standalone.unified-process.production": "configs/topology/standalone.unified-process.production.env"
+    "standalone.unified-process.production": "configs/topology/standalone.unified-process.production.env",
+    "standalone.split-services.development": "configs/topology/standalone.split-services.development.env",
+    "cloud.split-services.development": "configs/topology/cloud.split-services.development.env",
+    "cloud.split-services.production": "configs/topology/cloud.split-services.production.env"
   },
   "envKeys": {
     "deploymentProfile": "SDKWORK_MEMORY_DEPLOYMENT_PROFILE",
@@ -28,46 +46,76 @@
     "clientDeploymentProfile": "VITE_SDKWORK_MEMORY_DEPLOYMENT_PROFILE",
     "gatewayAutostart": "SDKWORK_MEMORY_PLATFORM_API_GATEWAY_AUTOSTART",
     "standaloneGatewayBind": "SDKWORK_MEMORY_APPLICATION_PUBLIC_INGRESS_BIND",
-    "cloudGatewayBind": "SDKWORK_API_GATEWAY_BIND",
-    "cloudGatewayConfig": "SDKWORK_API_GATEWAY_CONFIG",
+    "cloudGatewayBind": "SDKWORK_API_CLOUD_GATEWAY_BIND",
+    "cloudGatewayConfig": "SDKWORK_API_CLOUD_GATEWAY_CONFIG",
     "clientApiGatewayBaseUrl": "VITE_SDKWORK_MEMORY_PLATFORM_API_GATEWAY_HTTP_URL",
     "apiGatewayBaseUrl": "SDKWORK_MEMORY_PLATFORM_API_GATEWAY_HTTP_URL"
   },
   "surfaces": {
     "application.public-ingress": {
       "connectivityPlane": "application",
-      "protocols": ["http"],
+      "protocols": [
+        "http"
+      ],
       "bindEnv": "SDKWORK_MEMORY_APPLICATION_PUBLIC_INGRESS_BIND",
       "httpUrlEnv": "SDKWORK_MEMORY_APPLICATION_PUBLIC_HTTP_URL",
       "clientHttpEnv": "VITE_SDKWORK_MEMORY_APPLICATION_PUBLIC_HTTP_URL"
     },
     "application.backend-http": {
       "connectivityPlane": "application",
-      "protocols": ["http"],
+      "protocols": [
+        "http"
+      ],
       "bindEnv": "SDKWORK_MEMORY_APPLICATION_BACKEND_HTTP_BIND",
       "httpUrlEnv": "SDKWORK_MEMORY_APPLICATION_BACKEND_HTTP_URL",
       "clientHttpEnv": "VITE_SDKWORK_MEMORY_APPLICATION_BACKEND_HTTP_URL"
     },
     "application.open-http": {
       "connectivityPlane": "application",
-      "protocols": ["http"],
+      "protocols": [
+        "http"
+      ],
       "bindEnv": "SDKWORK_MEMORY_APPLICATION_OPEN_HTTP_BIND",
       "httpUrlEnv": "SDKWORK_MEMORY_APPLICATION_OPEN_HTTP_URL",
       "clientHttpEnv": "VITE_SDKWORK_MEMORY_APPLICATION_OPEN_HTTP_URL"
     },
     "application.app-http": {
       "connectivityPlane": "application",
-      "protocols": ["http"],
+      "protocols": [
+        "http"
+      ],
       "bindEnv": "SDKWORK_MEMORY_APPLICATION_APP_HTTP_BIND",
       "httpUrlEnv": "SDKWORK_MEMORY_APPLICATION_APP_HTTP_URL",
       "clientHttpEnv": "VITE_SDKWORK_MEMORY_APPLICATION_APP_HTTP_URL"
+    },
+    "platform.api-gateway": {
+      "connectivityPlane": "platform",
+      "protocols": [
+        "http"
+      ],
+      "owner": "sdkwork-api-cloud-gateway",
+      "bindEnv": "SDKWORK_API_CLOUD_GATEWAY_BIND",
+      "httpUrlEnv": "SDKWORK_MEMORY_PLATFORM_API_GATEWAY_HTTP_URL",
+      "clientHttpEnv": "VITE_SDKWORK_MEMORY_PLATFORM_API_GATEWAY_HTTP_URL",
+      "autostartEnv": "SDKWORK_MEMORY_PLATFORM_API_GATEWAY_AUTOSTART"
     }
   },
   "cloudPublicHosts": {
-    "application.public-ingress": { "httpHost": "memory.sdkwork.com" },
-    "application.backend-http": { "httpHost": "memory-admin.sdkwork.com" },
-    "application.open-http": { "httpHost": "mem.sdkwork.com" },
-    "application.app-http": { "httpHost": "memory-app.sdkwork.com" }
+    "application.public-ingress": {
+      "httpHost": "memory.sdkwork.com"
+    },
+    "application.backend-http": {
+      "httpHost": "memory-admin.sdkwork.com"
+    },
+    "application.open-http": {
+      "httpHost": "mem.sdkwork.com"
+    },
+    "application.app-http": {
+      "httpHost": "memory-app.sdkwork.com"
+    },
+    "platform.api-gateway": {
+      "httpHost": "api.sdkwork.com"
+    }
   },
   "database": {
     "appPrefix": "SDKWORK_MEMORY"
@@ -84,6 +132,12 @@
     "openApiRouter": {
       "crate": "sdkwork-memory-api-server",
       "binary": "sdkwork-memory-api-server"
+    },
+    "cloudGateway": {
+      "crate": "sdkwork-api-cloud-gateway-api-server",
+      "binary": "sdkwork-api-cloud-gateway",
+      "repository": "sdkwork-api-cloud-gateway",
+      "configGlob": "configs/sdkwork-api-cloud-gateway.memory.{profile}.toml"
     }
   },
   "orchestration": {
@@ -97,7 +151,9 @@
             "required": true
           }
         ],
-        "healthSurfaces": ["application.public-ingress"]
+        "healthSurfaces": [
+          "application.public-ingress"
+        ]
       },
       "standalone.unified-process.production": {
         "processes": [
@@ -108,7 +164,51 @@
             "required": true
           }
         ],
-        "healthSurfaces": ["application.public-ingress"]
+        "healthSurfaces": [
+          "application.public-ingress"
+        ]
+      },
+      "cloud.split-services.development": {
+        "processes": [
+          {
+            "id": "platform.api-gateway",
+            "crate": "sdkwork-api-cloud-gateway-api-server",
+            "binary": "sdkwork-api-cloud-gateway",
+            "repository": "sdkwork-api-cloud-gateway",
+            "required": false
+          },
+          {
+            "id": "application.public-ingress",
+            "crate": "sdkwork-memory-api-server",
+            "binary": "sdkwork-memory-api-server",
+            "required": true
+          }
+        ],
+        "healthSurfaces": [
+          "application.public-ingress",
+          "platform.api-gateway"
+        ]
+      },
+      "cloud.split-services.production": {
+        "processes": [
+          {
+            "id": "platform.api-gateway",
+            "crate": "sdkwork-api-cloud-gateway-api-server",
+            "binary": "sdkwork-api-cloud-gateway",
+            "repository": "sdkwork-api-cloud-gateway",
+            "required": false
+          },
+          {
+            "id": "application.public-ingress",
+            "crate": "sdkwork-memory-api-server",
+            "binary": "sdkwork-memory-api-server",
+            "required": true
+          }
+        ],
+        "healthSurfaces": [
+          "application.public-ingress",
+          "platform.api-gateway"
+        ]
       }
     }
   },
@@ -116,10 +216,34 @@
     "dev": "scripts/memory-dev.mjs"
   },
   "retired": {
-    "envKeys": ["PORT"]
+    "envKeys": [
+      "PORT"
+    ]
   },
   "metadata": {
     "status": "draft",
     "managedBy": "tools/check_sdkwork_memory_architecture_alignment.mjs"
+  },
+  "packaging": {
+    "cloudConfigFiles": [
+      "sdkwork-api-cloud-gateway.memory.development.toml",
+      "sdkwork-api-cloud-gateway.memory.production.toml"
+    ],
+    "targets": [
+      {
+        "id": "container-noarch-cloud-container-config-bundle-tar-gz",
+        "profile": "container",
+        "platform": "container",
+        "architecture": "noarch",
+        "formats": [
+          "tar.gz"
+        ],
+        "runner": "ubuntu-24.04",
+        "outputGlob": "dist/cloud-config/sdkwork-memory-api-gateway-config-*.tar.gz",
+        "deploymentProfile": "cloud",
+        "runtimeTarget": "container",
+        "variant": "config-bundle"
+      }
+    ]
   }
 }

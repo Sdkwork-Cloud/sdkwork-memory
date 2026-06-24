@@ -6,16 +6,12 @@ use sdkwork_memory_contract::{
 use sdkwork_memory_plugin_native_sql::NativeSqlMemoryStore;
 
 fn open_context() -> MemoryOpenApiRequestContext {
-    MemoryOpenApiRequestContext {
-        api_key_id: "api-key-001".to_string(),
-        tenant_id: 1001,
-        actor_id: Some(2001),
-    }
+    MemoryOpenApiRequestContext::for_open_surface("api-key-001", 1001, Some(2001))
 }
 
 #[tokio::test]
 async fn remembers_retrieves_and_builds_context_without_embeddings() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let service = OpenMemoryService::new(store);
     let context = open_context();
 
@@ -23,7 +19,7 @@ async fn remembers_retrieves_and_builds_context_without_embeddings() {
         .create_memory(
             context.clone(),
             MemoryRecordRequest {
-                space_id: 1,
+                space_id: 2,
                 scope: "user".to_string(),
                 memory_type: MemoryType::Semantic,
                 subject: None,
@@ -46,7 +42,7 @@ async fn remembers_retrieves_and_builds_context_without_embeddings() {
             context.clone(),
             MemoryRetrievalRequest {
                 query: "concise answers".to_string(),
-                space_ids: vec![1],
+                space_ids: vec![2],
                 actor_id: None,
                 retrieval_profile_id: None,
                 memory_types: None,
@@ -73,7 +69,7 @@ async fn remembers_retrieves_and_builds_context_without_embeddings() {
             context,
             MemoryContextPackRequest {
                 query: "concise answers".to_string(),
-                space_ids: vec![1],
+                space_ids: vec![2],
                 actor_id: None,
                 retrieval_profile_id: None,
                 context_budget_tokens: 512,

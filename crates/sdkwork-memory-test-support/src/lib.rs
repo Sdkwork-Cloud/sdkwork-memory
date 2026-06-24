@@ -1,5 +1,6 @@
 //! SDKWork Memory test support and conformance helpers.
 
+pub mod space_fixtures;
 pub mod web_auth;
 
 use sdkwork_memory_spi::MemoryPluginManifest;

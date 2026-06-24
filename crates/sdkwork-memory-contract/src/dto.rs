@@ -7,6 +7,10 @@ use crate::serde_int64::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+fn default_sensitivity_level() -> String {
+    "internal".to_string()
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MemoryType {
@@ -246,6 +250,22 @@ pub struct MemoryRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub contradiction_count: Option<i32>,
     pub status: String,
+    #[serde(default = "default_sensitivity_level")]
+    pub sensitivity_level: String,
+    #[serde(
+        default,
+        serialize_with = "serialize_option_u64_as_string",
+        deserialize_with = "deserialize_option_u64_from_string_or_number",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub supersedes_memory_id: Option<u64>,
+    #[serde(
+        default,
+        serialize_with = "serialize_option_u64_as_string",
+        deserialize_with = "deserialize_option_u64_from_string_or_number",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub superseded_by_memory_id: Option<u64>,
     pub created_at: String,
     pub updated_at: String,
     #[serde(

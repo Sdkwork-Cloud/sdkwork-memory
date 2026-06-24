@@ -5,7 +5,7 @@ use sdkwork_memory_contract::{
     MemoryImplementationProfileRequest, MemoryIndex, MemoryIndexList, MemoryIndexRequest,
     MemoryLearningJob, MemoryMigrationJobRequest, MemoryOpenApi, MemoryPageInfo,
     MemoryProviderBinding, MemoryProviderBindingList, MemoryProviderBindingRequest,
-    MemoryRecordPatch, MemoryRecordRequest, MemoryRetentionJobRequest, MemoryRetrievalProfile,
+    MemoryRecordRequest, MemoryRetentionJobRequest, MemoryRetrievalProfile,
     MemoryRetrievalProfileList, MemoryRetrievalProfileRequest, MemoryServiceError,
     MemoryServiceResult,
 };
@@ -426,6 +426,7 @@ impl OpenMemoryService {
         job.updated_at = finished_at;
         self.persist_governance_job(
             tenant_id,
+            context.operator_id,
             job_id,
             "index_rebuild_job",
             "indexes.rebuild",
@@ -912,6 +913,7 @@ impl OpenMemoryService {
         job.updated_at = finished_at;
         self.persist_governance_job(
             tenant_id,
+            context.operator_id,
             job_id,
             RT_CONSOLIDATION_JOB,
             "consolidationJobs.create",
@@ -962,6 +964,7 @@ impl OpenMemoryService {
         job.updated_at = finished_at;
         self.persist_governance_job(
             tenant_id,
+            context.operator_id,
             job_id,
             RT_RETENTION_JOB,
             "retentionJobs.create",
@@ -992,6 +995,7 @@ impl OpenMemoryService {
         job.updated_at = finished_at;
         self.persist_governance_job(
             tenant_id,
+            context.operator_id,
             job_id,
             RT_MIGRATION_JOB,
             "migrationJobs.create",
@@ -1016,18 +1020,73 @@ impl OpenMemoryService {
         memory_id: u64,
         request: MemoryRecordRequest,
     ) -> MemoryServiceResult<sdkwork_memory_contract::MemoryRecord> {
-        MemoryOpenApi::update_memory(
-            self,
-            Self::to_open_context_backend(&context),
-            memory_id,
+        let open_context = Self::to_open_context_backend(&context);
+        crate::access::assert_actor_can_access_space_for_write(
+            &self.store,
+            &open_context,
             request.space_id,
-            MemoryRecordPatch {
-                canonical_text: Some(request.canonical_text),
-                subject: request.subject,
-                summary_text: request.summary_text,
-                metadata: request.metadata,
-            },
         )
-        .await
+        .await?;
+
+        let scope = Self::scope(&open_context, request.space_id)?;
+        let old_uuid = memory_id.to_string();
+        let new_uuid = self.next_id()?.to_string();
+        let object_text = request
+            .object_text
+            .unwrap_or_else(|| request.canonical_text.clone());
+        let sensitivity =
+            Self::normalize_sensitivity_level(request.sensitivity_level.as_deref())?;
+
+        self.store
+            .supersede_record_open_api(
+                &scope,
+                &old_uuid,
+                &new_uuid,
+                &request.scope,
+                Self::memory_type_to_db(request.memory_type),
+                request.subject.as_deref(),
+                request.predicate.as_deref(),
+                &object_text,
+                &request.canonical_text,
+                sensitivity,
+            )
+            .await
+            .map_err(Self::map_store_error)?;
+
+        let record = self
+            .store
+            .retrieve_record_detail(&scope, &new_uuid)
+            .await
+            .map_err(Self::map_store_error)?
+            .map(Self::map_record)
+            .transpose()?
+            .ok_or_else(|| MemoryServiceError::storage("superseded memory could not be loaded"))?;
+
+        self.publish_domain_event(
+            &scope,
+            "memory.record.superseded",
+            "memory_record",
+            &old_uuid,
+            serde_json::json!({
+                "memoryId": old_uuid,
+                "supersededByMemoryId": new_uuid,
+                "spaceId": request.space_id,
+            }),
+        )
+        .await?;
+        self.publish_domain_event(
+            &scope,
+            "memory.record.created",
+            "memory_record",
+            &new_uuid,
+            serde_json::json!({
+                "memoryId": new_uuid,
+                "supersedesMemoryId": old_uuid,
+                "spaceId": request.space_id,
+            }),
+        )
+        .await?;
+
+        Ok(record)
     }
 }

@@ -271,6 +271,51 @@ assert(
   'api-server must expose /readyz readiness endpoint',
 );
 assert(
+  readText('crates/sdkwork-memory-api-server/src/bootstrap.rs').includes(
+    'memory_dependency_ready_check',
+  ),
+  'api-server /readyz must validate IAM database dependency in production',
+);
+assert(
+  readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs').includes(
+    'FOR UPDATE SKIP LOCKED',
+  ),
+  'native-sql outbox claim must use SKIP LOCKED for multi-replica publish safety',
+);
+assert(
+  readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs').includes(
+    "publish_state = 'processing'",
+  ),
+  'native-sql outbox claim must move rows to processing before external delivery',
+);
+assert(
+  readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs').includes(
+    'ack_outbox_delivery_success',
+  ),
+  'native-sql outbox must ack successful delivery before marking published',
+);
+assert(
+  readText('crates/sdkwork-intelligence-memory-service/src/outbox_delivery.rs').includes(
+    'deliver_outbox_event',
+  ),
+  'outbox publisher must deliver events through a dedicated adapter',
+);
+assert(
+  !readText('crates/sdkwork-memory-api-server/src/bootstrap.rs')
+    .split('async fn metrics')[1]
+    .split('async fn build_router')[0]
+    .includes('ready_check'),
+  'metrics endpoint must not depend on database readiness probes',
+);
+assert(
+  k8sDeployment.includes('startupProbe:'),
+  'k8s deployment must define startupProbe before readiness/liveness',
+);
+assert(
+  k8sDeployment.includes('podAntiAffinity'),
+  'k8s deployment must spread api-server replicas across nodes',
+);
+assert(
   readText('crates/sdkwork-memory-api-server/src/bootstrap.rs').includes('route("/metrics"'),
   'api-server must expose /metrics for Prometheus scraping',
 );
@@ -291,6 +336,22 @@ assert(
 assert(
   readText('crates/sdkwork-router-memory-common/src/correlation.rs').includes('http_request'),
   'correlation middleware must emit tracing spans for request correlation',
+);
+assert(
+  readText('crates/sdkwork-memory-api-server/src/observability.rs').includes(
+    'OTEL_EXPORTER_OTLP_ENDPOINT',
+  ),
+  'api-server must support optional OTLP tracing per OBSERVABILITY_SPEC',
+);
+assert(
+  fs.existsSync(path.join(repoRoot, 'deployments/kubernetes/prometheus-rules.yaml')),
+  'k8s PrometheusRule manifests must exist for production alerting',
+);
+assert(
+  readText('crates/sdkwork-intelligence-memory-service/src/domain_metrics.rs').includes(
+    'memory_quota_exceeded_total',
+  ),
+  'domain metrics must export memory_quota_exceeded_total counter',
 );
 assert(
   readText('crates/sdkwork-intelligence-memory-service/src/app_backend_api.rs').includes(
@@ -325,6 +386,28 @@ assert(
     'forget_all_records_in_space',
   ),
   'native-sql privacy module must implement space-scoped forget',
+);
+assert(
+  readText('crates/sdkwork-intelligence-memory-service/src/open_api.rs').includes(
+    'assert_space_record_quota',
+  ),
+  'create_memory must enforce per-space record quotas per PERFORMANCE_SPEC',
+);
+assert(
+  readText('crates/sdkwork-intelligence-memory-service/src/tenant_quota.rs').includes(
+    'quota_exceeded',
+  ),
+  'tenant quota module must map exhaustion to quota_exceeded problem code',
+);
+assert(
+  readText('crates/sdkwork-router-memory-common/src/problem.rs').includes('QuotaExceeded'),
+  'router problem mapping must translate quota_exceeded to HTTP 429',
+);
+assert(
+  readText('crates/sdkwork-intelligence-memory-service/src/app_backend_api.rs').includes(
+    'assert_user_space_quota',
+  ),
+  'create_space must enforce per-user space quotas per PERFORMANCE_SPEC',
 );
 assert(
   readText('crates/sdkwork-intelligence-memory-service/src/app_backend_api.rs').includes(
@@ -409,6 +492,33 @@ assert(
       'ListMemorySourcesQuery',
     ),
   'memory record source list must wire OpenAPI cursor pagination query params',
+);
+assert(
+  readText('tools/materialize_phase1_contracts.mjs').includes(
+    'resolvePreservedReleaseChecksum',
+  ),
+  'materialize script must preserve release SHA-256 checksum across manifest regeneration',
+);
+assert(
+  readText('crates/sdkwork-intelligence-memory-service/src/access.rs').includes(
+    'assert_actor_can_access_space_i64',
+  ) &&
+    readText('crates/sdkwork-intelligence-memory-service/src/open_api.rs').includes(
+      'retrieve_candidate',
+    ) &&
+    readText('crates/sdkwork-intelligence-memory-service/src/app_backend_api.rs').includes(
+      'retrieve_habit',
+    ),
+  'candidate and habit endpoints must enforce actor space access checks',
+);
+assert(
+  readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs').includes(
+    'owner_subject_id = ?',
+  ) &&
+    readText('crates/sdkwork-intelligence-memory-service/src/app_backend_api.rs').includes(
+      'actor_scope.as_deref()',
+    ),
+  'space list queries must scope results to actor-owned user spaces',
 );
 assert(
   k8sDeployment.includes('SDKWORK_MEMORY_ENVIRONMENT'),

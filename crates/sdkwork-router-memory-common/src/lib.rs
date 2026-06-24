@@ -3,6 +3,7 @@
 pub mod correlation;
 pub mod metrics;
 pub mod problem;
+pub mod readiness;
 
 use async_trait::async_trait;
 use sdkwork_iam_web_adapter::IamDatabaseWebRequestContextResolver;
@@ -14,6 +15,7 @@ use sdkwork_web_core::{WebFrameworkError, WebRequestContextResolver, WebRequestP
 pub use correlation::{with_problem_correlation, MemoryProblemCorrelation};
 pub use metrics::{memory_http_metrics, memory_metric_environment_label, refresh_memory_http_metric_dimensions};
 pub use problem::{MemoryApiError, MemoryApiProblem, MemoryApiResult};
+pub use readiness::memory_dependency_ready_check;
 
 const PRODUCTION_AUTH_UNAVAILABLE: &str =
     "production memory auth requires IAM PostgreSQL database";
@@ -40,7 +42,9 @@ pub async fn memory_web_auth_mode_from_env() -> MemoryWebAuthMode {
     }
 
     MemoryWebAuthMode::IamDatabase(
-        sdkwork_iam_web_adapter::iam_database_resolver_from_env().await,
+        sdkwork_iam_web_adapter::IamDatabaseWebRequestContextResolver::new(
+            readiness::shared_iam_postgres_pool().await,
+        ),
     )
 }
 
@@ -94,6 +98,30 @@ mod tests {
 
         let mode = memory_web_auth_mode_from_env().await;
         assert!(matches!(mode, MemoryWebAuthMode::ProductionFailClosed));
+
+        if let Some(value) = previous_environment {
+            std::env::set_var("SDKWORK_MEMORY_ENVIRONMENT", value);
+        } else {
+            std::env::remove_var("SDKWORK_MEMORY_ENVIRONMENT");
+        }
+        if let Some(value) = previous_bypass {
+            std::env::set_var("SDKWORK_MEMORY_DEV_AUTH_BYPASS", value);
+        } else {
+            std::env::remove_var("SDKWORK_MEMORY_DEV_AUTH_BYPASS");
+        }
+    }
+
+    #[tokio::test]
+    async fn production_without_iam_database_fails_dependency_ready_check() {
+        let _guard = sdkwork_memory_contract::runtime_env::env_test_lock();
+        let previous_environment = std::env::var("SDKWORK_MEMORY_ENVIRONMENT").ok();
+        let previous_bypass = std::env::var("SDKWORK_MEMORY_DEV_AUTH_BYPASS").ok();
+        std::env::set_var("SDKWORK_MEMORY_ENVIRONMENT", "production");
+        std::env::remove_var("SDKWORK_MEMORY_DEV_AUTH_BYPASS");
+        std::env::remove_var("SDKWORK_IAM_DATABASE_URL");
+        std::env::remove_var("SDKWORK_IAM_DATABASE_ENGINE");
+
+        assert!(!super::readiness::memory_dependency_ready_check().await);
 
         if let Some(value) = previous_environment {
             std::env::set_var("SDKWORK_MEMORY_ENVIRONMENT", value);

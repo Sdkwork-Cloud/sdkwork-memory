@@ -307,6 +307,7 @@ impl NativeSqlMemoryStore {
                         "scope": row.scope,
                         "memoryType": row.memory_type,
                         "canonicalText": row.canonical_text,
+                        "sensitivityLevel": row.sensitivity_level,
                         "createdAt": row.created_at,
                     }));
                 }

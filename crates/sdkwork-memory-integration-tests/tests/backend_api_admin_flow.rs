@@ -39,7 +39,7 @@ fn authed_json(method: &str, uri: &str, body: serde_json::Value) -> Request<Body
 #[tokio::test]
 async fn backend_api_indexes_and_retrieval_profiles_return_phase1_defaults() {
     let _env = lock_integration_test_env();
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamDatabaseWebRequestContextResolver::new(None),
         build_router_with_backend_api(OpenMemoryService::new(store)),
@@ -68,7 +68,7 @@ async fn backend_api_indexes_and_retrieval_profiles_return_phase1_defaults() {
 #[tokio::test]
 async fn backend_api_migration_job_round_trip_via_dual_token() {
     let _env = lock_integration_test_env();
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamDatabaseWebRequestContextResolver::new(None),
         build_router_with_backend_api(OpenMemoryService::new(store)),
@@ -108,7 +108,7 @@ async fn backend_api_migration_job_round_trip_via_dual_token() {
 #[tokio::test]
 async fn backend_api_admin_config_persists_in_sql_tables() {
     let _env = lock_integration_test_env();
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamDatabaseWebRequestContextResolver::new(None),
         build_router_with_backend_api(OpenMemoryService::new(store.clone())),
@@ -220,8 +220,13 @@ async fn backend_api_governance_jobs_consolidation_and_retention_succeed() {
     use sdkwork_memory_spi::MemoryScopeContext;
 
     let _env = lock_integration_test_env();
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
-    let scope = MemoryScopeContext::for_test(1001, 1);
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
+    let scope = MemoryScopeContext {
+        tenant_id: 1001,
+        space_id: 1,
+        organization_id: None,
+        user_id: Some(9001),
+    };
     store
         .create_record(&scope, "rec-dup-1", "preference", "duplicate canonical text")
         .await
@@ -278,4 +283,72 @@ async fn backend_api_governance_jobs_consolidation_and_retention_succeed() {
     let retention_body = to_bytes(retention.into_body(), usize::MAX).await.unwrap();
     let retention_json: serde_json::Value = serde_json::from_slice(&retention_body).unwrap();
     assert_eq!(retention_json["state"], "succeeded");
+}
+
+#[tokio::test]
+async fn backend_api_supersede_memory_links_chain_and_marks_old_record() {
+    use sdkwork_memory_spi::MemoryScopeContext;
+
+    let _env = lock_integration_test_env();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
+    let scope = MemoryScopeContext {
+        tenant_id: 1001,
+        space_id: 1,
+        organization_id: None,
+        user_id: Some(9001),
+    };
+    store
+        .create_record_open_api(
+            &scope,
+            "100",
+            "user",
+            "semantic",
+            None,
+            None,
+            "original preference text",
+            "original preference text",
+            "internal",
+        )
+        .await
+        .unwrap();
+
+    let app = wrap_router_with_iam_database_web_framework(
+        IamDatabaseWebRequestContextResolver::new(None),
+        build_router_with_backend_api(OpenMemoryService::new(store)),
+    );
+
+    let supersede = app
+        .clone()
+        .oneshot(authed_json(
+            "POST",
+            "/backend/v3/api/memory/memories/100/supersede",
+            json!({
+                "spaceId": "1",
+                "scope": "user",
+                "memoryType": "semantic",
+                "canonicalText": "updated preference text",
+                "objectText": "updated preference text"
+            }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(supersede.status(), StatusCode::OK);
+    let supersede_body = to_bytes(supersede.into_body(), usize::MAX).await.unwrap();
+    let supersede_json: serde_json::Value = serde_json::from_slice(&supersede_body).unwrap();
+    let new_memory_id = supersede_json["memoryId"].as_str().unwrap();
+
+    assert_eq!(supersede_json["status"], "active");
+    assert_eq!(supersede_json["supersedesMemoryId"], "100");
+    assert_ne!(new_memory_id, "100");
+
+    let old_record = app
+        .clone()
+        .oneshot(authed_get("/backend/v3/api/memory/memories/100?spaceId=1"))
+        .await
+        .unwrap();
+    assert_eq!(old_record.status(), StatusCode::OK);
+    let old_body = to_bytes(old_record.into_body(), usize::MAX).await.unwrap();
+    let old_json: serde_json::Value = serde_json::from_slice(&old_body).unwrap();
+    assert_eq!(old_json["status"], "superseded");
+    assert_eq!(old_json["supersededByMemoryId"], new_memory_id);
 }

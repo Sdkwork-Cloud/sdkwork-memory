@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+
+use serde_json::Value;
+
 use sdkwork_memory_contract::MemoryRecord;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -15,6 +19,30 @@ pub struct FusedRetrievalHit {
     pub raw_score: f64,
     pub fused_score: f64,
     pub rank: i32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RetrievalRecordInput {
+    pub memory_id: String,
+    pub subject: Option<String>,
+    pub predicate: Option<String>,
+    pub object_text: String,
+    pub canonical_text: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RetrievalEventInput {
+    pub event_id: String,
+    pub payload_text: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct OrchestratedCandidate {
+    pub record: RetrievalRecordInput,
+    pub retriever_name: String,
+    pub raw_score: f64,
 }
 
 pub fn fuse_retrieval_candidates(
@@ -58,14 +86,237 @@ pub fn keyword_match_score(query: &str, canonical_text: &str) -> f64 {
         return 0.85;
     }
 
+    token_overlap_score(&query, &haystack)
+}
+
+pub fn dictionary_match_score(
+    query: &str,
+    subject: Option<&str>,
+    predicate: Option<&str>,
+    object_text: &str,
+) -> f64 {
+    let mut corpus = String::new();
+    if let Some(subject) = subject {
+        corpus.push_str(subject);
+        corpus.push(' ');
+    }
+    if let Some(predicate) = predicate {
+        corpus.push_str(predicate);
+        corpus.push(' ');
+    }
+    corpus.push_str(object_text);
+    token_overlap_score(&query.trim().to_lowercase(), &corpus.to_lowercase())
+}
+
+pub fn sql_structured_match_score(
+    query: &str,
+    subject: Option<&str>,
+    predicate: Option<&str>,
+) -> f64 {
+    let query = query.trim().to_lowercase();
+    if query.is_empty() {
+        return 0.0;
+    }
+
+    let mut score: f64 = 0.0;
+    if subject
+        .map(|value| value.to_lowercase() == query)
+        .unwrap_or(false)
+    {
+        score = score.max(1.0);
+    }
+    if predicate
+        .map(|value| value.to_lowercase() == query)
+        .unwrap_or(false)
+    {
+        score = score.max(0.95);
+    }
+    if subject
+        .map(|value| value.to_lowercase().contains(&query))
+        .unwrap_or(false)
+    {
+        score = score.max(0.8);
+    }
+    score
+}
+
+pub fn time_recency_score(created_at: &str) -> f64 {
+    let parsed = sdkwork_utils_rust::parse_datetime(created_at, None);
+    let Some(timestamp) = parsed else {
+        return 0.35;
+    };
+    let age_hours = (sdkwork_utils_rust::now() - timestamp).num_hours().max(0) as f64;
+    (1.0 / (1.0 + age_hours / 24.0)).clamp(0.1, 1.0)
+}
+
+pub fn event_match_score(query: &str, payload_text: &str) -> f64 {
+    keyword_match_score(query, payload_text)
+}
+
+fn token_overlap_score(query: &str, haystack: &str) -> f64 {
     let tokens: Vec<&str> = query.split_whitespace().collect();
     if tokens.is_empty() {
         return 0.0;
     }
-
     let matched = tokens
         .iter()
         .filter(|token| haystack.contains(**token))
         .count();
     matched as f64 / tokens.len() as f64
+}
+
+fn retriever_weight(profile: Option<&Value>, retriever: &str) -> f64 {
+    profile
+        .and_then(|value| value.get(retriever))
+        .and_then(|entry| entry.get("weight"))
+        .and_then(|weight| weight.as_f64())
+        .filter(|weight| *weight > 0.0)
+        .unwrap_or(0.0)
+}
+
+fn retriever_enabled(profile: Option<&Value>, retriever: &str, default_enabled: bool) -> bool {
+    if let Some(profile) = profile {
+        retriever_weight(Some(profile), retriever) > 0.0
+    } else {
+        default_enabled
+    }
+}
+
+pub fn orchestrate_retrieval_candidates(
+    query: &str,
+    records: &[RetrievalRecordInput],
+    events: &[RetrievalEventInput],
+    profile: Option<&Value>,
+    top_k: usize,
+) -> Vec<OrchestratedCandidate> {
+    let mut weighted: HashMap<String, (RetrievalRecordInput, f64, String)> = HashMap::new();
+
+    let push_score = |map: &mut HashMap<String, (RetrievalRecordInput, f64, String)>,
+                      record: RetrievalRecordInput,
+                      retriever: &str,
+                      raw_score: f64,
+                      weight: f64| {
+        if raw_score <= 0.0 || weight <= 0.0 {
+            return;
+        }
+        let fused = raw_score * weight;
+        let key = record.memory_id.clone();
+        map.entry(key)
+            .and_modify(|existing| {
+                if fused > existing.1 {
+                    *existing = (record.clone(), fused, retriever.to_string());
+                }
+            })
+            .or_insert((record, fused, retriever.to_string()));
+    };
+
+    if retriever_enabled(profile, "keyword", true) {
+        let weight = retriever_weight(profile, "keyword").max(1.0);
+        for record in records.iter().take(top_k.saturating_mul(2)) {
+            let score = keyword_match_score(query, &record.canonical_text);
+            push_score(&mut weighted, record.clone(), "keyword", score, weight);
+        }
+    }
+
+    if retriever_enabled(profile, "dictionary", true) {
+        let weight = retriever_weight(profile, "dictionary").max(0.85);
+        for record in records.iter().take(top_k.saturating_mul(2)) {
+            let score = dictionary_match_score(
+                query,
+                record.subject.as_deref(),
+                record.predicate.as_deref(),
+                &record.object_text,
+            );
+            push_score(&mut weighted, record.clone(), "dictionary", score, weight);
+        }
+    }
+
+    if retriever_enabled(profile, "sql", true) {
+        let weight = retriever_weight(profile, "sql").max(0.75);
+        for record in records.iter().take(top_k.saturating_mul(2)) {
+            let score = sql_structured_match_score(
+                query,
+                record.subject.as_deref(),
+                record.predicate.as_deref(),
+            );
+            push_score(&mut weighted, record.clone(), "sql", score, weight);
+        }
+    }
+
+    if retriever_enabled(profile, "time", true) {
+        let weight = retriever_weight(profile, "time").max(0.5);
+        for record in records.iter().take(top_k.saturating_mul(2)) {
+            let score = time_recency_score(&record.created_at);
+            if keyword_match_score(query, &record.canonical_text) > 0.0 || query.trim().is_empty() {
+                push_score(&mut weighted, record.clone(), "time", score, weight);
+            }
+        }
+    }
+
+    if retriever_enabled(profile, "event", true) {
+        let weight = retriever_weight(profile, "event").max(0.6);
+        for event in events.iter().take(top_k.saturating_mul(2)) {
+            let score = event_match_score(query, &event.payload_text);
+            if score <= 0.0 {
+                continue;
+            }
+            let synthetic = RetrievalRecordInput {
+                memory_id: format!("event:{}", event.event_id),
+                subject: Some("event".to_string()),
+                predicate: Some("mentions".to_string()),
+                object_text: event.payload_text.clone(),
+                canonical_text: event.payload_text.clone(),
+                created_at: event.created_at.clone(),
+            };
+            push_score(&mut weighted, synthetic, "event", score, weight);
+        }
+    }
+
+    let mut results: Vec<OrchestratedCandidate> = weighted
+        .into_values()
+        .map(|(record, fused, retriever_name)| OrchestratedCandidate {
+            record,
+            retriever_name,
+            raw_score: fused,
+        })
+        .collect();
+
+    results.sort_by(|left, right| {
+        right
+            .raw_score
+            .partial_cmp(&left.raw_score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| left.record.memory_id.cmp(&right.record.memory_id))
+    });
+    results.truncate(top_k);
+    results
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn orchestrator_combines_keyword_and_dictionary_signals() {
+        let records = vec![RetrievalRecordInput {
+            memory_id: "1".to_string(),
+            subject: Some("preference".to_string()),
+            predicate: Some("is".to_string()),
+            object_text: "concise answers".to_string(),
+            canonical_text: "User prefers concise answers".to_string(),
+            created_at: sdkwork_utils_rust::format_datetime(sdkwork_utils_rust::now(), None),
+        }];
+        let hits = orchestrate_retrieval_candidates(
+            "concise answers",
+            &records,
+            &[],
+            Some(&serde_json::json!({
+                "keyword": { "weight": 1.0 },
+                "dictionary": { "weight": 0.85 }
+            })),
+            5,
+        );
+        assert!(!hits.is_empty());
+        assert!(hits[0].raw_score > 0.0);
+    }
 }

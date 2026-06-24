@@ -18,7 +18,7 @@ use tower::util::ServiceExt;
 #[tokio::test]
 async fn app_api_rejects_unauthenticated_requests() {
     let _env = lock_integration_test_env();
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamDatabaseWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
@@ -41,7 +41,7 @@ async fn app_api_rejects_unauthenticated_requests() {
 #[tokio::test]
 async fn app_api_rejects_auth_token_without_access_token() {
     let _env = lock_integration_test_env();
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamDatabaseWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
@@ -65,7 +65,7 @@ async fn app_api_rejects_auth_token_without_access_token() {
 #[tokio::test]
 async fn app_api_accepts_dual_token_context() {
     let _env = lock_integration_test_env();
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamDatabaseWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
@@ -90,7 +90,7 @@ async fn app_api_accepts_dual_token_context() {
 #[tokio::test]
 async fn backend_api_rejects_unauthenticated_requests() {
     let _env = lock_integration_test_env();
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_backend_router(
         IamDatabaseWebRequestContextResolver::new(None),
         build_router_with_backend_api(OpenMemoryService::new(store)),
@@ -113,7 +113,7 @@ async fn backend_api_rejects_unauthenticated_requests() {
 #[tokio::test]
 async fn backend_api_accepts_dual_token_context() {
     let _env = lock_integration_test_env();
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_backend_router(
         IamDatabaseWebRequestContextResolver::new(None),
         build_router_with_backend_api(OpenMemoryService::new(store)),

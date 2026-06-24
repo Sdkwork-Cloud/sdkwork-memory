@@ -1,0 +1,61 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: sdkwork-memory-api-server
+  labels:
+    app.kubernetes.io/name: sdkwork-memory
+    app.kubernetes.io/component: api-server
+    app.kubernetes.io/part-of: sdkwork-memory
+spec:
+  groups:
+    - name: sdkwork-memory.availability
+      rules:
+        - alert: MemoryServiceNotServing
+          expr: memory_health_status{service="sdkwork-memory-api-server"} == 0
+          for: 5m
+          labels:
+            severity: critical
+            service: sdkwork-memory-api-server
+          annotations:
+            summary: SDKWork Memory API server is not serving
+            description: >-
+              memory_health_status has been 0 for more than 5 minutes. Check pod
+              logs, /readyz, and database connectivity before escalating.
+    - name: sdkwork-memory.security
+      rules:
+        - alert: MemoryAuthzDeniedSpike
+          expr: increase(memory_authz_denied_total{service="sdkwork-memory-api-server"}[15m]) > 50
+          for: 10m
+          labels:
+            severity: warning
+            service: sdkwork-memory-api-server
+          annotations:
+            summary: Elevated Memory authorization denials
+            description: >-
+              Authorization denials exceeded 50 in 15 minutes. Review
+              RUNBOOK-tenant-isolation-incident.md and audit logs for abuse or
+              misconfigured clients.
+        - alert: MemoryQuotaExceededSpike
+          expr: increase(memory_quota_exceeded_total{service="sdkwork-memory-api-server"}[15m]) > 20
+          for: 10m
+          labels:
+            severity: warning
+            service: sdkwork-memory-api-server
+          annotations:
+            summary: Memory tenant or space quota rejections are elevated
+            description: >-
+              Quota rejections exceeded 20 in 15 minutes. Review
+              RUNBOOK-rate-limit-quota.md and SDKWORK_MEMORY_MAX_* limits.
+    - name: sdkwork-memory.outbox
+      rules:
+        - alert: MemoryOutboxDeliveryFailures
+          expr: increase(memory_outbox_delivery_failed_total{service="sdkwork-memory-api-server"}[15m]) > 0
+          for: 15m
+          labels:
+            severity: warning
+            service: sdkwork-memory-api-server
+          annotations:
+            summary: Memory outbox delivery failures detected
+            description: >-
+              Outbox delivery or ack failures are increasing. Review
+              RUNBOOK-outbox-backlog.md and downstream HTTP/log sinks.

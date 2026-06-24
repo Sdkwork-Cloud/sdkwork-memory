@@ -13,6 +13,32 @@ pub struct MemoryOpenApiRequestContext {
     pub api_key_id: String,
     pub tenant_id: u64,
     pub actor_id: Option<u64>,
+    /// Backend operators authorized at the router layer may access all tenant spaces.
+    pub elevated_tenant_access: bool,
+}
+
+impl MemoryOpenApiRequestContext {
+    pub fn for_open_surface(
+        api_key_id: impl Into<String>,
+        tenant_id: u64,
+        actor_id: Option<u64>,
+    ) -> Self {
+        Self {
+            api_key_id: api_key_id.into(),
+            tenant_id,
+            actor_id,
+            elevated_tenant_access: false,
+        }
+    }
+
+    pub fn for_backend_surface(tenant_id: u64, operator_id: Option<u64>) -> Self {
+        Self {
+            api_key_id: format!("backend-{}", operator_id.unwrap_or(0)),
+            tenant_id,
+            actor_id: operator_id,
+            elevated_tenant_access: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,6 +47,7 @@ pub enum MemoryServiceErrorKind {
     Conflict,
     Validation,
     Forbidden,
+    QuotaExceeded,
     Storage,
     NotImplemented,
 }
@@ -61,6 +88,14 @@ impl MemoryServiceError {
         Self {
             kind: MemoryServiceErrorKind::Forbidden,
             code: "forbidden".to_string(),
+            detail: detail.into(),
+        }
+    }
+
+    pub fn quota_exceeded(detail: impl Into<String>) -> Self {
+        Self {
+            kind: MemoryServiceErrorKind::QuotaExceeded,
+            code: "quota_exceeded".to_string(),
             detail: detail.into(),
         }
     }

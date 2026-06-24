@@ -8,8 +8,10 @@ license.workspace = true
 async-trait.workspace = true
 axum.workspace = true
 sdkwork-iam-web-adapter.workspace = true
+sdkwork-database-sqlx.workspace = true
 sdkwork-memory-contract.workspace = true
 sdkwork-web-core.workspace = true
+sqlx.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 

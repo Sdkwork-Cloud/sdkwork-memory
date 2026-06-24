@@ -18,7 +18,7 @@ impl MemoryScopeContext {
             tenant_id,
             space_id,
             organization_id: None,
-            user_id: None,
+            user_id: Some(space_id),
         }
     }
 }

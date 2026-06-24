@@ -2,22 +2,17 @@ use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
 use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_contract::MemoryOpenApiRequestContext;
-use sdkwork_memory_plugin_native_sql::NativeSqlMemoryStore;
 use sdkwork_router_memory_open_api::build_router_with_open_api;
 use serde_json::json;
 use tower::util::ServiceExt;
 
 fn open_context() -> MemoryOpenApiRequestContext {
-    MemoryOpenApiRequestContext {
-        api_key_id: "api-key-001".to_string(),
-        tenant_id: 1001,
-        actor_id: Some(2001),
-    }
+    MemoryOpenApiRequestContext::for_open_surface("api-key-001", 1001, Some(2001))
 }
 
 #[tokio::test]
 async fn open_api_mvp_flow_memory_retrieval_and_context_pack_without_embeddings() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = build_router_with_open_api(OpenMemoryService::new(store));
 
     let create_memory = app
@@ -30,7 +25,7 @@ async fn open_api_mvp_flow_memory_retrieval_and_context_pack_without_embeddings(
                 .extension(open_context())
                 .body(Body::from(
                     json!({
-                        "spaceId": "1",
+                        "spaceId": "2",
                         "scope": "user",
                         "memoryType": "semantic",
                         "canonicalText": "User prefers concise answers"
@@ -54,7 +49,7 @@ async fn open_api_mvp_flow_memory_retrieval_and_context_pack_without_embeddings(
                 .body(Body::from(
                     json!({
                         "query": "concise answers",
-                        "spaceIds": ["1"],
+                        "spaceIds": ["2"],
                         "topK": 5,
                         "contextBudgetTokens": 512
                     })
@@ -83,7 +78,7 @@ async fn open_api_mvp_flow_memory_retrieval_and_context_pack_without_embeddings(
                 .body(Body::from(
                     json!({
                         "query": "concise answers",
-                        "spaceIds": ["1"],
+                        "spaceIds": ["2"],
                         "contextBudgetTokens": 512
                     })
                     .to_string(),
@@ -105,7 +100,7 @@ async fn open_api_mvp_flow_memory_retrieval_and_context_pack_without_embeddings(
 
 #[tokio::test]
 async fn open_api_mvp_flow_event_extraction_candidates_and_feedback() {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = build_router_with_open_api(OpenMemoryService::new(store));
 
     let create_event = app
@@ -118,7 +113,7 @@ async fn open_api_mvp_flow_event_extraction_candidates_and_feedback() {
                 .extension(open_context())
                 .body(Body::from(
                     json!({
-                        "spaceId": "1",
+                        "spaceId": "2",
                         "eventType": "conversation.turn",
                         "sourceType": "chat",
                         "eventTime": "2026-06-10T12:00:00Z",
@@ -147,7 +142,7 @@ async fn open_api_mvp_flow_event_extraction_candidates_and_feedback() {
                 .extension(open_context())
                 .body(Body::from(
                     json!({
-                        "spaceId": "1",
+                        "spaceId": "2",
                         "inputEvents": [event_id]
                     })
                     .to_string(),
@@ -167,7 +162,7 @@ async fn open_api_mvp_flow_event_extraction_candidates_and_feedback() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri("/mem/v3/api/memory/candidates?spaceId=1")
+                .uri("/mem/v3/api/memory/candidates?spaceId=2")
                 .extension(open_context())
                 .body(Body::empty())
                 .unwrap(),

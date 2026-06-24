@@ -13,9 +13,10 @@
 2. Apply Kubernetes manifests: Service, Deployment, PDB, HPA, Ingress.
 3. Verify `/healthz` returns `ok` on each pod.
 4. Verify `/readyz` returns `ok` after database connectivity is established.
-5. Verify `/metrics` exposes HTTP request counters for Prometheus scraping.
+5. Verify `/metrics` exposes HTTP request counters and domain counters (`memory_health_status`, `memory_quota_exceeded_total`) for Prometheus scraping.
 6. Run smoke checks against app-api, open-api, and backend-api health surfaces.
 7. Monitor structured logs for `memory domain outbox event published` and storage errors.
+8. When OTLP is enabled, confirm traces arrive at the collector with `http_request` spans.
 
 ## Rollback
 

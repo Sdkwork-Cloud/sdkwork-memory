@@ -14,3 +14,10 @@ SDKWork Memory service and SDK families for embedding-optional AI memory, self-l
 node tools/materialize_phase1_contracts.mjs
 powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1
 ```
+
+## Documentation Canon
+
+- [docs/README.md](docs/README.md)
+- [docs/product/prd/PRD.md](docs/product/prd/PRD.md)
+- [docs/architecture/tech/TECH_ARCHITECTURE.md](docs/architecture/tech/TECH_ARCHITECTURE.md)
+

@@ -7,6 +7,7 @@ license.workspace = true
 [dependencies]
 sdkwork-memory-contract = { path = "../sdkwork-memory-contract" }
 sdkwork-memory-spi = { path = "../sdkwork-memory-spi" }
+sdkwork-memory-plugin-native-sql = { path = "../../plugins/sdkwork-memory-plugin-native-sql" }
 sdkwork-web-core.workspace = true
 serde_json.workspace = true
 

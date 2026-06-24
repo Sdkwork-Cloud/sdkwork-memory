@@ -13,8 +13,8 @@ use sdkwork_memory_contract::{
     MemoryServiceResult, MemoryType,
 };
 use sdkwork_memory_core::{
-    build_context_pack_from_hits, fuse_retrieval_candidates, keyword_match_score,
-    RetrievalCandidate,
+    build_context_pack_from_hits, fuse_retrieval_candidates, orchestrate_retrieval_candidates,
+    RetrievalCandidate, RetrievalEventInput, RetrievalRecordInput,
 };
 use sdkwork_memory_plugin_native_sql::{
     NativeSqlAppendOutboxEventCommand, NativeSqlMemoryRecordDetail, NativeSqlMemoryStore,
@@ -83,6 +83,13 @@ impl OpenMemoryService {
         Ok(())
     }
 
+    pub fn runtime_profile_label(&self) -> &'static str {
+        match self.store.dialect() {
+            sdkwork_memory_plugin_native_sql::MemorySqlDialect::Postgres => "postgresql",
+            sdkwork_memory_plugin_native_sql::MemorySqlDialect::Sqlite => "sqlite",
+        }
+    }
+
     pub fn spawn_background_workers(service: &Arc<Self>) {
         crate::outbox_publisher::spawn_outbox_publisher(service.store.clone());
     }
@@ -95,24 +102,21 @@ impl OpenMemoryService {
                 .unwrap_or_else(|| format!("app-{}", app.actor_id.unwrap_or(0))),
             tenant_id: app.tenant_id,
             actor_id: app.actor_id,
+            elevated_tenant_access: false,
         }
     }
 
     pub(crate) fn to_open_context_backend(
         backend: &MemoryBackendRequestContext,
     ) -> MemoryOpenApiRequestContext {
-        MemoryOpenApiRequestContext {
-            api_key_id: format!("backend-{}", backend.operator_id.unwrap_or(0)),
-            tenant_id: backend.tenant_id,
-            actor_id: backend.operator_id,
-        }
+        MemoryOpenApiRequestContext::for_backend_surface(backend.tenant_id, backend.operator_id)
     }
 
     pub(crate) fn next_id(&self) -> MemoryServiceResult<u64> {
         platform::next_numeric_id()
     }
 
-    fn scope(
+    pub(crate) fn scope(
         context: &MemoryOpenApiRequestContext,
         space_id: u64,
     ) -> MemoryServiceResult<MemoryScopeContext> {
@@ -199,7 +203,7 @@ impl OpenMemoryService {
         platform::parse_numeric_id(value)
     }
 
-    fn memory_type_to_db(value: MemoryType) -> &'static str {
+    pub(crate) fn memory_type_to_db(value: MemoryType) -> &'static str {
         match value {
             MemoryType::Working => "working",
             MemoryType::Session => "session",
@@ -225,13 +229,21 @@ impl OpenMemoryService {
         }
     }
 
-    fn map_record(detail: NativeSqlMemoryRecordDetail) -> MemoryServiceResult<MemoryRecord> {
+    pub(crate) fn map_record(detail: NativeSqlMemoryRecordDetail) -> MemoryServiceResult<MemoryRecord> {
         let memory_id = Self::parse_id(&detail.memory_id)
             .ok_or_else(|| MemoryServiceError::storage("memory id must be numeric"))?;
         let space_id = u64::try_from(detail.space_id)
             .map_err(|_| MemoryServiceError::storage("space id must be non-negative"))?;
         let version = u64::try_from(detail.version.max(0))
             .map_err(|_| MemoryServiceError::storage("version must be non-negative"))?;
+        let supersedes_memory_id = detail
+            .supersedes_memory_id
+            .as_deref()
+            .and_then(Self::parse_id);
+        let superseded_by_memory_id = detail
+            .superseded_by_memory_id
+            .as_deref()
+            .and_then(Self::parse_id);
 
         Ok(MemoryRecord {
             memory_id,
@@ -249,6 +261,9 @@ impl OpenMemoryService {
             evidence_count: Some(1),
             contradiction_count: Some(0),
             status: detail.status,
+            sensitivity_level: detail.sensitivity_level,
+            supersedes_memory_id,
+            superseded_by_memory_id,
             created_at: detail.created_at,
             updated_at: detail.updated_at,
             version,
@@ -278,6 +293,29 @@ impl OpenMemoryService {
             created_at: row.created_at,
         })
     }
+
+    pub(crate) fn normalize_sensitivity_level(value: Option<&str>) -> MemoryServiceResult<&'static str> {
+        match value.unwrap_or("internal") {
+            "public" => Ok("public"),
+            "internal" => Ok("internal"),
+            "private" => Ok("private"),
+            "sensitive" => Ok("sensitive"),
+            "restricted" => Ok("restricted"),
+            other => Err(MemoryServiceError::validation(format!(
+                "sensitivityLevel must be one of public, internal, private, sensitive, restricted; got {other}"
+            ))),
+        }
+    }
+
+    fn default_retriever_profile() -> Option<serde_json::Value> {
+        Some(serde_json::json!({
+            "keyword": { "weight": 1.0 },
+            "dictionary": { "weight": 0.85 },
+            "time": { "weight": 0.5 },
+            "event": { "weight": 0.6 },
+            "sql": { "weight": 0.75 }
+        }))
+    }
 }
 
 #[async_trait]
@@ -288,7 +326,13 @@ impl MemoryOpenApi for OpenMemoryService {
     ) -> MemoryServiceResult<MemoryCapabilities> {
         Ok(MemoryCapabilities {
             embedding_optional: true,
-            retrievers: vec![MemoryRetrieverKind::Keyword],
+            retrievers: vec![
+                MemoryRetrieverKind::Keyword,
+                MemoryRetrieverKind::Dictionary,
+                MemoryRetrieverKind::Time,
+                MemoryRetrieverKind::Event,
+                MemoryRetrieverKind::Sql,
+            ],
             provider_interfaces: vec![
                 MemoryProviderInterface::Memory,
                 MemoryProviderInterface::Search,
@@ -306,8 +350,11 @@ impl MemoryOpenApi for OpenMemoryService {
         context: MemoryOpenApiRequestContext,
         request: MemoryEventRequest,
     ) -> MemoryServiceResult<MemoryEvent> {
+        access::assert_actor_can_access_space_for_write(&self.store, &context, request.space_id).await?;
         let scope = Self::scope(&context, request.space_id)?;
         let event_id = self.next_id()?.to_string();
+        let sensitivity =
+            Self::normalize_sensitivity_level(request.sensitivity_level.as_deref())?;
         self.store
             .append_open_api_event(
                 &scope,
@@ -316,6 +363,7 @@ impl MemoryOpenApi for OpenMemoryService {
                 &request.source_type,
                 &request.event_time,
                 &request.payload,
+                sensitivity,
             )
             .await
             .map_err(Self::map_store_error)?;
@@ -381,11 +429,19 @@ impl MemoryOpenApi for OpenMemoryService {
         context: MemoryOpenApiRequestContext,
         request: MemoryRecordRequest,
     ) -> MemoryServiceResult<MemoryRecord> {
+        access::assert_actor_can_access_space_for_write(&self.store, &context, request.space_id).await?;
         let scope = Self::scope(&context, request.space_id)?;
+        crate::tenant_quota::assert_space_record_quota(
+            &self.store,
+            &scope,
+            crate::tenant_quota::MemoryQuotaLimits::from_env(),
+        )
+        .await?;
         let memory_id = self.next_id()?.to_string();
         let object_text = request
             .object_text
             .unwrap_or_else(|| request.canonical_text.clone());
+        let sensitivity = Self::normalize_sensitivity_level(request.sensitivity_level.as_deref())?;
 
         self.store
             .create_record_open_api(
@@ -397,6 +453,7 @@ impl MemoryOpenApi for OpenMemoryService {
                 request.predicate.as_deref(),
                 &object_text,
                 &request.canonical_text,
+                sensitivity,
             )
             .await
             .map_err(Self::map_store_error)?;
@@ -443,7 +500,7 @@ impl MemoryOpenApi for OpenMemoryService {
         space_id: u64,
         patch: MemoryRecordPatch,
     ) -> MemoryServiceResult<MemoryRecord> {
-        access::assert_actor_can_access_space(&self.store, &context, space_id).await?;
+        access::assert_actor_can_access_space_for_write(&self.store, &context, space_id).await?;
         let scope = Self::scope(&context, space_id)?;
         let _existing = self.load_scoped_record(&context, space_id, memory_id).await?;
 
@@ -483,7 +540,7 @@ impl MemoryOpenApi for OpenMemoryService {
         memory_id: u64,
         space_id: u64,
     ) -> MemoryServiceResult<()> {
-        access::assert_actor_can_access_space(&self.store, &context, space_id).await?;
+        access::assert_actor_can_access_space_for_write(&self.store, &context, space_id).await?;
         let scope = Self::scope(&context, space_id)?;
         let _existing = self.load_scoped_record(&context, space_id, memory_id).await?;
 
@@ -514,6 +571,8 @@ impl MemoryOpenApi for OpenMemoryService {
             return Err(MemoryServiceError::validation("spaceIds must not be empty"));
         }
 
+        access::assert_actor_can_access_spaces(&self.store, &context, &request.space_ids).await?;
+
         let started = std::time::Instant::now();
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         self.store
@@ -521,7 +580,7 @@ impl MemoryOpenApi for OpenMemoryService {
             .await
             .map_err(Self::map_store_error)?;
 
-        let (effective_top_k, applied_profile_id) =
+        let (effective_top_k, applied_profile_id, profile_retrievers) =
             if let Some(profile_id) = request.retrieval_profile_id {
                 if let Some(row) = self
                     .store
@@ -532,12 +591,13 @@ impl MemoryOpenApi for OpenMemoryService {
                     .await
                     .map_err(Self::map_store_error)?
                 {
-                    (row.top_k.min(request.top_k), Some(profile_id))
+                    let retrievers = serde_json::from_str(&row.retrievers_json).ok();
+                    (row.top_k.min(request.top_k), Some(profile_id), retrievers)
                 } else {
-                    (request.top_k, None)
+                    (request.top_k, None, Self::default_retriever_profile())
                 }
             } else {
-                (request.top_k, None)
+                (request.top_k, None, Self::default_retriever_profile())
             };
 
         let memory_type_filter = request.memory_types.as_ref().map(|types| {
@@ -548,28 +608,87 @@ impl MemoryOpenApi for OpenMemoryService {
         });
 
         let mut candidates = Vec::new();
+        let mut space_owner_cache = std::collections::HashMap::new();
         for space_id in &request.space_ids {
             let scope = Self::scope(&context, *space_id)?;
+            let actor_is_owner = if let Some(cached) = space_owner_cache.get(space_id) {
+                *cached
+            } else {
+                let is_owner = access::actor_is_space_owner(&self.store, &context, *space_id).await?;
+                space_owner_cache.insert(*space_id, is_owner);
+                is_owner
+            };
             let rows = self
                 .store
                 .search_record_details_keyword(&scope, &request.query, effective_top_k)
                 .await
                 .map_err(Self::map_store_error)?;
 
-            for row in rows {
-                let memory = Self::map_record(row)?;
+            let event_rows = self
+                .store
+                .search_open_api_events_keyword(&scope, &request.query, effective_top_k)
+                .await
+                .map_err(Self::map_store_error)?;
+
+            let record_inputs: Vec<RetrievalRecordInput> = rows
+                .iter()
+                .map(|row| RetrievalRecordInput {
+                    memory_id: row.memory_id.clone(),
+                    subject: row.subject.clone(),
+                    predicate: row.predicate.clone(),
+                    object_text: row.object_text.clone(),
+                    canonical_text: row.canonical_text.clone(),
+                    created_at: row.created_at.clone(),
+                })
+                .collect();
+            let event_inputs: Vec<RetrievalEventInput> = event_rows
+                .iter()
+                .map(|row| RetrievalEventInput {
+                    event_id: row.event_id.clone(),
+                    payload_text: row.payload.to_string(),
+                    created_at: row.created_at.clone(),
+                })
+                .collect();
+
+            let orchestrated = orchestrate_retrieval_candidates(
+                &request.query,
+                &record_inputs,
+                &event_inputs,
+                profile_retrievers.as_ref(),
+                effective_top_k as usize,
+            );
+
+            let rows_by_memory_id: std::collections::HashMap<&str, &_> = rows
+                .iter()
+                .map(|row| (row.memory_id.as_str(), row))
+                .collect();
+
+            for candidate in orchestrated {
+                let memory = if candidate.record.memory_id.starts_with("event:") {
+                    continue;
+                } else if let Some(row) = rows_by_memory_id.get(candidate.record.memory_id.as_str()) {
+                    Self::map_record((*row).clone())?
+                } else {
+                    continue;
+                };
+                if !access::actor_may_read_sensitivity(
+                    &context,
+                    &memory.sensitivity_level,
+                    actor_is_owner,
+                ) {
+                    continue;
+                }
                 if let Some(filters) = &memory_type_filter {
                     let memory_type = Self::memory_type_to_db(memory.memory_type);
                     if !filters.iter().any(|filter| filter == &memory_type) {
                         continue;
                     }
                 }
-                let score = keyword_match_score(&request.query, &memory.canonical_text);
-                if score > 0.0 {
+                if candidate.raw_score > 0.0 {
                     candidates.push(RetrievalCandidate {
                         memory,
-                        retriever_name: "keyword".to_string(),
-                        raw_score: score,
+                        retriever_name: candidate.retriever_name,
+                        raw_score: candidate.raw_score,
                         rank: 0,
                     });
                 }
@@ -581,6 +700,11 @@ impl MemoryOpenApi for OpenMemoryService {
         let trace_id = retrieval_id.to_string();
         let primary_scope = Self::scope(&context, request.space_ids[0])?;
         let latency_ms = platform::elapsed_millis_i64(started);
+        let query_hash = platform::stable_query_hash(&request.query);
+        let retrievers_json = profile_retrievers
+            .as_ref()
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| r#"{"keyword":{"weight":1.0}}"#.to_string());
         let hits: Vec<MemoryRetrievalHit> = fused
             .iter()
             .enumerate()
@@ -620,8 +744,8 @@ impl MemoryOpenApi for OpenMemoryService {
                 trace_id: trace_id.clone(),
                 actor_id: request.actor_id.clone(),
                 query_text: Some(request.query.clone()),
-                query_hash: format!("query:{retrieval_id}"),
-                retrievers_json: Some(r#"["keyword"]"#.to_string()),
+                query_hash: query_hash.clone(),
+                retrievers_json: Some(retrievers_json.clone()),
                 latency_ms: Some(latency_ms),
                 degraded: false,
                 metadata_json: request.filters.as_ref().map(|filters| {
@@ -640,7 +764,7 @@ impl MemoryOpenApi for OpenMemoryService {
                 retrieval_profile_id: applied_profile_id,
                 actor_id: request.actor_id,
                 query_text: Some(request.query),
-                query_hash: format!("query:{retrieval_id}"),
+                query_hash,
                 result_count: hits.len() as i32,
                 degraded: false,
                 created_at: platform::current_timestamp(),
@@ -657,6 +781,7 @@ impl MemoryOpenApi for OpenMemoryService {
             space_count = request.space_ids.len(),
             "memory retrieval completed"
         );
+        crate::domain_metrics::memory_domain_metrics().record_retrieval_completed();
 
         Ok(MemoryRetrievalResult {
             retrieval_id,
@@ -678,6 +803,7 @@ impl MemoryOpenApi for OpenMemoryService {
             .await
             .map_err(Self::map_store_error)?
             .ok_or_else(|| MemoryServiceError::not_found("retrieval not found"))?;
+        access::assert_actor_can_access_space_i64(&self.store, &context, lookup.space_id).await?;
         let trace = lookup.trace;
         let trace_space_id = u64::try_from(lookup.space_id.max(0))
             .map_err(|_| MemoryServiceError::storage("space id must be non-negative"))?;
@@ -728,7 +854,7 @@ impl MemoryOpenApi for OpenMemoryService {
                 query_hash: trace.query_hash,
                 result_count: trace.result_count as i32,
                 degraded: trace.degraded,
-                created_at: platform::current_timestamp(),
+                created_at: lookup.created_at.clone(),
             }),
             hits,
             degraded: trace.degraded,
@@ -780,6 +906,14 @@ impl MemoryOpenApi for OpenMemoryService {
             return Err(MemoryServiceError::validation("spaceIds must not be empty"));
         }
 
+        access::assert_actor_can_access_spaces(&self.store, &context, &request.space_ids).await?;
+
+        let top_k = if request.context_budget_tokens > 0 {
+            (request.context_budget_tokens / 200).clamp(1, 50)
+        } else {
+            10
+        };
+
         let retrieval = self
             .create_retrieval(
                 context.clone(),
@@ -790,7 +924,7 @@ impl MemoryOpenApi for OpenMemoryService {
                     retrieval_profile_id: request.retrieval_profile_id,
                     memory_types: None,
                     filters: request.filters.clone(),
-                    top_k: 10,
+                    top_k,
                     context_budget_tokens: request.context_budget_tokens,
                     include_trace: Some(false),
                 },
@@ -842,8 +976,17 @@ impl MemoryOpenApi for OpenMemoryService {
             .map_err(Self::map_store_error)?
             .ok_or_else(|| MemoryServiceError::not_found("context pack not found"))?;
 
-        let pack = serde_json::from_str(&row.pack_json)
-            .unwrap_or_else(|_| serde_json::json!({ "fragments": [] }));
+        if let Some(space_id) = row.space_id {
+            access::assert_actor_can_access_space_i64(&self.store, &context, space_id).await?;
+        } else {
+            return Err(MemoryServiceError::forbidden(
+                "context pack is not linked to an authorized memory space",
+            ));
+        }
+
+        let pack = serde_json::from_str(&row.pack_json).map_err(|error| {
+            MemoryServiceError::storage(format!("context pack payload is corrupt: {error}"))
+        })?;
 
         Ok(MemoryContextPack {
             context_pack_id,
@@ -901,7 +1044,7 @@ impl MemoryOpenApi for OpenMemoryService {
             ));
         };
         let scope = Self::scope(&context, space_id)?;
-        access::assert_actor_can_access_space(&self.store, &context, space_id).await?;
+        access::assert_actor_can_access_space_for_write(&self.store, &context, space_id).await?;
         self.store
             .append_audit(
                 &scope,
@@ -928,6 +1071,7 @@ impl MemoryOpenApi for OpenMemoryService {
         context: MemoryOpenApiRequestContext,
         request: MemoryExtractionRequest,
     ) -> MemoryServiceResult<MemoryLearningJob> {
+        access::assert_actor_can_access_space_for_write(&self.store, &context, request.space_id).await?;
         let job_id = self.next_id()?;
         let scope = Self::scope(&context, request.space_id)?;
         let mut created_candidates = 0_u32;
@@ -991,12 +1135,14 @@ impl MemoryOpenApi for OpenMemoryService {
         query: ListCandidatesQuery,
     ) -> MemoryServiceResult<MemoryCandidateList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
+        let space_id = access::require_list_space_id(query.space_id)?;
+        access::assert_actor_can_access_space(&self.store, &context, space_id).await?;
         let page_size = query.page_size.unwrap_or(20);
         let rows = self
             .store
             .list_candidates_for_tenant(
                 tenant_id,
-                query.space_id.map(|value| value as i64),
+                Some(space_id as i64),
                 page_size,
                 query.cursor.as_deref(),
             )
@@ -1046,7 +1192,11 @@ impl MemoryOpenApi for OpenMemoryService {
             .await
             .map_err(Self::map_store_error)?
         {
-            Some(row) => Self::map_candidate(row),
+            Some(row) => {
+                access::assert_actor_can_access_space_i64(&self.store, &context, row.space_id)
+                    .await?;
+                Self::map_candidate(row)
+            }
             None => Err(MemoryServiceError::not_found("candidate not found")),
         }
     }

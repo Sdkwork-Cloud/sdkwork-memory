@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS mem_outbox_event;
+DROP TABLE IF EXISTS mem_audit_log;
+DROP TABLE IF EXISTS mem_eval_run;
+DROP TABLE IF EXISTS mem_provider_binding;
+DROP TABLE IF EXISTS mem_implementation_profile;
+DROP TABLE IF EXISTS mem_retrieval_profile;
+DROP TABLE IF EXISTS mem_index;
+DROP TABLE IF EXISTS mem_context_pack;
+DROP TABLE IF EXISTS mem_retrieval_hit;
+DROP TABLE IF EXISTS mem_retrieval_trace;
+DROP TABLE IF EXISTS mem_habit;
+DROP TABLE IF EXISTS mem_candidate;
+DROP TABLE IF EXISTS mem_record_source;
+DROP TABLE IF EXISTS mem_record;
+DROP TABLE IF EXISTS mem_event;
+DROP TABLE IF EXISTS mem_space;

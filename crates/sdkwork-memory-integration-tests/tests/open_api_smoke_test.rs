@@ -10,7 +10,7 @@ use sdkwork_web_core::DefaultWebRequestContextResolver;
 use tower::util::ServiceExt;
 
 async fn wrapped_open_api_router() -> axum::Router {
-    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let business = build_router_with_open_api(OpenMemoryService::new(store));
     wrap_router_with_web_framework(DefaultWebRequestContextResolver::default(), business)
 }

@@ -53,6 +53,48 @@ function writeJson(relativePath, value) {
   writeText(relativePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function readJsonIfExists(relativePath) {
+  const target = path.join(root, relativePath);
+  if (!fs.existsSync(target)) {
+    return null;
+  }
+  return JSON.parse(fs.readFileSync(target, "utf8"));
+}
+
+function isPlaceholderChecksum(checksum) {
+  if (checksum == null) {
+    return true;
+  }
+  if (typeof checksum !== "string" || checksum.length < 16) {
+    return true;
+  }
+  const sample = checksum.slice(0, 8);
+  return (
+    checksum === sample.repeat(Math.ceil(checksum.length / sample.length)).slice(0, checksum.length)
+  );
+}
+
+function resolvePreservedReleaseChecksum(existingManifest) {
+  const packages = existingManifest?.artifacts?.installConfig?.packages ?? [];
+  for (const pkg of packages) {
+    if (
+      pkg.id === "container-x64-server-docker-image"
+      && pkg.enabled !== false
+      && !isPlaceholderChecksum(pkg.checksum)
+    ) {
+      return pkg.checksum;
+    }
+  }
+
+  const checksumFile = readJsonIfExists("deployments/artifacts/checksums.json");
+  const digest = checksumFile?.artifacts?.[0]?.digest;
+  if (digest && !isPlaceholderChecksum(digest)) {
+    return digest;
+  }
+
+  return null;
+}
+
 const packageByLanguage = {
   appbaseApp: {
     typescript: "@sdkwork/appbase-app-sdk",
@@ -373,7 +415,10 @@ Add local plugins only when this repository needs checked-in plugin metadata. Do
 }
 
 function writeAppManifest() {
-  writeJson("sdkwork.app.config.json", {
+  const preservedChecksum = resolvePreservedReleaseChecksum(
+    readJsonIfExists("sdkwork.app.config.json"),
+  );
+  const manifest = {
     schemaVersion: 3,
     kind: "sdkwork.app",
     app: {
@@ -581,7 +626,17 @@ function writeAppManifest() {
       initializedAt: "2026-06-10T00:00:00Z",
       managedBy: "tools/materialize_phase1_contracts.mjs"
     }
-  });
+  };
+
+  if (preservedChecksum) {
+    for (const pkg of manifest.artifacts.installConfig.packages) {
+      if (pkg.id === "container-x64-server-docker-image" && pkg.enabled !== false) {
+        pkg.checksum = preservedChecksum;
+      }
+    }
+  }
+
+  writeJson("sdkwork.app.config.json", manifest);
 }
 
 function writeRootSpecs() {

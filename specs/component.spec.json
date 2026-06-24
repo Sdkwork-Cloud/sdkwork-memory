@@ -15,7 +15,7 @@
       "typescript"
     ],
     "generated": false,
-    "status": "active",
+    "status": "draft",
     "manifests": [
       "sdkwork.app.config.json",
       "AGENTS.md",

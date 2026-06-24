@@ -41,6 +41,7 @@ impl From<MemoryServiceError> for MemoryApiError {
             MemoryServiceErrorKind::Conflict => StatusCode::CONFLICT,
             MemoryServiceErrorKind::Validation => StatusCode::BAD_REQUEST,
             MemoryServiceErrorKind::Forbidden => StatusCode::FORBIDDEN,
+            MemoryServiceErrorKind::QuotaExceeded => StatusCode::TOO_MANY_REQUESTS,
             MemoryServiceErrorKind::Storage => StatusCode::INTERNAL_SERVER_ERROR,
             MemoryServiceErrorKind::NotImplemented => StatusCode::NOT_IMPLEMENTED,
         };
