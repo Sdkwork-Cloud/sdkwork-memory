@@ -60,19 +60,19 @@
     ],
     "sdkDependencies": [
       {
-        "workspace": "sdkwork-appbase-app-sdk",
+        "workspace": "sdkwork-iam-app-sdk",
         "role": "appbase-identity-and-session-capability",
         "required": true,
         "dependencyMode": "consumer-sdk",
         "apiPrefix": "/app/v3/api",
-        "apiAuthority": "sdkwork-appbase-app-api",
+        "apiAuthority": "sdkwork-iam-app-api",
         "generatedTransportImportPolicy": "forbidden",
         "packageByLanguage": {
-          "typescript": "@sdkwork/appbase-app-sdk",
-          "rust": "sdkwork-appbase-app-sdk",
-          "java": "com.sdkwork:sdkwork-appbase-app-sdk",
-          "python": "sdkwork-appbase-app-sdk",
-          "go": "github.com/sdkwork/sdkwork-appbase-app-sdk"
+          "typescript": "@sdkwork/iam-app-sdk",
+          "rust": "sdkwork-iam-app-sdk",
+          "java": "com.sdkwork:sdkwork-iam-app-sdk",
+          "python": "sdkwork-iam-app-sdk",
+          "go": "github.com/sdkwork/sdkwork-iam-app-sdk"
         }
       },
       {
