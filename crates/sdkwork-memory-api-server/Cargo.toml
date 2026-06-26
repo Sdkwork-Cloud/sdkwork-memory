@@ -17,18 +17,24 @@ otel = [
 ]
 
 [dependencies]
+sdkwork_memory_gateway_assembly = { package = "sdkwork-memory-gateway-assembly", path = "../sdkwork-memory-gateway-assembly" }
 axum.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter", "json", "registry"] }
-sdkwork-router-memory-open-api.workspace = true
-sdkwork-router-memory-app-api.workspace = true
-sdkwork-router-memory-backend-api.workspace = true
-sdkwork-router-memory-common.workspace = true
+sdkwork-routes-memory-open-api.workspace = true
+sdkwork-routes-memory-app-api.workspace = true
+sdkwork-routes-memory-backend-api.workspace = true
+sdkwork-routes-memory-common.workspace = true
 sdkwork-intelligence-memory-repository-sqlx.workspace = true
 sdkwork-intelligence-memory-service.workspace = true
 sdkwork-memory-database-host.workspace = true
+sdkwork-web-bootstrap.workspace = true
 tracing-opentelemetry = { version = "0.28", optional = true }
 opentelemetry = { version = "0.27", optional = true }
 opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"], optional = true }
 opentelemetry-otlp = { version = "0.27", features = ["http-proto", "reqwest-client"], optional = true }
+
+[[bin]]
+name = "sdkwork-memory-standalone-gateway"
+path = "src/main.rs"

@@ -1,0 +1,22 @@
+[package]
+name = "sdkwork-routes-memory-common"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+axum.workspace = true
+sdkwork-iam-web-adapter.workspace = true
+sdkwork-database-sqlx.workspace = true
+sdkwork-memory-contract.workspace = true
+sdkwork-web-core.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+tower.workspace = true
+serde_json.workspace = true
+axum.workspace = true

@@ -1,0 +1,9 @@
+pub const PACKAGE_NAME: &str = "sdkwork-routes-memory-open-api";
+pub const SURFACE: &str = "open-api";
+pub const OWNER: &str = "sdkwork-memory";
+pub const DOMAIN: &str = "intelligence";
+pub const CAPABILITY: &str = "memory";
+pub const API_AUTHORITY: &str = "sdkwork-memory-open-api";
+pub const SDK_FAMILY: &str = "sdkwork-memory-sdk";
+pub const PREFIX: &str = "/mem/v3/api";
+pub const AUTH_MODE: &str = "api-key";

@@ -2954,43 +2954,43 @@ const routeSurfaceProfiles = [
     surface: "open-api",
     openapiPath: "sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json",
     apisPath: "apis/open-api/memory-open-api.openapi.json",
-    packageName: "sdkwork-router-memory-open-api",
-    crateDir: "crates/sdkwork-router-memory-open-api",
-    crateImport: "sdkwork_router_memory_open_api",
+    packageName: "sdkwork-routes-memory-open-api",
+    crateDir: "crates/sdkwork-routes-memory-open-api",
+    crateImport: "sdkwork_routes_memory_open_api",
     manifestFn: "open_route_manifest",
     apiAuthority: "sdkwork-memory-open-api",
     sdkFamily: "sdkwork-memory-sdk",
     prefix: memoryOpenApiPrefix,
     routeManifestDir: "sdks/_route-manifests/open-api",
-    routeManifestFile: "sdkwork-router-memory-open-api.route-manifest.json"
+    routeManifestFile: "sdkwork-routes-memory-open-api.route-manifest.json"
   },
   {
     surface: "app-api",
     openapiPath: "sdks/sdkwork-memory-app-sdk/openapi/memory-app-api.openapi.json",
     apisPath: "apis/app-api/memory-app-api.openapi.json",
-    packageName: "sdkwork-router-memory-app-api",
-    crateDir: "crates/sdkwork-router-memory-app-api",
-    crateImport: "sdkwork_router_memory_app_api",
+    packageName: "sdkwork-routes-memory-app-api",
+    crateDir: "crates/sdkwork-routes-memory-app-api",
+    crateImport: "sdkwork_routes_memory_app_api",
     manifestFn: "app_route_manifest",
     apiAuthority: "sdkwork-memory.app",
     sdkFamily: "sdkwork-memory-app-sdk",
     prefix: "/app/v3/api",
     routeManifestDir: "sdks/_route-manifests/app-api",
-    routeManifestFile: "sdkwork-router-memory-app-api.route-manifest.json"
+    routeManifestFile: "sdkwork-routes-memory-app-api.route-manifest.json"
   },
   {
     surface: "backend-api",
     openapiPath: "sdks/sdkwork-memory-backend-sdk/openapi/memory-backend-api.openapi.json",
     apisPath: "apis/backend-api/memory-backend-api.openapi.json",
-    packageName: "sdkwork-router-memory-backend-api",
-    crateDir: "crates/sdkwork-router-memory-backend-api",
-    crateImport: "sdkwork_router_memory_backend_api",
+    packageName: "sdkwork-routes-memory-backend-api",
+    crateDir: "crates/sdkwork-routes-memory-backend-api",
+    crateImport: "sdkwork_routes_memory_backend_api",
     manifestFn: "backend_route_manifest",
     apiAuthority: "sdkwork-memory.backend",
     sdkFamily: "sdkwork-memory-backend-sdk",
     prefix: "/backend/v3/api",
     routeManifestDir: "sdks/_route-manifests/backend-api",
-    routeManifestFile: "sdkwork-router-memory-backend-api.route-manifest.json"
+    routeManifestFile: "sdkwork-routes-memory-backend-api.route-manifest.json"
   }
 ];
 
@@ -3195,9 +3195,9 @@ $requiredFiles = @(
     "apis/open-api/memory-open-api.openapi.json",
     "apis/app-api/memory-app-api.openapi.json",
     "apis/backend-api/memory-backend-api.openapi.json",
-    "sdks/_route-manifests/open-api/sdkwork-router-memory-open-api.route-manifest.json",
-    "sdks/_route-manifests/app-api/sdkwork-router-memory-app-api.route-manifest.json",
-    "sdks/_route-manifests/backend-api/sdkwork-router-memory-backend-api.route-manifest.json",
+    "sdks/_route-manifests/open-api/sdkwork-routes-memory-open-api.route-manifest.json",
+    "sdks/_route-manifests/app-api/sdkwork-routes-memory-app-api.route-manifest.json",
+    "sdks/_route-manifests/backend-api/sdkwork-routes-memory-backend-api.route-manifest.json",
     "package.json",
     "sdkwork.workflow.json",
     ".github/workflows/package.yml"
@@ -3506,9 +3506,9 @@ $backendOpenApiCheck = @{
 Verify-OpenApi @backendOpenApiCheck
 
 foreach ($routeManifestPath in @(
-    "sdks/_route-manifests/open-api/sdkwork-router-memory-open-api.route-manifest.json",
-    "sdks/_route-manifests/app-api/sdkwork-router-memory-app-api.route-manifest.json",
-    "sdks/_route-manifests/backend-api/sdkwork-router-memory-backend-api.route-manifest.json"
+    "sdks/_route-manifests/open-api/sdkwork-routes-memory-open-api.route-manifest.json",
+    "sdks/_route-manifests/app-api/sdkwork-routes-memory-app-api.route-manifest.json",
+    "sdks/_route-manifests/backend-api/sdkwork-routes-memory-backend-api.route-manifest.json"
 )) {
     $routeManifest = Read-JsonFile $routeManifestPath
     if ($routeManifest.kind -ne "sdkwork.route.manifest") {

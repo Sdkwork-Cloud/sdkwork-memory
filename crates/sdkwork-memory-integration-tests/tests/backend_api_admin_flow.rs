@@ -1,9 +1,9 @@
 use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
-use sdkwork_iam_web_adapter::IamDatabaseWebRequestContextResolver;
+use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
 use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_plugin_native_sql::NativeSqlMemoryStore;
-use sdkwork_router_memory_backend_api::{
+use sdkwork_routes_memory_backend_api::{
     build_router_with_backend_api, wrap_router_with_iam_database_web_framework,
 };
 use sdkwork_memory_test_support::web_auth::{
@@ -41,7 +41,7 @@ async fn backend_api_indexes_and_retrieval_profiles_return_phase1_defaults() {
     let _env = lock_integration_test_env();
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
-        IamDatabaseWebRequestContextResolver::new(None),
+        IamWebRequestContextResolver::new(None),
         build_router_with_backend_api(OpenMemoryService::new(store)),
     );
 
@@ -70,7 +70,7 @@ async fn backend_api_migration_job_round_trip_via_dual_token() {
     let _env = lock_integration_test_env();
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
-        IamDatabaseWebRequestContextResolver::new(None),
+        IamWebRequestContextResolver::new(None),
         build_router_with_backend_api(OpenMemoryService::new(store)),
     );
 
@@ -110,7 +110,7 @@ async fn backend_api_admin_config_persists_in_sql_tables() {
     let _env = lock_integration_test_env();
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
-        IamDatabaseWebRequestContextResolver::new(None),
+        IamWebRequestContextResolver::new(None),
         build_router_with_backend_api(OpenMemoryService::new(store.clone())),
     );
 
@@ -237,7 +237,7 @@ async fn backend_api_governance_jobs_consolidation_and_retention_succeed() {
         .unwrap();
 
     let app = wrap_router_with_iam_database_web_framework(
-        IamDatabaseWebRequestContextResolver::new(None),
+        IamWebRequestContextResolver::new(None),
         build_router_with_backend_api(OpenMemoryService::new(store)),
     );
 
@@ -313,7 +313,7 @@ async fn backend_api_supersede_memory_links_chain_and_marks_old_record() {
         .unwrap();
 
     let app = wrap_router_with_iam_database_web_framework(
-        IamDatabaseWebRequestContextResolver::new(None),
+        IamWebRequestContextResolver::new(None),
         build_router_with_backend_api(OpenMemoryService::new(store)),
     );
 

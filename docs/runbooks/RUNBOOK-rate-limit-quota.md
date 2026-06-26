@@ -22,7 +22,7 @@ Handle abuse or quota exhaustion on memory APIs.
 2. Inspect domain metrics: `memory_quota_exceeded_total` and `memory_authz_denied_total`.
 3. Review `SDKWORK_MEMORY_MAX_RECORDS_PER_SPACE` and `SDKWORK_MEMORY_MAX_SPACES_PER_USER` (0 = unlimited).
 4. Identify hot `operationId` and tenant from structured logs (no raw tokens).
-5. Review route manifest rate limit tiers in `crates/sdkwork-router-memory-*/src/http_route_manifest.rs`.
+5. Review route manifest rate limit tiers in `crates/sdkwork-routes-memory-*/src/http_route_manifest.rs`.
 
 ## Mitigation
 

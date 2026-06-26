@@ -26,18 +26,18 @@ function countOpenApiOperations(openapiPath) {
 const surfaces = [
   {
     openapiPath: 'sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json',
-    routeManifestPath: 'sdks/_route-manifests/open-api/sdkwork-router-memory-open-api.route-manifest.json',
-    httpRouteManifestPath: 'crates/sdkwork-router-memory-open-api/src/http_route_manifest.rs',
+    routeManifestPath: 'sdks/_route-manifests/open-api/sdkwork-routes-memory-open-api.route-manifest.json',
+    httpRouteManifestPath: 'crates/sdkwork-routes-memory-open-api/src/http_route_manifest.rs',
   },
   {
     openapiPath: 'sdks/sdkwork-memory-app-sdk/openapi/memory-app-api.openapi.json',
-    routeManifestPath: 'sdks/_route-manifests/app-api/sdkwork-router-memory-app-api.route-manifest.json',
-    httpRouteManifestPath: 'crates/sdkwork-router-memory-app-api/src/http_route_manifest.rs',
+    routeManifestPath: 'sdks/_route-manifests/app-api/sdkwork-routes-memory-app-api.route-manifest.json',
+    httpRouteManifestPath: 'crates/sdkwork-routes-memory-app-api/src/http_route_manifest.rs',
   },
   {
     openapiPath: 'sdks/sdkwork-memory-backend-sdk/openapi/memory-backend-api.openapi.json',
-    routeManifestPath: 'sdks/_route-manifests/backend-api/sdkwork-router-memory-backend-api.route-manifest.json',
-    httpRouteManifestPath: 'crates/sdkwork-router-memory-backend-api/src/http_route_manifest.rs',
+    routeManifestPath: 'sdks/_route-manifests/backend-api/sdkwork-routes-memory-backend-api.route-manifest.json',
+    httpRouteManifestPath: 'crates/sdkwork-routes-memory-backend-api/src/http_route_manifest.rs',
   },
 ];
 

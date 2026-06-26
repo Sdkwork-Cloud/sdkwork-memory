@@ -61,9 +61,9 @@ $requiredFiles = @(
     "apis/open-api/memory-open-api.openapi.json",
     "apis/app-api/memory-app-api.openapi.json",
     "apis/backend-api/memory-backend-api.openapi.json",
-    "sdks/_route-manifests/open-api/sdkwork-router-memory-open-api.route-manifest.json",
-    "sdks/_route-manifests/app-api/sdkwork-router-memory-app-api.route-manifest.json",
-    "sdks/_route-manifests/backend-api/sdkwork-router-memory-backend-api.route-manifest.json",
+    "sdks/_route-manifests/open-api/sdkwork-routes-memory-open-api.route-manifest.json",
+    "sdks/_route-manifests/app-api/sdkwork-routes-memory-app-api.route-manifest.json",
+    "sdks/_route-manifests/backend-api/sdkwork-routes-memory-backend-api.route-manifest.json",
     "package.json",
     "sdkwork.workflow.json",
     ".github/workflows/package.yml"
@@ -372,9 +372,9 @@ $backendOpenApiCheck = @{
 Verify-OpenApi @backendOpenApiCheck
 
 foreach ($routeManifestPath in @(
-    "sdks/_route-manifests/open-api/sdkwork-router-memory-open-api.route-manifest.json",
-    "sdks/_route-manifests/app-api/sdkwork-router-memory-app-api.route-manifest.json",
-    "sdks/_route-manifests/backend-api/sdkwork-router-memory-backend-api.route-manifest.json"
+    "sdks/_route-manifests/open-api/sdkwork-routes-memory-open-api.route-manifest.json",
+    "sdks/_route-manifests/app-api/sdkwork-routes-memory-app-api.route-manifest.json",
+    "sdks/_route-manifests/backend-api/sdkwork-routes-memory-backend-api.route-manifest.json"
 )) {
     $routeManifest = Read-JsonFile $routeManifestPath
     if ($routeManifest.kind -ne "sdkwork.route.manifest") {

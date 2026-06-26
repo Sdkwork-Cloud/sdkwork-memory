@@ -1,16 +1,16 @@
 use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
-use sdkwork_iam_web_adapter::IamDatabaseWebRequestContextResolver;
+use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
 use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_plugin_native_sql::NativeSqlMemoryStore;
-use sdkwork_router_memory_app_api::{
+use sdkwork_routes_memory_app_api::{
     build_router_with_app_api, wrap_router_with_iam_database_web_framework,
 };
-use sdkwork_router_memory_backend_api::{
+use sdkwork_routes_memory_backend_api::{
     build_router_with_shared_backend_api,
     wrap_router_with_iam_database_web_framework as wrap_backend_router,
 };
-use sdkwork_router_memory_open_api::build_router_with_shared_open_api;
+use sdkwork_routes_memory_open_api::build_router_with_shared_open_api;
 use sdkwork_memory_test_support::web_auth::{
     lock_integration_test_env, memory_access_token, memory_auth_token_bearer,
     MEMORY_TEST_IDEMPOTENCY_KEY,
@@ -47,7 +47,7 @@ async fn app_api_forget_and_export_jobs_round_trip_via_dual_token() {
     let _env = lock_integration_test_env();
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
-        IamDatabaseWebRequestContextResolver::new(None),
+        IamWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
     );
 
@@ -157,7 +157,7 @@ async fn app_api_drive_export_job_stages_artifact_and_emits_outbox_event() {
     let _env = lock_integration_test_env();
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
-        IamDatabaseWebRequestContextResolver::new(None),
+        IamWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store.clone())),
     );
 
@@ -225,7 +225,7 @@ async fn backend_api_lists_audit_logs_after_open_api_feedback() {
     let service = Arc::new(OpenMemoryService::new(store));
     let open_app = build_router_with_shared_open_api(service.clone());
     let backend_app = wrap_backend_router(
-        IamDatabaseWebRequestContextResolver::new(None),
+        IamWebRequestContextResolver::new(None),
         build_router_with_shared_backend_api(service),
     );
 
@@ -308,7 +308,7 @@ async fn app_api_rejects_foreign_actor_retrieving_forget_job() {
     let _env = lock_integration_test_env();
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
-        IamDatabaseWebRequestContextResolver::new(None),
+        IamWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
     );
 

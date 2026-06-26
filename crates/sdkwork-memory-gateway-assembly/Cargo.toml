@@ -1,0 +1,17 @@
+[package]
+name = "sdkwork-memory-gateway-assembly"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+description = "Generated gateway assembly for sdkwork-memory application HTTP plane."
+
+[lib]
+name = "sdkwork_memory_gateway_assembly"
+path = "src/lib.rs"
+
+[dependencies]
+axum.workspace = true
+tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }
+sdkwork_routes_memory_app_api = { package = "sdkwork-routes-memory-app-api", path = "../sdkwork-routes-memory-app-api" }
+sdkwork_routes_memory_backend_api = { package = "sdkwork-routes-memory-backend-api", path = "../sdkwork-routes-memory-backend-api" }
+sdkwork_routes_memory_open_api = { package = "sdkwork-routes-memory-open-api", path = "../sdkwork-routes-memory-open-api" }

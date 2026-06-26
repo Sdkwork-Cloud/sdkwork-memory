@@ -1,10 +1,10 @@
 use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
-use sdkwork_iam_web_adapter::IamDatabaseWebRequestContextResolver;
+use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
 use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_plugin_native_sql::{MemorySqlDialect, NativeSqlMemoryStore};
 use sdkwork_memory_spi::{MemoryHabitStorePort, MemoryScopeContext, UpsertMemoryHabitCommand};
-use sdkwork_router_memory_app_api::{
+use sdkwork_routes_memory_app_api::{
     build_router_with_app_api, wrap_router_with_iam_database_web_framework,
 };
 use serde_json::json;
@@ -43,7 +43,7 @@ async fn app_api_mvp_flow_space_memory_and_retrieval_via_dual_token() {
     let _env = lock_integration_test_env();
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
-        IamDatabaseWebRequestContextResolver::new(None),
+        IamWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
     );
 
@@ -118,7 +118,7 @@ async fn app_api_habit_confirm_flow_via_dual_token() {
     .expect("seed habit");
 
     let app = wrap_router_with_iam_database_web_framework(
-        IamDatabaseWebRequestContextResolver::new(None),
+        IamWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
     );
 
@@ -143,7 +143,7 @@ async fn app_api_memory_sources_list_returns_linked_event_sources() {
     let pool = store.pool().clone();
     let space_id = "2";
     let app = wrap_router_with_iam_database_web_framework(
-        IamDatabaseWebRequestContextResolver::new(None),
+        IamWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
     );
 
@@ -210,7 +210,7 @@ async fn app_api_candidate_approve_promotes_memory_and_links_event_sources() {
     let pool = store.pool().clone();
     let space_id = "2";
     let app = wrap_router_with_iam_database_web_framework(
-        IamDatabaseWebRequestContextResolver::new(None),
+        IamWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
     );
 

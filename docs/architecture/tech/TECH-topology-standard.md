@@ -10,7 +10,7 @@ This repository adopts the shared SDKWork runtime topology framework.
 
 ## Archetype
 
-`application-http-gateway`: Memory exposes open, app, and backend HTTP surfaces through `sdkwork-router-memory-*` route crates. Phase 1 runs all surfaces in a unified `sdkwork-memory-api-server` process.
+`application-http-gateway`: Memory exposes open, app, and backend HTTP surfaces through `sdkwork-routes-memory-*` route crates. Phase 1 runs all surfaces in a unified `sdkwork-memory-api-server` process.
 
 ## Default Dev Profile
 

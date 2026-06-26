@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "sdkwork.route.manifest",
-  "packageName": "sdkwork-router-memory-backend-api",
+  "packageName": "sdkwork-routes-memory-backend-api",
   "surface": "backend-api",
   "owner": "sdkwork-memory",
   "domain": "intelligence",
@@ -10,8 +10,8 @@
   "sdkFamily": "sdkwork-memory-backend-sdk",
   "prefix": "/backend/v3/api",
   "source": {
-    "crateRoot": "crates/sdkwork-router-memory-backend-api",
-    "crateImport": "sdkwork_router_memory_backend_api",
+    "crateRoot": "crates/sdkwork-routes-memory-backend-api",
+    "crateImport": "sdkwork_routes_memory_backend_api",
     "openApiAuthority": "sdks/sdkwork-memory-backend-sdk/openapi/memory-backend-api.openapi.json"
   },
   "routes": [

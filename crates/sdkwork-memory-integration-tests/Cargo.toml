@@ -15,9 +15,9 @@ sdkwork-intelligence-memory-service.workspace = true
 sdkwork-memory-contract.workspace = true
 sdkwork-memory-plugin-native-sql.workspace = true
 sdkwork-memory-spi.workspace = true
-sdkwork-router-memory-app-api.workspace = true
-sdkwork-router-memory-open-api.workspace = true
-sdkwork-router-memory-backend-api.workspace = true
+sdkwork-routes-memory-app-api.workspace = true
+sdkwork-routes-memory-open-api.workspace = true
+sdkwork-routes-memory-backend-api.workspace = true
 sdkwork-web-core.workspace = true
 sdkwork-memory-api-server = { path = "../sdkwork-memory-api-server" }
 sdkwork-memory-test-support.workspace = true

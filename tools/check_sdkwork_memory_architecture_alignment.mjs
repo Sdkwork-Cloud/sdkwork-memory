@@ -96,7 +96,7 @@ assert(cargoToml.includes('sdkwork-database-repository'), 'Cargo.toml must decla
 assert(cargoToml.includes('sdkwork-utils-rust'), 'Cargo.toml must declare sdkwork-utils-rust');
 assert(cargoToml.includes('sdkwork-id-core'), 'Cargo.toml must declare sdkwork-id-core');
 assert(cargoToml.includes('sdkwork-memory-api-server'), 'Cargo.toml must include sdkwork-memory-api-server');
-assert(cargoToml.includes('sdkwork-router-memory-common'), 'Cargo.toml must include sdkwork-router-memory-common');
+assert(cargoToml.includes('sdkwork-routes-memory-common'), 'Cargo.toml must include sdkwork-routes-memory-common');
 assert(!cargoToml.includes('sdkwork-discovery'), 'sdkwork-discovery is not required until RPC services exist');
 
 const runtimeEnvSource = readText('crates/sdkwork-memory-contract/src/runtime_env.rs');
@@ -139,8 +139,8 @@ for (const relativePath of [
   'crates/sdkwork-memory-integration-tests/tests/app_backend_api_smoke_test.rs',
   'crates/sdkwork-memory-integration-tests/tests/backend_api_admin_flow.rs',
   'crates/sdkwork-memory-integration-tests/tests/governance_and_audit_flow.rs',
-  'crates/sdkwork-router-memory-app-api/tests/app_web_framework_routes.rs',
-  'crates/sdkwork-router-memory-backend-api/tests/backend_web_framework_routes.rs',
+  'crates/sdkwork-routes-memory-app-api/tests/app_web_framework_routes.rs',
+  'crates/sdkwork-routes-memory-backend-api/tests/backend_web_framework_routes.rs',
 ]) {
   const source = readText(relativePath);
   assert(
@@ -154,7 +154,7 @@ for (const relativePath of [
   );
 }
 
-const openWebBootstrap = readText('crates/sdkwork-router-memory-open-api/src/web_bootstrap.rs');
+const openWebBootstrap = readText('crates/sdkwork-routes-memory-open-api/src/web_bootstrap.rs');
 assert(
   openWebBootstrap.includes('memory_web_auth_mode_from_env'),
   'open-api web bootstrap must use shared memory web auth mode',
@@ -164,29 +164,29 @@ assert(
   'open-api web bootstrap must not gate auth on DATABASE_URL presence',
 );
 
-const memoryWebAuth = readText('crates/sdkwork-router-memory-common/src/lib.rs');
+const memoryWebAuth = readText('crates/sdkwork-routes-memory-common/src/lib.rs');
 assert(
   memoryWebAuth.includes('ProductionFailClosedResolver'),
-  'router-memory-common must provide production fail-closed auth resolver',
+  'routes-memory-common must provide production fail-closed auth resolver',
 );
 assert(
   memoryWebAuth.includes('resolve_access_token'),
   'production fail-closed resolver must reject access-token auth',
 );
 
-const memoryProblem = readText('crates/sdkwork-router-memory-common/src/problem.rs');
+const memoryProblem = readText('crates/sdkwork-routes-memory-common/src/problem.rs');
 assert(
   memoryProblem.includes('MemoryApiProblem'),
-  'router-memory-common must provide shared MemoryApiProblem responses',
+  'routes-memory-common must provide shared MemoryApiProblem responses',
 );
 assert(
-  readText('crates/sdkwork-router-memory-open-api/src/error.rs').includes('sdkwork_router_memory_common'),
+  readText('crates/sdkwork-routes-memory-open-api/src/error.rs').includes('sdkwork_routes_memory_common'),
   'open-api router must reuse shared problem responses',
 );
 
 for (const relativePath of [
-  'crates/sdkwork-router-memory-app-api/src/routes.rs',
-  'crates/sdkwork-router-memory-backend-api/src/routes.rs',
+  'crates/sdkwork-routes-memory-app-api/src/routes.rs',
+  'crates/sdkwork-routes-memory-backend-api/src/routes.rs',
 ]) {
   const source = readText(relativePath);
   assert(
@@ -328,13 +328,13 @@ assert(
   'k8s migration job must run api-server db-migrate subcommand',
 );
 assert(
-  readText('crates/sdkwork-router-memory-common/src/metrics.rs').includes(
+  readText('crates/sdkwork-routes-memory-common/src/metrics.rs').includes(
     'memory_metric_environment_label',
   ),
   'memory metrics must export canonical environment label per OBSERVABILITY_SPEC',
 );
 assert(
-  readText('crates/sdkwork-router-memory-common/src/correlation.rs').includes('http_request'),
+  readText('crates/sdkwork-routes-memory-common/src/correlation.rs').includes('http_request'),
   'correlation middleware must emit tracing spans for request correlation',
 );
 assert(
@@ -400,7 +400,7 @@ assert(
   'tenant quota module must map exhaustion to quota_exceeded problem code',
 );
 assert(
-  readText('crates/sdkwork-router-memory-common/src/problem.rs').includes('QuotaExceeded'),
+  readText('crates/sdkwork-routes-memory-common/src/problem.rs').includes('QuotaExceeded'),
   'router problem mapping must translate quota_exceeded to HTTP 429',
 );
 assert(
@@ -488,7 +488,7 @@ assert(
   readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs').includes(
     'list_record_sources_for_memory',
   ) &&
-    readText('crates/sdkwork-router-memory-app-api/src/routes.rs').includes(
+    readText('crates/sdkwork-routes-memory-app-api/src/routes.rs').includes(
       'ListMemorySourcesQuery',
     ),
   'memory record source list must wire OpenAPI cursor pagination query params',
@@ -552,9 +552,9 @@ for (const dependencyId of [
 assert(!dependencyIds.has('sdkwork-discovery'), 'sdkwork.workflow.json must not declare sdkwork-discovery until RPC exists');
 
 const routerCrates = [
-  'crates/sdkwork-router-memory-open-api/Cargo.toml',
-  'crates/sdkwork-router-memory-app-api/Cargo.toml',
-  'crates/sdkwork-router-memory-backend-api/Cargo.toml',
+  'crates/sdkwork-routes-memory-open-api/Cargo.toml',
+  'crates/sdkwork-routes-memory-app-api/Cargo.toml',
+  'crates/sdkwork-routes-memory-backend-api/Cargo.toml',
 ];
 
 for (const routerCrate of routerCrates) {
@@ -579,15 +579,15 @@ for (const routerCrate of routerCrates) {
 }
 
 for (const routeTest of [
-  'crates/sdkwork-router-memory-open-api/tests/open_api_routes.rs',
-  'crates/sdkwork-router-memory-open-api/tests/open_web_framework_routes.rs',
-  'crates/sdkwork-router-memory-open-api/tests/open_openapi_routes.rs',
-  'crates/sdkwork-router-memory-app-api/tests/app_api_routes.rs',
-  'crates/sdkwork-router-memory-app-api/tests/app_web_framework_routes.rs',
-  'crates/sdkwork-router-memory-app-api/tests/app_openapi_routes.rs',
-  'crates/sdkwork-router-memory-backend-api/tests/backend_api_routes.rs',
-  'crates/sdkwork-router-memory-backend-api/tests/backend_web_framework_routes.rs',
-  'crates/sdkwork-router-memory-backend-api/tests/backend_openapi_routes.rs',
+  'crates/sdkwork-routes-memory-open-api/tests/open_api_routes.rs',
+  'crates/sdkwork-routes-memory-open-api/tests/open_web_framework_routes.rs',
+  'crates/sdkwork-routes-memory-open-api/tests/open_openapi_routes.rs',
+  'crates/sdkwork-routes-memory-app-api/tests/app_api_routes.rs',
+  'crates/sdkwork-routes-memory-app-api/tests/app_web_framework_routes.rs',
+  'crates/sdkwork-routes-memory-app-api/tests/app_openapi_routes.rs',
+  'crates/sdkwork-routes-memory-backend-api/tests/backend_api_routes.rs',
+  'crates/sdkwork-routes-memory-backend-api/tests/backend_web_framework_routes.rs',
+  'crates/sdkwork-routes-memory-backend-api/tests/backend_openapi_routes.rs',
 ]) {
   assert(fs.existsSync(path.join(repoRoot, routeTest)), `${routeTest} must exist`);
 }
@@ -613,7 +613,7 @@ assert(
   'package.json test must run scripts/cargo-test-workspace.mjs',
 );
 
-const appRoutesSource = readText('crates/sdkwork-router-memory-app-api/src/routes.rs');
+const appRoutesSource = readText('crates/sdkwork-routes-memory-app-api/src/routes.rs');
 assert(
   appRoutesSource.includes('Json<MemoryReviewRequest>'),
   'app-api routes must deserialize MemoryReviewRequest for review operations',
@@ -623,7 +623,7 @@ assert(
   'app-api routes must not accept untyped serde_json::Value request bodies',
 );
 
-const backendRoutesSource = readText('crates/sdkwork-router-memory-backend-api/src/routes.rs');
+const backendRoutesSource = readText('crates/sdkwork-routes-memory-backend-api/src/routes.rs');
 assert(
   backendRoutesSource.includes('Json<MemoryReviewRequest>'),
   'backend-api routes must deserialize MemoryReviewRequest for review operations',
@@ -774,9 +774,9 @@ for (const familyRoot of sdkFamilyRoots) {
 }
 
 const routeManifestPaths = [
-  'sdks/_route-manifests/open-api/sdkwork-router-memory-open-api.route-manifest.json',
-  'sdks/_route-manifests/app-api/sdkwork-router-memory-app-api.route-manifest.json',
-  'sdks/_route-manifests/backend-api/sdkwork-router-memory-backend-api.route-manifest.json',
+  'sdks/_route-manifests/open-api/sdkwork-routes-memory-open-api.route-manifest.json',
+  'sdks/_route-manifests/app-api/sdkwork-routes-memory-app-api.route-manifest.json',
+  'sdks/_route-manifests/backend-api/sdkwork-routes-memory-backend-api.route-manifest.json',
 ];
 
 for (const relativePath of routeManifestPaths) {
@@ -812,7 +812,7 @@ for (const specFile of [
 
 const crateComponentSpecs = [
   'crates/sdkwork-memory-contract/specs/component.spec.json',
-  'crates/sdkwork-router-memory-common/specs/component.spec.json',
+  'crates/sdkwork-routes-memory-common/specs/component.spec.json',
   'crates/sdkwork-intelligence-memory-service/specs/component.spec.json',
   'crates/sdkwork-intelligence-memory-repository-sqlx/specs/component.spec.json',
   'crates/sdkwork-memory-database-host/specs/component.spec.json',
@@ -921,9 +921,9 @@ for (const entry of collectOpenApiOperations(openApiRelativePath)) {
 }
 
 for (const relativePath of [
-  'crates/sdkwork-router-memory-app-api/src/http_route_manifest.rs',
-  'crates/sdkwork-router-memory-open-api/src/http_route_manifest.rs',
-  'crates/sdkwork-router-memory-backend-api/src/http_route_manifest.rs',
+  'crates/sdkwork-routes-memory-app-api/src/http_route_manifest.rs',
+  'crates/sdkwork-routes-memory-open-api/src/http_route_manifest.rs',
+  'crates/sdkwork-routes-memory-backend-api/src/http_route_manifest.rs',
 ]) {
   const manifest = readText(relativePath);
   assert(

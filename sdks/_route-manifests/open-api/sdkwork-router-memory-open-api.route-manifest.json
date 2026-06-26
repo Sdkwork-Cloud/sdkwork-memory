@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "sdkwork.route.manifest",
-  "packageName": "sdkwork-router-memory-open-api",
+  "packageName": "sdkwork-routes-memory-open-api",
   "surface": "open-api",
   "owner": "sdkwork-memory",
   "domain": "intelligence",
@@ -10,8 +10,8 @@
   "sdkFamily": "sdkwork-memory-sdk",
   "prefix": "/mem/v3/api",
   "source": {
-    "crateRoot": "crates/sdkwork-router-memory-open-api",
-    "crateImport": "sdkwork_router_memory_open_api",
+    "crateRoot": "crates/sdkwork-routes-memory-open-api",
+    "crateImport": "sdkwork_routes_memory_open_api",
     "openApiAuthority": "sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json"
   },
   "routes": [

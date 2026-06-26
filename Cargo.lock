@@ -1865,16 +1865,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
-name = "sdkwork-iam-bootstrap"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "sdkwork-iam-context-service",
- "sdkwork-iam-module-registry",
- "sqlx",
-]
-
-[[package]]
 name = "sdkwork-database-config"
 version = "0.1.0"
 dependencies = [
@@ -1959,6 +1949,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sdkwork-iam-bootstrap"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "base64",
+ "chrono",
+ "rand_core 0.6.4",
+ "sdkwork-iam-context-service",
+ "sdkwork-iam-module-registry",
+ "sha2",
+ "sqlx",
+ "uuid",
+]
+
+[[package]]
 name = "sdkwork-iam-context-service"
 version = "0.1.0"
 dependencies = [
@@ -1991,16 +1996,19 @@ dependencies = [
  "password-hash",
  "rand_core 0.6.4",
  "reqwest",
- "sdkwork-iam-bootstrap",
+ "sdkwork-database-config",
  "sdkwork-database-sqlx",
+ "sdkwork-iam-bootstrap",
  "sdkwork-iam-context-service",
  "sdkwork-utils-rust",
  "sdkwork-web-axum",
  "sdkwork-web-core",
  "serde",
  "serde_json",
+ "sha1",
  "sha2",
  "sqlx",
+ "urlencoding",
  "uuid",
 ]
 
@@ -2063,10 +2071,11 @@ dependencies = [
  "sdkwork-intelligence-memory-repository-sqlx",
  "sdkwork-intelligence-memory-service",
  "sdkwork-memory-database-host",
- "sdkwork-router-memory-app-api",
- "sdkwork-router-memory-backend-api",
- "sdkwork-router-memory-common",
- "sdkwork-router-memory-open-api",
+ "sdkwork-routes-memory-app-api",
+ "sdkwork-routes-memory-backend-api",
+ "sdkwork-routes-memory-common",
+ "sdkwork-routes-memory-open-api",
+ "sdkwork-web-bootstrap",
  "tokio",
  "tracing",
  "tracing-opentelemetry",
@@ -2117,9 +2126,9 @@ dependencies = [
  "sdkwork-memory-plugin-native-sql",
  "sdkwork-memory-spi",
  "sdkwork-memory-test-support",
- "sdkwork-router-memory-app-api",
- "sdkwork-router-memory-backend-api",
- "sdkwork-router-memory-open-api",
+ "sdkwork-routes-memory-app-api",
+ "sdkwork-routes-memory-backend-api",
+ "sdkwork-routes-memory-open-api",
  "sdkwork-web-core",
  "serde_json",
  "tokio",
@@ -2187,7 +2196,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sdkwork-router-memory-app-api"
+name = "sdkwork-routes-memory-app-api"
 version = "0.1.0"
 dependencies = [
  "async-trait",
@@ -2197,7 +2206,7 @@ dependencies = [
  "sdkwork-memory-contract",
  "sdkwork-memory-plugin-native-sql",
  "sdkwork-memory-test-support",
- "sdkwork-router-memory-common",
+ "sdkwork-routes-memory-common",
  "sdkwork-web-axum",
  "sdkwork-web-core",
  "serde",
@@ -2207,7 +2216,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sdkwork-router-memory-backend-api"
+name = "sdkwork-routes-memory-backend-api"
 version = "0.1.0"
 dependencies = [
  "async-trait",
@@ -2217,7 +2226,7 @@ dependencies = [
  "sdkwork-memory-contract",
  "sdkwork-memory-plugin-native-sql",
  "sdkwork-memory-test-support",
- "sdkwork-router-memory-common",
+ "sdkwork-routes-memory-common",
  "sdkwork-web-axum",
  "sdkwork-web-core",
  "serde",
@@ -2227,7 +2236,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sdkwork-router-memory-common"
+name = "sdkwork-routes-memory-common"
 version = "0.1.0"
 dependencies = [
  "async-trait",
@@ -2244,7 +2253,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sdkwork-router-memory-open-api"
+name = "sdkwork-routes-memory-open-api"
 version = "0.1.0"
 dependencies = [
  "async-trait",
@@ -2254,7 +2263,7 @@ dependencies = [
  "sdkwork-memory-contract",
  "sdkwork-memory-plugin-native-sql",
  "sdkwork-memory-test-support",
- "sdkwork-router-memory-common",
+ "sdkwork-routes-memory-common",
  "sdkwork-web-axum",
  "sdkwork-web-core",
  "serde",
@@ -2291,6 +2300,24 @@ dependencies = [
  "tokio",
  "tower 0.5.3",
  "tracing",
+]
+
+[[package]]
+name = "sdkwork-web-bootstrap"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum 0.8.9",
+ "http",
+ "sdkwork-web-axum",
+ "sdkwork-web-contract",
+ "sdkwork-web-core",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

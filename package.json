@@ -22,7 +22,7 @@
     "api:check": "powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1",
     "sdk:generate:ts": "powershell -NoProfile -ExecutionPolicy Bypass -File sdks/sdkwork-memory-sdk/bin/generate-sdk.ps1 -Languages typescript && powershell -NoProfile -ExecutionPolicy Bypass -File sdks/sdkwork-memory-app-sdk/bin/generate-sdk.ps1 -Languages typescript && powershell -NoProfile -ExecutionPolicy Bypass -File sdks/sdkwork-memory-backend-sdk/bin/generate-sdk.ps1 -Languages typescript",
     "sdk:generate": "node sdks/standardize-memory-sdk-family.mjs && node scripts/generate-memory-sdk.mjs",
-    "db:materialize:contract": "node tools/materialize_memory_database_contract.mjs && node tools/materialize_memory_migrations.mjs",
+    "db:materialize:contract": "node ../sdkwork-specs/tools/materialize-database-contract-from-baseline.mjs --root . --baseline database/ddl/baseline/postgres/0001_memory_legacy_baseline.sql --module-id memory --owner memory-platform --prefixes memory_ --engines postgres",
     "db:validate": "node ../sdkwork-specs/tools/check-database-framework-standard.mjs --root .",
     "topology:validate": "node ../sdkwork-app-topology/scripts/sdkwork-topology.mjs validate --root . --spec specs/topology.spec.json",
     "db:plan": "cargo run --manifest-path ../sdkwork-database/Cargo.toml -p sdkwork-database-cli -- --app-root . plan",
@@ -40,6 +40,8 @@
     "test:contract:database": "node ../sdkwork-specs/tools/check-database-framework-standard.mjs --root .",
     "topology:plan": "node ../sdkwork-app-topology/scripts/sdkwork-topology.mjs plan --root . --spec specs/topology.spec.json",
     "gateway:package:cloud": "node ../sdkwork-app-topology/scripts/gateway-cloud-bundle.mjs bundle --root .",
-    "gateway:validate:cloud": "node ../sdkwork-app-topology/scripts/gateway-cloud-bundle.mjs validate --root ."
+    "gateway:validate:cloud": "node ../sdkwork-app-topology/scripts/gateway-cloud-bundle.mjs validate --root .",
+    "gateway:assembly:materialize": "node scripts/gateway/assembly-materialize.mjs",
+    "gateway:assembly:validate": "node scripts/gateway/assembly-validate.mjs"
   }
 }

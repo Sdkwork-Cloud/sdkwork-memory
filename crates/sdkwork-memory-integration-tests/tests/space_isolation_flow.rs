@@ -4,7 +4,7 @@ use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
 use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_plugin_native_sql::NativeSqlMemoryStore;
-use sdkwork_router_memory_open_api::build_router_with_open_api;
+use sdkwork_routes_memory_open_api::build_router_with_open_api;
 use serde_json::json;
 use tower::util::ServiceExt;
 

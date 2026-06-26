@@ -147,7 +147,7 @@
           {
             "id": "application.public-ingress",
             "crate": "sdkwork-memory-api-server",
-            "binary": "sdkwork-memory-api-server",
+            "binary": "sdkwork-memory-standalone-gateway",
             "required": true
           }
         ],
@@ -160,7 +160,7 @@
           {
             "id": "application.public-ingress",
             "crate": "sdkwork-memory-api-server",
-            "binary": "sdkwork-memory-api-server",
+            "binary": "sdkwork-memory-standalone-gateway",
             "required": true
           }
         ],
@@ -180,7 +180,7 @@
           {
             "id": "application.public-ingress",
             "crate": "sdkwork-memory-api-server",
-            "binary": "sdkwork-memory-api-server",
+            "binary": "sdkwork-memory-standalone-gateway",
             "required": true
           }
         ],
@@ -201,7 +201,7 @@
           {
             "id": "application.public-ingress",
             "crate": "sdkwork-memory-api-server",
-            "binary": "sdkwork-memory-api-server",
+            "binary": "sdkwork-memory-standalone-gateway",
             "required": true
           }
         ],

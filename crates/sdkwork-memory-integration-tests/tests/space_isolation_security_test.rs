@@ -1,13 +1,13 @@
 use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
-use sdkwork_iam_web_adapter::IamDatabaseWebRequestContextResolver;
+use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
 use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_plugin_native_sql::{NativeSqlCreateSpaceCommand, NativeSqlMemoryStore};
 use sdkwork_memory_spi::{CreateMemoryCandidateCommand, MemoryCandidateStorePort, MemoryScopeContext};
-use sdkwork_router_memory_app_api::{
+use sdkwork_routes_memory_app_api::{
     build_router_with_app_api, wrap_router_with_iam_database_web_framework,
 };
-use sdkwork_router_memory_open_api::build_router_with_shared_open_api;
+use sdkwork_routes_memory_open_api::build_router_with_shared_open_api;
 use sdkwork_memory_test_support::web_auth::{
     lock_integration_test_env, memory_access_token, memory_auth_token_bearer,
     MEMORY_TEST_IDEMPOTENCY_KEY,
@@ -101,7 +101,7 @@ async fn app_api_requires_space_id_for_memory_list() {
     let _env = lock_integration_test_env();
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
-        IamDatabaseWebRequestContextResolver::new(None),
+        IamWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
     );
 
@@ -120,7 +120,7 @@ async fn learning_settings_persist_across_retrieve() {
     let _env = lock_integration_test_env();
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
-        IamDatabaseWebRequestContextResolver::new(None),
+        IamWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
     );
 
@@ -155,7 +155,7 @@ async fn app_api_requires_space_id_for_candidate_list() {
     let _env = lock_integration_test_env();
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
-        IamDatabaseWebRequestContextResolver::new(None),
+        IamWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
     );
 
@@ -225,7 +225,7 @@ async fn app_api_lists_only_actor_owned_spaces() {
     let _env = lock_integration_test_env();
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
-        IamDatabaseWebRequestContextResolver::new(None),
+        IamWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
     );
 
@@ -313,7 +313,7 @@ async fn app_api_rejects_space_owner_impersonation() {
     let _env = lock_integration_test_env();
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
-        IamDatabaseWebRequestContextResolver::new(None),
+        IamWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
     );
 
@@ -443,7 +443,7 @@ async fn app_api_rejects_space_create_when_user_space_quota_exceeded() {
 
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
-        IamDatabaseWebRequestContextResolver::new(None),
+        IamWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
     );
 

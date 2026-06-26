@@ -6,41 +6,25 @@ use axum::{
     Router,
 };
 use sdkwork_intelligence_memory_repository_sqlx::bootstrap_memory_runtime_from_env;
-use sdkwork_intelligence_memory_service::{
-    memory_domain_metrics, render_memory_domain_prometheus, OpenMemoryService,
-};
-use sdkwork_router_memory_app_api::{
+use sdkwork_intelligence_memory_service::{render_memory_domain_prometheus, OpenMemoryService};
+use sdkwork_routes_memory_app_api::{
     build_router_with_shared_app_api, wrap_router_with_web_framework_from_env as wrap_app_router,
 };
-use sdkwork_router_memory_backend_api::{
+use sdkwork_routes_memory_backend_api::{
     build_router_with_shared_backend_api,
     wrap_router_with_web_framework_from_env as wrap_backend_router,
 };
-use sdkwork_router_memory_common::{
+use sdkwork_routes_memory_common::{
     memory_http_metrics, memory_metric_environment_label, refresh_memory_http_metric_dimensions,
 };
-use sdkwork_router_memory_open_api::{
+use sdkwork_routes_memory_open_api::{
     build_router_with_shared_open_api, wrap_router_with_web_framework_from_env as wrap_open_router,
 };
+use sdkwork_web_bootstrap::{service_router, ServiceRouterConfig};
 use std::sync::Arc;
 use tracing::info;
 
-async fn healthz() -> &'static str {
-    "ok"
-}
-
-async fn readyz(Extension(product): Extension<Arc<OpenMemoryService>>) -> Result<&'static str, StatusCode> {
-    if product.ready_check().await.is_err() {
-        memory_domain_metrics().set_serving(false);
-        return Err(StatusCode::SERVICE_UNAVAILABLE);
-    }
-    if !sdkwork_router_memory_common::memory_dependency_ready_check().await {
-        memory_domain_metrics().set_serving(false);
-        return Err(StatusCode::SERVICE_UNAVAILABLE);
-    }
-    memory_domain_metrics().set_serving(true);
-    Ok("ok")
-}
+use crate::readiness::MemoryReadinessCheck;
 
 async fn metrics(Extension(product): Extension<Arc<OpenMemoryService>>) -> impl IntoResponse {
     let environment = memory_metric_environment_label();
@@ -95,13 +79,19 @@ pub async fn build_router() -> Result<Router, String> {
     let app_router = wrap_app_router(app_business_router).await;
     let backend_router = wrap_backend_router(backend_business_router).await;
 
-    Ok(Router::new()
+    let business_router = Router::new()
         .merge(open_router)
         .merge(app_router)
         .merge(backend_router)
-        .route("/healthz", get(healthz))
-        .route("/readyz", get(readyz))
+        .layer(Extension(product.clone()));
+
+    let service_router_config = ServiceRouterConfig::default()
+        .with_readiness_check(Arc::new(MemoryReadinessCheck::new(product.clone())))
+        .with_metrics(memory_http_metrics());
+
+    Ok(Router::new()
         .route("/metrics", get(metrics))
+        .merge(service_router(business_router, service_router_config))
         .layer(Extension(product)))
 }
 
