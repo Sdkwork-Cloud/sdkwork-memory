@@ -17,7 +17,7 @@ async fn memory_jwt_dual_tokens_resolve_through_default_web_resolver() {
         .await
         .expect("jwt dual tokens must resolve");
 
-    assert_eq!("1001", principal.tenant_id());
+    assert_eq!("100_001", principal.tenant_id());
     assert_eq!("2001", principal.user_id());
 }
 
@@ -42,6 +42,6 @@ async fn memory_dev_api_key_resolves_through_default_web_resolver() {
         .await
         .expect("inline api key claims remain valid for open-api dev tests");
 
-    assert_eq!("1001", principal.tenant_id());
+    assert_eq!("100_001", principal.tenant_id());
     assert_eq!("2001", principal.user_id());
 }

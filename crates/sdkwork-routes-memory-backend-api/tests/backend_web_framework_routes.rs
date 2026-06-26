@@ -57,7 +57,7 @@ async fn backend_router_web_framework_accepts_dev_jwt_dual_tokens_before_handler
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(service.tenant_ids(), vec![1001]);
+    assert_eq!(service.tenant_ids(), vec![100_001]);
 }
 
 #[derive(Clone, Default)]

@@ -31,7 +31,7 @@ async fn postgres_store_applies_phase1_migration_when_url_configured() {
         .expect("postgres connect and migration must succeed");
     store.ping().await.expect("postgres ping must succeed");
 
-    let scope = MemoryScopeContext::for_test(1001, 42);
+    let scope = MemoryScopeContext::for_test(100_001, 42);
     MemoryEventStorePort::append(
         &store,
         AppendMemoryEventCommand {

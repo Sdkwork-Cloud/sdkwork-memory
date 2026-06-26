@@ -471,7 +471,7 @@ assert(
 );
 assert(
   readText('plugins/sdkwork-memory-plugin-native-sql/src/admin_tables.rs').includes(
-    'list_mem_indexes_for_tenant',
+    'list_ai_indexes_for_tenant',
   ) &&
     readText('plugins/sdkwork-memory-plugin-native-sql/src/admin_tables.rs').includes(
       'ORDER BY id ASC',
@@ -534,7 +534,7 @@ assert(dockerfile.includes('COPY --from=builder /src/database /app/database'), '
 assert(dockerfile.includes('SDKWORK_MEMORY_APP_ROOT=/app'), 'docker image must set SDKWORK_MEMORY_APP_ROOT');
 
 const databaseManifest = readJson('database/database.manifest.json');
-assert(databaseManifest.tablePrefix === 'mem_', 'database manifest tablePrefix must be mem_');
+assert(databaseManifest.tablePrefix === 'ai_', 'database manifest tablePrefix must be ai_');
 
 const workflow = readJson('sdkwork.workflow.json');
 const dependencyIds = new Set((workflow.dependencies || []).map((dependency) => dependency.id));

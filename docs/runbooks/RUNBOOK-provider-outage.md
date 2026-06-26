@@ -17,7 +17,7 @@ Respond when optional memory providers (embedding, LLM extraction, Drive export)
 ## Mitigation
 
 1. Confirm native SQL retrieval still serves requests (`memory_retrieval_completed_total` increasing).
-2. Disable optional provider bindings via backend admin API (`mem_provider_binding` status `disabled`).
+2. Disable optional provider bindings via backend admin API (`ai_provider_binding` status `disabled`).
 3. Route export jobs to inline format until Drive recovers.
 
 ## Recovery

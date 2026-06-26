@@ -32,7 +32,7 @@ const tableRegistry = {
 const prefixRegistry = {
   schemaVersion: 1,
   kind: 'sdkwork.database.prefix-registry',
-  prefixes: [{ prefix: 'mem_', owner: 'memory-platform', domain: 'memory' }],
+  prefixes: [{ prefix: 'ai_', owner: 'memory-platform', domain: 'memory' }],
 };
 
 const schemaYaml = [
@@ -44,7 +44,7 @@ const schemaYaml = [
   'compliance_level: L2',
   'engines:',
   '  - postgres',
-  'table_prefix: mem_',
+  'table_prefix: ai_',
   'tables:',
   ...tableNames.map(
     (name) => `  - name: ${name}\n    lifecycle_status: active\n    owner: memory-platform`,
@@ -65,7 +65,7 @@ fs.writeFileSync(path.join(root, 'database/contract/schema.yaml'), schemaYaml);
 const manifestPath = path.join(root, 'database/database.manifest.json');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 manifest.contractVersion = '1.0.0';
-manifest.tablePrefix = 'mem_';
+manifest.tablePrefix = 'ai_';
 manifest.lifecycle.autoMigrate = true;
 fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 

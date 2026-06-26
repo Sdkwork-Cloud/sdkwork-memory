@@ -3,97 +3,97 @@
   "kind": "sdkwork.database.table-registry",
   "tables": [
     {
-      "table_name": "mem_space",
+      "table_name": "ai_space",
       "owner": "memory-platform",
       "compliance_level": "L2",
       "lifecycle_status": "active"
     },
     {
-      "table_name": "mem_event",
+      "table_name": "ai_event",
       "owner": "memory-platform",
       "compliance_level": "L2",
       "lifecycle_status": "active"
     },
     {
-      "table_name": "mem_record",
+      "table_name": "ai_record",
       "owner": "memory-platform",
       "compliance_level": "L2",
       "lifecycle_status": "active"
     },
     {
-      "table_name": "mem_record_source",
+      "table_name": "ai_record_source",
       "owner": "memory-platform",
       "compliance_level": "L2",
       "lifecycle_status": "active"
     },
     {
-      "table_name": "mem_candidate",
+      "table_name": "ai_candidate",
       "owner": "memory-platform",
       "compliance_level": "L2",
       "lifecycle_status": "active"
     },
     {
-      "table_name": "mem_habit",
+      "table_name": "ai_habit",
       "owner": "memory-platform",
       "compliance_level": "L2",
       "lifecycle_status": "active"
     },
     {
-      "table_name": "mem_retrieval_trace",
+      "table_name": "ai_retrieval_trace",
       "owner": "memory-platform",
       "compliance_level": "L2",
       "lifecycle_status": "active"
     },
     {
-      "table_name": "mem_retrieval_hit",
+      "table_name": "ai_retrieval_hit",
       "owner": "memory-platform",
       "compliance_level": "L2",
       "lifecycle_status": "active"
     },
     {
-      "table_name": "mem_context_pack",
+      "table_name": "ai_context_pack",
       "owner": "memory-platform",
       "compliance_level": "L2",
       "lifecycle_status": "active"
     },
     {
-      "table_name": "mem_index",
+      "table_name": "ai_index",
       "owner": "memory-platform",
       "compliance_level": "L2",
       "lifecycle_status": "active"
     },
     {
-      "table_name": "mem_retrieval_profile",
+      "table_name": "ai_retrieval_profile",
       "owner": "memory-platform",
       "compliance_level": "L2",
       "lifecycle_status": "active"
     },
     {
-      "table_name": "mem_implementation_profile",
+      "table_name": "ai_implementation_profile",
       "owner": "memory-platform",
       "compliance_level": "L2",
       "lifecycle_status": "active"
     },
     {
-      "table_name": "mem_provider_binding",
+      "table_name": "ai_provider_binding",
       "owner": "memory-platform",
       "compliance_level": "L2",
       "lifecycle_status": "active"
     },
     {
-      "table_name": "mem_eval_run",
+      "table_name": "ai_eval_run",
       "owner": "memory-platform",
       "compliance_level": "L2",
       "lifecycle_status": "active"
     },
     {
-      "table_name": "mem_audit_log",
+      "table_name": "ai_audit_log",
       "owner": "memory-platform",
       "compliance_level": "L2",
       "lifecycle_status": "active"
     },
     {
-      "table_name": "mem_outbox_event",
+      "table_name": "ai_outbox_event",
       "owner": "memory-platform",
       "compliance_level": "L2",
       "lifecycle_status": "active"

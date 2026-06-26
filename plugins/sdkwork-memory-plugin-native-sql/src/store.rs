@@ -97,7 +97,7 @@ impl NativeSqlMemoryStore {
     }
 
     async fn schema_is_initialized(&self) -> Result<bool, NativeSqlStoreError> {
-        match sqlx::query_scalar::<_, i32>("SELECT 1 FROM mem_space LIMIT 1")
+        match sqlx::query_scalar::<_, i32>("SELECT 1 FROM ai_space LIMIT 1")
             .fetch_optional(&self.pool)
             .await
         {
@@ -175,7 +175,7 @@ impl NativeSqlMemoryStore {
 
         sqlx::query(
             r#"
-            INSERT INTO mem_event (
+            INSERT INTO ai_event (
               uuid,
               tenant_id,
               space_id,
@@ -216,7 +216,7 @@ impl NativeSqlMemoryStore {
         let row = sqlx::query(
             r#"
             SELECT uuid, space_id, event_type, source_type, event_time, payload_json, payload_hash, ingestion_status, created_at
-            FROM mem_event
+            FROM ai_event
             WHERE tenant_id = ? AND uuid = ?
             "#,
         )
@@ -265,10 +265,10 @@ impl NativeSqlMemoryStore {
               r.version,
               sup.uuid AS supersedes_uuid,
               sub.uuid AS superseded_by_uuid
-            FROM mem_record r
-            LEFT JOIN mem_record sup
+            FROM ai_record r
+            LEFT JOIN ai_record sup
               ON sup.id = r.supersedes_memory_id AND sup.tenant_id = r.tenant_id
-            LEFT JOIN mem_record sub
+            LEFT JOIN ai_record sub
               ON sub.id = r.superseded_by_memory_id AND sub.tenant_id = r.tenant_id
             WHERE r.tenant_id = ?
               AND r.uuid = ?
@@ -291,7 +291,7 @@ impl NativeSqlMemoryStore {
         let row = sqlx::query(
             r#"
             SELECT uuid, space_id, event_type, source_type, event_time, payload_json, payload_hash, ingestion_status, created_at
-            FROM mem_event
+            FROM ai_event
             WHERE tenant_id = ? AND space_id = ? AND uuid = ?
             "#,
         )
@@ -332,7 +332,7 @@ impl NativeSqlMemoryStore {
         self.ensure_space(scope).await?;
         sqlx::query(
             r#"
-            INSERT INTO mem_record (
+            INSERT INTO ai_record (
               uuid,
               tenant_id,
               space_id,
@@ -420,7 +420,7 @@ impl NativeSqlMemoryStore {
         let timestamp = now_text();
         sqlx::query(
             r#"
-            UPDATE mem_record
+            UPDATE ai_record
             SET status = 'superseded',
                 superseded_by_memory_id = ?,
                 updated_at = ?,
@@ -438,7 +438,7 @@ impl NativeSqlMemoryStore {
 
         sqlx::query(
             r#"
-            UPDATE mem_record
+            UPDATE ai_record
             SET supersedes_memory_id = ?,
                 updated_at = ?,
                 version = version + 1
@@ -480,10 +480,10 @@ impl NativeSqlMemoryStore {
               r.version,
               sup.uuid AS supersedes_uuid,
               sub.uuid AS superseded_by_uuid
-            FROM mem_record r
-            LEFT JOIN mem_record sup
+            FROM ai_record r
+            LEFT JOIN ai_record sup
               ON sup.id = r.supersedes_memory_id AND sup.tenant_id = r.tenant_id
-            LEFT JOIN mem_record sub
+            LEFT JOIN ai_record sub
               ON sub.id = r.superseded_by_memory_id AND sub.tenant_id = r.tenant_id
             WHERE r.tenant_id = ?
               AND r.space_id = ?
@@ -531,10 +531,10 @@ impl NativeSqlMemoryStore {
                   r.version,
                   sup.uuid AS supersedes_uuid,
                   sub.uuid AS superseded_by_uuid
-                FROM mem_record r
-                LEFT JOIN mem_record sup
+                FROM ai_record r
+                LEFT JOIN ai_record sup
                   ON sup.id = r.supersedes_memory_id AND sup.tenant_id = r.tenant_id
-                LEFT JOIN mem_record sub
+                LEFT JOIN ai_record sub
                   ON sub.id = r.superseded_by_memory_id AND sub.tenant_id = r.tenant_id
                 WHERE r.tenant_id = ?
                   AND r.space_id = ?
@@ -571,10 +571,10 @@ impl NativeSqlMemoryStore {
                   r.version,
                   sup.uuid AS supersedes_uuid,
                   sub.uuid AS superseded_by_uuid
-                FROM mem_record r
-                LEFT JOIN mem_record sup
+                FROM ai_record r
+                LEFT JOIN ai_record sup
                   ON sup.id = r.supersedes_memory_id AND sup.tenant_id = r.tenant_id
-                LEFT JOIN mem_record sub
+                LEFT JOIN ai_record sub
                   ON sub.id = r.superseded_by_memory_id AND sub.tenant_id = r.tenant_id
                 WHERE r.tenant_id = ?
                   AND r.space_id = ?
@@ -608,7 +608,7 @@ impl NativeSqlMemoryStore {
         let row = sqlx::query_scalar::<_, i64>(
             r#"
             SELECT COUNT(*)
-            FROM mem_record
+            FROM ai_record
             WHERE tenant_id = ?
               AND space_id = ?
               AND status <> 'deleted'
@@ -629,7 +629,7 @@ impl NativeSqlMemoryStore {
         let row = sqlx::query_scalar::<_, i64>(
             r#"
             SELECT COUNT(*)
-            FROM mem_space
+            FROM ai_space
             WHERE tenant_id = ?
               AND owner_subject_type = 'user'
               AND owner_subject_id = ?
@@ -660,7 +660,7 @@ impl NativeSqlMemoryStore {
 
         sqlx::query(
             r#"
-            UPDATE mem_record
+            UPDATE ai_record
             SET canonical_text = ?,
                 object_text = ?,
                 subject = ?,
@@ -711,10 +711,10 @@ impl NativeSqlMemoryStore {
               r.version,
               sup.uuid AS supersedes_uuid,
               sub.uuid AS superseded_by_uuid
-            FROM mem_record r
-            LEFT JOIN mem_record sup
+            FROM ai_record r
+            LEFT JOIN ai_record sup
               ON sup.id = r.supersedes_memory_id AND sup.tenant_id = r.tenant_id
-            LEFT JOIN mem_record sub
+            LEFT JOIN ai_record sub
               ON sub.id = r.superseded_by_memory_id AND sub.tenant_id = r.tenant_id
             WHERE r.tenant_id = ?
               AND r.space_id = ?
@@ -749,7 +749,7 @@ impl NativeSqlMemoryStore {
             r#"
             SELECT uuid, space_id, event_type, source_type, event_time, payload_json, payload_hash,
                    ingestion_status, created_at
-            FROM mem_event
+            FROM ai_event
             WHERE tenant_id = ?
               AND space_id = ?
               AND payload_json LIKE ? ESCAPE '\'
@@ -812,7 +812,7 @@ impl NativeSqlMemoryStore {
 
         sqlx::query(
             r#"
-            INSERT INTO mem_event (
+            INSERT INTO ai_event (
               uuid,
               tenant_id,
               space_id,
@@ -848,7 +848,7 @@ impl NativeSqlMemoryStore {
         event_id: &str,
     ) -> Result<Option<NativeSqlMemoryEvent>, NativeSqlStoreError> {
         let row = sqlx::query(
-            "SELECT uuid, payload_json FROM mem_event WHERE tenant_id = ? AND space_id = ? AND uuid = ?",
+            "SELECT uuid, payload_json FROM ai_event WHERE tenant_id = ? AND space_id = ? AND uuid = ?",
         )
         .bind(scope.tenant_id)
         .bind(scope.space_id)
@@ -876,7 +876,7 @@ impl NativeSqlMemoryStore {
         event_id: &str,
     ) -> Result<Option<Value>, NativeSqlStoreError> {
         let row = sqlx::query(
-            "SELECT payload_json FROM mem_event WHERE tenant_id = ? AND space_id = ? AND uuid = ?",
+            "SELECT payload_json FROM ai_event WHERE tenant_id = ? AND space_id = ? AND uuid = ?",
         )
         .bind(scope.tenant_id)
         .bind(scope.space_id)
@@ -902,7 +902,7 @@ impl NativeSqlMemoryStore {
         self.ensure_space(scope).await?;
         sqlx::query(
             r#"
-            INSERT INTO mem_record (
+            INSERT INTO ai_record (
               uuid,
               tenant_id,
               space_id,
@@ -947,7 +947,7 @@ impl NativeSqlMemoryStore {
         let row = sqlx::query(
             r#"
             SELECT uuid, object_text
-            FROM mem_record
+            FROM ai_record
             WHERE tenant_id = ?
               AND space_id = ?
               AND uuid = ?
@@ -974,7 +974,7 @@ impl NativeSqlMemoryStore {
         let row = sqlx::query(
             r#"
             SELECT status, deleted_at
-            FROM mem_record
+            FROM ai_record
             WHERE tenant_id = ? AND space_id = ? AND uuid = ?
             "#,
         )
@@ -1005,7 +1005,7 @@ impl NativeSqlMemoryStore {
 
         sqlx::query(
             r#"
-            UPDATE mem_record
+            UPDATE ai_record
             SET status = 'deleted',
                 deleted_at = ?,
                 updated_at = ?,
@@ -1035,7 +1035,7 @@ impl NativeSqlMemoryStore {
     ) -> Result<bool, NativeSqlStoreError> {
         let deleted = sqlx::query(
             r#"
-            DELETE FROM mem_record
+            DELETE FROM ai_record
             WHERE tenant_id = ? AND space_id = ? AND uuid = ?
             "#,
         )
@@ -1056,7 +1056,7 @@ impl NativeSqlMemoryStore {
         let row = sqlx::query(
             r#"
             SELECT uuid, status, deleted_at
-            FROM mem_record
+            FROM ai_record
             WHERE tenant_id = ? AND space_id = ? AND uuid = ?
             "#,
         )
@@ -1084,7 +1084,7 @@ impl NativeSqlMemoryStore {
     ) -> Result<NativeSqlMemoryAuditRecord, NativeSqlStoreError> {
         sqlx::query(
             r#"
-            INSERT INTO mem_audit_log (
+            INSERT INTO ai_audit_log (
               uuid,
               tenant_id,
               actor_type,
@@ -1129,7 +1129,7 @@ impl NativeSqlMemoryStore {
     ) -> Result<NativeSqlMemoryAuditRecord, NativeSqlStoreError> {
         sqlx::query(
             r#"
-            INSERT INTO mem_audit_log (
+            INSERT INTO ai_audit_log (
               uuid,
               tenant_id,
               actor_type,
@@ -1174,7 +1174,7 @@ impl NativeSqlMemoryStore {
         let row = sqlx::query(
             r#"
             SELECT uuid, actor_id, resource_type, result, metadata_json, created_at
-            FROM mem_audit_log
+            FROM ai_audit_log
             WHERE tenant_id = ?
               AND uuid = ?
               AND resource_type = ?
@@ -1206,7 +1206,7 @@ impl NativeSqlMemoryStore {
         let audit_id = format!("{resource_type}:{entity_id}:{}", now_text());
         sqlx::query(
             r#"
-            INSERT INTO mem_audit_log (
+            INSERT INTO ai_audit_log (
               uuid,
               tenant_id,
               actor_type,
@@ -1240,7 +1240,7 @@ impl NativeSqlMemoryStore {
         let row = sqlx::query(
             r#"
             SELECT metadata_json
-            FROM mem_audit_log
+            FROM ai_audit_log
             WHERE tenant_id = ?
               AND resource_type = ?
               AND resource_id = ?
@@ -1267,13 +1267,13 @@ impl NativeSqlMemoryStore {
         let rows = sqlx::query(
             r#"
             SELECT resource_id, metadata_json
-            FROM mem_audit_log AS current
+            FROM ai_audit_log AS current
             WHERE tenant_id = ?
               AND resource_type = ?
               AND action = 'admin.config.save'
               AND created_at = (
                 SELECT MAX(created_at)
-                FROM mem_audit_log AS latest
+                FROM ai_audit_log AS latest
                 WHERE latest.tenant_id = current.tenant_id
                   AND latest.resource_type = current.resource_type
                   AND latest.resource_id = current.resource_id
@@ -1303,7 +1303,7 @@ impl NativeSqlMemoryStore {
         let row = sqlx::query(
             r#"
             SELECT uuid, action, resource_type, resource_id, result
-            FROM mem_audit_log
+            FROM ai_audit_log
             WHERE tenant_id = ? AND uuid = ?
             "#,
         )
@@ -1348,7 +1348,7 @@ impl NativeSqlMemoryStore {
 
         sqlx::query(
             r#"
-            INSERT INTO mem_outbox_event (
+            INSERT INTO ai_outbox_event (
               uuid,
               tenant_id,
               aggregate_type,
@@ -1405,7 +1405,7 @@ impl NativeSqlMemoryStore {
               publish_state,
               published_at,
               retry_count
-            FROM mem_outbox_event
+            FROM ai_outbox_event
             WHERE tenant_id = ? AND uuid = ?
             "#,
         )
@@ -1445,7 +1445,7 @@ impl NativeSqlMemoryStore {
               publish_state,
               published_at,
               retry_count
-            FROM mem_outbox_event
+            FROM ai_outbox_event
             WHERE tenant_id = ? AND publish_state = 'pending'
             ORDER BY created_at ASC, id ASC
             LIMIT ?
@@ -1490,7 +1490,7 @@ impl NativeSqlMemoryStore {
               publish_state,
               published_at,
               retry_count
-            FROM mem_outbox_event
+            FROM ai_outbox_event
             WHERE publish_state = 'pending'
             ORDER BY created_at ASC, id ASC
             LIMIT ?
@@ -1543,12 +1543,12 @@ impl NativeSqlMemoryStore {
         let timestamp = now_text();
         let rows = sqlx::query(
             r#"
-            UPDATE mem_outbox_event AS o
+            UPDATE ai_outbox_event AS o
             SET publish_state = 'processing',
                 updated_at = ?
             FROM (
               SELECT id
-              FROM mem_outbox_event
+              FROM ai_outbox_event
               WHERE publish_state = 'pending'
               ORDER BY created_at ASC, id ASC
               LIMIT ?
@@ -1612,7 +1612,7 @@ impl NativeSqlMemoryStore {
               publish_state,
               published_at,
               retry_count
-            FROM mem_outbox_event
+            FROM ai_outbox_event
             WHERE publish_state = 'pending'
             ORDER BY created_at ASC, id ASC
             LIMIT ?
@@ -1633,7 +1633,7 @@ impl NativeSqlMemoryStore {
             let row_id: i64 = row.get("id");
             let updated = sqlx::query(
                 r#"
-                UPDATE mem_outbox_event
+                UPDATE ai_outbox_event
                 SET publish_state = 'processing',
                     updated_at = ?
                 WHERE id = ? AND publish_state = 'pending'
@@ -1674,7 +1674,7 @@ impl NativeSqlMemoryStore {
         let row = sqlx::query(
             r#"
             SELECT preference_json
-            FROM mem_tenant_preference
+            FROM ai_tenant_preference
             WHERE tenant_id = ? AND user_id = ? AND preference_key = ?
             "#,
         )
@@ -1698,14 +1698,14 @@ impl NativeSqlMemoryStore {
         let timestamp = now_text();
         sqlx::query(
             r#"
-            INSERT INTO mem_tenant_preference (
+            INSERT INTO ai_tenant_preference (
               tenant_id, user_id, preference_key, preference_json, created_at, updated_at, version
             )
             VALUES (?, ?, ?, ?, ?, ?, 0)
             ON CONFLICT(tenant_id, user_id, preference_key) DO UPDATE SET
               preference_json = excluded.preference_json,
               updated_at = excluded.updated_at,
-              version = mem_tenant_preference.version + 1
+              version = ai_tenant_preference.version + 1
             "#,
         )
         .bind(tenant_id)
@@ -1726,7 +1726,7 @@ impl NativeSqlMemoryStore {
         let rows = sqlx::query(
             r#"
             SELECT uuid, canonical_text
-            FROM mem_record
+            FROM ai_record
             WHERE tenant_id = ? AND space_id = ? AND status <> 'deleted'
             ORDER BY canonical_text ASC, updated_at DESC, id DESC
             "#,
@@ -1750,7 +1750,7 @@ impl NativeSqlMemoryStore {
         for memory_uuid in duplicate_ids {
             let result = sqlx::query(
                 r#"
-                UPDATE mem_record
+                UPDATE ai_record
                 SET status = 'deleted',
                     deleted_at = ?,
                     updated_at = ?,
@@ -1781,7 +1781,7 @@ impl NativeSqlMemoryStore {
             let count: i64 = sqlx::query_scalar(
                 r#"
                 SELECT COUNT(*)
-                FROM mem_record
+                FROM ai_record
                 WHERE tenant_id = ? AND space_id = ? AND status <> 'deleted'
                   AND expires_at IS NOT NULL AND expires_at < ?
                 "#,
@@ -1797,7 +1797,7 @@ impl NativeSqlMemoryStore {
         let timestamp = now_text();
         let result = sqlx::query(
             r#"
-            UPDATE mem_record
+            UPDATE ai_record
             SET status = 'deleted',
                 updated_at = ?,
                 version = version + 1
@@ -1821,7 +1821,7 @@ impl NativeSqlMemoryStore {
     ) -> Result<Option<NativeSqlMemoryOutboxEvent>, NativeSqlStoreError> {
         sqlx::query(
             r#"
-            UPDATE mem_outbox_event
+            UPDATE ai_outbox_event
             SET publish_state = 'published',
                 published_at = ?,
                 updated_at = ?
@@ -1845,7 +1845,7 @@ impl NativeSqlMemoryStore {
     ) -> Result<Option<NativeSqlMemoryOutboxEvent>, NativeSqlStoreError> {
         sqlx::query(
             r#"
-            UPDATE mem_outbox_event
+            UPDATE ai_outbox_event
             SET publish_state = 'failed',
                 retry_count = retry_count + 1,
                 updated_at = ?
@@ -1869,7 +1869,7 @@ impl NativeSqlMemoryStore {
         let timestamp = now_text();
         sqlx::query(
             r#"
-            UPDATE mem_outbox_event
+            UPDATE ai_outbox_event
             SET publish_state = 'published',
                 published_at = ?,
                 updated_at = ?
@@ -1904,7 +1904,7 @@ impl NativeSqlMemoryStore {
         let timestamp = now_text();
         sqlx::query(
             r#"
-            UPDATE mem_outbox_event
+            UPDATE ai_outbox_event
             SET retry_count = retry_count + 1,
                 publish_state = CASE
                   WHEN retry_count + 1 >= ? THEN 'failed'
@@ -1947,7 +1947,7 @@ impl NativeSqlMemoryStore {
         );
         let result = sqlx::query(
             r#"
-            UPDATE mem_outbox_event
+            UPDATE ai_outbox_event
             SET publish_state = 'pending',
                 updated_at = ?
             WHERE publish_state = 'processing'
@@ -1968,7 +1968,7 @@ impl NativeSqlMemoryStore {
         self.ensure_space(&command.scope).await?;
         sqlx::query(
             r#"
-            INSERT INTO mem_candidate (
+            INSERT INTO ai_candidate (
               uuid,
               tenant_id,
               space_id,
@@ -2035,7 +2035,7 @@ impl NativeSqlMemoryStore {
               decision_reason,
               decided_by,
               decided_at
-            FROM mem_candidate
+            FROM ai_candidate
             WHERE tenant_id = ? AND space_id = ? AND uuid = ?
             "#,
         )
@@ -2083,7 +2083,7 @@ impl NativeSqlMemoryStore {
         self.ensure_space(&command.scope).await?;
         sqlx::query(
             r#"
-            INSERT INTO mem_habit (
+            INSERT INTO ai_habit (
               uuid,
               tenant_id,
               space_id,
@@ -2113,7 +2113,7 @@ impl NativeSqlMemoryStore {
               last_signal_at = excluded.last_signal_at,
               metadata_json = excluded.metadata_json,
               updated_at = excluded.updated_at,
-              version = mem_habit.version + 1
+              version = ai_habit.version + 1
             "#,
         )
         .bind(&command.habit_id)
@@ -2162,7 +2162,7 @@ impl NativeSqlMemoryStore {
 
         sqlx::query(
             r#"
-            UPDATE mem_habit
+            UPDATE ai_habit
             SET stage = 'promoted',
                 promoted_memory_id = ?,
                 updated_at = ?,
@@ -2189,7 +2189,7 @@ impl NativeSqlMemoryStore {
     ) -> Result<Option<MemoryHabit>, NativeSqlStoreError> {
         sqlx::query(
             r#"
-            UPDATE mem_habit
+            UPDATE ai_habit
             SET stage = 'decayed',
                 strength = CASE
                   WHEN strength - ? < 0 THEN 0
@@ -2221,7 +2221,7 @@ impl NativeSqlMemoryStore {
         self.ensure_space(&command.scope).await?;
         sqlx::query(
             r#"
-            INSERT INTO mem_retrieval_trace (
+            INSERT INTO ai_retrieval_trace (
               uuid,
               tenant_id,
               space_id,
@@ -2267,7 +2267,7 @@ impl NativeSqlMemoryStore {
             };
             sqlx::query(
                 r#"
-                INSERT INTO mem_retrieval_hit (
+                INSERT INTO ai_retrieval_hit (
                   uuid,
                   tenant_id,
                   retrieval_trace_id,
@@ -2301,7 +2301,7 @@ impl NativeSqlMemoryStore {
         if let Some(context_pack) = &command.context_pack {
             sqlx::query(
                 r#"
-                INSERT INTO mem_context_pack (
+                INSERT INTO ai_context_pack (
                   uuid,
                   tenant_id,
                   retrieval_trace_id,
@@ -2341,7 +2341,7 @@ impl NativeSqlMemoryStore {
         trace_id: &str,
     ) -> Result<Option<TenantRetrievalTraceLookup>, NativeSqlStoreError> {
         let row = sqlx::query(
-            "SELECT space_id, created_at FROM mem_retrieval_trace WHERE tenant_id = ? AND uuid = ?",
+            "SELECT space_id, created_at FROM ai_retrieval_trace WHERE tenant_id = ? AND uuid = ?",
         )
         .bind(tenant_id)
         .bind(trace_id)
@@ -2374,7 +2374,7 @@ impl NativeSqlMemoryStore {
         trace_id: &str,
     ) -> Result<Option<MemoryRetrievalTrace>, NativeSqlStoreError> {
         let row = sqlx::query(
-            "SELECT space_id FROM mem_retrieval_trace WHERE tenant_id = ? AND uuid = ?",
+            "SELECT space_id FROM ai_retrieval_trace WHERE tenant_id = ? AND uuid = ?",
         )
         .bind(tenant_id)
         .bind(trace_id)
@@ -2431,7 +2431,7 @@ impl NativeSqlMemoryStore {
               result_count,
               degraded,
               metadata_json
-            FROM mem_retrieval_trace
+            FROM ai_retrieval_trace
             WHERE tenant_id = ? AND space_id = ?
             ORDER BY created_at DESC, id DESC
             LIMIT ?
@@ -2468,7 +2468,7 @@ impl NativeSqlMemoryStore {
         let row = sqlx::query(
             r#"
             SELECT space_id, payload_json, payload_hash
-            FROM mem_event
+            FROM ai_event
             WHERE tenant_id = ? AND uuid = ?
             "#,
         )
@@ -2500,7 +2500,7 @@ impl NativeSqlMemoryStore {
               publish_state,
               published_at,
               retry_count
-            FROM mem_outbox_event
+            FROM ai_outbox_event
             WHERE tenant_id = ? AND uuid = ?
             "#,
         )
@@ -2531,7 +2531,7 @@ impl NativeSqlMemoryStore {
     ) -> Result<Option<MemoryCandidate>, NativeSqlStoreError> {
         sqlx::query(
             r#"
-            UPDATE mem_candidate
+            UPDATE ai_candidate
             SET decision_state = ?,
                 decision_reason = ?,
                 decided_by = ?,
@@ -2577,8 +2577,8 @@ impl NativeSqlMemoryStore {
               promoted.uuid AS promoted_memory_uuid,
               habit.decay_after,
               habit.metadata_json
-            FROM mem_habit habit
-            LEFT JOIN mem_record promoted
+            FROM ai_habit habit
+            LEFT JOIN ai_record promoted
               ON promoted.id = habit.promoted_memory_id
              AND promoted.tenant_id = habit.tenant_id
              AND promoted.space_id = habit.space_id
@@ -2606,7 +2606,7 @@ impl NativeSqlMemoryStore {
         let row = sqlx::query(
             r#"
             SELECT id
-            FROM mem_record
+            FROM ai_record
             WHERE tenant_id = ?
               AND space_id = ?
               AND uuid = ?
@@ -2630,7 +2630,7 @@ impl NativeSqlMemoryStore {
         let row = sqlx::query(
             r#"
             SELECT id
-            FROM mem_retrieval_trace
+            FROM ai_retrieval_trace
             WHERE tenant_id = ? AND space_id = ? AND uuid = ?
             "#,
         )
@@ -2683,8 +2683,8 @@ impl NativeSqlMemoryStore {
               hit.fused_score,
               hit.explanation_json,
               hit.status
-            FROM mem_retrieval_hit hit
-            LEFT JOIN mem_record record
+            FROM ai_retrieval_hit hit
+            LEFT JOIN ai_record record
               ON record.id = hit.memory_id
              AND record.tenant_id = hit.tenant_id
              AND record.space_id = ?
@@ -2722,7 +2722,7 @@ impl NativeSqlMemoryStore {
         let row = sqlx::query(
             r#"
             SELECT uuid, pack_json, estimated_tokens, truncated
-            FROM mem_context_pack
+            FROM ai_context_pack
             WHERE tenant_id = ? AND retrieval_trace_id = ?
             ORDER BY id DESC
             LIMIT 1
@@ -2754,11 +2754,11 @@ impl NativeSqlMemoryStore {
             sqlx::query(
                 r#"
                 SELECT uuid, space_id, query_text, query_hash, result_count, degraded, created_at
-                FROM mem_retrieval_trace
+                FROM ai_retrieval_trace
                 WHERE tenant_id = ?
                   AND space_id = ?
                   AND id < COALESCE(
-                    (SELECT id FROM mem_retrieval_trace t2 WHERE t2.tenant_id = ? AND t2.uuid = ? LIMIT 1),
+                    (SELECT id FROM ai_retrieval_trace t2 WHERE t2.tenant_id = ? AND t2.uuid = ? LIMIT 1),
                     9223372036854775807
                   )
                 ORDER BY id DESC
@@ -2776,10 +2776,10 @@ impl NativeSqlMemoryStore {
             sqlx::query(
                 r#"
                 SELECT uuid, space_id, query_text, query_hash, result_count, degraded, created_at
-                FROM mem_retrieval_trace
+                FROM ai_retrieval_trace
                 WHERE tenant_id = ?
                   AND id < COALESCE(
-                    (SELECT id FROM mem_retrieval_trace t2 WHERE t2.tenant_id = ? AND t2.uuid = ? LIMIT 1),
+                    (SELECT id FROM ai_retrieval_trace t2 WHERE t2.tenant_id = ? AND t2.uuid = ? LIMIT 1),
                     9223372036854775807
                   )
                 ORDER BY id DESC
@@ -2829,7 +2829,7 @@ impl NativeSqlMemoryStore {
 
         sqlx::query(
             r#"
-            INSERT INTO mem_context_pack (
+            INSERT INTO ai_context_pack (
               uuid,
               tenant_id,
               retrieval_trace_id,
@@ -2868,8 +2868,8 @@ impl NativeSqlMemoryStore {
             r#"
             SELECT cp.uuid, cp.query_text, cp.pack_json, cp.estimated_tokens, cp.truncated,
                    cp.created_at, cp.retrieval_trace_id, rt.space_id
-            FROM mem_context_pack cp
-            LEFT JOIN mem_retrieval_trace rt
+            FROM ai_context_pack cp
+            LEFT JOIN ai_retrieval_trace rt
               ON rt.tenant_id = cp.tenant_id AND rt.id = cp.retrieval_trace_id
             WHERE cp.tenant_id = ? AND cp.uuid = ?
             "#,
@@ -2897,7 +2897,7 @@ impl NativeSqlMemoryStore {
         trace_uuid: &str,
     ) -> Result<Option<i64>, NativeSqlStoreError> {
         let row =
-            sqlx::query("SELECT id FROM mem_retrieval_trace WHERE tenant_id = ? AND uuid = ?")
+            sqlx::query("SELECT id FROM ai_retrieval_trace WHERE tenant_id = ? AND uuid = ?")
                 .bind(tenant_id)
                 .bind(trace_uuid)
                 .fetch_optional(&self.pool)
@@ -2919,7 +2919,7 @@ impl NativeSqlMemoryStore {
                 r#"
                 SELECT id, uuid, tenant_id, owner_subject_type, owner_subject_id, space_type,
                        display_name, default_scope, lifecycle_status, created_at, updated_at, version
-                FROM mem_space
+                FROM ai_space
                 WHERE tenant_id = ?
                   AND id > ?
                   AND lifecycle_status <> 'deleted'
@@ -2940,7 +2940,7 @@ impl NativeSqlMemoryStore {
                 r#"
                 SELECT id, uuid, tenant_id, owner_subject_type, owner_subject_id, space_type,
                        display_name, default_scope, lifecycle_status, created_at, updated_at, version
-                FROM mem_space
+                FROM ai_space
                 WHERE tenant_id = ? AND id > ? AND lifecycle_status <> 'deleted'
                 ORDER BY id ASC
                 LIMIT ?
@@ -2965,7 +2965,7 @@ impl NativeSqlMemoryStore {
             r#"
             SELECT id, uuid, tenant_id, owner_subject_type, owner_subject_id, space_type,
                    display_name, default_scope, lifecycle_status, created_at, updated_at, version
-            FROM mem_space
+            FROM ai_space
             WHERE tenant_id = ? AND id = ?
             "#,
         )
@@ -2985,7 +2985,7 @@ impl NativeSqlMemoryStore {
     ) -> Result<(), NativeSqlStoreError> {
         sqlx::query(
             r#"
-            INSERT INTO mem_space (
+            INSERT INTO ai_space (
               id, uuid, tenant_id, organization_id, owner_subject_type, owner_subject_id,
               space_type, display_name, default_scope, lifecycle_status, created_at, updated_at, version
             )
@@ -3027,7 +3027,7 @@ impl NativeSqlMemoryStore {
 
         sqlx::query(
             r#"
-            UPDATE mem_space
+            UPDATE ai_space
             SET display_name = ?, default_scope = ?, updated_at = ?, version = version + 1
             WHERE tenant_id = ? AND id = ?
             "#,
@@ -3056,7 +3056,7 @@ impl NativeSqlMemoryStore {
             sqlx::query(
                 r#"
                 SELECT uuid, space_id, event_type, source_type, event_time, payload_json, payload_hash, ingestion_status, created_at
-                FROM mem_event
+                FROM ai_event
                 WHERE tenant_id = ? AND space_id = ? AND uuid > ?
                 ORDER BY uuid ASC
                 LIMIT ?
@@ -3072,7 +3072,7 @@ impl NativeSqlMemoryStore {
             sqlx::query(
                 r#"
                 SELECT uuid, space_id, event_type, source_type, event_time, payload_json, payload_hash, ingestion_status, created_at
-                FROM mem_event
+                FROM ai_event
                 WHERE tenant_id = ? AND uuid > ?
                 ORDER BY uuid ASC
                 LIMIT ?
@@ -3118,7 +3118,7 @@ impl NativeSqlMemoryStore {
                 r#"
                 SELECT uuid, space_id, candidate_type, memory_type, proposed_text, confidence,
                        decision_state, created_at, updated_at
-                FROM mem_candidate
+                FROM ai_candidate
                 WHERE tenant_id = ? AND space_id = ? AND uuid > ?
                 ORDER BY uuid ASC
                 LIMIT ?
@@ -3135,7 +3135,7 @@ impl NativeSqlMemoryStore {
                 r#"
                 SELECT uuid, space_id, candidate_type, memory_type, proposed_text, confidence,
                        decision_state, created_at, updated_at
-                FROM mem_candidate
+                FROM ai_candidate
                 WHERE tenant_id = ? AND uuid > ?
                 ORDER BY uuid ASC
                 LIMIT ?
@@ -3173,7 +3173,7 @@ impl NativeSqlMemoryStore {
             r#"
             SELECT uuid, space_id, candidate_type, memory_type, proposed_text, confidence,
                    decision_state, created_at, updated_at
-            FROM mem_candidate
+            FROM ai_candidate
             WHERE tenant_id = ? AND uuid = ?
             "#,
         )
@@ -3214,8 +3214,8 @@ impl NativeSqlMemoryStore {
               candidate.created_at,
               candidate.updated_at,
               record.uuid AS target_memory_uuid
-            FROM mem_candidate candidate
-            LEFT JOIN mem_record record
+            FROM ai_candidate candidate
+            LEFT JOIN ai_record record
               ON record.id = candidate.target_memory_id
              AND record.tenant_id = candidate.tenant_id
             WHERE candidate.tenant_id = ?
@@ -3250,10 +3250,10 @@ impl NativeSqlMemoryStore {
     ) -> Result<(), NativeSqlStoreError> {
         let result = sqlx::query(
             r#"
-            UPDATE mem_candidate
+            UPDATE ai_candidate
             SET target_memory_id = (
               SELECT id
-              FROM mem_record
+              FROM ai_record
               WHERE tenant_id = ?
                 AND uuid = ?
             ),
@@ -3311,8 +3311,8 @@ impl NativeSqlMemoryStore {
               habit.created_at,
               habit.updated_at,
               habit.version
-            FROM mem_habit habit
-            LEFT JOIN mem_record promoted
+            FROM ai_habit habit
+            LEFT JOIN ai_record promoted
               ON promoted.id = habit.promoted_memory_id
              AND promoted.tenant_id = habit.tenant_id
              AND promoted.space_id = habit.space_id
@@ -3370,8 +3370,8 @@ impl NativeSqlMemoryStore {
               habit.created_at,
               habit.updated_at,
               habit.version
-            FROM mem_habit habit
-            LEFT JOIN mem_record promoted
+            FROM ai_habit habit
+            LEFT JOIN ai_record promoted
               ON promoted.id = habit.promoted_memory_id
              AND promoted.tenant_id = habit.tenant_id
              AND promoted.space_id = habit.space_id
@@ -3399,7 +3399,7 @@ impl NativeSqlMemoryStore {
     ) -> Result<(), NativeSqlStoreError> {
         let result = sqlx::query(
             r#"
-            INSERT INTO mem_record_source (
+            INSERT INTO ai_record_source (
               uuid,
               tenant_id,
               memory_id,
@@ -3416,8 +3416,8 @@ impl NativeSqlMemoryStore {
               ?,
               ?,
               ?
-            FROM mem_record record
-            JOIN mem_event event
+            FROM ai_record record
+            JOIN ai_event event
               ON event.tenant_id = record.tenant_id
              AND event.uuid = ?
             WHERE record.tenant_id = ?
@@ -3465,11 +3465,11 @@ impl NativeSqlMemoryStore {
               source.source_role,
               source.confidence_delta,
               source.created_at
-            FROM mem_record_source source
-            JOIN mem_record record
+            FROM ai_record_source source
+            JOIN ai_record record
               ON record.id = source.memory_id
              AND record.tenant_id = source.tenant_id
-            JOIN mem_event event
+            JOIN ai_event event
               ON event.id = source.event_id
              AND event.tenant_id = source.tenant_id
             WHERE source.tenant_id = ?
@@ -3480,7 +3480,7 @@ impl NativeSqlMemoryStore {
                 OR event.uuid LIKE ? ESCAPE '\'
               )
               AND source.id < COALESCE(
-                (SELECT s2.id FROM mem_record_source s2 WHERE s2.tenant_id = ? AND s2.uuid = ? LIMIT 1),
+                (SELECT s2.id FROM ai_record_source s2 WHERE s2.tenant_id = ? AND s2.uuid = ? LIMIT 1),
                 9223372036854775807
               )
             ORDER BY source.id DESC
@@ -3523,7 +3523,7 @@ impl NativeSqlMemoryStore {
         let rows = sqlx::query(
             r#"
             SELECT uuid, action, resource_type, resource_id, result, created_at
-            FROM mem_audit_log
+            FROM ai_audit_log
             WHERE tenant_id = ?
               AND (? IS NULL OR action = ?)
               AND uuid > ?
@@ -4267,7 +4267,7 @@ fn retrieval_trace_select_sql() -> &'static str {
       result_count,
       degraded,
       metadata_json
-    FROM mem_retrieval_trace
+    FROM ai_retrieval_trace
     WHERE tenant_id = ? AND space_id = ? AND uuid = ?
     "#
 }

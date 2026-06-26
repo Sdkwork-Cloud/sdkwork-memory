@@ -3,7 +3,7 @@
   "kind": "sdkwork.database.prefix-registry",
   "prefixes": [
     {
-      "prefix": "mem_",
+      "prefix": "ai_",
       "owner": "memory-platform",
       "domain": "memory"
     }

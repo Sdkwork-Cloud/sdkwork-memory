@@ -10,7 +10,7 @@ Handle growing outbox backlog, stuck `processing` rows, or repeated delivery fai
 
 ## Architecture
 
-1. Mutations append rows to `mem_outbox_event` with `publish_state = pending`.
+1. Mutations append rows to `ai_outbox_event` with `publish_state = pending`.
 2. The outbox publisher claims batches with `FOR UPDATE SKIP LOCKED`, moving rows to `processing`.
 3. The delivery adapter posts CloudEvents-style envelopes (log or HTTP webhook).
 4. Successful delivery calls `ack_outbox_delivery_success` (`processing` → `published`).
@@ -33,7 +33,7 @@ Handle growing outbox backlog, stuck `processing` rows, or repeated delivery fai
 
 ```sql
 SELECT publish_state, COUNT(*)
-FROM mem_outbox_event
+FROM ai_outbox_event
 GROUP BY publish_state
 ORDER BY publish_state;
 ```
@@ -42,7 +42,7 @@ ORDER BY publish_state;
 
 ```sql
 SELECT tenant_id, uuid, event_type, retry_count, created_at
-FROM mem_outbox_event
+FROM ai_outbox_event
 WHERE publish_state IN ('pending', 'processing', 'failed')
 ORDER BY created_at ASC
 LIMIT 20;

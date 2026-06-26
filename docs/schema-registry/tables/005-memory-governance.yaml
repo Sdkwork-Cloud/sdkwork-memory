@@ -4,7 +4,7 @@ domain: intelligence
 bounded_context: memory-governance
 description: Audit, evaluation, and outbox contracts for governed memory operations.
 tables:
-  - table: mem_audit_log
+  - table: ai_audit_log
     profile: audit_log
     compliance_level: L3
     system_of_record: true
@@ -25,11 +25,11 @@ tables:
       - { name: metadata_json, type: json, nullable: true }
       - { name: created_at, type: timestamp, constraints: [required] }
     indexes:
-      - { name: uk_mem_audit_log_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: idx_mem_audit_actor_time, columns: [tenant_id, actor_type, actor_id, created_at] }
-      - { name: idx_mem_audit_resource_time, columns: [tenant_id, resource_type, resource_id, created_at] }
-      - { name: idx_mem_audit_action_time, columns: [tenant_id, action, created_at] }
-  - table: mem_eval_run
+      - { name: uk_ai_audit_log_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_audit_actor_time, columns: [tenant_id, actor_type, actor_id, created_at] }
+      - { name: idx_ai_audit_resource_time, columns: [tenant_id, resource_type, resource_id, created_at] }
+      - { name: idx_ai_audit_action_time, columns: [tenant_id, action, created_at] }
+  - table: ai_eval_run
     profile: event_log
     compliance_level: L2
     system_of_record: true
@@ -49,9 +49,9 @@ tables:
       - { name: created_at, type: timestamp, constraints: [required] }
       - { name: updated_at, type: timestamp, constraints: [required] }
     indexes:
-      - { name: uk_mem_eval_run_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: idx_mem_eval_run_type_state, columns: [tenant_id, eval_type, state, created_at] }
-  - table: mem_outbox_event
+      - { name: uk_ai_eval_run_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_eval_run_type_state, columns: [tenant_id, eval_type, state, created_at] }
+  - table: ai_outbox_event
     profile: outbox_event
     compliance_level: L3
     system_of_record: true
@@ -71,6 +71,6 @@ tables:
       - { name: created_at, type: timestamp, constraints: [required] }
       - { name: updated_at, type: timestamp, constraints: [required] }
     indexes:
-      - { name: uk_mem_outbox_event_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: idx_mem_outbox_state, columns: [tenant_id, publish_state, created_at] }
+      - { name: uk_ai_outbox_event_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_outbox_state, columns: [tenant_id, publish_state, created_at] }
 serialization: { int64: string, decimal: string, time: iso8601_utc }

@@ -1,2 +1,2 @@
-DROP INDEX IF EXISTS uk_mem_tenant_preference_scope;
-DROP TABLE IF EXISTS mem_tenant_preference;
+DROP INDEX IF EXISTS uk_ai_tenant_preference_scope;
+DROP TABLE IF EXISTS ai_tenant_preference;

@@ -201,13 +201,13 @@ async fn app_api_drive_export_job_stages_artifact_and_emits_outbox_event() {
     let export_job_id = export_json["exportJobId"].as_str().unwrap();
 
     let artifact = store
-        .retrieve_admin_config_entity(1001, "export_artifact", export_job_id)
+        .retrieve_admin_config_entity(100_001, "export_artifact", export_job_id)
         .await
         .unwrap();
     assert!(artifact.is_some(), "drive export must stage artifact for pickup");
 
     let pending = store
-        .list_pending_outbox_events(&sdkwork_memory_spi::MemoryScopeContext::for_test(1001, 1), 10)
+        .list_pending_outbox_events(&sdkwork_memory_spi::MemoryScopeContext::for_test(100_001, 1), 10)
         .await
         .unwrap();
     assert!(
@@ -238,7 +238,7 @@ async fn backend_api_lists_audit_logs_after_open_api_feedback() {
                 .header("content-type", "application/json")
                 .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
                     "key-1",
-                    1001,
+                    100_001,
                     Some(2001),
                 ))
                 .body(Body::from(
@@ -269,7 +269,7 @@ async fn backend_api_lists_audit_logs_after_open_api_feedback() {
                 .header("content-type", "application/json")
                 .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
                     "key-1",
-                    1001,
+                    100_001,
                     Some(2001),
                 ))
                 .body(Body::from(

@@ -8,7 +8,7 @@ use tower::util::ServiceExt;
 
 fn app_context() -> MemoryAppRequestContext {
     MemoryAppRequestContext {
-        tenant_id: 1001,
+        tenant_id: 100_001,
         actor_id: Some(2001),
         organization_id: None,
         session_id: Some("session-001".to_string()),

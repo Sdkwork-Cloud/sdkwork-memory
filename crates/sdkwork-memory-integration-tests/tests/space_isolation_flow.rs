@@ -13,7 +13,7 @@ async fn open_api_rejects_memory_retrieve_when_space_id_does_not_match_record() 
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = build_router_with_open_api(OpenMemoryService::new(store));
     let context = sdkwork_memory_contract::MemoryOpenApiRequestContext::for_backend_surface(
-        1001,
+        100_001,
         Some(9001),
     );
 
@@ -69,7 +69,7 @@ async fn open_api_list_memories_requires_space_id_query_parameter() {
                 .uri("/mem/v3/api/memory/memories")
                 .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
                     "key-1",
-                    1001,
+                    100_001,
                     Some(2001),
                 ))
                 .body(Body::empty())

@@ -32,6 +32,6 @@ pub async fn seed_user_space(
 }
 
 pub async fn seed_standard_integration_spaces(store: &NativeSqlMemoryStore) {
-    seed_user_space(store, 1001, 1, "9001").await;
-    seed_user_space(store, 1001, 2, "2001").await;
+    seed_user_space(store, 100_001, 1, "9001").await;
+    seed_user_space(store, 100_001, 2, "2001").await;
 }

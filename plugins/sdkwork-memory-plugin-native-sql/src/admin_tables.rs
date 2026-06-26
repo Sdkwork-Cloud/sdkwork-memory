@@ -83,7 +83,7 @@ impl NativeSqlMemoryStore {
         &self,
         tenant_id: i64,
     ) -> Result<(), NativeSqlStoreError> {
-        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM mem_index WHERE tenant_id = ?")
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ai_index WHERE tenant_id = ?")
             .bind(tenant_id)
             .fetch_one(self.pool())
             .await?;
@@ -118,7 +118,7 @@ impl NativeSqlMemoryStore {
     ) -> Result<(), NativeSqlStoreError> {
         sqlx::query(
             r#"
-            INSERT INTO mem_index (
+            INSERT INTO ai_index (
               uuid,
               tenant_id,
               space_id,
@@ -165,11 +165,11 @@ impl NativeSqlMemoryStore {
             SELECT uuid, space_id, index_kind, implementation_profile_id, provider_binding_id,
                    schema_version, status, config_json,
                    last_rebuilt_at, created_at, updated_at, version
-            FROM mem_index
+            FROM ai_index
             WHERE tenant_id = ?
               AND (? IS NULL OR space_id = ?)
               AND id > COALESCE(
-                (SELECT id FROM mem_index i2 WHERE i2.tenant_id = ? AND i2.uuid = ? LIMIT 1),
+                (SELECT id FROM ai_index i2 WHERE i2.tenant_id = ? AND i2.uuid = ? LIMIT 1),
                 0
               )
             ORDER BY id ASC
@@ -198,7 +198,7 @@ impl NativeSqlMemoryStore {
             SELECT uuid, space_id, index_kind, implementation_profile_id, provider_binding_id,
                    schema_version, status, config_json,
                    last_rebuilt_at, created_at, updated_at, version
-            FROM mem_index
+            FROM ai_index
             WHERE tenant_id = ? AND uuid = ?
             "#,
         )
@@ -234,7 +234,7 @@ impl NativeSqlMemoryStore {
 
         sqlx::query(
             r#"
-            UPDATE mem_index
+            UPDATE ai_index
             SET status = ?,
                 config_json = ?,
                 last_rebuilt_at = ?,
@@ -265,7 +265,7 @@ impl NativeSqlMemoryStore {
         tenant_id: i64,
     ) -> Result<(), NativeSqlStoreError> {
         let count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM mem_retrieval_profile WHERE tenant_id = ?")
+            sqlx::query_scalar("SELECT COUNT(*) FROM ai_retrieval_profile WHERE tenant_id = ?")
                 .bind(tenant_id)
                 .fetch_one(self.pool())
                 .await?;
@@ -304,7 +304,7 @@ impl NativeSqlMemoryStore {
     ) -> Result<(), NativeSqlStoreError> {
         sqlx::query(
             r#"
-            INSERT INTO mem_retrieval_profile (
+            INSERT INTO ai_retrieval_profile (
               uuid, tenant_id, space_id, name, strategy, retrievers_json,
               fusion_policy_json, rerank_policy_json,
               top_k, context_budget_tokens, status, created_at, updated_at, version
@@ -344,11 +344,11 @@ impl NativeSqlMemoryStore {
             SELECT uuid, space_id, name, strategy, retrievers_json,
                    fusion_policy_json, rerank_policy_json,
                    top_k, context_budget_tokens, status, created_at, updated_at, version
-            FROM mem_retrieval_profile
+            FROM ai_retrieval_profile
             WHERE tenant_id = ?
               AND (? IS NULL OR space_id = ?)
               AND id > COALESCE(
-                (SELECT id FROM mem_retrieval_profile p2 WHERE p2.tenant_id = ? AND p2.uuid = ? LIMIT 1),
+                (SELECT id FROM ai_retrieval_profile p2 WHERE p2.tenant_id = ? AND p2.uuid = ? LIMIT 1),
                 0
               )
             ORDER BY id ASC
@@ -377,7 +377,7 @@ impl NativeSqlMemoryStore {
             SELECT uuid, space_id, name, strategy, retrievers_json,
                    fusion_policy_json, rerank_policy_json,
                    top_k, context_budget_tokens, status, created_at, updated_at, version
-            FROM mem_retrieval_profile
+            FROM ai_retrieval_profile
             WHERE tenant_id = ? AND uuid = ?
             "#,
         )
@@ -418,7 +418,7 @@ impl NativeSqlMemoryStore {
 
         sqlx::query(
             r#"
-            UPDATE mem_retrieval_profile
+            UPDATE ai_retrieval_profile
             SET name = ?,
                 strategy = ?,
                 retrievers_json = ?,
@@ -455,7 +455,7 @@ impl NativeSqlMemoryStore {
         tenant_id: i64,
     ) -> Result<(), NativeSqlStoreError> {
         let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM mem_implementation_profile WHERE tenant_id = ?",
+            "SELECT COUNT(*) FROM ai_implementation_profile WHERE tenant_id = ?",
         )
         .bind(tenant_id)
         .fetch_one(self.pool())
@@ -491,7 +491,7 @@ impl NativeSqlMemoryStore {
     ) -> Result<(), NativeSqlStoreError> {
         sqlx::query(
             r#"
-            INSERT INTO mem_implementation_profile (
+            INSERT INTO ai_implementation_profile (
               uuid, tenant_id, name, implementation_kind, role, status,
               capability_json, config_json, rollout_json,
               created_at, updated_at, version
@@ -528,10 +528,10 @@ impl NativeSqlMemoryStore {
             SELECT uuid, name, implementation_kind, role, status, capability_json,
                    config_json, rollout_json,
                    created_at, updated_at, version
-            FROM mem_implementation_profile
+            FROM ai_implementation_profile
             WHERE tenant_id = ?
               AND id > COALESCE(
-                (SELECT id FROM mem_implementation_profile p2 WHERE p2.tenant_id = ? AND p2.uuid = ? LIMIT 1),
+                (SELECT id FROM ai_implementation_profile p2 WHERE p2.tenant_id = ? AND p2.uuid = ? LIMIT 1),
                 0
               )
             ORDER BY id ASC
@@ -561,7 +561,7 @@ impl NativeSqlMemoryStore {
             SELECT uuid, name, implementation_kind, role, status, capability_json,
                    config_json, rollout_json,
                    created_at, updated_at, version
-            FROM mem_implementation_profile
+            FROM ai_implementation_profile
             WHERE tenant_id = ? AND uuid = ?
             "#,
         )
@@ -601,7 +601,7 @@ impl NativeSqlMemoryStore {
 
         sqlx::query(
             r#"
-            UPDATE mem_implementation_profile
+            UPDATE ai_implementation_profile
             SET name = ?,
                 implementation_kind = ?,
                 role = ?,
@@ -648,7 +648,7 @@ impl NativeSqlMemoryStore {
     ) -> Result<(), NativeSqlStoreError> {
         sqlx::query(
             r#"
-            INSERT INTO mem_provider_binding (
+            INSERT INTO ai_provider_binding (
               uuid, tenant_id, provider_kind, provider_code, display_name,
               endpoint_ref, secret_ref, model_ref,
               capabilities_json, config_json, health_state, last_health_at,
@@ -690,10 +690,10 @@ impl NativeSqlMemoryStore {
                    endpoint_ref, secret_ref, model_ref,
                    capabilities_json, config_json, health_state, last_health_at,
                    created_at, updated_at, version
-            FROM mem_provider_binding
+            FROM ai_provider_binding
             WHERE tenant_id = ?
               AND id > COALESCE(
-                (SELECT id FROM mem_provider_binding b2 WHERE b2.tenant_id = ? AND b2.uuid = ? LIMIT 1),
+                (SELECT id FROM ai_provider_binding b2 WHERE b2.tenant_id = ? AND b2.uuid = ? LIMIT 1),
                 0
               )
             ORDER BY id ASC
@@ -721,7 +721,7 @@ impl NativeSqlMemoryStore {
                    endpoint_ref, secret_ref, model_ref,
                    capabilities_json, config_json, health_state, last_health_at,
                    created_at, updated_at, version
-            FROM mem_provider_binding
+            FROM ai_provider_binding
             WHERE tenant_id = ? AND uuid = ?
             "#,
         )
@@ -772,7 +772,7 @@ impl NativeSqlMemoryStore {
 
         sqlx::query(
             r#"
-            UPDATE mem_provider_binding
+            UPDATE ai_provider_binding
             SET display_name = ?,
                 provider_code = ?,
                 health_state = ?,
@@ -816,7 +816,7 @@ impl NativeSqlMemoryStore {
     ) -> Result<(), NativeSqlStoreError> {
         sqlx::query(
             r#"
-            INSERT INTO mem_eval_run (
+            INSERT INTO ai_eval_run (
               uuid, tenant_id, eval_type, state, metrics_json, created_at, updated_at
             )
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -845,10 +845,10 @@ impl NativeSqlMemoryStore {
         let rows = sqlx::query(
             r#"
             SELECT uuid, eval_type, state, metrics_json, created_at, updated_at
-            FROM mem_eval_run
+            FROM ai_eval_run
             WHERE tenant_id = ?
               AND id > COALESCE(
-                (SELECT id FROM mem_eval_run r2 WHERE r2.tenant_id = ? AND r2.uuid = ? LIMIT 1),
+                (SELECT id FROM ai_eval_run r2 WHERE r2.tenant_id = ? AND r2.uuid = ? LIMIT 1),
                 0
               )
             ORDER BY id ASC
@@ -873,7 +873,7 @@ impl NativeSqlMemoryStore {
         let row = sqlx::query(
             r#"
             SELECT uuid, eval_type, state, metrics_json, created_at, updated_at
-            FROM mem_eval_run
+            FROM ai_eval_run
             WHERE tenant_id = ? AND uuid = ?
             "#,
         )

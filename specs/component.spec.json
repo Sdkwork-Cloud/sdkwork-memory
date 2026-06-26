@@ -295,7 +295,7 @@
   },
   "integration": {
     "authority": "Root SDKWork specs remain authoritative. Local specs may extend but must not contradict them.",
-    "memoryPolicy": "Canonical mem_record and mem_event tables are the source of truth; all indexes are derived and rebuildable.",
+    "memoryPolicy": "Canonical ai_record and ai_event tables are the source of truth; all indexes are derived and rebuildable.",
     "implementationPolicy": "Memory implementation profiles select native_sql, event_sourced, graph_temporal, search_first, local_embedded, external_provider_bridge, or hybrid_platform without changing app/backend API contracts.",
     "embeddingPolicy": "Embedding is an optional retriever/index provider, not a required storage dependency.",
     "sdkPolicy": "Generated SDK clients are consumed through generated SDKs or approved composed wrappers; no raw HTTP fallback."

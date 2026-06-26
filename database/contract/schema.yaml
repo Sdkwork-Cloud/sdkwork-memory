@@ -6,53 +6,53 @@ owner_team: memory-platform
 compliance_level: L2
 engines:
   - postgres
-table_prefix: mem_
+table_prefix: ai_
 tables:
-  - name: mem_space
+  - name: ai_space
     lifecycle_status: active
     owner: memory-platform
-  - name: mem_event
+  - name: ai_event
     lifecycle_status: active
     owner: memory-platform
-  - name: mem_record
+  - name: ai_record
     lifecycle_status: active
     owner: memory-platform
-  - name: mem_record_source
+  - name: ai_record_source
     lifecycle_status: active
     owner: memory-platform
-  - name: mem_candidate
+  - name: ai_candidate
     lifecycle_status: active
     owner: memory-platform
-  - name: mem_habit
+  - name: ai_habit
     lifecycle_status: active
     owner: memory-platform
-  - name: mem_retrieval_trace
+  - name: ai_retrieval_trace
     lifecycle_status: active
     owner: memory-platform
-  - name: mem_retrieval_hit
+  - name: ai_retrieval_hit
     lifecycle_status: active
     owner: memory-platform
-  - name: mem_context_pack
+  - name: ai_context_pack
     lifecycle_status: active
     owner: memory-platform
-  - name: mem_index
+  - name: ai_index
     lifecycle_status: active
     owner: memory-platform
-  - name: mem_retrieval_profile
+  - name: ai_retrieval_profile
     lifecycle_status: active
     owner: memory-platform
-  - name: mem_implementation_profile
+  - name: ai_implementation_profile
     lifecycle_status: active
     owner: memory-platform
-  - name: mem_provider_binding
+  - name: ai_provider_binding
     lifecycle_status: active
     owner: memory-platform
-  - name: mem_eval_run
+  - name: ai_eval_run
     lifecycle_status: active
     owner: memory-platform
-  - name: mem_audit_log
+  - name: ai_audit_log
     lifecycle_status: active
     owner: memory-platform
-  - name: mem_outbox_event
+  - name: ai_outbox_event
     lifecycle_status: active
     owner: memory-platform

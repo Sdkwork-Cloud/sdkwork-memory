@@ -7,7 +7,7 @@ use std::sync::MutexGuard;
 
 pub const MEMORY_APP_ID: &str = "sdkwork-memory";
 pub const MEMORY_TEST_IDEMPOTENCY_KEY: &str = "memory-integration-idempotency-key";
-pub const DEFAULT_TENANT_ID: &str = "1001";
+pub const DEFAULT_TENANT_ID: &str = "100001";
 pub const DEFAULT_SESSION_ID: &str = "s-1";
 
 /// Serializes env mutation and enables IAM JWT fallback for integration tests.

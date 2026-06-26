@@ -93,7 +93,7 @@ async fn app_api_habit_confirm_flow_via_dual_token() {
     let _env = lock_integration_test_env();
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let scope = MemoryScopeContext {
-        tenant_id: 1001,
+        tenant_id: 100_001,
         space_id: 2,
         organization_id: None,
         user_id: Some(2001),
@@ -169,7 +169,7 @@ async fn app_api_memory_sources_list_returns_linked_event_sources() {
     let memory_id = memory_json["memoryId"].as_str().unwrap();
 
     let seed_store = NativeSqlMemoryStore::from_any_pool(pool, MemorySqlDialect::Sqlite).await;
-    let scope = MemoryScopeContext::for_test(1001, space_id.parse().unwrap());
+    let scope = MemoryScopeContext::for_test(100_001, space_id.parse().unwrap());
     seed_store
         .append_open_api_event(
             &scope,
@@ -183,7 +183,7 @@ async fn app_api_memory_sources_list_returns_linked_event_sources() {
         .await
         .expect("seed event");
     seed_store
-        .append_record_source_for_tenant(1001, "8101", memory_id, "8001", "evidence", Some(0.2))
+        .append_record_source_for_tenant(100_001, "8101", memory_id, "8001", "evidence", Some(0.2))
         .await
         .expect("seed record source");
 
@@ -215,7 +215,7 @@ async fn app_api_candidate_approve_promotes_memory_and_links_event_sources() {
     );
 
     let seed_store = NativeSqlMemoryStore::from_any_pool(pool, MemorySqlDialect::Sqlite).await;
-    let scope = MemoryScopeContext::for_test(1001, space_id.parse().unwrap());
+    let scope = MemoryScopeContext::for_test(100_001, space_id.parse().unwrap());
     seed_store
         .append_open_api_event(
             &scope,

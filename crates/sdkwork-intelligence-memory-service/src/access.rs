@@ -220,7 +220,7 @@ mod tests {
     #[tokio::test]
     async fn write_to_missing_space_is_denied() {
         let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
-        let context = MemoryOpenApiRequestContext::for_open_surface("key-1", 1001, Some(2001));
+        let context = MemoryOpenApiRequestContext::for_open_surface("key-1", 100_001, Some(2001));
         let error = assert_actor_can_access_space_for_write(&store, &context, 99)
             .await
             .expect_err("missing space write must be forbidden");
@@ -230,8 +230,8 @@ mod tests {
     #[tokio::test]
     async fn actor_can_access_owned_user_space() {
         let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
-        seed_user_space(&store, 1001, 1, "2001").await;
-        let context = MemoryOpenApiRequestContext::for_open_surface("key-1", 1001, Some(2001));
+        seed_user_space(&store, 100_001, 1, "2001").await;
+        let context = MemoryOpenApiRequestContext::for_open_surface("key-1", 100_001, Some(2001));
         assert_actor_can_access_space(&store, &context, 1)
             .await
             .expect("owned space should be accessible");
@@ -240,8 +240,8 @@ mod tests {
     #[tokio::test]
     async fn actor_cannot_access_foreign_user_space() {
         let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
-        seed_user_space(&store, 1001, 2, "3002").await;
-        let context = MemoryOpenApiRequestContext::for_open_surface("key-1", 1001, Some(2001));
+        seed_user_space(&store, 100_001, 2, "3002").await;
+        let context = MemoryOpenApiRequestContext::for_open_surface("key-1", 100_001, Some(2001));
         let error = assert_actor_can_access_space(&store, &context, 2)
             .await
             .expect_err("foreign space must be forbidden");
@@ -251,8 +251,8 @@ mod tests {
     #[tokio::test]
     async fn missing_actor_is_denied_for_user_space() {
         let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
-        seed_user_space(&store, 1001, 1, "2001").await;
-        let context = MemoryOpenApiRequestContext::for_open_surface("key-1", 1001, None);
+        seed_user_space(&store, 100_001, 1, "2001").await;
+        let context = MemoryOpenApiRequestContext::for_open_surface("key-1", 100_001, None);
         let error = assert_actor_can_access_space(&store, &context, 1)
             .await
             .expect_err("missing actor must fail closed");
@@ -262,8 +262,8 @@ mod tests {
     #[tokio::test]
     async fn backend_operator_can_access_tenant_spaces() {
         let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
-        seed_user_space(&store, 1001, 2, "3002").await;
-        let context = MemoryOpenApiRequestContext::for_backend_surface(1001, Some(9001));
+        seed_user_space(&store, 100_001, 2, "3002").await;
+        let context = MemoryOpenApiRequestContext::for_backend_surface(100_001, Some(9001));
         assert_actor_can_access_space(&store, &context, 2)
             .await
             .expect("backend operator should have tenant-wide access");
@@ -271,14 +271,14 @@ mod tests {
 
     #[test]
     fn actor_may_read_public_and_internal_without_ownership() {
-        let context = MemoryOpenApiRequestContext::for_open_surface("key-1", 1001, Some(2001));
+        let context = MemoryOpenApiRequestContext::for_open_surface("key-1", 100_001, Some(2001));
         assert!(actor_may_read_sensitivity(&context, "public", false));
         assert!(actor_may_read_sensitivity(&context, "internal", false));
     }
 
     #[test]
     fn actor_may_not_read_restricted_sensitivity_without_ownership() {
-        let context = MemoryOpenApiRequestContext::for_open_surface("key-1", 1001, Some(2001));
+        let context = MemoryOpenApiRequestContext::for_open_surface("key-1", 100_001, Some(2001));
         assert!(!actor_may_read_sensitivity(&context, "private", false));
         assert!(!actor_may_read_sensitivity(&context, "sensitive", false));
         assert!(!actor_may_read_sensitivity(&context, "restricted", false));
@@ -286,13 +286,13 @@ mod tests {
 
     #[test]
     fn space_owner_may_read_restricted_sensitivity() {
-        let context = MemoryOpenApiRequestContext::for_open_surface("key-1", 1001, Some(2001));
+        let context = MemoryOpenApiRequestContext::for_open_surface("key-1", 100_001, Some(2001));
         assert!(actor_may_read_sensitivity(&context, "restricted", true));
     }
 
     #[test]
     fn elevated_backend_may_read_any_sensitivity() {
-        let context = MemoryOpenApiRequestContext::for_backend_surface(1001, Some(9001));
+        let context = MemoryOpenApiRequestContext::for_backend_surface(100_001, Some(9001));
         assert!(actor_may_read_sensitivity(&context, "restricted", false));
     }
 }

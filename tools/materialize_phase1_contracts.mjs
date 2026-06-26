@@ -767,7 +767,7 @@ powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1
     },
     integration: {
       authority: "Root SDKWork specs remain authoritative. Local specs may extend but must not contradict them.",
-      memoryPolicy: "Canonical mem_record and mem_event tables are the source of truth; all indexes are derived and rebuildable.",
+      memoryPolicy: "Canonical ai_record and ai_event tables are the source of truth; all indexes are derived and rebuildable.",
       implementationPolicy: "Memory implementation profiles select native_sql, event_sourced, graph_temporal, search_first, local_embedded, external_provider_bridge, or hybrid_platform without changing app/backend API contracts.",
       embeddingPolicy: "Embedding is an optional retriever/index provider, not a required storage dependency.",
       sdkPolicy: "Generated SDK clients are consumed through generated SDKs or approved composed wrappers; no raw HTTP fallback."
@@ -1090,8 +1090,8 @@ Memory database contracts are defined here before migrations or ORM entities are
 
 Rules:
 
-- Physical table names use the \`mem_\` prefix.
-- \`mem_record\` and \`mem_event\` are canonical source-of-truth tables.
+- Physical table names use the \`ai_\` prefix.
+- \`ai_record\` and \`ai_event\` are canonical source-of-truth tables.
 - Index, retrieval, vector, graph, grep/file, and provider states are derived or governed tables and must be rebuildable from canonical records and events when possible.
 - PostgreSQL is the production/server target; SQLite is allowed for local/private/test parity where feasible.
 - 64-bit identifiers are serialized as strings in API/SDK contracts.
@@ -1103,7 +1103,7 @@ domain: intelligence
 bounded_context: memory-core
 description: Canonical memory spaces, events, records, sources, entities, and edges. These tables are the durable source of truth for embedding-optional memory.
 tables:
-  - table: mem_space
+  - table: ai_space
     domain: intelligence
     profile: tenant_entity
     compliance_level: L3
@@ -1129,10 +1129,10 @@ tables:
       - { name: deleted_at, type: timestamp, nullable: true }
       - { name: version, type: bigint, constraints: [required, "min: 0"] }
     indexes:
-      - { name: uk_mem_space_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: uk_mem_space_owner_type, unique: true, columns: [tenant_id, owner_subject_type, owner_subject_id, space_type] }
-      - { name: idx_mem_space_tenant_status, columns: [tenant_id, lifecycle_status, updated_at] }
-  - table: mem_event
+      - { name: uk_ai_space_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: uk_ai_space_owner_type, unique: true, columns: [tenant_id, owner_subject_type, owner_subject_id, space_type] }
+      - { name: idx_ai_space_tenant_status, columns: [tenant_id, lifecycle_status, updated_at] }
+  - table: ai_event
     domain: intelligence
     profile: event_log
     compliance_level: L3
@@ -1142,7 +1142,7 @@ tables:
       - { name: id, type: bigint, constraints: [primary_key, snowflake] }
       - { name: uuid, type: varchar(64), constraints: [required, public_id] }
       - { name: tenant_id, type: bigint, constraints: [required] }
-      - { name: space_id, type: bigint, constraints: [required], references: mem_space.id }
+      - { name: space_id, type: bigint, constraints: [required], references: ai_space.id }
       - { name: user_id, type: bigint, nullable: true }
       - { name: actor_type, type: varchar(32), constraints: ["enum: [user, agent, backend, system, import, external_provider]"] }
       - { name: actor_id, type: varchar(128), nullable: true }
@@ -1160,13 +1160,13 @@ tables:
       - { name: ingestion_status, type: varchar(32), constraints: ["enum: [received, processed, rejected, redacted, deleted]"] }
       - { name: created_at, type: timestamp, constraints: [required] }
     indexes:
-      - { name: uk_mem_event_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: uk_mem_event_idempotency, unique: true, columns: [tenant_id, idempotency_key], predicate: "idempotency_key IS NOT NULL" }
-      - { name: idx_mem_event_space_time, columns: [tenant_id, space_id, event_time, id] }
-      - { name: idx_mem_event_session_time, columns: [tenant_id, session_id, event_time] }
-      - { name: idx_mem_event_type_time, columns: [tenant_id, event_type, event_time] }
-      - { name: idx_mem_event_hash, columns: [tenant_id, payload_hash] }
-  - table: mem_record
+      - { name: uk_ai_event_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: uk_ai_event_idempotency, unique: true, columns: [tenant_id, idempotency_key], predicate: "idempotency_key IS NOT NULL" }
+      - { name: idx_ai_event_space_time, columns: [tenant_id, space_id, event_time, id] }
+      - { name: idx_ai_event_session_time, columns: [tenant_id, session_id, event_time] }
+      - { name: idx_ai_event_type_time, columns: [tenant_id, event_type, event_time] }
+      - { name: idx_ai_event_hash, columns: [tenant_id, payload_hash] }
+  - table: ai_record
     domain: intelligence
     profile: core_entity
     compliance_level: L3
@@ -1176,7 +1176,7 @@ tables:
       - { name: id, type: bigint, constraints: [primary_key, snowflake] }
       - { name: uuid, type: varchar(64), constraints: [required, public_id] }
       - { name: tenant_id, type: bigint, constraints: [required] }
-      - { name: space_id, type: bigint, constraints: [required], references: mem_space.id }
+      - { name: space_id, type: bigint, constraints: [required], references: ai_space.id }
       - { name: user_id, type: bigint, nullable: true }
       - { name: scope, type: varchar(32), constraints: ["enum: [user, organization, app, agent, session, global]"] }
       - { name: memory_type, type: varchar(32), constraints: ["enum: [working, session, semantic, episodic, procedural, habit, relationship, domain_knowledge]"] }
@@ -1199,8 +1199,8 @@ tables:
       - { name: sensitivity_level, type: varchar(32), constraints: ["enum: [public, internal, private, sensitive, restricted]"] }
       - { name: metadata_json, type: json, nullable: true }
       - { name: tags_json, type: json, nullable: true }
-      - { name: supersedes_memory_id, type: bigint, nullable: true, references: mem_record.id }
-      - { name: superseded_by_memory_id, type: bigint, nullable: true, references: mem_record.id }
+      - { name: supersedes_memory_id, type: bigint, nullable: true, references: ai_record.id }
+      - { name: superseded_by_memory_id, type: bigint, nullable: true, references: ai_record.id }
       - { name: created_by, type: bigint, nullable: true }
       - { name: updated_by, type: bigint, nullable: true }
       - { name: created_at, type: timestamp, constraints: [required] }
@@ -1208,13 +1208,13 @@ tables:
       - { name: deleted_at, type: timestamp, nullable: true }
       - { name: version, type: bigint, constraints: [required, "min: 0"] }
     indexes:
-      - { name: uk_mem_record_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: idx_mem_record_scope_type_status, columns: [tenant_id, space_id, scope, memory_type, status, updated_at] }
-      - { name: idx_mem_record_user_type, columns: [tenant_id, user_id, memory_type, status, updated_at] }
-      - { name: idx_mem_record_subject_predicate, columns: [tenant_id, space_id, subject, predicate, status] }
-      - { name: idx_mem_record_validity, columns: [tenant_id, valid_from, valid_to, expires_at] }
-      - { name: idx_mem_record_supersession, columns: [tenant_id, supersedes_memory_id, superseded_by_memory_id] }
-  - table: mem_record_source
+      - { name: uk_ai_record_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_record_scope_type_status, columns: [tenant_id, space_id, scope, memory_type, status, updated_at] }
+      - { name: idx_ai_record_user_type, columns: [tenant_id, user_id, memory_type, status, updated_at] }
+      - { name: idx_ai_record_subject_predicate, columns: [tenant_id, space_id, subject, predicate, status] }
+      - { name: idx_ai_record_validity, columns: [tenant_id, valid_from, valid_to, expires_at] }
+      - { name: idx_ai_record_supersession, columns: [tenant_id, supersedes_memory_id, superseded_by_memory_id] }
+  - table: ai_record_source
     domain: intelligence
     profile: relation_entity
     compliance_level: L3
@@ -1224,16 +1224,16 @@ tables:
       - { name: id, type: bigint, constraints: [primary_key, snowflake] }
       - { name: uuid, type: varchar(64), constraints: [required, public_id] }
       - { name: tenant_id, type: bigint, constraints: [required] }
-      - { name: memory_id, type: bigint, constraints: [required], references: mem_record.id }
-      - { name: event_id, type: bigint, constraints: [required], references: mem_event.id }
+      - { name: memory_id, type: bigint, constraints: [required], references: ai_record.id }
+      - { name: event_id, type: bigint, constraints: [required], references: ai_event.id }
       - { name: source_role, type: varchar(32), constraints: ["enum: [supporting, contradicting, originating, deletion, correction]"] }
       - { name: confidence_delta, type: decimal(5,4), nullable: true }
       - { name: created_at, type: timestamp, constraints: [required] }
     indexes:
-      - { name: uk_mem_record_source_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: uk_mem_record_source_pair, unique: true, columns: [tenant_id, memory_id, event_id, source_role] }
-      - { name: idx_mem_record_source_event, columns: [tenant_id, event_id] }
-  - table: mem_entity
+      - { name: uk_ai_record_source_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: uk_ai_record_source_pair, unique: true, columns: [tenant_id, memory_id, event_id, source_role] }
+      - { name: idx_ai_record_source_event, columns: [tenant_id, event_id] }
+  - table: ai_entity
     domain: intelligence
     profile: dictionary_entity
     compliance_level: L2
@@ -1243,7 +1243,7 @@ tables:
       - { name: id, type: bigint, constraints: [primary_key, snowflake] }
       - { name: uuid, type: varchar(64), constraints: [required, public_id] }
       - { name: tenant_id, type: bigint, constraints: [required] }
-      - { name: space_id, type: bigint, constraints: [required], references: mem_space.id }
+      - { name: space_id, type: bigint, constraints: [required], references: ai_space.id }
       - { name: entity_type, type: varchar(64), constraints: [required] }
       - { name: canonical_name, type: varchar(256), constraints: [required] }
       - { name: aliases_json, type: json, nullable: true }
@@ -1253,10 +1253,10 @@ tables:
       - { name: updated_at, type: timestamp, constraints: [required] }
       - { name: version, type: bigint, constraints: [required, "min: 0"] }
     indexes:
-      - { name: uk_mem_entity_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: uk_mem_entity_name, unique: true, columns: [tenant_id, space_id, entity_type, canonical_name] }
-      - { name: idx_mem_entity_type_status, columns: [tenant_id, space_id, entity_type, status] }
-  - table: mem_edge
+      - { name: uk_ai_entity_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: uk_ai_entity_name, unique: true, columns: [tenant_id, space_id, entity_type, canonical_name] }
+      - { name: idx_ai_entity_type_status, columns: [tenant_id, space_id, entity_type, status] }
+  - table: ai_edge
     domain: intelligence
     profile: relation_entity
     compliance_level: L2
@@ -1266,12 +1266,12 @@ tables:
       - { name: id, type: bigint, constraints: [primary_key, snowflake] }
       - { name: uuid, type: varchar(64), constraints: [required, public_id] }
       - { name: tenant_id, type: bigint, constraints: [required] }
-      - { name: space_id, type: bigint, constraints: [required], references: mem_space.id }
-      - { name: source_entity_id, type: bigint, constraints: [required], references: mem_entity.id }
-      - { name: target_entity_id, type: bigint, constraints: [required], references: mem_entity.id }
+      - { name: space_id, type: bigint, constraints: [required], references: ai_space.id }
+      - { name: source_entity_id, type: bigint, constraints: [required], references: ai_entity.id }
+      - { name: target_entity_id, type: bigint, constraints: [required], references: ai_entity.id }
       - { name: relation_type, type: varchar(64), constraints: [required] }
       - { name: weight, type: decimal(8,4), nullable: true }
-      - { name: source_memory_id, type: bigint, nullable: true, references: mem_record.id }
+      - { name: source_memory_id, type: bigint, nullable: true, references: ai_record.id }
       - { name: valid_from, type: timestamp, nullable: true }
       - { name: valid_to, type: timestamp, nullable: true }
       - { name: status, type: varchar(32), constraints: ["enum: [active, inactive, deleted]"] }
@@ -1280,10 +1280,10 @@ tables:
       - { name: updated_at, type: timestamp, constraints: [required] }
       - { name: version, type: bigint, constraints: [required, "min: 0"] }
     indexes:
-      - { name: uk_mem_edge_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: idx_mem_edge_source, columns: [tenant_id, space_id, source_entity_id, relation_type, status] }
-      - { name: idx_mem_edge_target, columns: [tenant_id, space_id, target_entity_id, relation_type, status] }
-      - { name: idx_mem_edge_validity, columns: [tenant_id, valid_from, valid_to] }
+      - { name: uk_ai_edge_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_edge_source, columns: [tenant_id, space_id, source_entity_id, relation_type, status] }
+      - { name: idx_ai_edge_target, columns: [tenant_id, space_id, target_entity_id, relation_type, status] }
+      - { name: idx_ai_edge_validity, columns: [tenant_id, valid_from, valid_to] }
 serialization:
   int64: string
   decimal: string
@@ -1296,7 +1296,7 @@ domain: intelligence
 bounded_context: memory-learning
 description: Self-learning candidates, habit lifecycle, evidence signals, and learning jobs.
 tables:
-  - table: mem_candidate
+  - table: ai_candidate
     profile: core_entity
     compliance_level: L3
     system_of_record: true
@@ -1305,13 +1305,13 @@ tables:
       - { name: id, type: bigint, constraints: [primary_key, snowflake] }
       - { name: uuid, type: varchar(64), constraints: [required, public_id] }
       - { name: tenant_id, type: bigint, constraints: [required] }
-      - { name: space_id, type: bigint, constraints: [required], references: mem_space.id }
+      - { name: space_id, type: bigint, constraints: [required], references: ai_space.id }
       - { name: user_id, type: bigint, nullable: true }
       - { name: candidate_type, type: varchar(32), constraints: ["enum: [create, update, delete, supersede, promote_habit, decay_habit]"] }
       - { name: memory_type, type: varchar(32), constraints: ["enum: [semantic, episodic, procedural, habit, relationship, domain_knowledge]"] }
       - { name: proposed_text, type: text, constraints: [required] }
       - { name: proposed_payload_json, type: json, nullable: true }
-      - { name: target_memory_id, type: bigint, nullable: true, references: mem_record.id }
+      - { name: target_memory_id, type: bigint, nullable: true, references: ai_record.id }
       - { name: evidence_json, type: json, nullable: true }
       - { name: confidence, type: decimal(5,4), constraints: ["range: 0..1"] }
       - { name: novelty_score, type: decimal(5,4), nullable: true }
@@ -1324,10 +1324,10 @@ tables:
       - { name: updated_at, type: timestamp, constraints: [required] }
       - { name: version, type: bigint, constraints: [required, "min: 0"] }
     indexes:
-      - { name: uk_mem_candidate_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: idx_mem_candidate_state, columns: [tenant_id, space_id, decision_state, updated_at] }
-      - { name: idx_mem_candidate_target, columns: [tenant_id, target_memory_id] }
-  - table: mem_habit
+      - { name: uk_ai_candidate_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_candidate_state, columns: [tenant_id, space_id, decision_state, updated_at] }
+      - { name: idx_ai_candidate_target, columns: [tenant_id, target_memory_id] }
+  - table: ai_habit
     profile: core_entity
     compliance_level: L3
     system_of_record: true
@@ -1336,7 +1336,7 @@ tables:
       - { name: id, type: bigint, constraints: [primary_key, snowflake] }
       - { name: uuid, type: varchar(64), constraints: [required, public_id] }
       - { name: tenant_id, type: bigint, constraints: [required] }
-      - { name: space_id, type: bigint, constraints: [required], references: mem_space.id }
+      - { name: space_id, type: bigint, constraints: [required], references: ai_space.id }
       - { name: user_id, type: bigint, constraints: [required] }
       - { name: habit_key, type: varchar(160), constraints: [required] }
       - { name: habit_type, type: varchar(64), constraints: [required] }
@@ -1346,17 +1346,17 @@ tables:
       - { name: confidence, type: decimal(5,4), constraints: ["range: 0..1"] }
       - { name: support_count, type: int32, constraints: [required, "min: 0"] }
       - { name: last_signal_at, type: timestamp, nullable: true }
-      - { name: promoted_memory_id, type: bigint, nullable: true, references: mem_record.id }
+      - { name: promoted_memory_id, type: bigint, nullable: true, references: ai_record.id }
       - { name: decay_after, type: timestamp, nullable: true }
       - { name: metadata_json, type: json, nullable: true }
       - { name: created_at, type: timestamp, constraints: [required] }
       - { name: updated_at, type: timestamp, constraints: [required] }
       - { name: version, type: bigint, constraints: [required, "min: 0"] }
     indexes:
-      - { name: uk_mem_habit_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: uk_mem_habit_key, unique: true, columns: [tenant_id, space_id, user_id, habit_key] }
-      - { name: idx_mem_habit_stage, columns: [tenant_id, space_id, stage, confidence, updated_at] }
-  - table: mem_habit_signal
+      - { name: uk_ai_habit_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: uk_ai_habit_key, unique: true, columns: [tenant_id, space_id, user_id, habit_key] }
+      - { name: idx_ai_habit_stage, columns: [tenant_id, space_id, stage, confidence, updated_at] }
+  - table: ai_habit_signal
     profile: event_log
     compliance_level: L2
     system_of_record: true
@@ -1365,18 +1365,18 @@ tables:
       - { name: id, type: bigint, constraints: [primary_key, snowflake] }
       - { name: uuid, type: varchar(64), constraints: [required, public_id] }
       - { name: tenant_id, type: bigint, constraints: [required] }
-      - { name: habit_id, type: bigint, constraints: [required], references: mem_habit.id }
-      - { name: event_id, type: bigint, nullable: true, references: mem_event.id }
+      - { name: habit_id, type: bigint, constraints: [required], references: ai_habit.id }
+      - { name: event_id, type: bigint, nullable: true, references: ai_event.id }
       - { name: signal_type, type: varchar(64), constraints: [required] }
       - { name: signal_strength, type: decimal(5,4), constraints: ["range: 0..1"] }
       - { name: observed_at, type: timestamp, constraints: [required] }
       - { name: payload_json, type: json, nullable: true }
       - { name: created_at, type: timestamp, constraints: [required] }
     indexes:
-      - { name: uk_mem_habit_signal_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: idx_mem_habit_signal_habit, columns: [tenant_id, habit_id, observed_at] }
-      - { name: idx_mem_habit_signal_event, columns: [tenant_id, event_id] }
-  - table: mem_learning_job
+      - { name: uk_ai_habit_signal_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_habit_signal_habit, columns: [tenant_id, habit_id, observed_at] }
+      - { name: idx_ai_habit_signal_event, columns: [tenant_id, event_id] }
+  - table: ai_learning_job
     profile: event_log
     compliance_level: L2
     system_of_record: true
@@ -1385,7 +1385,7 @@ tables:
       - { name: id, type: bigint, constraints: [primary_key, snowflake] }
       - { name: uuid, type: varchar(64), constraints: [required, public_id] }
       - { name: tenant_id, type: bigint, constraints: [required] }
-      - { name: space_id, type: bigint, nullable: true, references: mem_space.id }
+      - { name: space_id, type: bigint, nullable: true, references: ai_space.id }
       - { name: job_type, type: varchar(64), constraints: ["enum: [extract, consolidate, habit_score, index_sync, retention, migration]"] }
       - { name: state, type: varchar(32), constraints: ["enum: [queued, running, succeeded, failed, cancelled]"] }
       - { name: priority, type: int32, constraints: [required] }
@@ -1399,9 +1399,9 @@ tables:
       - { name: updated_at, type: timestamp, constraints: [required] }
       - { name: version, type: bigint, constraints: [required, "min: 0"] }
     indexes:
-      - { name: uk_mem_learning_job_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: uk_mem_learning_job_idempotency, unique: true, columns: [tenant_id, job_type, idempotency_key], predicate: "idempotency_key IS NOT NULL" }
-      - { name: idx_mem_learning_job_state, columns: [tenant_id, job_type, state, priority, created_at] }
+      - { name: uk_ai_learning_job_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: uk_ai_learning_job_idempotency, unique: true, columns: [tenant_id, job_type, idempotency_key], predicate: "idempotency_key IS NOT NULL" }
+      - { name: idx_ai_learning_job_state, columns: [tenant_id, job_type, state, priority, created_at] }
 serialization: { int64: string, decimal: string, time: iso8601_utc }
 `);
 
@@ -1411,7 +1411,7 @@ domain: intelligence
 bounded_context: memory-retrieval
 description: Derived indexes, retrieval profiles, traces, hits, and context packs. Embedding/vector state is optional and represented as one index kind among many.
 tables:
-  - table: mem_index
+  - table: ai_index
     profile: projection
     compliance_level: L2
     system_of_record: false
@@ -1420,7 +1420,7 @@ tables:
       - { name: id, type: bigint, constraints: [primary_key, snowflake] }
       - { name: uuid, type: varchar(64), constraints: [required, public_id] }
       - { name: tenant_id, type: bigint, constraints: [required] }
-      - { name: space_id, type: bigint, nullable: true, references: mem_space.id }
+      - { name: space_id, type: bigint, nullable: true, references: ai_space.id }
       - { name: index_kind, type: varchar(32), constraints: ["enum: [sql, keyword, dictionary, time, event, vector, graph, grep_file, custom]"] }
       - { name: implementation_profile_id, type: bigint, nullable: true }
       - { name: provider_binding_id, type: bigint, nullable: true }
@@ -1433,31 +1433,31 @@ tables:
       - { name: updated_at, type: timestamp, constraints: [required] }
       - { name: version, type: bigint, constraints: [required, "min: 0"] }
     indexes:
-      - { name: uk_mem_index_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: uk_mem_index_kind_space, unique: true, columns: [tenant_id, space_id, index_kind, schema_version] }
-      - { name: idx_mem_index_status, columns: [tenant_id, space_id, index_kind, status] }
-  - table: mem_index_entry
+      - { name: uk_ai_index_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: uk_ai_index_kind_space, unique: true, columns: [tenant_id, space_id, index_kind, schema_version] }
+      - { name: idx_ai_index_status, columns: [tenant_id, space_id, index_kind, status] }
+  - table: ai_index_entry
     profile: projection
     compliance_level: L2
     system_of_record: false
-    description: Provider-neutral pointer to derived index state; vector payloads may be externalized while canonical memory stays in mem_record.
+    description: Provider-neutral pointer to derived index state; vector payloads may be externalized while canonical memory stays in ai_record.
     columns:
       - { name: id, type: bigint, constraints: [primary_key, snowflake] }
       - { name: uuid, type: varchar(64), constraints: [required, public_id] }
       - { name: tenant_id, type: bigint, constraints: [required] }
-      - { name: index_id, type: bigint, constraints: [required], references: mem_index.id }
-      - { name: memory_id, type: bigint, nullable: true, references: mem_record.id }
-      - { name: event_id, type: bigint, nullable: true, references: mem_event.id }
+      - { name: index_id, type: bigint, constraints: [required], references: ai_index.id }
+      - { name: memory_id, type: bigint, nullable: true, references: ai_record.id }
+      - { name: event_id, type: bigint, nullable: true, references: ai_event.id }
       - { name: entry_kind, type: varchar(32), constraints: ["enum: [memory, event, entity, edge, file_line, external_ref]"] }
       - { name: entry_hash, type: varchar(128), constraints: [required] }
       - { name: external_ref, type: varchar(512), nullable: true }
       - { name: payload_json, type: json, nullable: true }
       - { name: indexed_at, type: timestamp, constraints: [required] }
     indexes:
-      - { name: uk_mem_index_entry_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: uk_mem_index_entry_memory, unique: true, columns: [tenant_id, index_id, memory_id, entry_kind], predicate: "memory_id IS NOT NULL" }
-      - { name: idx_mem_index_entry_hash, columns: [tenant_id, index_id, entry_hash] }
-  - table: mem_retrieval_profile
+      - { name: uk_ai_index_entry_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: uk_ai_index_entry_memory, unique: true, columns: [tenant_id, index_id, memory_id, entry_kind], predicate: "memory_id IS NOT NULL" }
+      - { name: idx_ai_index_entry_hash, columns: [tenant_id, index_id, entry_hash] }
+  - table: ai_retrieval_profile
     profile: dictionary_entity
     compliance_level: L2
     system_of_record: true
@@ -1466,7 +1466,7 @@ tables:
       - { name: id, type: bigint, constraints: [primary_key, snowflake] }
       - { name: uuid, type: varchar(64), constraints: [required, public_id] }
       - { name: tenant_id, type: bigint, constraints: [required] }
-      - { name: space_id, type: bigint, nullable: true, references: mem_space.id }
+      - { name: space_id, type: bigint, nullable: true, references: ai_space.id }
       - { name: name, type: varchar(160), constraints: [required] }
       - { name: strategy, type: varchar(64), constraints: ["enum: [deterministic, semantic, graph, file, hybrid, custom]"] }
       - { name: retrievers_json, type: json, constraints: [required] }
@@ -1479,9 +1479,9 @@ tables:
       - { name: updated_at, type: timestamp, constraints: [required] }
       - { name: version, type: bigint, constraints: [required, "min: 0"] }
     indexes:
-      - { name: uk_mem_retrieval_profile_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: idx_mem_retrieval_profile_scope, columns: [tenant_id, space_id, status, updated_at] }
-  - table: mem_retrieval_trace
+      - { name: uk_ai_retrieval_profile_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_retrieval_profile_scope, columns: [tenant_id, space_id, status, updated_at] }
+  - table: ai_retrieval_trace
     profile: event_log
     compliance_level: L2
     system_of_record: true
@@ -1490,8 +1490,8 @@ tables:
       - { name: id, type: bigint, constraints: [primary_key, snowflake] }
       - { name: uuid, type: varchar(64), constraints: [required, public_id] }
       - { name: tenant_id, type: bigint, constraints: [required] }
-      - { name: space_id, type: bigint, nullable: true, references: mem_space.id }
-      - { name: retrieval_profile_id, type: bigint, nullable: true, references: mem_retrieval_profile.id }
+      - { name: space_id, type: bigint, nullable: true, references: ai_space.id }
+      - { name: retrieval_profile_id, type: bigint, nullable: true, references: ai_retrieval_profile.id }
       - { name: actor_id, type: varchar(128), nullable: true }
       - { name: query_text, type: text, nullable: true }
       - { name: query_hash, type: varchar(128), constraints: [required] }
@@ -1502,10 +1502,10 @@ tables:
       - { name: metadata_json, type: json, nullable: true }
       - { name: created_at, type: timestamp, constraints: [required] }
     indexes:
-      - { name: uk_mem_retrieval_trace_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: idx_mem_retrieval_trace_profile_created, columns: [tenant_id, retrieval_profile_id, created_at] }
-      - { name: idx_mem_retrieval_trace_actor_created, columns: [tenant_id, actor_id, created_at] }
-  - table: mem_retrieval_hit
+      - { name: uk_ai_retrieval_trace_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_retrieval_trace_profile_created, columns: [tenant_id, retrieval_profile_id, created_at] }
+      - { name: idx_ai_retrieval_trace_actor_created, columns: [tenant_id, actor_id, created_at] }
+  - table: ai_retrieval_hit
     profile: projection
     compliance_level: L2
     system_of_record: true
@@ -1514,8 +1514,8 @@ tables:
       - { name: id, type: bigint, constraints: [primary_key, snowflake] }
       - { name: uuid, type: varchar(64), constraints: [required, public_id] }
       - { name: tenant_id, type: bigint, constraints: [required] }
-      - { name: retrieval_trace_id, type: bigint, constraints: [required], references: mem_retrieval_trace.id }
-      - { name: memory_id, type: bigint, nullable: true, references: mem_record.id }
+      - { name: retrieval_trace_id, type: bigint, constraints: [required], references: ai_retrieval_trace.id }
+      - { name: memory_id, type: bigint, nullable: true, references: ai_record.id }
       - { name: retriever_name, type: varchar(64), constraints: [required] }
       - { name: result_rank, type: int32, constraints: [required] }
       - { name: raw_score, type: decimal(10,6), nullable: true }
@@ -1524,10 +1524,10 @@ tables:
       - { name: status, type: varchar(32), constraints: ["enum: [included, filtered, suppressed]"] }
       - { name: created_at, type: timestamp, constraints: [required] }
     indexes:
-      - { name: uk_mem_retrieval_hit_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: idx_mem_retrieval_hit_trace_rank, columns: [tenant_id, retrieval_trace_id, result_rank] }
-      - { name: idx_mem_retrieval_hit_memory, columns: [tenant_id, memory_id, status] }
-  - table: mem_context_pack
+      - { name: uk_ai_retrieval_hit_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_retrieval_hit_trace_rank, columns: [tenant_id, retrieval_trace_id, result_rank] }
+      - { name: idx_ai_retrieval_hit_memory, columns: [tenant_id, memory_id, status] }
+  - table: ai_context_pack
     profile: snapshot
     compliance_level: L2
     system_of_record: true
@@ -1536,7 +1536,7 @@ tables:
       - { name: id, type: bigint, constraints: [primary_key, snowflake] }
       - { name: uuid, type: varchar(64), constraints: [required, public_id] }
       - { name: tenant_id, type: bigint, constraints: [required] }
-      - { name: retrieval_trace_id, type: bigint, nullable: true, references: mem_retrieval_trace.id }
+      - { name: retrieval_trace_id, type: bigint, nullable: true, references: ai_retrieval_trace.id }
       - { name: actor_id, type: varchar(128), nullable: true }
       - { name: query_text, type: text, nullable: true }
       - { name: pack_json, type: json, constraints: [required] }
@@ -1544,9 +1544,9 @@ tables:
       - { name: truncated, type: boolean, constraints: [required] }
       - { name: created_at, type: timestamp, constraints: [required] }
     indexes:
-      - { name: uk_mem_context_pack_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: idx_mem_context_pack_trace, columns: [tenant_id, retrieval_trace_id] }
-      - { name: idx_mem_context_pack_actor_created, columns: [tenant_id, actor_id, created_at] }
+      - { name: uk_ai_context_pack_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_context_pack_trace, columns: [tenant_id, retrieval_trace_id] }
+      - { name: idx_ai_context_pack_actor_created, columns: [tenant_id, actor_id, created_at] }
 serialization: { int64: string, decimal: string, time: iso8601_utc }
 `);
 
@@ -1556,7 +1556,7 @@ domain: intelligence
 bounded_context: memory-provider-policy
 description: Implementation profiles, provider bindings, and policy definitions for provider-switchable memory.
 tables:
-  - table: mem_implementation_profile
+  - table: ai_implementation_profile
     profile: dictionary_entity
     compliance_level: L3
     system_of_record: true
@@ -1576,9 +1576,9 @@ tables:
       - { name: updated_at, type: timestamp, constraints: [required] }
       - { name: version, type: bigint, constraints: [required, "min: 0"] }
     indexes:
-      - { name: uk_mem_implementation_profile_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: idx_mem_implementation_profile_kind, columns: [tenant_id, implementation_kind, status] }
-  - table: mem_provider_binding
+      - { name: uk_ai_implementation_profile_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_implementation_profile_kind, columns: [tenant_id, implementation_kind, status] }
+  - table: ai_provider_binding
     profile: dictionary_entity
     compliance_level: L3
     system_of_record: true
@@ -1601,10 +1601,10 @@ tables:
       - { name: updated_at, type: timestamp, constraints: [required] }
       - { name: version, type: bigint, constraints: [required, "min: 0"] }
     indexes:
-      - { name: uk_mem_provider_binding_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: uk_mem_provider_binding_code, unique: true, columns: [tenant_id, provider_kind, provider_code] }
-      - { name: idx_mem_provider_binding_health, columns: [tenant_id, provider_kind, health_state, updated_at] }
-  - table: mem_policy
+      - { name: uk_ai_provider_binding_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: uk_ai_provider_binding_code, unique: true, columns: [tenant_id, provider_kind, provider_code] }
+      - { name: idx_ai_provider_binding_health, columns: [tenant_id, provider_kind, health_state, updated_at] }
+  - table: ai_policy
     profile: dictionary_entity
     compliance_level: L3
     system_of_record: true
@@ -1622,8 +1622,8 @@ tables:
       - { name: updated_at, type: timestamp, constraints: [required] }
       - { name: version, type: bigint, constraints: [required, "min: 0"] }
     indexes:
-      - { name: uk_mem_policy_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: idx_mem_policy_type_scope, columns: [tenant_id, policy_type, scope, status] }
+      - { name: uk_ai_policy_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_policy_type_scope, columns: [tenant_id, policy_type, scope, status] }
 serialization: { int64: string, decimal: string, time: iso8601_utc }
 `);
 
@@ -1633,7 +1633,7 @@ domain: intelligence
 bounded_context: memory-governance
 description: Audit, evaluation, and outbox contracts for governed memory operations.
 tables:
-  - table: mem_audit_log
+  - table: ai_audit_log
     profile: audit_log
     compliance_level: L3
     system_of_record: true
@@ -1654,11 +1654,11 @@ tables:
       - { name: metadata_json, type: json, nullable: true }
       - { name: created_at, type: timestamp, constraints: [required] }
     indexes:
-      - { name: uk_mem_audit_log_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: idx_mem_audit_actor_time, columns: [tenant_id, actor_type, actor_id, created_at] }
-      - { name: idx_mem_audit_resource_time, columns: [tenant_id, resource_type, resource_id, created_at] }
-      - { name: idx_mem_audit_action_time, columns: [tenant_id, action, created_at] }
-  - table: mem_eval_run
+      - { name: uk_ai_audit_log_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_audit_actor_time, columns: [tenant_id, actor_type, actor_id, created_at] }
+      - { name: idx_ai_audit_resource_time, columns: [tenant_id, resource_type, resource_id, created_at] }
+      - { name: idx_ai_audit_action_time, columns: [tenant_id, action, created_at] }
+  - table: ai_eval_run
     profile: event_log
     compliance_level: L2
     system_of_record: true
@@ -1678,9 +1678,9 @@ tables:
       - { name: created_at, type: timestamp, constraints: [required] }
       - { name: updated_at, type: timestamp, constraints: [required] }
     indexes:
-      - { name: uk_mem_eval_run_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: idx_mem_eval_run_type_state, columns: [tenant_id, eval_type, state, created_at] }
-  - table: mem_outbox_event
+      - { name: uk_ai_eval_run_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_eval_run_type_state, columns: [tenant_id, eval_type, state, created_at] }
+  - table: ai_outbox_event
     profile: outbox_event
     compliance_level: L3
     system_of_record: true
@@ -1700,8 +1700,8 @@ tables:
       - { name: created_at, type: timestamp, constraints: [required] }
       - { name: updated_at, type: timestamp, constraints: [required] }
     indexes:
-      - { name: uk_mem_outbox_event_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: idx_mem_outbox_state, columns: [tenant_id, publish_state, created_at] }
+      - { name: uk_ai_outbox_event_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_outbox_state, columns: [tenant_id, publish_state, created_at] }
 serialization: { int64: string, decimal: string, time: iso8601_utc }
 `);
 }
@@ -3529,16 +3529,16 @@ foreach ($schemaPath in Get-ChildItem -Path "docs/schema-registry/tables" -Filte
     $content = Get-Content -Raw $schemaPath.FullName
     Assert-Contains -Content $content -Needle "module: memory" -Path $schemaPath.FullName
     Assert-Contains -Content $content -Needle "owner: sdkwork-memory" -Path $schemaPath.FullName
-    Assert-Contains -Content $content -Needle "table: mem_" -Path $schemaPath.FullName
+    Assert-Contains -Content $content -Needle "table: ai_" -Path $schemaPath.FullName
 }
 
 $allSchemaText = (Get-ChildItem -Path "docs/schema-registry/tables" -Filter "*.yaml" | ForEach-Object { Get-Content -Raw $_.FullName }) -join [Environment]::NewLine
 foreach ($requiredTable in @(
-    "mem_space", "mem_event", "mem_record", "mem_record_source", "mem_entity", "mem_edge",
-    "mem_candidate", "mem_habit", "mem_habit_signal", "mem_learning_job",
-    "mem_index", "mem_index_entry", "mem_retrieval_profile", "mem_retrieval_trace", "mem_retrieval_hit", "mem_context_pack",
-    "mem_implementation_profile", "mem_provider_binding", "mem_policy",
-    "mem_audit_log", "mem_eval_run", "mem_outbox_event"
+    "ai_space", "ai_event", "ai_record", "ai_record_source", "ai_entity", "ai_edge",
+    "ai_candidate", "ai_habit", "ai_habit_signal", "ai_learning_job",
+    "ai_index", "ai_index_entry", "ai_retrieval_profile", "ai_retrieval_trace", "ai_retrieval_hit", "ai_context_pack",
+    "ai_implementation_profile", "ai_provider_binding", "ai_policy",
+    "ai_audit_log", "ai_eval_run", "ai_outbox_event"
 )) {
     if (!$allSchemaText.Contains("table: $requiredTable")) {
         throw "Schema registry missing required table: $requiredTable"
@@ -3553,7 +3553,7 @@ foreach ($snippet in @(
     "App API Contract Draft",
     "Backend API Contract Draft",
     "Database And Storage Design",
-    "mem_"
+    "ai_"
 )) {
     Assert-Contains -Content $design -Needle $snippet -Path "docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md"
 }

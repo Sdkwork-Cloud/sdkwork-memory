@@ -4,7 +4,7 @@ Canonical lifecycle assets for `sdkwork-memory` per `DATABASE_FRAMEWORK_SPEC.md`
 
 - moduleId: `memory`
 - serviceCode: `MEMORY`
-- tablePrefix: `mem_`
+- tablePrefix: `ai_`
 - engines: `postgres` (production), `sqlite` (local/dev standalone)
 
 ## Commands

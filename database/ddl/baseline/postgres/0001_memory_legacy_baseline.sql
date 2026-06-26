@@ -1,7 +1,7 @@
 -- Consolidated legacy baseline for sdkwork-memory database module.
 -- source: plugins/sdkwork-memory-plugin-native-sql/migrations/postgres/V202606100001__memory_phase1.sql
 
-CREATE TABLE IF NOT EXISTS mem_space (
+CREATE TABLE IF NOT EXISTS ai_space (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
@@ -22,17 +22,17 @@ CREATE TABLE IF NOT EXISTS mem_space (
   version BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_space_uuid
-  ON mem_space (tenant_id, uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_space_uuid
+  ON ai_space (tenant_id, uuid);
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_space_owner_type
-  ON mem_space (tenant_id, owner_subject_type, owner_subject_id, space_type);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_space_owner_type
+  ON ai_space (tenant_id, owner_subject_type, owner_subject_id, space_type);
 
-CREATE TABLE IF NOT EXISTS mem_event (
+CREATE TABLE IF NOT EXISTS ai_event (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
-  space_id BIGINT NOT NULL REFERENCES mem_space(id),
+  space_id BIGINT NOT NULL REFERENCES ai_space(id),
   user_id BIGINT,
   actor_type VARCHAR(32) NOT NULL,
   actor_id VARCHAR(128),
@@ -51,18 +51,18 @@ CREATE TABLE IF NOT EXISTS mem_event (
   created_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_event_uuid
-  ON mem_event (tenant_id, uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_event_uuid
+  ON ai_event (tenant_id, uuid);
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_event_idempotency
-  ON mem_event (tenant_id, idempotency_key)
+CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_event_idempotency
+  ON ai_event (tenant_id, idempotency_key)
   WHERE idempotency_key IS NOT NULL;
 
-CREATE TABLE IF NOT EXISTS mem_record (
+CREATE TABLE IF NOT EXISTS ai_record (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
-  space_id BIGINT NOT NULL REFERENCES mem_space(id),
+  space_id BIGINT NOT NULL REFERENCES ai_space(id),
   user_id BIGINT,
   scope VARCHAR(32) NOT NULL,
   memory_type VARCHAR(32) NOT NULL,
@@ -85,8 +85,8 @@ CREATE TABLE IF NOT EXISTS mem_record (
   sensitivity_level VARCHAR(32) NOT NULL,
   metadata_json JSONB,
   tags_json JSONB,
-  supersedes_memory_id BIGINT REFERENCES mem_record(id),
-  superseded_by_memory_id BIGINT REFERENCES mem_record(id),
+  supersedes_memory_id BIGINT REFERENCES ai_record(id),
+  superseded_by_memory_id BIGINT REFERENCES ai_record(id),
   created_by BIGINT,
   updated_by BIGINT,
   created_at TIMESTAMPTZ NOT NULL,
@@ -95,37 +95,37 @@ CREATE TABLE IF NOT EXISTS mem_record (
   version BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_record_uuid
-  ON mem_record (tenant_id, uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_record_uuid
+  ON ai_record (tenant_id, uuid);
 
-CREATE INDEX IF NOT EXISTS idx_mem_record_scope_type_status
-  ON mem_record (tenant_id, space_id, scope, memory_type, status, updated_at);
+CREATE INDEX IF NOT EXISTS idx_ai_record_scope_type_status
+  ON ai_record (tenant_id, space_id, scope, memory_type, status, updated_at);
 
-CREATE TABLE IF NOT EXISTS mem_record_source (
+CREATE TABLE IF NOT EXISTS ai_record_source (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
-  memory_id BIGINT NOT NULL REFERENCES mem_record(id),
-  event_id BIGINT NOT NULL REFERENCES mem_event(id),
+  memory_id BIGINT NOT NULL REFERENCES ai_record(id),
+  event_id BIGINT NOT NULL REFERENCES ai_event(id),
   source_role VARCHAR(32) NOT NULL,
   confidence_delta DECIMAL(5,4),
   created_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_record_source_pair
-  ON mem_record_source (tenant_id, memory_id, event_id, source_role);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_record_source_pair
+  ON ai_record_source (tenant_id, memory_id, event_id, source_role);
 
-CREATE TABLE IF NOT EXISTS mem_candidate (
+CREATE TABLE IF NOT EXISTS ai_candidate (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
-  space_id BIGINT NOT NULL REFERENCES mem_space(id),
+  space_id BIGINT NOT NULL REFERENCES ai_space(id),
   user_id BIGINT,
   candidate_type VARCHAR(32) NOT NULL,
   memory_type VARCHAR(32) NOT NULL,
   proposed_text TEXT NOT NULL,
   proposed_payload_json JSONB,
-  target_memory_id BIGINT REFERENCES mem_record(id),
+  target_memory_id BIGINT REFERENCES ai_record(id),
   evidence_json JSONB,
   confidence DECIMAL(5,4) NOT NULL,
   novelty_score DECIMAL(5,4),
@@ -139,14 +139,14 @@ CREATE TABLE IF NOT EXISTS mem_candidate (
   version BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_candidate_uuid
-  ON mem_candidate (tenant_id, uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_candidate_uuid
+  ON ai_candidate (tenant_id, uuid);
 
-CREATE TABLE IF NOT EXISTS mem_habit (
+CREATE TABLE IF NOT EXISTS ai_habit (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
-  space_id BIGINT NOT NULL REFERENCES mem_space(id),
+  space_id BIGINT NOT NULL REFERENCES ai_space(id),
   user_id BIGINT NOT NULL,
   habit_key VARCHAR(160) NOT NULL,
   habit_type VARCHAR(64) NOT NULL,
@@ -156,7 +156,7 @@ CREATE TABLE IF NOT EXISTS mem_habit (
   confidence DECIMAL(5,4) NOT NULL,
   support_count INTEGER NOT NULL DEFAULT 0,
   last_signal_at TIMESTAMPTZ,
-  promoted_memory_id BIGINT REFERENCES mem_record(id),
+  promoted_memory_id BIGINT REFERENCES ai_record(id),
   decay_after TIMESTAMPTZ,
   metadata_json JSONB,
   created_at TIMESTAMPTZ NOT NULL,
@@ -164,10 +164,10 @@ CREATE TABLE IF NOT EXISTS mem_habit (
   version BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_habit_key
-  ON mem_habit (tenant_id, space_id, user_id, habit_key);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_habit_key
+  ON ai_habit (tenant_id, space_id, user_id, habit_key);
 
-CREATE TABLE IF NOT EXISTS mem_retrieval_trace (
+CREATE TABLE IF NOT EXISTS ai_retrieval_trace (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
@@ -184,15 +184,15 @@ CREATE TABLE IF NOT EXISTS mem_retrieval_trace (
   created_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_retrieval_trace_uuid
-  ON mem_retrieval_trace (tenant_id, uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_retrieval_trace_uuid
+  ON ai_retrieval_trace (tenant_id, uuid);
 
-CREATE TABLE IF NOT EXISTS mem_retrieval_hit (
+CREATE TABLE IF NOT EXISTS ai_retrieval_hit (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
-  retrieval_trace_id BIGINT NOT NULL REFERENCES mem_retrieval_trace(id),
-  memory_id BIGINT REFERENCES mem_record(id),
+  retrieval_trace_id BIGINT NOT NULL REFERENCES ai_retrieval_trace(id),
+  memory_id BIGINT REFERENCES ai_record(id),
   retriever_name VARCHAR(64) NOT NULL,
   result_rank INTEGER NOT NULL,
   raw_score DECIMAL(10,6),
@@ -202,14 +202,14 @@ CREATE TABLE IF NOT EXISTS mem_retrieval_hit (
   created_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_mem_retrieval_hit_trace_rank
-  ON mem_retrieval_hit (tenant_id, retrieval_trace_id, result_rank);
+CREATE INDEX IF NOT EXISTS idx_ai_retrieval_hit_trace_rank
+  ON ai_retrieval_hit (tenant_id, retrieval_trace_id, result_rank);
 
-CREATE TABLE IF NOT EXISTS mem_context_pack (
+CREATE TABLE IF NOT EXISTS ai_context_pack (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
-  retrieval_trace_id BIGINT REFERENCES mem_retrieval_trace(id),
+  retrieval_trace_id BIGINT REFERENCES ai_retrieval_trace(id),
   actor_id VARCHAR(128),
   query_text TEXT,
   pack_json JSONB NOT NULL,
@@ -218,10 +218,10 @@ CREATE TABLE IF NOT EXISTS mem_context_pack (
   created_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_context_pack_uuid
-  ON mem_context_pack (tenant_id, uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_context_pack_uuid
+  ON ai_context_pack (tenant_id, uuid);
 
-CREATE TABLE IF NOT EXISTS mem_index (
+CREATE TABLE IF NOT EXISTS ai_index (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
@@ -239,10 +239,10 @@ CREATE TABLE IF NOT EXISTS mem_index (
   version BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_index_uuid
-  ON mem_index (tenant_id, uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_index_uuid
+  ON ai_index (tenant_id, uuid);
 
-CREATE TABLE IF NOT EXISTS mem_retrieval_profile (
+CREATE TABLE IF NOT EXISTS ai_retrieval_profile (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
@@ -260,10 +260,10 @@ CREATE TABLE IF NOT EXISTS mem_retrieval_profile (
   version BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_retrieval_profile_uuid
-  ON mem_retrieval_profile (tenant_id, uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_retrieval_profile_uuid
+  ON ai_retrieval_profile (tenant_id, uuid);
 
-CREATE TABLE IF NOT EXISTS mem_implementation_profile (
+CREATE TABLE IF NOT EXISTS ai_implementation_profile (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
@@ -279,10 +279,10 @@ CREATE TABLE IF NOT EXISTS mem_implementation_profile (
   version BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_implementation_profile_uuid
-  ON mem_implementation_profile (tenant_id, uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_implementation_profile_uuid
+  ON ai_implementation_profile (tenant_id, uuid);
 
-CREATE TABLE IF NOT EXISTS mem_provider_binding (
+CREATE TABLE IF NOT EXISTS ai_provider_binding (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
@@ -301,10 +301,10 @@ CREATE TABLE IF NOT EXISTS mem_provider_binding (
   version BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_provider_binding_uuid
-  ON mem_provider_binding (tenant_id, uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_provider_binding_uuid
+  ON ai_provider_binding (tenant_id, uuid);
 
-CREATE TABLE IF NOT EXISTS mem_eval_run (
+CREATE TABLE IF NOT EXISTS ai_eval_run (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
@@ -315,10 +315,10 @@ CREATE TABLE IF NOT EXISTS mem_eval_run (
   updated_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_eval_run_uuid
-  ON mem_eval_run (tenant_id, uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_eval_run_uuid
+  ON ai_eval_run (tenant_id, uuid);
 
-CREATE TABLE IF NOT EXISTS mem_audit_log (
+CREATE TABLE IF NOT EXISTS ai_audit_log (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
@@ -335,10 +335,10 @@ CREATE TABLE IF NOT EXISTS mem_audit_log (
   created_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_audit_log_uuid
-  ON mem_audit_log (tenant_id, uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_audit_log_uuid
+  ON ai_audit_log (tenant_id, uuid);
 
-CREATE TABLE IF NOT EXISTS mem_outbox_event (
+CREATE TABLE IF NOT EXISTS ai_outbox_event (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
@@ -354,5 +354,5 @@ CREATE TABLE IF NOT EXISTS mem_outbox_event (
   updated_at TIMESTAMPTZ NOT NULL
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_outbox_event_uuid
-  ON mem_outbox_event (tenant_id, uuid);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_outbox_event_uuid
+  ON ai_outbox_event (tenant_id, uuid);

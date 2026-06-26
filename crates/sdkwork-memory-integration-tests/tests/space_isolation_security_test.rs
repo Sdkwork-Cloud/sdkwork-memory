@@ -55,7 +55,7 @@ async fn open_api_rejects_cross_space_memory_access() {
                 .header("content-type", "application/json")
                 .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
                     "key-1",
-                    1001,
+                    100_001,
                     Some(2001),
                 ))
                 .body(Body::from(
@@ -85,7 +85,7 @@ async fn open_api_rejects_cross_space_memory_access() {
                 .uri(format!("/mem/v3/api/memory/memories/{memory_id}?spaceId=1"))
                 .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
                     "key-1",
-                    1001,
+                    100_001,
                     Some(2001),
                 ))
                 .body(Body::empty())
@@ -172,7 +172,7 @@ async fn open_api_rejects_cross_space_candidate_retrieve() {
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     store
         .create_space_record(
-            1001,
+            100_001,
             3,
             &NativeSqlCreateSpaceCommand {
                 organization_id: None,
@@ -188,7 +188,7 @@ async fn open_api_rejects_cross_space_candidate_retrieve() {
     MemoryCandidateStorePort::create(
         &store,
         CreateMemoryCandidateCommand {
-            scope: MemoryScopeContext::for_test(1001, 3),
+            scope: MemoryScopeContext::for_test(100_001, 3),
             candidate_id: "7001".to_string(),
             candidate_type: "observation".to_string(),
             memory_type: "semantic".to_string(),
@@ -209,7 +209,7 @@ async fn open_api_rejects_cross_space_candidate_retrieve() {
                 .uri("/mem/v3/api/memory/candidates/7001")
                 .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
                     "key-1",
-                    1001,
+                    100_001,
                     Some(2001),
                 ))
                 .body(Body::empty())
@@ -266,7 +266,7 @@ async fn open_api_rejects_cross_space_memory_write() {
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     store
         .create_space_record(
-            1001,
+            100_001,
             3,
             &NativeSqlCreateSpaceCommand {
                 organization_id: None,
@@ -289,7 +289,7 @@ async fn open_api_rejects_cross_space_memory_write() {
                 .header("content-type", "application/json")
                 .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
                     "key-1",
-                    1001,
+                    100_001,
                     Some(2001),
                 ))
                 .body(Body::from(
@@ -348,7 +348,7 @@ async fn open_api_rejects_write_to_missing_space() {
                 .header("content-type", "application/json")
                 .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
                     "key-1",
-                    1001,
+                    100_001,
                     Some(2001),
                 ))
                 .body(Body::from(
@@ -385,7 +385,7 @@ async fn open_api_rejects_memory_create_when_space_record_quota_exceeded() {
                 .header("content-type", "application/json")
                 .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
                     "key-1",
-                    1001,
+                    100_001,
                     Some(2001),
                 ))
                 .body(Body::from(
@@ -411,7 +411,7 @@ async fn open_api_rejects_memory_create_when_space_record_quota_exceeded() {
                 .header("content-type", "application/json")
                 .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
                     "key-1",
-                    1001,
+                    100_001,
                     Some(2001),
                 ))
                 .body(Body::from(

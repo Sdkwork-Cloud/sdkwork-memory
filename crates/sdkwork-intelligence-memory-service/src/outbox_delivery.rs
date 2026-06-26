@@ -132,10 +132,10 @@ mod tests {
     #[test]
     fn cloud_event_envelope_includes_tenant_and_event_type() {
         let row = NativeSqlScopedOutboxEvent {
-            tenant_id: 1001,
+            tenant_id: 100_001,
             outbox: NativeSqlMemoryOutboxEvent {
                 outbox_id: "9001".to_string(),
-                aggregate_type: "mem_record".to_string(),
+                aggregate_type: "ai_record".to_string(),
                 aggregate_id: "rec-1".to_string(),
                 event_type: "memory.record.created".to_string(),
                 event_version: "1".to_string(),
@@ -147,7 +147,7 @@ mod tests {
         };
         let envelope = build_cloud_event_envelope(&row);
         assert_eq!(envelope["type"], "memory.record.created");
-        assert_eq!(envelope["tenantId"], "1001");
+        assert_eq!(envelope["tenantId"], "100_001");
         assert_eq!(envelope["data"]["aggregateId"], "rec-1");
     }
 }

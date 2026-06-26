@@ -46,7 +46,7 @@ async fn reference_runtime_round_trips_core_ports_and_retrieves_by_keyword() {
             scope: scope.clone(),
             audit_id: "aud-reference".to_string(),
             action: "memory.reference.checked".to_string(),
-            resource_type: "mem_record".to_string(),
+            resource_type: "ai_record".to_string(),
             resource_id: "rec-reference".to_string(),
             result: "success".to_string(),
         },
@@ -58,7 +58,7 @@ async fn reference_runtime_round_trips_core_ports_and_retrieves_by_keyword() {
         AppendMemoryOutboxCommand {
             scope: scope.clone(),
             outbox_id: "out-reference".to_string(),
-            aggregate_type: "mem_record".to_string(),
+            aggregate_type: "ai_record".to_string(),
             aggregate_id: "rec-reference".to_string(),
             event_type: "memory.record.created".to_string(),
             event_version: "1".to_string(),
@@ -137,7 +137,7 @@ async fn reference_runtime_outbox_context_eval_and_bridge_fail_closed_are_determ
         AppendMemoryOutboxCommand {
             scope: scope.clone(),
             outbox_id: "out-context".to_string(),
-            aggregate_type: "mem_record".to_string(),
+            aggregate_type: "ai_record".to_string(),
             aggregate_id: "rec-context".to_string(),
             event_type: "memory.record.created".to_string(),
             event_version: "1".to_string(),

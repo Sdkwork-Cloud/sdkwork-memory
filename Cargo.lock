@@ -1958,6 +1958,7 @@ dependencies = [
  "rand_core 0.6.4",
  "sdkwork-iam-context-service",
  "sdkwork-iam-module-registry",
+ "sdkwork-id-core",
  "sha2",
  "sqlx",
  "uuid",
@@ -2071,6 +2072,7 @@ dependencies = [
  "sdkwork-intelligence-memory-repository-sqlx",
  "sdkwork-intelligence-memory-service",
  "sdkwork-memory-database-host",
+ "sdkwork-memory-gateway-assembly",
  "sdkwork-routes-memory-app-api",
  "sdkwork-routes-memory-backend-api",
  "sdkwork-routes-memory-common",
@@ -2111,6 +2113,17 @@ dependencies = [
  "sdkwork-database-lifecycle",
  "sdkwork-database-spi",
  "sdkwork-database-sqlx",
+]
+
+[[package]]
+name = "sdkwork-memory-gateway-assembly"
+version = "0.1.0"
+dependencies = [
+ "axum 0.8.9",
+ "sdkwork-routes-memory-app-api",
+ "sdkwork-routes-memory-backend-api",
+ "sdkwork-routes-memory-open-api",
+ "tokio",
 ]
 
 [[package]]

@@ -33,7 +33,7 @@ fn outbox_command<'a>(
     NativeSqlAppendOutboxEventCommand {
         scope,
         outbox_id,
-        aggregate_type: "mem_record",
+        aggregate_type: "ai_record",
         aggregate_id,
         event_type: "memory.record.created",
         event_version: "1",
@@ -629,7 +629,7 @@ async fn sqlite_store_appends_and_retrieves_audit_records_by_scope() {
             &tenant_one,
             "aud-shared",
             "memory.record.created",
-            "mem_record",
+            "ai_record",
             "rec-1",
             "success",
         )
@@ -640,7 +640,7 @@ async fn sqlite_store_appends_and_retrieves_audit_records_by_scope() {
             &tenant_two,
             "aud-shared",
             "memory.record.created",
-            "mem_record",
+            "ai_record",
             "rec-2",
             "success",
         )
@@ -679,7 +679,7 @@ async fn sqlite_store_implements_audit_store_spi_port() {
             scope: scope.clone(),
             audit_id: "aud-spi".to_string(),
             action: "memory.event.appended".to_string(),
-            resource_type: "mem_event".to_string(),
+            resource_type: "ai_event".to_string(),
             resource_id: "evt-spi".to_string(),
             result: "success".to_string(),
         },
@@ -699,7 +699,7 @@ async fn sqlite_store_implements_audit_store_spi_port() {
 
     assert_eq!(audit.audit_id, "aud-spi");
     assert_eq!(retrieved.action, "memory.event.appended");
-    assert_eq!(retrieved.resource_type, "mem_event");
+    assert_eq!(retrieved.resource_type, "ai_event");
     assert_eq!(retrieved.resource_id, "evt-spi");
     assert_eq!(retrieved.result, "success");
 }
@@ -821,7 +821,7 @@ async fn sqlite_store_implements_outbox_store_spi_port() {
         AppendMemoryOutboxCommand {
             scope: scope.clone(),
             outbox_id: "out-spi".to_string(),
-            aggregate_type: "mem_event".to_string(),
+            aggregate_type: "ai_event".to_string(),
             aggregate_id: "evt-spi".to_string(),
             event_type: "memory.event.appended".to_string(),
             event_version: "1".to_string(),
@@ -842,7 +842,7 @@ async fn sqlite_store_implements_outbox_store_spi_port() {
     .unwrap();
 
     assert_eq!(outbox.outbox_id, "out-spi");
-    assert_eq!(retrieved.aggregate_type, "mem_event");
+    assert_eq!(retrieved.aggregate_type, "ai_event");
     assert_eq!(retrieved.aggregate_id, "evt-spi");
     assert_eq!(retrieved.event_type, "memory.event.appended");
     assert_eq!(retrieved.event_version, "1");
@@ -860,7 +860,7 @@ async fn sqlite_store_spi_outbox_append_maps_idempotency_conflict_to_spi_conflic
         AppendMemoryOutboxCommand {
             scope: scope.clone(),
             outbox_id: "out-spi-conflict".to_string(),
-            aggregate_type: "mem_record".to_string(),
+            aggregate_type: "ai_record".to_string(),
             aggregate_id: "rec-1".to_string(),
             event_type: "memory.record.created".to_string(),
             event_version: "1".to_string(),
@@ -874,7 +874,7 @@ async fn sqlite_store_spi_outbox_append_maps_idempotency_conflict_to_spi_conflic
         AppendMemoryOutboxCommand {
             scope,
             outbox_id: "out-spi-conflict".to_string(),
-            aggregate_type: "mem_record".to_string(),
+            aggregate_type: "ai_record".to_string(),
             aggregate_id: "rec-1".to_string(),
             event_type: "memory.record.created".to_string(),
             event_version: "1".to_string(),
@@ -1142,7 +1142,7 @@ async fn sqlite_store_implements_outbox_delivery_lifecycle_spi_port() {
         AppendMemoryOutboxCommand {
             scope: scope.clone(),
             outbox_id: "out-spi-lifecycle".to_string(),
-            aggregate_type: "mem_record".to_string(),
+            aggregate_type: "ai_record".to_string(),
             aggregate_id: "rec-1".to_string(),
             event_type: "memory.record.created".to_string(),
             event_version: "1".to_string(),
@@ -1186,7 +1186,7 @@ async fn sqlite_store_implements_outbox_delivery_lifecycle_spi_port() {
         AppendMemoryOutboxCommand {
             scope: scope.clone(),
             outbox_id: "out-spi-failed".to_string(),
-            aggregate_type: "mem_event".to_string(),
+            aggregate_type: "ai_event".to_string(),
             aggregate_id: "evt-1".to_string(),
             event_type: "memory.event.appended".to_string(),
             event_version: "1".to_string(),

@@ -35,7 +35,7 @@ for (const engine of engines) {
   }
 }
 
-const requiredPhase1Tables = ["mem_space", "mem_event", "mem_record"];
+const requiredPhase1Tables = ["ai_space", "ai_event", "ai_record"];
 
 for (const engine of engines) {
   const phase1 = fs.readFileSync(
@@ -56,7 +56,7 @@ for (const engine of engines) {
   ).toLowerCase();
   assert.match(
     tenantPreference,
-    /create\s+table\s+(if\s+not\s+exists\s+)?mem_tenant_preference\b/,
-    `0003 migration for ${engine} must create mem_tenant_preference`,
+    /create\s+table\s+(if\s+not\s+exists\s+)?ai_tenant_preference\b/,
+    `0003 migration for ${engine} must create ai_tenant_preference`,
   );
 }

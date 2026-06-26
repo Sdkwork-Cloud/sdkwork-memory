@@ -4,22 +4,22 @@ import path from "node:path";
 
 const schemaRegistryDir = "docs/schema-registry/tables";
 const phase1Tables = new Set([
-  "mem_space",
-  "mem_event",
-  "mem_record",
-  "mem_record_source",
-  "mem_candidate",
-  "mem_habit",
-  "mem_retrieval_trace",
-  "mem_retrieval_hit",
-  "mem_context_pack",
-  "mem_index",
-  "mem_retrieval_profile",
-  "mem_implementation_profile",
-  "mem_provider_binding",
-  "mem_eval_run",
-  "mem_audit_log",
-  "mem_outbox_event",
+  "ai_space",
+  "ai_event",
+  "ai_record",
+  "ai_record_source",
+  "ai_candidate",
+  "ai_habit",
+  "ai_retrieval_trace",
+  "ai_retrieval_hit",
+  "ai_context_pack",
+  "ai_index",
+  "ai_retrieval_profile",
+  "ai_implementation_profile",
+  "ai_provider_binding",
+  "ai_eval_run",
+  "ai_audit_log",
+  "ai_outbox_event",
 ]);
 
 const migrationPaths = [
@@ -101,15 +101,15 @@ for (const group of migrationGroups) {
 }
 
 const requiredTables = [
-  "mem_space",
-  "mem_event",
-  "mem_record",
-  "mem_record_source",
-  "mem_candidate",
-  "mem_habit",
-  "mem_retrieval_trace",
-  "mem_retrieval_hit",
-  "mem_context_pack",
+  "ai_space",
+  "ai_event",
+  "ai_record",
+  "ai_record_source",
+  "ai_candidate",
+  "ai_habit",
+  "ai_retrieval_trace",
+  "ai_retrieval_hit",
+  "ai_context_pack",
 ];
 
 for (const migrationPath of migrationPaths) {

@@ -38,7 +38,7 @@ mod tests {
     #[test]
     fn maps_event_conflict_to_http_conflict() {
         let mapped = map_native_sql_store_error(NativeSqlStoreError::EventConflict {
-            tenant_id: 1,
+            tenant_id: 100_001,
             event_id: "evt-1".to_string(),
         });
         assert_eq!(mapped.kind, MemoryServiceErrorKind::Conflict);
@@ -47,7 +47,7 @@ mod tests {
     #[test]
     fn maps_outbox_conflict_to_http_conflict() {
         let mapped = map_native_sql_store_error(NativeSqlStoreError::OutboxConflict {
-            tenant_id: 1,
+            tenant_id: 100_001,
             outbox_id: "ob-1".to_string(),
         });
         assert_eq!(mapped.kind, MemoryServiceErrorKind::Conflict);

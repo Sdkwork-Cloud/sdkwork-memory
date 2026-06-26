@@ -53,7 +53,7 @@ impl NativeSqlMemoryStore {
     ) -> Result<(u32, u32), NativeSqlStoreError> {
         let rejected = sqlx::query(
             r#"
-            UPDATE mem_candidate
+            UPDATE ai_candidate
             SET decision_state = 'rejected',
                 decision_reason = 'privacy_forget',
                 decided_at = ?,
@@ -61,7 +61,7 @@ impl NativeSqlMemoryStore {
                 version = version + 1
             WHERE tenant_id = ?
               AND target_memory_id = (
-                SELECT id FROM mem_record WHERE tenant_id = ? AND uuid = ? LIMIT 1
+                SELECT id FROM ai_record WHERE tenant_id = ? AND uuid = ? LIMIT 1
               )
               AND decision_state = 'pending'
             "#,
@@ -77,10 +77,10 @@ impl NativeSqlMemoryStore {
 
         let sources = sqlx::query(
             r#"
-            DELETE FROM mem_record_source
+            DELETE FROM ai_record_source
             WHERE tenant_id = ?
               AND memory_id = (
-                SELECT id FROM mem_record WHERE tenant_id = ? AND uuid = ? LIMIT 1
+                SELECT id FROM ai_record WHERE tenant_id = ? AND uuid = ? LIMIT 1
               )
             "#,
         )
@@ -150,7 +150,7 @@ impl NativeSqlMemoryStore {
         let deleted = if let Some(space_id) = space_id {
             sqlx::query(
                 r#"
-                DELETE FROM mem_record
+                DELETE FROM ai_record
                 WHERE tenant_id = ? AND space_id = ? AND user_id = ?
                 "#,
             )
@@ -163,7 +163,7 @@ impl NativeSqlMemoryStore {
         } else {
             sqlx::query(
                 r#"
-                DELETE FROM mem_record
+                DELETE FROM ai_record
                 WHERE tenant_id = ? AND user_id = ?
                 "#,
             )
@@ -178,7 +178,7 @@ impl NativeSqlMemoryStore {
         let rejected = if let Some(space_id) = space_id {
             sqlx::query(
                 r#"
-                UPDATE mem_candidate
+                UPDATE ai_candidate
                 SET decision_state = 'rejected',
                     decision_reason = 'privacy_forget',
                     decided_at = ?,
@@ -198,7 +198,7 @@ impl NativeSqlMemoryStore {
         } else {
             sqlx::query(
                 r#"
-                UPDATE mem_candidate
+                UPDATE ai_candidate
                 SET decision_state = 'rejected',
                     decision_reason = 'privacy_forget',
                     decided_at = ?,
@@ -236,7 +236,7 @@ impl NativeSqlMemoryStore {
         let rows = sqlx::query(
             r#"
             SELECT uuid
-            FROM mem_record
+            FROM ai_record
             WHERE tenant_id = ?
               AND space_id = ?
               AND status <> 'deleted'
@@ -364,7 +364,7 @@ impl NativeSqlMemoryStore {
     ) -> Result<u32, NativeSqlStoreError> {
         let purged = sqlx::query(
             r#"
-            DELETE FROM mem_event
+            DELETE FROM ai_event
             WHERE tenant_id = ? AND space_id = ?
             "#,
         )
@@ -383,7 +383,7 @@ impl NativeSqlMemoryStore {
     ) -> Result<u32, NativeSqlStoreError> {
         let purged = sqlx::query(
             r#"
-            DELETE FROM mem_event
+            DELETE FROM ai_event
             WHERE tenant_id = ? AND user_id = ?
             "#,
         )

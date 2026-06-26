@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS mem_tenant_preference (
+CREATE TABLE IF NOT EXISTS ai_tenant_preference (
   id BIGSERIAL PRIMARY KEY,
   tenant_id BIGINT NOT NULL,
   user_id BIGINT,
@@ -9,5 +9,5 @@ CREATE TABLE IF NOT EXISTS mem_tenant_preference (
   version BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_mem_tenant_preference_scope
-  ON mem_tenant_preference (tenant_id, user_id, preference_key);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_tenant_preference_scope
+  ON ai_tenant_preference (tenant_id, user_id, preference_key);

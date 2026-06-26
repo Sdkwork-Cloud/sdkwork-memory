@@ -53,7 +53,7 @@ async fn open_router_web_framework_accepts_dev_inline_api_key_before_handler() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(service.contexts(), vec![("dev-key".to_owned(), 1001)]);
+    assert_eq!(service.contexts(), vec![("dev-key".to_owned(), 100_001)]);
 }
 
 #[derive(Clone, Default)]

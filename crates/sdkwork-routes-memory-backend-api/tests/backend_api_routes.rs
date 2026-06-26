@@ -8,7 +8,7 @@ use tower::util::ServiceExt;
 
 fn backend_context() -> MemoryBackendRequestContext {
     MemoryBackendRequestContext {
-        tenant_id: 1001,
+        tenant_id: 100_001,
         operator_id: Some(9001),
     }
 }

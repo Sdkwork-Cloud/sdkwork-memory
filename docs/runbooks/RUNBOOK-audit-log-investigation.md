@@ -10,9 +10,9 @@ Investigate memory governance actions (forget, export, feedback, backend admin c
 
 ## Data sources
 
-- `mem_audit_log` table
+- `ai_audit_log` table
 - Backend API audit list endpoints
-- Domain outbox events (`mem_outbox_event`)
+- Domain outbox events (`ai_outbox_event`)
 
 ## Procedure
 

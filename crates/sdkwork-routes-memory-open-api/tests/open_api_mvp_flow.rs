@@ -7,7 +7,7 @@ use serde_json::json;
 use tower::util::ServiceExt;
 
 fn open_context() -> MemoryOpenApiRequestContext {
-    MemoryOpenApiRequestContext::for_open_surface("api-key-001", 1001, Some(2001))
+    MemoryOpenApiRequestContext::for_open_surface("api-key-001", 100_001, Some(2001))
 }
 
 #[tokio::test]

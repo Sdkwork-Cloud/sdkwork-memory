@@ -395,16 +395,16 @@ foreach ($schemaPath in Get-ChildItem -Path "docs/schema-registry/tables" -Filte
     $content = Get-Content -Raw $schemaPath.FullName
     Assert-Contains -Content $content -Needle "module: memory" -Path $schemaPath.FullName
     Assert-Contains -Content $content -Needle "owner: sdkwork-memory" -Path $schemaPath.FullName
-    Assert-Contains -Content $content -Needle "table: mem_" -Path $schemaPath.FullName
+    Assert-Contains -Content $content -Needle "table: ai_" -Path $schemaPath.FullName
 }
 
 $allSchemaText = (Get-ChildItem -Path "docs/schema-registry/tables" -Filter "*.yaml" | ForEach-Object { Get-Content -Raw $_.FullName }) -join [Environment]::NewLine
 foreach ($requiredTable in @(
-    "mem_space", "mem_event", "mem_record", "mem_record_source", "mem_entity", "mem_edge",
-    "mem_candidate", "mem_habit", "mem_habit_signal", "mem_learning_job",
-    "mem_index", "mem_index_entry", "mem_retrieval_profile", "mem_retrieval_trace", "mem_retrieval_hit", "mem_context_pack",
-    "mem_implementation_profile", "mem_provider_binding", "mem_policy",
-    "mem_audit_log", "mem_eval_run", "mem_outbox_event"
+    "ai_space", "ai_event", "ai_record", "ai_record_source", "ai_entity", "ai_edge",
+    "ai_candidate", "ai_habit", "ai_habit_signal", "ai_learning_job",
+    "ai_index", "ai_index_entry", "ai_retrieval_profile", "ai_retrieval_trace", "ai_retrieval_hit", "ai_context_pack",
+    "ai_implementation_profile", "ai_provider_binding", "ai_policy",
+    "ai_audit_log", "ai_eval_run", "ai_outbox_event"
 )) {
     if (!$allSchemaText.Contains("table: $requiredTable")) {
         throw "Schema registry missing required table: $requiredTable"
@@ -419,7 +419,7 @@ foreach ($snippet in @(
     "App API Contract Draft",
     "Backend API Contract Draft",
     "Database And Storage Design",
-    "mem_"
+    "ai_"
 )) {
     Assert-Contains -Content $design -Needle $snippet -Path "docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md"
 }

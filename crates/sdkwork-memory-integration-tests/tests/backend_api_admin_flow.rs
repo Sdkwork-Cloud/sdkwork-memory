@@ -122,7 +122,7 @@ async fn backend_api_admin_config_persists_in_sql_tables() {
     assert_eq!(indexes.status(), StatusCode::OK);
 
     let index_rows = store
-        .list_mem_indexes_for_tenant(1001, None, 20, None)
+        .list_mem_indexes_for_tenant(100_001, None, 20, None)
         .await
         .unwrap();
     assert!(!index_rows.is_empty());
@@ -146,10 +146,10 @@ async fn backend_api_admin_config_persists_in_sql_tables() {
     let eval_run_id = create_json["evalRunId"].as_str().unwrap();
 
     let eval_row = store
-        .retrieve_mem_eval_run_for_tenant(1001, eval_run_id)
+        .retrieve_mem_eval_run_for_tenant(100_001, eval_run_id)
         .await
         .unwrap()
-        .expect("eval run should exist in mem_eval_run");
+        .expect("eval run should exist in ai_eval_run");
     assert_eq!(eval_row.eval_type, "retrieval");
 
     let binding = app
@@ -177,10 +177,10 @@ async fn backend_api_admin_config_persists_in_sql_tables() {
 
     let binding_id = binding_json["providerBindingId"].as_str().unwrap();
     let binding_row = store
-        .retrieve_mem_provider_binding_for_tenant(1001, binding_id)
+        .retrieve_mem_provider_binding_for_tenant(100_001, binding_id)
         .await
         .unwrap()
-        .expect("provider binding should exist in mem_provider_binding");
+        .expect("provider binding should exist in ai_provider_binding");
     assert_eq!(binding_row.endpoint_ref.as_deref(), Some("providers/native-sql"));
     assert!(binding_row.config_json.is_some());
 
@@ -206,12 +206,12 @@ async fn backend_api_admin_config_persists_in_sql_tables() {
     assert_eq!(profile_json["fusionPolicy"]["mode"], "rrf");
 
     let audit_config = store
-        .retrieve_admin_config_entity(1001, "eval_run", eval_run_id)
+        .retrieve_admin_config_entity(100_001, "eval_run", eval_run_id)
         .await
         .unwrap();
     assert!(
         audit_config.is_none(),
-        "table-backed admin entities must not use mem_audit_log admin.config.save"
+        "table-backed admin entities must not use ai_audit_log admin.config.save"
     );
 }
 
@@ -222,7 +222,7 @@ async fn backend_api_governance_jobs_consolidation_and_retention_succeed() {
     let _env = lock_integration_test_env();
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let scope = MemoryScopeContext {
-        tenant_id: 1001,
+        tenant_id: 100_001,
         space_id: 1,
         organization_id: None,
         user_id: Some(9001),
@@ -292,7 +292,7 @@ async fn backend_api_supersede_memory_links_chain_and_marks_old_record() {
     let _env = lock_integration_test_env();
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let scope = MemoryScopeContext {
-        tenant_id: 1001,
+        tenant_id: 100_001,
         space_id: 1,
         organization_id: None,
         user_id: Some(9001),

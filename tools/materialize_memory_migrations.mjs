@@ -21,8 +21,8 @@ const mappings = [
     target: "0002_memory_phase1_indexes.up.sql",
   },
   {
-    source: "V202606230001__mem_tenant_preference.sql",
-    target: "0003_mem_tenant_preference.up.sql",
+    source: "V202606230001__ai_tenant_preference.sql",
+    target: "0003_ai_tenant_preference.up.sql",
   },
 ];
 

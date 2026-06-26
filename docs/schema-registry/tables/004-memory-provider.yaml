@@ -4,7 +4,7 @@ domain: intelligence
 bounded_context: memory-provider-policy
 description: Implementation profiles, provider bindings, and policy definitions for provider-switchable memory.
 tables:
-  - table: mem_implementation_profile
+  - table: ai_implementation_profile
     profile: dictionary_entity
     compliance_level: L3
     system_of_record: true
@@ -24,9 +24,9 @@ tables:
       - { name: updated_at, type: timestamp, constraints: [required] }
       - { name: version, type: bigint, constraints: [required, "min: 0"] }
     indexes:
-      - { name: uk_mem_implementation_profile_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: idx_mem_implementation_profile_kind, columns: [tenant_id, implementation_kind, status] }
-  - table: mem_provider_binding
+      - { name: uk_ai_implementation_profile_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_implementation_profile_kind, columns: [tenant_id, implementation_kind, status] }
+  - table: ai_provider_binding
     profile: dictionary_entity
     compliance_level: L3
     system_of_record: true
@@ -49,10 +49,10 @@ tables:
       - { name: updated_at, type: timestamp, constraints: [required] }
       - { name: version, type: bigint, constraints: [required, "min: 0"] }
     indexes:
-      - { name: uk_mem_provider_binding_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: uk_mem_provider_binding_code, unique: true, columns: [tenant_id, provider_kind, provider_code] }
-      - { name: idx_mem_provider_binding_health, columns: [tenant_id, provider_kind, health_state, updated_at] }
-  - table: mem_policy
+      - { name: uk_ai_provider_binding_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: uk_ai_provider_binding_code, unique: true, columns: [tenant_id, provider_kind, provider_code] }
+      - { name: idx_ai_provider_binding_health, columns: [tenant_id, provider_kind, health_state, updated_at] }
+  - table: ai_policy
     profile: dictionary_entity
     compliance_level: L3
     system_of_record: true
@@ -70,6 +70,6 @@ tables:
       - { name: updated_at, type: timestamp, constraints: [required] }
       - { name: version, type: bigint, constraints: [required, "min: 0"] }
     indexes:
-      - { name: uk_mem_policy_uuid, unique: true, columns: [tenant_id, uuid] }
-      - { name: idx_mem_policy_type_scope, columns: [tenant_id, policy_type, scope, status] }
+      - { name: uk_ai_policy_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_policy_type_scope, columns: [tenant_id, policy_type, scope, status] }
 serialization: { int64: string, decimal: string, time: iso8601_utc }
