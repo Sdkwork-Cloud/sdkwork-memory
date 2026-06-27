@@ -1,6 +1,7 @@
 pub mod admin_dto;
 pub mod app_ports;
 pub mod backend_ports;
+pub mod commercial;
 pub mod dto;
 pub mod ports;
 pub mod problem;
@@ -11,6 +12,7 @@ pub mod space;
 pub use admin_dto::*;
 pub use app_ports::{MemoryAppApi, MemoryAppRequestContext};
 pub use backend_ports::{MemoryBackendApi, MemoryBackendRequestContext};
+pub use commercial::*;
 pub use dto::*;
 pub use ports::{
     MemoryOpenApi, MemoryOpenApiRequestContext, MemoryServiceError, MemoryServiceErrorKind,

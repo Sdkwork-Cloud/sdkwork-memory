@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use sdkwork_id_core::SnowflakeIdGenerator;
+use sdkwork_database_id::{NodeLease, SnowflakeIdGenerator};
 use sdkwork_memory_contract::{MemoryServiceError, MemoryServiceResult};
 
 pub fn tenant_id_i64(tenant_id: u64) -> MemoryServiceResult<i64> {
@@ -21,8 +21,40 @@ pub fn optional_i64_as_u64(value: Option<i64>) -> Option<u64> {
     value.and_then(|id| u64::try_from(id.max(0)).ok())
 }
 
-static ID_GENERATOR: OnceLock<SnowflakeIdGenerator> = OnceLock::new();
+// ---------------------------------------------------------------------------
+// Snowflake ID generator — database-backed with env fallback
+// ---------------------------------------------------------------------------
 
+/// Holds the initialized generator and an optional database lease.
+///
+/// The lease keeps the database heartbeat alive while the generator is in use.
+/// When the process exits, the heartbeat stops and the lease expires after its
+/// TTL, allowing another process to reclaim the node_id.
+struct IdGeneratorHolder {
+    generator: SnowflakeIdGenerator,
+    _lease: Option<NodeLease>,
+}
+
+static ID_GENERATOR: OnceLock<IdGeneratorHolder> = OnceLock::new();
+
+/// Initialize the global ID generator from a database-allocated node_id.
+///
+/// This is the recommended initialization path for production. Call this
+/// during application bootstrap after the database pool is available.
+///
+/// The `lease` must be kept alive for as long as the process generates IDs.
+/// It is stored in the global holder and dropped when the process exits.
+pub fn init_id_generator(generator: SnowflakeIdGenerator, lease: Option<NodeLease>) {
+    let _ = ID_GENERATOR.set(IdGeneratorHolder {
+        generator,
+        _lease: lease,
+    });
+}
+
+/// Fallback: resolve a node_id from env var or hostname hash.
+///
+/// This is used only when database-backed allocation is not available
+/// (e.g. dev/test without a database).
 fn resolve_snowflake_node_id() -> u16 {
     if let Ok(value) = std::env::var("SDKWORK_MEMORY_SNOWFLAKE_NODE_ID") {
         if let Ok(parsed) = value.parse::<u16>() {
@@ -44,10 +76,20 @@ fn resolve_snowflake_node_id() -> u16 {
 }
 
 fn id_generator() -> &'static SnowflakeIdGenerator {
-    ID_GENERATOR.get_or_init(|| {
+    let holder = ID_GENERATOR.get_or_init(|| {
         let node_id = resolve_snowflake_node_id();
-        SnowflakeIdGenerator::new(node_id).expect("memory snowflake generator must initialize")
-    })
+        tracing::warn!(
+            node_id,
+            "memory snowflake generator using fallback (env/hostname hash) — \
+             database-backed allocation was not initialized"
+        );
+        IdGeneratorHolder {
+            generator: SnowflakeIdGenerator::new(node_id)
+                .expect("memory snowflake generator must initialize"),
+            _lease: None,
+        }
+    });
+    &holder.generator
 }
 
 pub fn next_numeric_id() -> MemoryServiceResult<u64> {
@@ -60,6 +102,11 @@ pub fn next_numeric_id() -> MemoryServiceResult<u64> {
 
 pub fn current_timestamp() -> String {
     sdkwork_utils_rust::format_datetime(sdkwork_utils_rust::now(), None)
+}
+
+/// Returns true when the runtime is configured for a production-like environment.
+pub fn is_production_like_environment() -> bool {
+    sdkwork_memory_contract::memory_is_production_like_environment()
 }
 
 pub fn elapsed_millis_i64(started: std::time::Instant) -> i64 {
@@ -78,4 +125,15 @@ pub fn stable_query_hash(query: &str) -> String {
 
 pub fn parse_numeric_id(value: &str) -> Option<u64> {
     value.parse().ok()
+}
+
+/// Maximum allowed page size for list operations.
+pub const MAX_PAGE_SIZE: i32 = 100;
+/// Default page size for list operations.
+pub const DEFAULT_PAGE_SIZE: i32 = 20;
+
+/// Clamps a page size to a safe range \[1, MAX_PAGE_SIZE\], defaulting to
+/// `DEFAULT_PAGE_SIZE` when `None`.
+pub fn clamp_page_size(page_size: Option<i32>) -> i32 {
+    page_size.unwrap_or(DEFAULT_PAGE_SIZE).clamp(1, MAX_PAGE_SIZE)
 }

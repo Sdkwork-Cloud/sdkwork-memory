@@ -5,7 +5,7 @@
 - Container image digest is pinned in the release manifest.
 - `SDKWORK_MEMORY_ENVIRONMENT=production` and `SDKWORK_MEMORY_DEPLOYMENT_PROFILE=cloud`.
 - IAM and memory database secrets exist in the target namespace.
-- Database migrations completed via release Job (`deployments/kubernetes/migration-job.yaml`) or `sdkwork-memory-api-server db-migrate`.
+- Database migrations completed via release Job (`deployments/kubernetes/migration-job.yaml`) or `sdkwork-memory-standalone-gateway db-migrate`.
 
 ## Rollout
 

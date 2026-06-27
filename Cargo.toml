@@ -3,11 +3,11 @@ resolver = "2"
 members = [
     "crates/sdkwork-memory-gateway-assembly",
   "crates/sdkwork-memory-database-host",
-  "crates/sdkwork-routes-memory-common",
+  "crates/sdkwork-routes-memory-support",
   "crates/sdkwork-memory-spi",
-  "crates/sdkwork-memory-runtime",
+  "crates/sdkwork-memory-profile-resolver",
   "crates/sdkwork-memory-contract",
-  "crates/sdkwork-memory-core",
+  "crates/sdkwork-memory-retrieval",
   "crates/sdkwork-memory-test-support",
   "crates/sdkwork-intelligence-memory-service",
   "crates/sdkwork-intelligence-memory-repository-sqlx",
@@ -15,7 +15,7 @@ members = [
   "crates/sdkwork-routes-memory-app-api",
   "crates/sdkwork-routes-memory-backend-api",
   "crates/sdkwork-memory-integration-tests",
-  "crates/sdkwork-memory-api-server",
+  "crates/sdkwork-memory-standalone-gateway",
   "plugins/sdkwork-memory-plugin-native-sql",
   "plugins/sdkwork-memory-plugin-reference-profiles",
 ]
@@ -34,25 +34,26 @@ serde_json = "1"
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "postgres", "any", "migrate"] }
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-tower = { version = "0.5", features = ["util"] }
-tracing = "0.1"
+tower = { version = "0.5", features = ["util", "limit"] }
+tracing = { version = "0.1", features = ["attributes"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+url = "2"
 
 sdkwork-memory-database-host = { path = "crates/sdkwork-memory-database-host" }
 sdkwork-memory-spi = { path = "crates/sdkwork-memory-spi" }
-sdkwork-memory-runtime = { path = "crates/sdkwork-memory-runtime" }
+sdkwork-memory-profile-resolver = { path = "crates/sdkwork-memory-profile-resolver" }
 sdkwork-memory-contract = { path = "crates/sdkwork-memory-contract" }
-sdkwork-memory-core = { path = "crates/sdkwork-memory-core" }
+sdkwork-memory-retrieval = { path = "crates/sdkwork-memory-retrieval" }
 sdkwork-memory-test-support = { path = "crates/sdkwork-memory-test-support" }
 sdkwork-memory-plugin-native-sql = { path = "plugins/sdkwork-memory-plugin-native-sql" }
 sdkwork-intelligence-memory-service = { path = "crates/sdkwork-intelligence-memory-service" }
 sdkwork-intelligence-memory-repository-sqlx = { path = "crates/sdkwork-intelligence-memory-repository-sqlx" }
 sdkwork-routes-memory-open-api = { path = "crates/sdkwork-routes-memory-open-api" }
-sdkwork-routes-memory-common = { path = "crates/sdkwork-routes-memory-common" }
+sdkwork-routes-memory-support = { path = "crates/sdkwork-routes-memory-support" }
 sdkwork-routes-memory-app-api = { path = "crates/sdkwork-routes-memory-app-api" }
 sdkwork-routes-memory-backend-api = { path = "crates/sdkwork-routes-memory-backend-api" }
-sdkwork-memory-api-server = { path = "crates/sdkwork-memory-api-server" }
+sdkwork-memory-standalone-gateway = { path = "crates/sdkwork-memory-standalone-gateway" }
 
 sdkwork-iam-web-adapter = { path = "../sdkwork-iam/crates/sdkwork-iam-web-adapter" }
 sdkwork-routes-iam-app-api = { path = "../sdkwork-iam/crates/sdkwork-routes-iam-app-api" }
@@ -69,4 +70,5 @@ sdkwork_database_lifecycle = { path = "../sdkwork-database/crates/sdkwork-databa
 sdkwork_database_spi = { path = "../sdkwork-database/crates/sdkwork-database-spi", package = "sdkwork-database-spi" }
 sdkwork_database_sqlx = { path = "../sdkwork-database/crates/sdkwork-database-sqlx", package = "sdkwork-database-sqlx" }
 sdkwork-id-core = { path = "../sdkwork-id/crates/sdkwork-id-core" }
+sdkwork-database-id = { path = "../sdkwork-database/crates/sdkwork-database-id", package = "sdkwork-database-id" }
 sdkwork-utils-rust = { path = "../sdkwork-utils/packages/sdkwork-utils-rust" }

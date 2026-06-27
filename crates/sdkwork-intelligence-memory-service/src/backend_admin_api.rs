@@ -35,7 +35,7 @@ impl OpenMemoryService {
     }
 
     fn page_size_from_query(query: &ListAdminResourcesQuery) -> i32 {
-        query.page_size.unwrap_or(20)
+        crate::platform::clamp_page_size(query.page_size)
     }
 
     fn parse_row_id(id: &str) -> MemoryServiceResult<u64> {

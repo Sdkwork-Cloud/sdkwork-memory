@@ -38,7 +38,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -48,7 +48,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -58,7 +58,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -68,7 +68,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -78,7 +78,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -138,7 +138,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -148,7 +148,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -158,7 +158,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -168,7 +168,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -178,7 +178,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -258,7 +258,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -268,7 +268,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -278,7 +278,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -288,7 +288,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -298,7 +298,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -398,7 +398,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -408,7 +408,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -418,7 +418,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -428,7 +428,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -438,7 +438,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -496,7 +496,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -506,7 +506,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -516,7 +516,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -526,7 +526,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -536,7 +536,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -616,7 +616,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -626,7 +626,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -636,7 +636,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -646,7 +646,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -656,7 +656,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -723,7 +723,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -733,7 +733,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -743,7 +743,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -753,7 +753,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -763,7 +763,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -834,7 +834,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -844,7 +844,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -854,7 +854,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -864,7 +864,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -874,7 +874,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -935,7 +935,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -945,7 +945,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -955,7 +955,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -965,7 +965,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -975,7 +975,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1045,7 +1045,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1055,7 +1055,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1065,7 +1065,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1075,7 +1075,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1085,7 +1085,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1145,7 +1145,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1155,7 +1155,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1165,7 +1165,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1175,7 +1175,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1185,7 +1185,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1255,7 +1255,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1265,7 +1265,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1275,7 +1275,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1285,7 +1285,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1295,7 +1295,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1355,7 +1355,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1365,7 +1365,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1375,7 +1375,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1385,7 +1385,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1395,7 +1395,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1466,7 +1466,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1476,7 +1476,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1486,7 +1486,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1496,7 +1496,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1506,7 +1506,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1600,7 +1600,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1610,7 +1610,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1620,7 +1620,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1630,7 +1630,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1640,7 +1640,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1699,7 +1699,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1709,7 +1709,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1719,7 +1719,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1729,7 +1729,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1739,7 +1739,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1787,7 +1787,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1797,7 +1797,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1807,7 +1807,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1817,7 +1817,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1827,7 +1827,7 @@
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -1855,7 +1855,7 @@
   },
   "components": {
     "schemas": {
-      "ProblemDetails": {
+      "ProblemDetail": {
         "type": "object",
         "required": [
           "type",
@@ -3294,7 +3294,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "x-sdkwork-sensitive": true
           }
         }
       },
@@ -3405,7 +3406,8 @@
         ],
         "properties": {
           "query": {
-            "type": "string"
+            "type": "string",
+            "x-sdkwork-sensitive": true
           },
           "spaceIds": {
             "type": "array",
@@ -3626,24 +3628,6 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
-          }
-        }
-      },
-      "MemoryRetrievalTraceList": {
-        "type": "object",
-        "required": [
-          "items",
-          "pageInfo"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MemoryRetrievalTrace"
-            }
-          },
-          "pageInfo": {
-            "$ref": "#/components/schemas/MemoryPageInfo"
           }
         }
       },
@@ -3888,7 +3872,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "x-sdkwork-sensitive": true
           },
           "metadata": {
             "anyOf": [
@@ -4007,10 +3992,12 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "x-sdkwork-sensitive": true
           },
           "reason": {
-            "type": "string"
+            "type": "string",
+            "x-sdkwork-sensitive": true
           },
           "metadata": {
             "anyOf": [
@@ -4115,7 +4102,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "x-sdkwork-sensitive": true
           }
         }
       },
@@ -4258,558 +4246,6 @@
           }
         }
       },
-      "MemoryIndex": {
-        "type": "object",
-        "required": [
-          "indexId",
-          "indexKind",
-          "schemaVersion",
-          "status",
-          "createdAt",
-          "updatedAt",
-          "version"
-        ],
-        "properties": {
-          "indexId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
-          "spaceId": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[0-9]+$",
-                "x-sdkwork-int64-string": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "indexKind": {
-            "type": "string",
-            "enum": [
-              "sql",
-              "keyword",
-              "dictionary",
-              "time",
-              "event",
-              "vector",
-              "graph",
-              "grep_file",
-              "custom"
-            ]
-          },
-          "implementationProfileId": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[0-9]+$",
-                "x-sdkwork-int64-string": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "providerBindingId": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[0-9]+$",
-                "x-sdkwork-int64-string": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "schemaVersion": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "config": {
-            "anyOf": [
-              {
-                "type": "object",
-                "additionalProperties": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "lastRebuiltAt": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "version": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          }
-        }
-      },
-      "MemoryIndexRequest": {
-        "type": "object",
-        "required": [
-          "indexKind",
-          "schemaVersion"
-        ],
-        "properties": {
-          "spaceId": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[0-9]+$",
-                "x-sdkwork-int64-string": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "indexKind": {
-            "type": "string"
-          },
-          "implementationProfileId": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[0-9]+$",
-                "x-sdkwork-int64-string": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "providerBindingId": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[0-9]+$",
-                "x-sdkwork-int64-string": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "schemaVersion": {
-            "type": "string"
-          },
-          "config": {
-            "anyOf": [
-              {
-                "type": "object",
-                "additionalProperties": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "status": {
-            "type": "string"
-          },
-          "version": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[0-9]+$",
-                "x-sdkwork-int64-string": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        }
-      },
-      "MemoryIndexList": {
-        "type": "object",
-        "required": [
-          "items",
-          "pageInfo"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MemoryIndex"
-            }
-          },
-          "pageInfo": {
-            "$ref": "#/components/schemas/MemoryPageInfo"
-          }
-        }
-      },
-      "MemoryRetrievalProfile": {
-        "type": "object",
-        "required": [
-          "retrievalProfileId",
-          "name",
-          "strategy",
-          "retrievers",
-          "topK",
-          "contextBudgetTokens",
-          "status",
-          "createdAt",
-          "updatedAt",
-          "version"
-        ],
-        "properties": {
-          "retrievalProfileId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
-          "spaceId": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[0-9]+$",
-                "x-sdkwork-int64-string": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "name": {
-            "type": "string"
-          },
-          "strategy": {
-            "type": "string"
-          },
-          "retrievers": {
-            "type": "object",
-            "additionalProperties": true
-          },
-          "fusionPolicy": {
-            "anyOf": [
-              {
-                "type": "object",
-                "additionalProperties": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "rerankPolicy": {
-            "anyOf": [
-              {
-                "type": "object",
-                "additionalProperties": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "topK": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "contextBudgetTokens": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "status": {
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "version": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          }
-        }
-      },
-      "MemoryRetrievalProfileRequest": {
-        "type": "object",
-        "required": [
-          "name",
-          "strategy",
-          "retrievers",
-          "topK",
-          "contextBudgetTokens"
-        ],
-        "properties": {
-          "spaceId": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[0-9]+$",
-                "x-sdkwork-int64-string": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "name": {
-            "type": "string"
-          },
-          "strategy": {
-            "type": "string"
-          },
-          "retrievers": {
-            "type": "object",
-            "additionalProperties": true
-          },
-          "fusionPolicy": {
-            "anyOf": [
-              {
-                "type": "object",
-                "additionalProperties": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "rerankPolicy": {
-            "anyOf": [
-              {
-                "type": "object",
-                "additionalProperties": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "topK": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "contextBudgetTokens": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "status": {
-            "type": "string"
-          },
-          "version": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[0-9]+$",
-                "x-sdkwork-int64-string": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        }
-      },
-      "MemoryRetrievalProfileList": {
-        "type": "object",
-        "required": [
-          "items",
-          "pageInfo"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MemoryRetrievalProfile"
-            }
-          },
-          "pageInfo": {
-            "$ref": "#/components/schemas/MemoryPageInfo"
-          }
-        }
-      },
-      "MemoryImplementationProfile": {
-        "type": "object",
-        "required": [
-          "implementationProfileId",
-          "name",
-          "implementationKind",
-          "role",
-          "status",
-          "capabilities",
-          "createdAt",
-          "updatedAt",
-          "version"
-        ],
-        "properties": {
-          "implementationProfileId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
-          "name": {
-            "type": "string"
-          },
-          "implementationKind": {
-            "type": "string",
-            "enum": [
-              "native_sql",
-              "event_sourced",
-              "graph_temporal",
-              "search_first",
-              "local_embedded",
-              "external_provider_bridge",
-              "hybrid_platform"
-            ]
-          },
-          "role": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "capabilities": {
-            "type": "object",
-            "additionalProperties": true
-          },
-          "config": {
-            "anyOf": [
-              {
-                "type": "object",
-                "additionalProperties": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "rollout": {
-            "anyOf": [
-              {
-                "type": "object",
-                "additionalProperties": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "version": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          }
-        }
-      },
-      "MemoryImplementationProfileRequest": {
-        "type": "object",
-        "required": [
-          "name",
-          "implementationKind",
-          "role",
-          "capabilities"
-        ],
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "implementationKind": {
-            "type": "string"
-          },
-          "role": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "capabilities": {
-            "type": "object",
-            "additionalProperties": true
-          },
-          "config": {
-            "anyOf": [
-              {
-                "type": "object",
-                "additionalProperties": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "rollout": {
-            "anyOf": [
-              {
-                "type": "object",
-                "additionalProperties": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "version": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[0-9]+$",
-                "x-sdkwork-int64-string": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        }
-      },
-      "MemoryImplementationProfileList": {
-        "type": "object",
-        "required": [
-          "items",
-          "pageInfo"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MemoryImplementationProfile"
-            }
-          },
-          "pageInfo": {
-            "$ref": "#/components/schemas/MemoryPageInfo"
-          }
-        }
-      },
       "MemoryProviderBinding": {
         "type": "object",
         "required": [
@@ -4909,104 +4345,6 @@
             "type": "string",
             "pattern": "^[0-9]+$",
             "x-sdkwork-int64-string": true
-          }
-        }
-      },
-      "MemoryProviderBindingRequest": {
-        "type": "object",
-        "required": [
-          "providerKind",
-          "providerCode",
-          "displayName",
-          "capabilities"
-        ],
-        "properties": {
-          "providerKind": {
-            "type": "string"
-          },
-          "providerCode": {
-            "type": "string"
-          },
-          "displayName": {
-            "type": "string"
-          },
-          "endpointRef": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "secretRef": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "modelRef": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "capabilities": {
-            "type": "object",
-            "additionalProperties": true
-          },
-          "config": {
-            "anyOf": [
-              {
-                "type": "object",
-                "additionalProperties": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "healthState": {
-            "type": "string"
-          },
-          "version": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[0-9]+$",
-                "x-sdkwork-int64-string": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        }
-      },
-      "MemoryProviderBindingList": {
-        "type": "object",
-        "required": [
-          "items",
-          "pageInfo"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MemoryProviderBinding"
-            }
-          },
-          "pageInfo": {
-            "$ref": "#/components/schemas/MemoryPageInfo"
           }
         }
       },
@@ -5122,274 +4460,6 @@
                 "type": "null"
               }
             ]
-          }
-        }
-      },
-      "MemoryEvalRun": {
-        "type": "object",
-        "required": [
-          "evalRunId",
-          "evalType",
-          "state",
-          "createdAt",
-          "updatedAt"
-        ],
-        "properties": {
-          "evalRunId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
-          "evalType": {
-            "type": "string"
-          },
-          "state": {
-            "type": "string"
-          },
-          "datasetRef": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "profileRef": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "metrics": {
-            "anyOf": [
-              {
-                "type": "object",
-                "additionalProperties": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "result": {
-            "anyOf": [
-              {
-                "type": "object",
-                "additionalProperties": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "startedAt": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "finishedAt": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "MemoryEvalRunRequest": {
-        "type": "object",
-        "required": [
-          "evalType"
-        ],
-        "properties": {
-          "evalType": {
-            "type": "string"
-          },
-          "datasetRef": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "profileRef": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "config": {
-            "anyOf": [
-              {
-                "type": "object",
-                "additionalProperties": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        }
-      },
-      "MemoryEvalRunList": {
-        "type": "object",
-        "required": [
-          "items",
-          "pageInfo"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MemoryEvalRun"
-            }
-          },
-          "pageInfo": {
-            "$ref": "#/components/schemas/MemoryPageInfo"
-          }
-        }
-      },
-      "MemoryAuditLog": {
-        "type": "object",
-        "required": [
-          "auditLogId",
-          "actorType",
-          "action",
-          "resourceType",
-          "result",
-          "createdAt"
-        ],
-        "properties": {
-          "auditLogId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
-          "actorType": {
-            "type": "string"
-          },
-          "actorId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "action": {
-            "type": "string"
-          },
-          "resourceType": {
-            "type": "string"
-          },
-          "resourceId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "requestId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "traceId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "result": {
-            "type": "string"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "metadata": {
-            "anyOf": [
-              {
-                "type": "object",
-                "additionalProperties": true
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "MemoryAuditLogList": {
-        "type": "object",
-        "required": [
-          "items",
-          "pageInfo"
-        ],
-        "properties": {
-          "items": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MemoryAuditLog"
-            }
-          },
-          "pageInfo": {
-            "$ref": "#/components/schemas/MemoryPageInfo"
           }
         }
       },

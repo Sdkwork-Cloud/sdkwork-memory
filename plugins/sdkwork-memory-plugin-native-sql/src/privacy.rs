@@ -333,7 +333,7 @@ impl NativeSqlMemoryStore {
                         &event_rows[..]
                     };
                     for row in batch {
-                        events.push(Self::map_export_event(&row));
+                        events.push(Self::map_export_event(row));
                     }
                     if !has_more {
                         break;

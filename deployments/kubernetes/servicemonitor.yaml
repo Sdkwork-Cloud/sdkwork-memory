@@ -1,16 +1,16 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  name: sdkwork-memory-api-server
+  name: sdkwork-memory-standalone-gateway
   labels:
     app.kubernetes.io/name: sdkwork-memory
-    app.kubernetes.io/component: api-server
+    app.kubernetes.io/component: standalone-gateway
     app.kubernetes.io/part-of: sdkwork-memory
 spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: sdkwork-memory
-      app.kubernetes.io/component: api-server
+      app.kubernetes.io/component: standalone-gateway
   endpoints:
     - port: http
       path: /metrics

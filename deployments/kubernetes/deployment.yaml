@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: sdkwork-memory-api-server
+  name: sdkwork-memory-standalone-gateway
   labels:
     app.kubernetes.io/name: sdkwork-memory
-    app.kubernetes.io/component: api-server
+    app.kubernetes.io/component: standalone-gateway
     app.kubernetes.io/part-of: sdkwork-memory
 spec:
   replicas: 2
   selector:
     matchLabels:
       app.kubernetes.io/name: sdkwork-memory
-      app.kubernetes.io/component: api-server
+      app.kubernetes.io/component: standalone-gateway
   template:
     metadata:
       labels:
         app.kubernetes.io/name: sdkwork-memory
-        app.kubernetes.io/component: api-server
+        app.kubernetes.io/component: standalone-gateway
         app.kubernetes.io/part-of: sdkwork-memory
     spec:
       affinity:
@@ -27,7 +27,7 @@ spec:
                 labelSelector:
                   matchLabels:
                     app.kubernetes.io/name: sdkwork-memory
-                    app.kubernetes.io/component: api-server
+                    app.kubernetes.io/component: standalone-gateway
                 topologyKey: kubernetes.io/hostname
       topologySpreadConstraints:
         - maxSkew: 1
@@ -36,11 +36,12 @@ spec:
           labelSelector:
             matchLabels:
               app.kubernetes.io/name: sdkwork-memory
-              app.kubernetes.io/component: api-server
+              app.kubernetes.io/component: standalone-gateway
       containers:
-        - name: api-server
-          # Pin by digest in production: sdkwork-memory-api-server@sha256:<release-build-digest>
-          image: sdkwork-memory-api-server:latest
+        - name: standalone-gateway
+          # Pin by digest in production: replace <release-build-digest> with the actual sha256.
+          # Mutable :latest tags MUST NOT be used in production (per RELEASE_SPEC §4.1).
+          image: sdkwork-memory-standalone-gateway:latest@sha256:<release-build-digest>
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -63,12 +64,26 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
-            - name: SDKWORK_MEMORY_APPLICATION_PUBLIC_INGRESS_BIND
-              value: "0.0.0.0:8080"
-            - name: SDKWORK_MEMORY_SNOWFLAKE_NODE_ID
+            - name: HOSTNAME
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: SDKWORK_MEMORY_APPLICATION_PUBLIC_INGRESS_BIND
+              value: "0.0.0.0:8080"
+            # API rate limits (per-pod).
+            - name: SDKWORK_MEMORY_MAX_BODY_BYTES
+              value: "1048576"
+            - name: SDKWORK_MEMORY_MAX_CONCURRENCY
+              value: "256"
+            # Database connection pool tuning.
+            - name: SDKWORK_MEMORY_DB_MAX_CONNECTIONS
+              value: "20"
+            - name: SDKWORK_MEMORY_DB_MIN_CONNECTIONS
+              value: "5"
+            # SDKWORK_MEMORY_SNOWFLAKE_NODE_ID is intentionally NOT set here.
+            # The Memory service now uses database-backed node_id allocation
+            # via sdkwork_node_registry, which automatically assigns unique
+            # node IDs per pod. See DATABASE_SPEC §6.10.
             - name: SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE
               value: "false"
             - name: SDKWORK_MEMORY_DATABASE_URL
@@ -108,10 +123,20 @@ spec:
               memory: 1Gi
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
+            readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 10001
             capabilities:
               drop:
                 - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: app-tmp
+              mountPath: /app/tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: app-tmp
+          emptyDir: {}
       terminationGracePeriodSeconds: 30

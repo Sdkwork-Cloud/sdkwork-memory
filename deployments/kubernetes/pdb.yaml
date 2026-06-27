@@ -1,13 +1,13 @@
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: sdkwork-memory-api-server
+  name: sdkwork-memory-standalone-gateway
   labels:
     app.kubernetes.io/name: sdkwork-memory
-    app.kubernetes.io/component: api-server
+    app.kubernetes.io/component: standalone-gateway
 spec:
   minAvailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: sdkwork-memory
-      app.kubernetes.io/component: api-server
+      app.kubernetes.io/component: standalone-gateway

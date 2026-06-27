@@ -5,7 +5,7 @@
 
 **Goal:** Build the first executable SDKWork Memory SPI/plugin runtime layer so implementation profiles can compose provider-neutral ports without changing public Open API, App API, or Backend API contracts.
 
-**Architecture:** Start with static Rust plugin registration for 0.1.0. Keep `sdkwork-memory-spi` framework-neutral and provider-neutral, add a small `sdkwork-memory-runtime` resolver/registry, and create the first `sdkwork-memory-plugin-native-sql` manifest package as the no-embedding baseline. Dynamic loading, backend plugin-list APIs, and provider-specific bridges are deferred until native SQL conformance is real.
+**Architecture:** Start with static Rust plugin registration for 0.1.0. Keep `sdkwork-memory-spi` framework-neutral and provider-neutral, add a small `sdkwork-memory-profile-resolver` resolver/registry, and create the first `sdkwork-memory-plugin-native-sql` manifest package as the no-embedding baseline. Dynamic loading, backend plugin-list APIs, and provider-specific bridges are deferred until native SQL conformance is real.
 
 **Tech Stack:** Rust workspace, `serde`, `serde_json`, `thiserror`, `async-trait`, Node contract tests, PowerShell Phase 1 verification.
 
@@ -16,9 +16,9 @@
 - Agent rules: `AGENTS.md`
 - App identity: `sdkwork.app.config.json`
 - Component contract: `specs/component.spec.json`
-- Architecture design: `docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md`
-- Memory design: `docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md`
-- Existing MVP plan: `docs/superpowers/plans/2026-06-10-memory-open-api-and-no-embedding-mvp.md`
+- Architecture design: `docs/architecture/tech/TECH-2026-06-10-memory-spi-plugin-architecture-design.md`
+- Memory design: `docs/architecture/tech/TECH-2026-06-10-ai-memory-architecture-design.md`
+- Existing MVP plan: `docs/architecture/tech/TECH-2026-06-10-memory-open-api-and-no-embedding-mvp.md`
 - Root standards: `../sdkwork-specs/CODE_STYLE_SPEC.md`, `../sdkwork-specs/NAMING_SPEC.md`, `../sdkwork-specs/RUST_CODE_SPEC.md`, `../sdkwork-specs/TEST_SPEC.md`
 
 ## File Structure
@@ -33,10 +33,10 @@
 - Create: `crates/sdkwork-memory-spi/src/runtime.rs`
 - Create: `crates/sdkwork-memory-spi/tests/manifest_contract.rs`
 - Create: `crates/sdkwork-memory-spi/tests/registry_contract.rs`
-- Create: `crates/sdkwork-memory-runtime/Cargo.toml`
-- Create: `crates/sdkwork-memory-runtime/src/lib.rs`
-- Create: `crates/sdkwork-memory-runtime/src/profile.rs`
-- Create: `crates/sdkwork-memory-runtime/tests/profile_resolution_contract.rs`
+- Create: `crates/sdkwork-memory-profile-resolver/Cargo.toml`
+- Create: `crates/sdkwork-memory-profile-resolver/src/lib.rs`
+- Create: `crates/sdkwork-memory-profile-resolver/src/profile.rs`
+- Create: `crates/sdkwork-memory-profile-resolver/tests/profile_resolution_contract.rs`
 - Create: `crates/sdkwork-memory-test-support/Cargo.toml`
 - Create: `crates/sdkwork-memory-test-support/src/lib.rs`
 - Create: `plugins/sdkwork-memory-plugin-native-sql/Cargo.toml`
@@ -62,7 +62,7 @@
 
 **Files:**
 - Modify: `tests/contracts/spi_design_contract_test.mjs`
-- Modify: `docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md`
+- Modify: `docs/architecture/tech/TECH-2026-06-10-memory-spi-plugin-architecture-design.md`
 - Modify: `tools/materialize_phase1_contracts.mjs`
 - Generated: `tools/verify_phase1.ps1`
 
@@ -85,7 +85,7 @@ Static Rust registration
 local_embedded inside native_sql for 0.1.0
 JSON manifest plus Rust constant
 external bridge eval_only
-conformance stored in mem_eval_run initially
+conformance stored in ai_eval_run initially
 plugin-list backend API deferred
 native_sql first production target
 framework-neutral SPI crate
@@ -127,7 +127,7 @@ Expected: FAIL because no root `Cargo.toml` exists.
 
 - [ ] **Step 2: Add minimal workspace and SPI crate manifest**
 
-Create root `Cargo.toml` with `sdkwork-memory-spi`, `sdkwork-memory-runtime`, `sdkwork-memory-test-support`, and `plugins/sdkwork-memory-plugin-native-sql` as members. Use workspace dependencies for `async-trait`, `serde`, `serde_json`, and `thiserror`.
+Create root `Cargo.toml` with `sdkwork-memory-spi`, `sdkwork-memory-profile-resolver`, `sdkwork-memory-test-support`, and `plugins/sdkwork-memory-plugin-native-sql` as members. Use workspace dependencies for `async-trait`, `serde`, `serde_json`, and `thiserror`.
 
 - [ ] **Step 3: Add minimal `lib.rs` exports only**
 
@@ -322,10 +322,10 @@ Expected: PASS.
 ### Task 6: Runtime Profile Resolver
 
 **Files:**
-- Create: `crates/sdkwork-memory-runtime/Cargo.toml`
-- Create: `crates/sdkwork-memory-runtime/src/lib.rs`
-- Create: `crates/sdkwork-memory-runtime/src/profile.rs`
-- Test: `crates/sdkwork-memory-runtime/tests/profile_resolution_contract.rs`
+- Create: `crates/sdkwork-memory-profile-resolver/Cargo.toml`
+- Create: `crates/sdkwork-memory-profile-resolver/src/lib.rs`
+- Create: `crates/sdkwork-memory-profile-resolver/src/profile.rs`
+- Test: `crates/sdkwork-memory-profile-resolver/tests/profile_resolution_contract.rs`
 
 - [ ] **Step 1: Write failing profile resolver tests**
 
@@ -347,7 +347,7 @@ The resolver consumes `MemoryPluginRegistry` and a typed `MemoryImplementationPr
 Run:
 
 ```powershell
-cargo test -p sdkwork-memory-runtime --test profile_resolution_contract
+cargo test -p sdkwork-memory-profile-resolver --test profile_resolution_contract
 ```
 
 Expected: PASS.
@@ -457,7 +457,7 @@ Run:
 ```powershell
 cargo fmt --all
 cargo test -p sdkwork-memory-spi
-cargo test -p sdkwork-memory-runtime
+cargo test -p sdkwork-memory-profile-resolver
 cargo test -p sdkwork-memory-plugin-native-sql
 cargo test -p sdkwork-memory-test-support
 cargo test --workspace

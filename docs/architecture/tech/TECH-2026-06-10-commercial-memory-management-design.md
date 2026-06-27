@@ -19,8 +19,8 @@ The design focuses on the missing product capability called out by review:
 
 This document does not replace:
 
-- `docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md`
-- `docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md`
+- `docs/architecture/tech/TECH-2026-06-10-ai-memory-architecture-design.md`
+- `docs/architecture/tech/TECH-2026-06-10-memory-spi-plugin-architecture-design.md`
 - `../sdkwork-specs/API_SPEC.md`
 - `../sdkwork-specs/SDK_SPEC.md`
 - `../sdkwork-specs/WEB_BACKEND_SPEC.md`
@@ -35,11 +35,11 @@ Root SDKWork standards remain authoritative. This document narrows them for SDKW
 
 The current repository already has a strong Phase 1 base:
 
-- `mem_space` models memory namespaces with `owner_subject_type` and `owner_subject_id`.
-- `mem_record` models canonical memory facts and supports scope, user, subject, predicate, object, status, and supersession.
-- `mem_entity` and `mem_edge` model graph-compatible entities and relationships.
-- `mem_retrieval_profile`, `mem_retrieval_trace`, `mem_retrieval_hit`, and `mem_context_pack` model retrieval and context assembly.
-- `mem_implementation_profile`, `mem_provider_binding`, and `mem_policy` model implementation and provider governance.
+- `ai_space` models memory namespaces with `owner_subject_type` and `owner_subject_id`.
+- `ai_record` models canonical memory facts and supports scope, user, subject, predicate, object, status, and supersession.
+- `ai_entity` and `ai_edge` model graph-compatible entities and relationships.
+- `ai_retrieval_profile`, `ai_retrieval_trace`, `ai_retrieval_hit`, and `ai_context_pack` model retrieval and context assembly.
+- `ai_implementation_profile`, `ai_provider_binding`, and `ai_policy` model implementation and provider governance.
 - Open API exposes 17 operations.
 - App API exposes 33 operations.
 - Backend API exposes 41 operations.
@@ -50,7 +50,7 @@ The current gap is not the storage foundation. The gap is that memory relationsh
 - `MemorySpace.ownerSubjectType/ownerSubjectId` can identify an owner but does not express all attachment roles.
 - `MemoryRecord.scope/userId/subject/predicate/objectText` can model facts but is not a first-class binding contract.
 - `MemoryRetrievalRequest.filters` can pass flexible constraints but is not an auditable relationship contract.
-- `mem_entity` and `mem_edge` exist in schema registry but are not first-class API resources.
+- `ai_entity` and `ai_edge` exist in schema registry but are not first-class API resources.
 - There is no dedicated API resource for attaching memory capabilities to a user, agent, entity, space, or business object.
 - There is no backend readiness endpoint that proves commercial management coverage.
 
@@ -77,7 +77,7 @@ The commercial target is L3 for management, privacy, tenant isolation, audit, an
 
 ### 4.1 Memory Records Stay Canonical
 
-`mem_record` remains the canonical durable memory fact. Attachment and capability records never replace canonical memory state.
+`ai_record` remains the canonical durable memory fact. Attachment and capability records never replace canonical memory state.
 
 Rules:
 
@@ -188,7 +188,7 @@ Rules:
 
 ### 5.2 MemoryEntity
 
-Exposes `mem_entity` as a first-class API resource.
+Exposes `ai_entity` as a first-class API resource.
 
 Fields:
 
@@ -214,7 +214,7 @@ Rules:
 
 ### 5.3 MemoryEdge
 
-Exposes `mem_edge` as a first-class API resource.
+Exposes `ai_edge` as a first-class API resource.
 
 Fields:
 
@@ -358,7 +358,7 @@ Rules:
 
 ### 5.6 MemoryPolicyAssignment
 
-Attaches a `mem_policy` row to a subject, space, entity, binding, capability binding, or implementation profile.
+Attaches a `ai_policy` row to a subject, space, entity, binding, capability binding, or implementation profile.
 
 Fields:
 
@@ -593,7 +593,7 @@ docs/schema-registry/tables/006-memory-commercial-management.yaml
 
 Recommended new tables:
 
-### 7.1 `mem_subject`
+### 7.1 `ai_subject`
 
 System of record for memory-management subject projections.
 
@@ -621,13 +621,13 @@ version
 Indexes:
 
 ```text
-uk_mem_subject_uuid (tenant_id, uuid)
-uk_mem_subject_ref (tenant_id, subject_type, subject_ref)
-idx_mem_subject_status (tenant_id, subject_type, status, updated_at)
-idx_mem_subject_space (tenant_id, default_space_id, status)
+uk_ai_subject_uuid (tenant_id, uuid)
+uk_ai_subject_ref (tenant_id, subject_type, subject_ref)
+idx_ai_subject_status (tenant_id, subject_type, status, updated_at)
+idx_ai_subject_space (tenant_id, default_space_id, status)
 ```
 
-### 7.2 `mem_memory_binding`
+### 7.2 `ai_memory_binding`
 
 System of record for memory attachment relationships.
 
@@ -672,16 +672,16 @@ version
 Indexes:
 
 ```text
-uk_mem_memory_binding_uuid (tenant_id, uuid)
-idx_mem_binding_source_subject (tenant_id, source_subject_id, binding_kind, status)
-idx_mem_binding_source_entity (tenant_id, source_entity_id, binding_kind, status)
-idx_mem_binding_target_memory (tenant_id, target_memory_id, binding_kind, status)
-idx_mem_binding_target_space (tenant_id, target_space_id, binding_kind, status)
-idx_mem_binding_external_source (tenant_id, source_external_ref_source, source_external_ref_type, source_external_ref_id)
-idx_mem_binding_validity (tenant_id, valid_from, valid_to, status)
+uk_ai_memory_binding_uuid (tenant_id, uuid)
+idx_ai_binding_source_subject (tenant_id, source_subject_id, binding_kind, status)
+idx_ai_binding_source_entity (tenant_id, source_entity_id, binding_kind, status)
+idx_ai_binding_target_memory (tenant_id, target_memory_id, binding_kind, status)
+idx_ai_binding_target_space (tenant_id, target_space_id, binding_kind, status)
+idx_ai_binding_external_source (tenant_id, source_external_ref_source, source_external_ref_type, source_external_ref_id)
+idx_ai_binding_validity (tenant_id, valid_from, valid_to, status)
 ```
 
-### 7.3 `mem_capability_binding`
+### 7.3 `ai_capability_binding`
 
 System of record for capability enablement and routing.
 
@@ -714,15 +714,15 @@ version
 Indexes:
 
 ```text
-uk_mem_capability_binding_uuid (tenant_id, uuid)
-idx_mem_capability_target (tenant_id, target_type, target_id, capability_code, status)
-idx_mem_capability_priority (tenant_id, capability_code, mode, priority)
-idx_mem_capability_validity (tenant_id, valid_from, valid_to, status)
+uk_ai_capability_binding_uuid (tenant_id, uuid)
+idx_ai_capability_target (tenant_id, target_type, target_id, capability_code, status)
+idx_ai_capability_priority (tenant_id, capability_code, mode, priority)
+idx_ai_capability_validity (tenant_id, valid_from, valid_to, status)
 ```
 
-### 7.4 `mem_policy_assignment`
+### 7.4 `ai_policy_assignment`
 
-System of record for attaching `mem_policy` to a target.
+System of record for attaching `ai_policy` to a target.
 
 Key columns:
 
@@ -749,13 +749,13 @@ version
 Indexes:
 
 ```text
-uk_mem_policy_assignment_uuid (tenant_id, uuid)
-idx_mem_policy_assignment_target (tenant_id, target_type, target_id, status, priority)
-idx_mem_policy_assignment_policy (tenant_id, policy_id, status)
-idx_mem_policy_assignment_validity (tenant_id, valid_from, valid_to, status)
+uk_ai_policy_assignment_uuid (tenant_id, uuid)
+idx_ai_policy_assignment_target (tenant_id, target_type, target_id, status, priority)
+idx_ai_policy_assignment_policy (tenant_id, policy_id, status)
+idx_ai_policy_assignment_validity (tenant_id, valid_from, valid_to, status)
 ```
 
-### 7.5 `mem_relation_rebuild_job`
+### 7.5 `ai_relation_rebuild_job`
 
 Rebuilds subject, entity, edge, binding, and capability projections.
 
@@ -780,7 +780,7 @@ updated_at
 version
 ```
 
-### 7.6 `mem_commercial_readiness_snapshot`
+### 7.6 `ai_commercial_readiness_snapshot`
 
 Read model for backend rollout readiness.
 
@@ -911,7 +911,7 @@ request
 
 Rules:
 
-- Explicit remember requests may create both `mem_record` and `mem_memory_binding`.
+- Explicit remember requests may create both `ai_record` and `ai_memory_binding`.
 - Imported memory may create external shadow bindings.
 - Corrections should supersede memory and update bindings rather than mutate history silently.
 - Deletion must suppress bindings and index entries before a memory can be considered unavailable.
@@ -1147,14 +1147,14 @@ They must not block the contract-first commercial memory management layer.
 
 ## 15. Acceptance Checklist
 
-- [ ] Subject, entity, edge, binding, capability binding, policy assignment, relation rebuild, and readiness resources are defined.
+- [ ] Subject, entity, edge, binding, capability binding, policy assignment, relation rebuild, and readiness resources are defined. (Subject, binding, capability binding: done. Entity, edge, policy assignment, relation rebuild, readiness: pending.)
 - [ ] Open API additions are API-key protected and avoid backend-only operations.
 - [ ] App API additions support user and agent memory management without backend SDK leakage.
-- [ ] Backend API additions support full tenant/admin governance.
-- [ ] Schema additions avoid generic EAV for high-frequency access paths.
-- [ ] Permissions and audit events are stable and dotted.
-- [ ] Binding resolver and capability resolver are explicit service boundaries.
-- [ ] Retrieval rechecks canonical record, binding, policy, and capability state after derived index hits.
+- [x] Backend API additions support full tenant/admin governance.
+- [x] Schema additions avoid generic EAV for high-frequency access paths.
+- [x] Permissions and audit events are stable and dotted.
+- [x] Binding resolver and capability resolver are explicit service boundaries.
+- [x] Retrieval rechecks canonical record, binding, policy, and capability state after derived index hits. (Capability check is integrated pre-retrieval; post-hit recheck is pending.)
 - [ ] Deletion and forget flows suppress bindings and indexes.
 - [ ] SDK resource method shape remains resource-oriented.
 - [ ] Verification commands and runtime tests prove commercial readiness before release.

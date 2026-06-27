@@ -16,9 +16,10 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: db-migrate
-          image: sdkwork-memory-api-server:latest
+          # Pin by digest in production: replace <release-build-digest> with the actual sha256.
+          image: sdkwork-memory-standalone-gateway:latest@sha256:<release-build-digest>
           imagePullPolicy: IfNotPresent
-          command: ["/usr/local/bin/sdkwork-memory-api-server", "db-migrate"]
+          command: ["/usr/local/bin/sdkwork-memory-standalone-gateway", "db-migrate"]
           env:
             - name: SDKWORK_MEMORY_APP_ROOT
               value: /app
@@ -38,3 +39,11 @@ spec:
             limits:
               cpu: "1"
               memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - ALL

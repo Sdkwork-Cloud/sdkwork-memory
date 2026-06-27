@@ -348,7 +348,7 @@ impl MemoryAppApi for OpenMemoryService {
         query: ListSpacesQuery,
     ) -> MemoryServiceResult<MemorySpaceList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let page_size = query.page_size.unwrap_or(20);
+        let page_size = crate::platform::clamp_page_size(query.page_size);
         let cursor_space_id = query
             .cursor
             .as_deref()
@@ -584,7 +584,7 @@ impl MemoryAppApi for OpenMemoryService {
         )
         .await?;
 
-        let page_size = query.page_size.unwrap_or(20);
+        let page_size = crate::platform::clamp_page_size(query.page_size);
         let rows = self
             .store
             .list_record_sources_for_memory(
@@ -985,7 +985,7 @@ impl MemoryAppApi for OpenMemoryService {
             space_id,
         )
         .await?;
-        let page_size = query.page_size.unwrap_or(20);
+        let page_size = crate::platform::clamp_page_size(query.page_size);
         let rows = self
             .store
             .list_candidates_for_tenant(
@@ -1164,7 +1164,7 @@ impl MemoryAppApi for OpenMemoryService {
             space_id,
         )
         .await?;
-        let page_size = query.page_size.unwrap_or(20);
+        let page_size = crate::platform::clamp_page_size(query.page_size);
         let rows = self
             .store
             .list_habits_for_tenant(
@@ -1371,7 +1371,7 @@ impl MemoryBackendApi for OpenMemoryService {
         query: ListSpacesQuery,
     ) -> MemoryServiceResult<MemorySpaceList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let page_size = query.page_size.unwrap_or(20);
+        let page_size = crate::platform::clamp_page_size(query.page_size);
         let cursor_space_id = query
             .cursor
             .as_deref()
@@ -1483,7 +1483,7 @@ impl MemoryBackendApi for OpenMemoryService {
         query: ListEventsQuery,
     ) -> MemoryServiceResult<MemoryEventList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let page_size = query.page_size.unwrap_or(20);
+        let page_size = crate::platform::clamp_page_size(query.page_size);
         let rows = self
             .store
             .list_open_api_events_for_tenant(
@@ -1532,7 +1532,7 @@ impl MemoryBackendApi for OpenMemoryService {
         query: ListCandidatesQuery,
     ) -> MemoryServiceResult<MemoryCandidateList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let page_size = query.page_size.unwrap_or(20);
+        let page_size = crate::platform::clamp_page_size(query.page_size);
         let rows = self
             .store
             .list_candidates_for_tenant(
@@ -1639,7 +1639,7 @@ impl MemoryBackendApi for OpenMemoryService {
         query: ListRetrievalTracesQuery,
     ) -> MemoryServiceResult<MemoryRetrievalTraceList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let page_size = query.page_size.unwrap_or(20);
+        let page_size = crate::platform::clamp_page_size(query.page_size);
         let rows = self
             .store
             .list_retrieval_traces_for_tenant(
@@ -1698,7 +1698,7 @@ impl MemoryBackendApi for OpenMemoryService {
         query: ListAuditLogsQuery,
     ) -> MemoryServiceResult<MemoryAuditLogList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let page_size = query.page_size.unwrap_or(20);
+        let page_size = crate::platform::clamp_page_size(query.page_size);
         let rows = self
             .store
             .list_audit_logs_for_tenant(
@@ -1950,8 +1950,8 @@ impl MemoryBackendApi for OpenMemoryService {
 fn map_audit_log(row: NativeSqlAuditLogRow) -> MemoryAuditLog {
     MemoryAuditLog {
         audit_log_id: row.audit_id.parse().unwrap_or(0),
-        actor_type: "system".to_string(),
-        actor_id: None,
+        actor_type: row.actor_type,
+        actor_id: row.actor_id,
         action: row.action,
         resource_type: row.resource_type,
         resource_id: Some(row.resource_id),

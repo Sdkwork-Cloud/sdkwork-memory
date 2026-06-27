@@ -32,3 +32,34 @@ pub const AUDIT_LOGS: &str = "/backend/v3/api/memory/audit_logs";
 pub const RETENTION_JOBS: &str = "/backend/v3/api/memory/retention_jobs";
 pub const MIGRATION_JOBS: &str = "/backend/v3/api/memory/migration_jobs";
 pub const MIGRATION_JOB: &str = "/backend/v3/api/memory/migration_jobs/{migrationJobId}";
+
+// Commercial management paths.
+pub const SUBJECTS: &str = "/backend/v3/api/memory/subjects";
+pub const SUBJECT: &str = "/backend/v3/api/memory/subjects/{subjectId}";
+pub const BINDINGS: &str = "/backend/v3/api/memory/bindings";
+pub const BINDING: &str = "/backend/v3/api/memory/bindings/{bindingId}";
+pub const CAPABILITY_BINDINGS: &str = "/backend/v3/api/memory/capability_bindings";
+pub const CAPABILITY_BINDING: &str =
+    "/backend/v3/api/memory/capability_bindings/{capabilityBindingId}";
+pub const CAPABILITIES_RESOLVE: &str = "/backend/v3/api/memory/capabilities/resolve";
+pub const COMMERCIAL_READINESS: &str = "/backend/v3/api/memory/commercial_readiness";
+pub const COMMERCIAL_READINESS_REBUILD: &str =
+    "/backend/v3/api/memory/commercial_readiness/rebuild";
+
+// Planned commercial management paths (stubs return 501 Not Implemented).
+pub const BINDINGS_BULK_DELETE: &str = "/backend/v3/api/memory/bindings/bulk_delete";
+pub const BINDINGS_BULK_UPSERT: &str = "/backend/v3/api/memory/bindings/bulk_upsert";
+pub const BINDINGS_RESOLVE: &str = "/backend/v3/api/memory/bindings/resolve";
+pub const SUBJECT_EFFECTIVE_CAPABILITIES: &str =
+    "/backend/v3/api/memory/subjects/{subjectId}/effective_capabilities";
+pub const SUBJECT_EFFECTIVE_POLICIES: &str =
+    "/backend/v3/api/memory/subjects/{subjectId}/effective_policies";
+pub const ENTITIES: &str = "/backend/v3/api/memory/entities";
+pub const ENTITY: &str = "/backend/v3/api/memory/entities/{entityId}";
+pub const ENTITY_MERGE: &str = "/backend/v3/api/memory/entities/{entityId}/merge";
+pub const EDGES: &str = "/backend/v3/api/memory/edges";
+pub const EDGE: &str = "/backend/v3/api/memory/edges/{edgeId}";
+pub const POLICY_ASSIGNMENTS: &str = "/backend/v3/api/memory/policy_assignments";
+pub const POLICY_ASSIGNMENT: &str = "/backend/v3/api/memory/policy_assignments/{policyAssignmentId}";
+pub const RELATION_REBUILD_JOBS: &str = "/backend/v3/api/memory/relation_rebuild_jobs";
+pub const RELATION_REBUILD_JOB: &str = "/backend/v3/api/memory/relation_rebuild_jobs/{jobId}";

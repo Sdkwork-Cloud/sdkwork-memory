@@ -1038,6 +1038,13 @@ async fn sqlite_store_outbox_delivery_failure_requeues_until_max_retries() {
     assert_eq!(first_failure.publish_state, "pending");
     assert_eq!(first_failure.retry_count, 1);
 
+    // Exponential backoff prevents immediate re-claim after failure.
+    // Fast-forward the updated_at timestamp so the backoff window has elapsed.
+    sqlx::query("UPDATE ai_outbox_event SET updated_at = datetime('now', '-10 seconds') WHERE uuid = 'out-retry'")
+        .execute(store.pool())
+        .await
+        .unwrap();
+
     let reclaimed = store.claim_global_pending_outbox_events(10).await.unwrap();
     assert_eq!(reclaimed.len(), 1);
     let terminal_failure = store
@@ -1047,6 +1054,12 @@ async fn sqlite_store_outbox_delivery_failure_requeues_until_max_retries() {
         .expect("second failure row");
     assert_eq!(terminal_failure.publish_state, "pending");
     assert_eq!(terminal_failure.retry_count, 2);
+
+    // Fast-forward again for the second retry's backoff window.
+    sqlx::query("UPDATE ai_outbox_event SET updated_at = datetime('now', '-10 seconds') WHERE uuid = 'out-retry'")
+        .execute(store.pool())
+        .await
+        .unwrap();
 
     store.claim_global_pending_outbox_events(10).await.unwrap();
     let failed = store

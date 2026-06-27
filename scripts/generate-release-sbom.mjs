@@ -45,12 +45,12 @@ const sbom = {
 const sbomPath = join(outDir, "sbom.spdx.json");
 writeFileSync(sbomPath, `${JSON.stringify(sbom, null, 2)}\n`, "utf8");
 
-const binaryPath = join(root, "target", "release", "sdkwork-memory-api-server.exe");
-const unixReleaseBinary = join(root, "target", "release", "sdkwork-memory-api-server");
-const unixDebugBinary = join(root, "target", "debug", "sdkwork-memory-api-server");
-const winDebugBinary = join(root, "target", "debug", "sdkwork-memory-api-server.exe");
+const binaryPath = join(root, "target", "release", "sdkwork-memory-standalone-gateway.exe");
+const unixReleaseBinary = join(root, "target", "release", "sdkwork-memory-standalone-gateway");
+const unixDebugBinary = join(root, "target", "debug", "sdkwork-memory-standalone-gateway");
+const winDebugBinary = join(root, "target", "debug", "sdkwork-memory-standalone-gateway.exe");
 let checksumSource = null;
-let checksumPathLabel = "target/release/sdkwork-memory-api-server";
+let checksumPathLabel = "target/release/sdkwork-memory-standalone-gateway";
 for (const candidate of [
   binaryPath,
   unixReleaseBinary,
@@ -67,7 +67,7 @@ for (const candidate of [
 }
 if (!checksumSource) {
   throw new Error(
-    "No sdkwork-memory-api-server binary found; run `cargo build -p sdkwork-memory-api-server` first",
+    "No sdkwork-memory-standalone-gateway binary found; run `cargo build -p sdkwork-memory-standalone-gateway` first",
   );
 }
 

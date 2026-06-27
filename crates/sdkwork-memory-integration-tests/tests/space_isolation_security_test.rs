@@ -2,7 +2,7 @@ use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
 use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
 use sdkwork_intelligence_memory_service::OpenMemoryService;
-use sdkwork_memory_plugin_native_sql::{NativeSqlCreateSpaceCommand, NativeSqlMemoryStore};
+use sdkwork_memory_plugin_native_sql::NativeSqlCreateSpaceCommand;
 use sdkwork_memory_spi::{CreateMemoryCandidateCommand, MemoryCandidateStorePort, MemoryScopeContext};
 use sdkwork_routes_memory_app_api::{
     build_router_with_app_api, wrap_router_with_iam_database_web_framework,

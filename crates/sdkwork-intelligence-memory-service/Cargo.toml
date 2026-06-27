@@ -12,11 +12,13 @@ tracing.workspace = true
 tokio.workspace = true
 sdkwork-memory-spi.workspace = true
 sdkwork-memory-contract.workspace = true
-sdkwork-memory-core.workspace = true
+sdkwork-memory-retrieval.workspace = true
 sdkwork-memory-plugin-native-sql.workspace = true
-sdkwork-id-core.workspace = true
+sdkwork-database-id.workspace = true
 sdkwork-utils-rust.workspace = true
 reqwest.workspace = true
+regex = "1"
+url = "2"
 
 [dev-dependencies]
 tokio.workspace = true

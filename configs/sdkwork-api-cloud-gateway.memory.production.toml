@@ -72,9 +72,9 @@ accessLogEnabled = true
 auditLogEnabled = true
 accessLogSampleRateBasisPoints = 10000
 auditLogSampleRateBasisPoints = 10000
-metricsEnabled = false
+metricsEnabled = true
 metricsPath = "/metrics"
-tracingEnabled = false
+tracingEnabled = true
 redactHeaders = ["authorization", "access-token", "cookie", "x-api-key", "set-cookie"]
 
 [diagnostics]
@@ -93,14 +93,14 @@ rejectCredentialHeadersOnAnonymousAuthRoutes = true
 csrfGuardEnabled = false
 
 [security.waf]
-enabled = false
-mode = "monitor"
+enabled = true
+mode = "enforce"
 inspectQuery = true
 inspectHeaders = true
-inspectJsonBody = false
+inspectJsonBody = true
 
 [traffic]
-rateLimitEnabled = false
+rateLimitEnabled = true
 compatXRateLimitHeaders = true
 globalMaxInFlight = 1024
 rateLimits = []

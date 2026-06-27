@@ -21,8 +21,16 @@ const mappings = [
     target: "0002_memory_phase1_indexes.up.sql",
   },
   {
-    source: "V202606230001__ai_tenant_preference.sql",
+    source: "V202606230001__mem_tenant_preference.sql",
     target: "0003_ai_tenant_preference.up.sql",
+  },
+  {
+    source: "V202606240001__ai_learning_job.sql",
+    target: "0004_ai_learning_job.up.sql",
+  },
+  {
+    source: "V202606240002__ai_record_fulltext_search.sql",
+    target: "0005_ai_record_fulltext_search.up.sql",
   },
 ];
 

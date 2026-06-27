@@ -1,0 +1,11 @@
+[package]
+name = "sdkwork-memory-retrieval"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sdkwork-memory-contract.workspace = true
+sdkwork-utils-rust = { path = "../../../sdkwork-utils/packages/sdkwork-utils-rust" }

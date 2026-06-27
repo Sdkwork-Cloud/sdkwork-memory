@@ -74,6 +74,13 @@ fn concrete_uri(template_path: &str) -> String {
         .replace("{retrievalTraceId}", "1")
         .replace("{migrationJobId}", "1")
         .replace("{retentionJobId}", "1")
+        .replace("{subjectId}", "1")
+        .replace("{bindingId}", "1")
+        .replace("{capabilityBindingId}", "1")
+        .replace("{entityId}", "1")
+        .replace("{edgeId}", "1")
+        .replace("{policyAssignmentId}", "1")
+        .replace("{jobId}", "1")
 }
 
 fn request_body(_operation_id: &str) -> &'static str {

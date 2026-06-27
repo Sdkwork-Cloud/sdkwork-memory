@@ -10,6 +10,7 @@ pub struct MemoryDomainMetrics {
     outbox_published_total: AtomicU64,
     outbox_publish_failed_total: AtomicU64,
     outbox_delivery_failed_total: AtomicU64,
+    outbox_dead_letter_total: AtomicU64,
     serving: AtomicU64,
 }
 
@@ -22,6 +23,7 @@ impl MemoryDomainMetrics {
             outbox_published_total: AtomicU64::new(0),
             outbox_publish_failed_total: AtomicU64::new(0),
             outbox_delivery_failed_total: AtomicU64::new(0),
+            outbox_dead_letter_total: AtomicU64::new(0),
             serving: AtomicU64::new(1),
         }
     }
@@ -48,6 +50,10 @@ impl MemoryDomainMetrics {
 
     pub fn record_outbox_delivery_failed(&self) {
         self.outbox_delivery_failed_total.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn record_outbox_dead_letter(&self) {
+        self.outbox_dead_letter_total.fetch_add(1, Ordering::Relaxed);
     }
 
     pub fn set_serving(&self, serving: bool) {
@@ -84,6 +90,9 @@ impl MemoryDomainMetrics {
              # HELP memory_outbox_delivery_failed_total Memory domain outbox delivery or ack failures.\n\
              # TYPE memory_outbox_delivery_failed_total counter\n\
              memory_outbox_delivery_failed_total{{{labels}}} {}\n\
+             # HELP memory_outbox_dead_letter_total Memory outbox events moved to dead-letter (max retries exceeded).\n\
+             # TYPE memory_outbox_dead_letter_total counter\n\
+             memory_outbox_dead_letter_total{{{labels}}} {}\n\
              # HELP memory_health_status Memory service health (1=serving, 0=not serving).\n\
              # TYPE memory_health_status gauge\n\
              memory_health_status{{{labels}}} {}\n",
@@ -93,6 +102,7 @@ impl MemoryDomainMetrics {
             self.outbox_published_total.load(Ordering::Relaxed),
             self.outbox_publish_failed_total.load(Ordering::Relaxed),
             self.outbox_delivery_failed_total.load(Ordering::Relaxed),
+            self.outbox_dead_letter_total.load(Ordering::Relaxed),
             self.serving.load(Ordering::Relaxed),
         )
     }
@@ -126,7 +136,7 @@ mod tests {
     fn prometheus_render_includes_quota_counter() {
         memory_domain_metrics().record_quota_exceeded();
         let rendered = render_memory_domain_prometheus(
-            "sdkwork-memory-api-server",
+            "sdkwork-memory-standalone-gateway",
             "test",
             "standalone",
             "server",

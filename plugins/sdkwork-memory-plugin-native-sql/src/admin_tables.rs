@@ -104,6 +104,7 @@ impl NativeSqlMemoryStore {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn insert_mem_index(
         &self,
         tenant_id: i64,
@@ -210,6 +211,7 @@ impl NativeSqlMemoryStore {
         Ok(row.map(map_index_row))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn update_mem_index_for_tenant(
         &self,
         tenant_id: i64,
@@ -260,6 +262,7 @@ impl NativeSqlMemoryStore {
             .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn ensure_default_retrieval_profile_for_tenant(
         &self,
         tenant_id: i64,
@@ -288,7 +291,8 @@ impl NativeSqlMemoryStore {
         Ok(())
     }
 
-    pub async fn insert_mem_retrieval_profile(
+    #[allow(clippy::too_many_arguments)]
+pub async fn insert_mem_retrieval_profile(
         &self,
         tenant_id: i64,
         profile_uuid: &str,
@@ -389,6 +393,7 @@ impl NativeSqlMemoryStore {
         Ok(row.map(map_retrieval_profile_row))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn update_mem_retrieval_profile_for_tenant(
         &self,
         tenant_id: i64,
@@ -477,7 +482,8 @@ impl NativeSqlMemoryStore {
         Ok(())
     }
 
-    pub async fn insert_mem_implementation_profile(
+    #[allow(clippy::too_many_arguments)]
+pub async fn insert_mem_implementation_profile(
         &self,
         tenant_id: i64,
         profile_uuid: &str,
@@ -573,7 +579,8 @@ impl NativeSqlMemoryStore {
         Ok(row.map(map_implementation_profile_row))
     }
 
-    pub async fn update_mem_implementation_profile_for_tenant(
+    #[allow(clippy::too_many_arguments)]
+pub async fn update_mem_implementation_profile_for_tenant(
         &self,
         tenant_id: i64,
         profile_uuid: &str,
@@ -631,7 +638,8 @@ impl NativeSqlMemoryStore {
             .await
     }
 
-    pub async fn insert_mem_provider_binding(
+    #[allow(clippy::too_many_arguments)]
+pub async fn insert_mem_provider_binding(
         &self,
         tenant_id: i64,
         binding_uuid: &str,
@@ -674,6 +682,25 @@ impl NativeSqlMemoryStore {
         .execute(self.pool())
         .await?;
         Ok(())
+    }
+
+    pub async fn list_distinct_tenant_ids_with_provider_bindings(
+        &self,
+    ) -> Result<Vec<i64>, NativeSqlStoreError> {
+        let rows = sqlx::query(
+            r#"
+            SELECT DISTINCT tenant_id
+            FROM ai_provider_binding
+            ORDER BY tenant_id ASC
+            "#,
+        )
+        .fetch_all(self.pool())
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| sqlx::Row::try_get::<i64, _>(&row, "tenant_id").unwrap_or(0))
+            .collect())
     }
 
     pub async fn list_mem_provider_bindings_for_tenant(
@@ -733,7 +760,8 @@ impl NativeSqlMemoryStore {
         Ok(row.map(map_provider_binding_row))
     }
 
-    pub async fn update_mem_provider_binding_for_tenant(
+    #[allow(clippy::too_many_arguments)]
+pub async fn update_mem_provider_binding_for_tenant(
         &self,
         tenant_id: i64,
         binding_uuid: &str,

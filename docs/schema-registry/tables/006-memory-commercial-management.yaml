@@ -1,0 +1,201 @@
+module: memory
+owner: sdkwork-memory
+domain: intelligence
+bounded_context: memory-commercial-management
+description: Commercial memory management contracts for subjects, bindings, capability bindings, policy assignments, relation rebuild jobs, and commercial readiness snapshots. These tables make memory relationships explicit, governable, and auditable.
+tables:
+  - table: ai_subject
+    domain: intelligence
+    profile: tenant_entity
+    compliance_level: L3
+    system_of_record: true
+    description: Memory-management subject projection referencing users, agents, organizations, apps, projects, sessions, entities, external integrations, and business objects.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: organization_id, type: bigint, nullable: true }
+      - { name: subject_type, type: varchar(32), constraints: ["enum: [user, agent, organization, app, project, session, entity, external, business_object]"] }
+      - { name: subject_ref, type: varchar(128), constraints: [required] }
+      - { name: display_name, type: varchar(200), constraints: [required] }
+      - { name: default_space_id, type: bigint, nullable: true, references: ai_space.id }
+      - { name: status, type: varchar(32), constraints: ["enum: [active, disabled, deleted]"] }
+      - { name: metadata_json, type: json, nullable: true }
+      - { name: created_by, type: bigint, nullable: true }
+      - { name: updated_by, type: bigint, nullable: true }
+      - { name: created_at, type: timestamp, constraints: [required] }
+      - { name: updated_at, type: timestamp, constraints: [required] }
+      - { name: deleted_at, type: timestamp, nullable: true }
+      - { name: version, type: bigint, constraints: [required, "min: 0"] }
+    indexes:
+      - { name: uk_ai_subject_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: uk_ai_subject_ref, unique: true, columns: [tenant_id, subject_type, subject_ref] }
+      - { name: idx_ai_subject_status, columns: [tenant_id, subject_type, status, updated_at] }
+      - { name: idx_ai_subject_space, columns: [tenant_id, default_space_id, status] }
+  - table: ai_memory_binding
+    domain: intelligence
+    profile: relation_entity
+    compliance_level: L3
+    system_of_record: true
+    description: Auditable relationship between subjects, spaces, entities, memories, and app-owned business objects. Drives binding resolution before retrieval orchestration.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: space_id, type: bigint, nullable: true, references: ai_space.id }
+      - { name: binding_kind, type: varchar(32), constraints: ["enum: [subject_space, subject_memory, subject_entity, entity_memory, entity_space, memory_memory, agent_space, agent_memory, business_object_memory, external_shadow]"] }
+      - { name: source_subject_id, type: bigint, nullable: true, references: ai_subject.id }
+      - { name: source_entity_id, type: bigint, nullable: true, references: ai_entity.id }
+      - { name: source_memory_id, type: bigint, nullable: true, references: ai_record.id }
+      - { name: source_external_ref_type, type: varchar(64), nullable: true }
+      - { name: source_external_ref_id, type: varchar(128), nullable: true }
+      - { name: source_external_ref_source, type: varchar(64), nullable: true }
+      - { name: target_subject_id, type: bigint, nullable: true, references: ai_subject.id }
+      - { name: target_entity_id, type: bigint, nullable: true, references: ai_entity.id }
+      - { name: target_memory_id, type: bigint, nullable: true, references: ai_record.id }
+      - { name: target_space_id, type: bigint, nullable: true, references: ai_space.id }
+      - { name: target_external_ref_type, type: varchar(64), nullable: true }
+      - { name: target_external_ref_id, type: varchar(128), nullable: true }
+      - { name: target_external_ref_source, type: varchar(64), nullable: true }
+      - { name: binding_role, type: varchar(32), constraints: ["enum: [owner, viewer, learner, retriever, context_source, evidence, correction, suppression, import_shadow]"] }
+      - { name: capability_codes_json, type: json, nullable: true }
+      - { name: retrieval_profile_id, type: bigint, nullable: true, references: ai_retrieval_profile.id }
+      - { name: policy_assignment_id, type: bigint, nullable: true }
+      - { name: strength, type: decimal(5,4), nullable: true }
+      - { name: valid_from, type: timestamp, nullable: true }
+      - { name: valid_to, type: timestamp, nullable: true }
+      - { name: status, type: varchar(32), constraints: ["enum: [active, disabled, expired, deleted]"] }
+      - { name: metadata_json, type: json, nullable: true }
+      - { name: created_by, type: bigint, nullable: true }
+      - { name: updated_by, type: bigint, nullable: true }
+      - { name: created_at, type: timestamp, constraints: [required] }
+      - { name: updated_at, type: timestamp, constraints: [required] }
+      - { name: deleted_at, type: timestamp, nullable: true }
+      - { name: version, type: bigint, constraints: [required, "min: 0"] }
+    indexes:
+      - { name: uk_ai_memory_binding_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_binding_source_subject, columns: [tenant_id, source_subject_id, binding_kind, status] }
+      - { name: idx_ai_binding_source_entity, columns: [tenant_id, source_entity_id, binding_kind, status] }
+      - { name: idx_ai_binding_target_memory, columns: [tenant_id, target_memory_id, binding_kind, status] }
+      - { name: idx_ai_binding_target_space, columns: [tenant_id, target_space_id, binding_kind, status] }
+      - { name: idx_ai_binding_external_source, columns: [tenant_id, source_external_ref_source, source_external_ref_type, source_external_ref_id] }
+      - { name: idx_ai_binding_validity, columns: [tenant_id, valid_from, valid_to, status] }
+  - table: ai_capability_binding
+    domain: intelligence
+    profile: relation_entity
+    compliance_level: L3
+    system_of_record: true
+    description: Attaches a memory capability (learn, retrieve, context_pack, habit, graph, export, delete, audit, migration, admin) to a subject, entity, space, binding, retrieval profile, or implementation profile.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: capability_code, type: varchar(32), constraints: ["enum: [learn, retrieve, context_pack, habit, graph, export, delete, audit, migration, admin]"] }
+      - { name: target_type, type: varchar(32), constraints: ["enum: [subject, entity, space, binding, retrieval_profile, implementation_profile]"] }
+      - { name: target_id, type: bigint, constraints: [required] }
+      - { name: mode, type: varchar(32), constraints: ["enum: [enabled, disabled, shadow, eval_only]"] }
+      - { name: priority, type: int32, constraints: [required, "min: 0"] }
+      - { name: retrieval_profile_id, type: bigint, nullable: true, references: ai_retrieval_profile.id }
+      - { name: implementation_profile_id, type: bigint, nullable: true, references: ai_implementation_profile.id }
+      - { name: policy_assignment_id, type: bigint, nullable: true }
+      - { name: status, type: varchar(32), constraints: ["enum: [active, disabled, deleted]"] }
+      - { name: valid_from, type: timestamp, nullable: true }
+      - { name: valid_to, type: timestamp, nullable: true }
+      - { name: metadata_json, type: json, nullable: true }
+      - { name: created_by, type: bigint, nullable: true }
+      - { name: updated_by, type: bigint, nullable: true }
+      - { name: created_at, type: timestamp, constraints: [required] }
+      - { name: updated_at, type: timestamp, constraints: [required] }
+      - { name: deleted_at, type: timestamp, nullable: true }
+      - { name: version, type: bigint, constraints: [required, "min: 0"] }
+    indexes:
+      - { name: uk_ai_capability_binding_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_capability_target, columns: [tenant_id, target_type, target_id, capability_code, status] }
+      - { name: idx_ai_capability_priority, columns: [tenant_id, capability_code, mode, priority] }
+      - { name: idx_ai_capability_validity, columns: [tenant_id, valid_from, valid_to, status] }
+  - table: ai_policy_assignment
+    domain: intelligence
+    profile: relation_entity
+    compliance_level: L3
+    system_of_record: true
+    description: Attaches an ai_policy row to a subject, space, entity, binding, capability binding, or implementation profile with inheritance and override semantics.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: policy_id, type: bigint, constraints: [required], references: ai_policy.id }
+      - { name: target_type, type: varchar(32), constraints: ["enum: [subject, entity, space, binding, capability_binding, retrieval_profile, implementation_profile]"] }
+      - { name: target_id, type: bigint, constraints: [required] }
+      - { name: priority, type: int32, constraints: [required, "min: 0"] }
+      - { name: inheritance_mode, type: varchar(32), constraints: ["enum: [inherit, override, deny, shadow]"] }
+      - { name: status, type: varchar(32), constraints: ["enum: [active, disabled, deleted]"] }
+      - { name: valid_from, type: timestamp, nullable: true }
+      - { name: valid_to, type: timestamp, nullable: true }
+      - { name: created_by, type: bigint, nullable: true }
+      - { name: updated_by, type: bigint, nullable: true }
+      - { name: created_at, type: timestamp, constraints: [required] }
+      - { name: updated_at, type: timestamp, constraints: [required] }
+      - { name: deleted_at, type: timestamp, nullable: true }
+      - { name: version, type: bigint, constraints: [required, "min: 0"] }
+    indexes:
+      - { name: uk_ai_policy_assignment_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_policy_assignment_target, columns: [tenant_id, target_type, target_id, status, priority] }
+      - { name: idx_ai_policy_assignment_policy, columns: [tenant_id, policy_id, status] }
+      - { name: idx_ai_policy_assignment_validity, columns: [tenant_id, valid_from, valid_to, status] }
+  - table: ai_relation_rebuild_job
+    domain: intelligence
+    profile: event_log
+    compliance_level: L2
+    system_of_record: true
+    description: Rebuild job for subject, entity, edge, binding, and capability projections after schema, import, or drift corrections.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: job_type, type: varchar(64), constraints: ["enum: [subject_rebuild, entity_rebuild, edge_rebuild, binding_rebuild, capability_rebuild, policy_rebuild, full_rebuild]"] }
+      - { name: state, type: varchar(32), constraints: ["enum: [queued, running, succeeded, failed, cancelled]"] }
+      - { name: scope_type, type: varchar(32), constraints: ["enum: [tenant, space, subject, entity, binding, global]"] }
+      - { name: scope_id, type: varchar(128), nullable: true }
+      - { name: idempotency_key, type: varchar(128), nullable: true }
+      - { name: input_json, type: json, nullable: true }
+      - { name: result_json, type: json, nullable: true }
+      - { name: error_json, type: json, nullable: true }
+      - { name: started_at, type: timestamp, nullable: true }
+      - { name: finished_at, type: timestamp, nullable: true }
+      - { name: created_at, type: timestamp, constraints: [required] }
+      - { name: updated_at, type: timestamp, constraints: [required] }
+      - { name: version, type: bigint, constraints: [required, "min: 0"] }
+    indexes:
+      - { name: uk_ai_relation_rebuild_job_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: uk_ai_relation_rebuild_job_idempotency, unique: true, columns: [tenant_id, idempotency_key], predicate: "idempotency_key IS NOT NULL" }
+      - { name: idx_ai_relation_rebuild_job_state, columns: [tenant_id, state, created_at] }
+      - { name: idx_ai_relation_rebuild_job_scope, columns: [tenant_id, scope_type, scope_id, state] }
+  - table: ai_commercial_readiness_snapshot
+    domain: intelligence
+    profile: read_model
+    compliance_level: L2
+    system_of_record: false
+    description: Backend-admin diagnostic projection showing whether a tenant/profile is commercially ready. Rebuildable from contracts, conformance runs, eval runs, audit config, and verification evidence.
+    columns:
+      - { name: id, type: bigint, constraints: [primary_key, snowflake] }
+      - { name: uuid, type: varchar(64), constraints: [required, public_id] }
+      - { name: tenant_id, type: bigint, constraints: [required] }
+      - { name: implementation_profile_id, type: bigint, nullable: true, references: ai_implementation_profile.id }
+      - { name: score, type: decimal(5,4), constraints: ["range: 0..1"] }
+      - { name: state, type: varchar(32), constraints: ["enum: [not_ready, warning, ready, blocked]"] }
+      - { name: contract_coverage_json, type: json, nullable: true }
+      - { name: management_coverage_json, type: json, nullable: true }
+      - { name: runtime_conformance_json, type: json, nullable: true }
+      - { name: privacy_coverage_json, type: json, nullable: true }
+      - { name: audit_coverage_json, type: json, nullable: true }
+      - { name: sdk_coverage_json, type: json, nullable: true }
+      - { name: evaluation_coverage_json, type: json, nullable: true }
+      - { name: observability_coverage_json, type: json, nullable: true }
+      - { name: migration_coverage_json, type: json, nullable: true }
+      - { name: blocking_findings_json, type: json, nullable: true }
+      - { name: warning_findings_json, type: json, nullable: true }
+      - { name: created_at, type: timestamp, constraints: [required] }
+    indexes:
+      - { name: uk_ai_commercial_readiness_uuid, unique: true, columns: [tenant_id, uuid] }
+      - { name: idx_ai_commercial_readiness_tenant, unique: true, columns: [tenant_id, implementation_profile_id] }
+serialization: { int64: string, decimal: string, time: iso8601_utc }

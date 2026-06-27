@@ -79,6 +79,7 @@ pub fn build_router_with_shared_backend_api(api: Arc<dyn MemoryBackendApi>) -> R
         .route(paths::MIGRATION_JOBS, post(create_migration_job))
         .route(paths::MIGRATION_JOB, get(retrieve_migration_job))
         .with_state(BackendState { api })
+        .merge(crate::commercial_routes::commercial_routes())
 }
 
 async fn list_spaces(

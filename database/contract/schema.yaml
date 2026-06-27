@@ -6,6 +6,7 @@ owner_team: memory-platform
 compliance_level: L2
 engines:
   - postgres
+  - sqlite
 table_prefix: ai_
 tables:
   - name: ai_space
@@ -17,6 +18,9 @@ tables:
   - name: ai_record
     lifecycle_status: active
     owner: memory-platform
+    # P2-8 dual-engine full-text search: postgres adds a TSVECTOR column
+    # (ai_record.search_document) maintained by trigger, declared under
+    # engine_overrides.postgres.columns below. sqlite has no such column.
   - name: ai_record_source
     lifecycle_status: active
     owner: memory-platform
@@ -56,3 +60,75 @@ tables:
   - name: ai_outbox_event
     lifecycle_status: active
     owner: memory-platform
+  # Tables added by migration 0003 (ai_tenant_preference) and 0004 (ai_learning_job).
+  - name: ai_tenant_preference
+    lifecycle_status: active
+    owner: memory-platform
+    source_migration: 0003_ai_tenant_preference
+  - name: ai_learning_job
+    lifecycle_status: active
+    owner: memory-platform
+    source_migration: 0004_ai_learning_job
+  # P2-8 dual-engine full-text search: sqlite uses an external FTS5 virtual table
+  # (ai_record_fts) created by migration 0005_sqlite. postgres does not have this
+  # table; it uses the ai_record.search_document TSVECTOR column instead.
+  - name: ai_record_fts
+    lifecycle_status: active
+    owner: memory-platform
+    engines:
+      - sqlite
+    kind: virtual_table
+    virtual_engine: fts5
+    source_migration: 0005_ai_record_fulltext_search
+  # Tables added by migration 0006 (ai_eval_run extend — new columns only, no new table).
+  # Tables added by migration 0007 (commercial memory management).
+  - name: ai_entity
+    lifecycle_status: active
+    owner: memory-platform
+    source_migration: 0007_memory_commercial_management
+  - name: ai_edge
+    lifecycle_status: active
+    owner: memory-platform
+    source_migration: 0007_memory_commercial_management
+  - name: ai_policy
+    lifecycle_status: active
+    owner: memory-platform
+    source_migration: 0007_memory_commercial_management
+  - name: ai_subject
+    lifecycle_status: active
+    owner: memory-platform
+    source_migration: 0007_memory_commercial_management
+  - name: ai_memory_binding
+    lifecycle_status: active
+    owner: memory-platform
+    source_migration: 0007_memory_commercial_management
+  - name: ai_capability_binding
+    lifecycle_status: active
+    owner: memory-platform
+    source_migration: 0007_memory_commercial_management
+  - name: ai_policy_assignment
+    lifecycle_status: active
+    owner: memory-platform
+    source_migration: 0007_memory_commercial_management
+  - name: ai_relation_rebuild_job
+    lifecycle_status: active
+    owner: memory-platform
+    source_migration: 0007_memory_commercial_management
+  - name: ai_commercial_readiness_snapshot
+    lifecycle_status: active
+    owner: memory-platform
+    source_migration: 0007_memory_commercial_management
+# Engine-specific column overrides for dual-engine parity.
+# P2-8: postgres maintains ai_record.search_document via a BEFORE INSERT/UPDATE
+# trigger (see migrations/postgres/0005). sqlite has no equivalent column.
+engine_overrides:
+  postgres:
+    ai_record:
+      columns:
+        - name: search_document
+          type: tsvector
+          nullable: true
+          maintained_by: trigger
+          trigger: trg_ai_record_search_document
+          source_migration: 0005_ai_record_fulltext_search
+  sqlite: {}

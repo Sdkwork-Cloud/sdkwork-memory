@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const spiCargo = fs.readFileSync("crates/sdkwork-memory-spi/Cargo.toml", "utf8");
-const runtimeCargo = fs.readFileSync("crates/sdkwork-memory-runtime/Cargo.toml", "utf8");
+const runtimeCargo = fs.readFileSync("crates/sdkwork-memory-profile-resolver/Cargo.toml", "utf8");
 
 for (const [path, content] of [
   ["crates/sdkwork-memory-spi/Cargo.toml", spiCargo],
-  ["crates/sdkwork-memory-runtime/Cargo.toml", runtimeCargo],
+  ["crates/sdkwork-memory-profile-resolver/Cargo.toml", runtimeCargo],
 ]) {
   for (const forbidden of [
     "axum",

@@ -1,6 +1,31 @@
 schemaVersion: 1
 kind: sdkwork.database.drift-policy
+# Drift policy for the memory module. Defines tables/columns that the drift
+# checker must treat as expected engine-specific divergence rather than drift.
 rules:
-  ignoreTables: []
-  ignoreColumns: []
+  # Tables intentionally absent from the canonical contract or engine-specific.
+  ignoreTables:
+    # Operational/migration bookkeeping tables managed by the runtime, not the
+    # memory schema contract.
+    - ops_schema_migration_history
+    - ops_seed_history
+    - ops_database_installation_state
+    # Migration version tracking table created by the native SQL plugin's
+    # embedded migration runner. Not part of the canonical schema contract.
+    - ops_memory_schema_version
+    # P2-8: sqlite-only FTS5 virtual table for ai_record keyword search.
+    # postgres achieves the same capability via ai_record.search_document.
+    - ai_record_fts
+  # Columns maintained by triggers or engine-specific features.
+  ignoreColumns:
+    # P2-8: postgres TSVECTOR column maintained by trg_ai_record_search_document.
+    # sqlite has no equivalent column (uses the ai_record_fts virtual table).
+    - table: ai_record
+      column: search_document
+      engines:
+        - postgres
+  # Severity overrides for known divergences.
+  # All previously planned tables (ai_entity, ai_edge, ai_policy) are now
+  # implemented by migration 0007_memory_commercial_management, so no
+  # severity overrides are needed.
   severityOverrides: {}

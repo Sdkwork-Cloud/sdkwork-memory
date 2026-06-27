@@ -3,7 +3,7 @@ use std::sync::Arc;
 use axum::Router;
 use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
 use sdkwork_memory_contract::MemoryAppRequestContext;
-use sdkwork_routes_memory_common::{
+use sdkwork_routes_memory_support::{
     memory_http_metrics, memory_web_auth_mode_from_env, with_problem_correlation, MemoryWebAuthMode,
     ProductionFailClosedResolver,
 };

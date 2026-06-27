@@ -5,7 +5,7 @@
 
 **Goal:** Build the first runnable SDKWork Memory backend that supports the generated Open API, App API, and Backend API contracts while proving memory retrieval works without embeddings.
 
-**Architecture:** Keep `mem_record` and `mem_event` as canonical source-of-truth tables. Build a Rust service with explicit contract, product, storage, retrieval, and route boundaries; all search, vector, graph, file, or external-provider indexes remain pluggable derived capabilities behind ports. Open API clients use API key context, App/Backend API clients use dual-token context, and all three surfaces call the same product services.
+**Architecture:** Keep `ai_record` and `ai_event` as canonical source-of-truth tables. Build a Rust service with explicit contract, product, storage, retrieval, and route boundaries; all search, vector, graph, file, or external-provider indexes remain pluggable derived capabilities behind ports. Open API clients use API key context, App/Backend API clients use dual-token context, and all three surfaces call the same product services.
 
 **Tech Stack:** Rust workspace, Axum-compatible route crates, SQLx, PostgreSQL, SQLite, OpenAPI 3.1.2, generated TypeScript SDK families under `sdks/`, PowerShell/Node contract verification.
 
@@ -13,7 +13,7 @@
 
 ## Source Documents
 
-- Design spec: `docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md`
+- Design spec: `docs/architecture/tech/TECH-2026-06-10-ai-memory-architecture-design.md`
 - Generator: `tools/materialize_phase1_contracts.mjs`
 - Phase 1 verifier: `tools/verify_phase1.ps1`
 - Open API authority: `sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json`
@@ -33,48 +33,48 @@ Create or modify these implementation boundaries:
 - Create: `crates/sdkwork-memory-contract/src/ids.rs`
 - Create: `crates/sdkwork-memory-contract/src/dto.rs`
 - Create: `crates/sdkwork-memory-contract/src/ports.rs`
-- Create: `crates/sdkwork-memory-core/Cargo.toml`
-- Create: `crates/sdkwork-memory-core/src/lib.rs`
-- Create: `crates/sdkwork-memory-core/src/retrieval/mod.rs`
-- Create: `crates/sdkwork-memory-core/src/retrieval/sql.rs`
-- Create: `crates/sdkwork-memory-core/src/retrieval/keyword.rs`
-- Create: `crates/sdkwork-memory-core/src/retrieval/dictionary.rs`
-- Create: `crates/sdkwork-memory-core/src/retrieval/time.rs`
-- Create: `crates/sdkwork-memory-core/src/retrieval/event.rs`
-- Create: `crates/sdkwork-memory-core/src/retrieval/fusion.rs`
-- Create: `crates/sdkwork-memory-core/src/context_pack.rs`
-- Create: `crates/sdkwork-memory-core/src/learning.rs`
+- Create: `crates/sdkwork-memory-retrieval/Cargo.toml`
+- Create: `crates/sdkwork-memory-retrieval/src/lib.rs`
+- Create: `crates/sdkwork-memory-retrieval/src/retrieval/mod.rs`
+- Create: `crates/sdkwork-memory-retrieval/src/retrieval/sql.rs`
+- Create: `crates/sdkwork-memory-retrieval/src/retrieval/keyword.rs`
+- Create: `crates/sdkwork-memory-retrieval/src/retrieval/dictionary.rs`
+- Create: `crates/sdkwork-memory-retrieval/src/retrieval/time.rs`
+- Create: `crates/sdkwork-memory-retrieval/src/retrieval/event.rs`
+- Create: `crates/sdkwork-memory-retrieval/src/retrieval/fusion.rs`
+- Create: `crates/sdkwork-memory-retrieval/src/context_pack.rs`
+- Create: `crates/sdkwork-memory-retrieval/src/learning.rs`
 - Create: `crates/sdkwork-memory-test-support/Cargo.toml`
 - Create: `crates/sdkwork-memory-test-support/src/lib.rs`
-- Create: `services/sdkwork-memory-product/Cargo.toml`
-- Create: `services/sdkwork-memory-product/src/lib.rs`
-- Create: `services/sdkwork-memory-product/src/memory_service.rs`
-- Create: `services/sdkwork-memory-product/src/retrieval_service.rs`
-- Create: `services/sdkwork-memory-product/src/context_pack_service.rs`
-- Create: `services/sdkwork-memory-product/src/learning_service.rs`
-- Create: `services/sdkwork-memory-storage-sqlx/Cargo.toml`
-- Create: `services/sdkwork-memory-storage-sqlx/src/lib.rs`
-- Create: `services/sdkwork-memory-storage-sqlx/src/repositories.rs`
-- Create: `services/sdkwork-memory-storage-sqlx/migrations/postgres/V202606100001__memory_core.sql`
-- Create: `services/sdkwork-memory-storage-sqlx/migrations/sqlite/V202606100001__memory_core.sql`
-- Create: `packages/native-rust/routes/open-api/sdkwork-routes-memory-open-api/Cargo.toml`
-- Create: `packages/native-rust/routes/open-api/sdkwork-routes-memory-open-api/src/lib.rs`
-- Create: `packages/native-rust/routes/open-api/sdkwork-routes-memory-open-api/src/paths.rs`
-- Create: `packages/native-rust/routes/open-api/sdkwork-routes-memory-open-api/src/routes.rs`
-- Create: `packages/native-rust/routes/open-api/sdkwork-routes-memory-open-api/src/manifest.rs`
-- Create: `packages/native-rust/routes/open-api/sdkwork-routes-memory-open-api/src/handlers.rs`
-- Create: `packages/native-rust/routes/app-api/sdkwork-routes-memory-app-api/Cargo.toml`
-- Create: `packages/native-rust/routes/app-api/sdkwork-routes-memory-app-api/src/lib.rs`
-- Create: `packages/native-rust/routes/app-api/sdkwork-routes-memory-app-api/src/paths.rs`
-- Create: `packages/native-rust/routes/app-api/sdkwork-routes-memory-app-api/src/routes.rs`
-- Create: `packages/native-rust/routes/app-api/sdkwork-routes-memory-app-api/src/manifest.rs`
-- Create: `packages/native-rust/routes/app-api/sdkwork-routes-memory-app-api/src/handlers.rs`
-- Create: `packages/native-rust/routes/backend-api/sdkwork-routes-memory-backend-api/Cargo.toml`
-- Create: `packages/native-rust/routes/backend-api/sdkwork-routes-memory-backend-api/src/lib.rs`
-- Create: `packages/native-rust/routes/backend-api/sdkwork-routes-memory-backend-api/src/paths.rs`
-- Create: `packages/native-rust/routes/backend-api/sdkwork-routes-memory-backend-api/src/routes.rs`
-- Create: `packages/native-rust/routes/backend-api/sdkwork-routes-memory-backend-api/src/manifest.rs`
-- Create: `packages/native-rust/routes/backend-api/sdkwork-routes-memory-backend-api/src/handlers.rs`
+- Create: `crates/sdkwork-intelligence-memory-service/Cargo.toml`
+- Create: `crates/sdkwork-intelligence-memory-service/src/lib.rs`
+- Create: `crates/sdkwork-intelligence-memory-service/src/memory_service.rs`
+- Create: `crates/sdkwork-intelligence-memory-service/src/retrieval_service.rs`
+- Create: `crates/sdkwork-intelligence-memory-service/src/context_pack_service.rs`
+- Create: `crates/sdkwork-intelligence-memory-service/src/learning_service.rs`
+- Create: `crates/sdkwork-intelligence-memory-repository-sqlx/Cargo.toml`
+- Create: `crates/sdkwork-intelligence-memory-repository-sqlx/src/lib.rs`
+- Create: `crates/sdkwork-intelligence-memory-repository-sqlx/src/repositories.rs`
+- Create: `database/migrations/postgres/0001_memory_phase1.up.sql`
+- Create: `database/migrations/sqlite/0001_memory_phase1.up.sql`
+- Create: `crates/sdkwork-routes-memory-open-api/Cargo.toml`
+- Create: `crates/sdkwork-routes-memory-open-api/src/lib.rs`
+- Create: `crates/sdkwork-routes-memory-open-api/src/paths.rs`
+- Create: `crates/sdkwork-routes-memory-open-api/src/routes.rs`
+- Create: `crates/sdkwork-routes-memory-open-api/src/manifest.rs`
+- Create: `crates/sdkwork-routes-memory-open-api/src/handlers.rs`
+- Create: `crates/sdkwork-routes-memory-app-api/Cargo.toml`
+- Create: `crates/sdkwork-routes-memory-app-api/src/lib.rs`
+- Create: `crates/sdkwork-routes-memory-app-api/src/paths.rs`
+- Create: `crates/sdkwork-routes-memory-app-api/src/routes.rs`
+- Create: `crates/sdkwork-routes-memory-app-api/src/manifest.rs`
+- Create: `crates/sdkwork-routes-memory-app-api/src/handlers.rs`
+- Create: `crates/sdkwork-routes-memory-backend-api/Cargo.toml`
+- Create: `crates/sdkwork-routes-memory-backend-api/src/lib.rs`
+- Create: `crates/sdkwork-routes-memory-backend-api/src/paths.rs`
+- Create: `crates/sdkwork-routes-memory-backend-api/src/routes.rs`
+- Create: `crates/sdkwork-routes-memory-backend-api/src/manifest.rs`
+- Create: `crates/sdkwork-routes-memory-backend-api/src/handlers.rs`
 - Create: `tests/contracts/openapi_phase1_contract_test.mjs`
 - Create: `tests/contracts/schema_registry_phase1_contract_test.mjs`
 - Create: `tests/no_embedding/memory_no_embedding_mvp_test.rs`
@@ -83,7 +83,7 @@ Create or modify these implementation boundaries:
 
 ## Invariants
 
-- `mem_record` and `mem_event` are canonical; all indexes are derived and rebuildable.
+- `ai_record` and `ai_event` are canonical; all indexes are derived and rebuildable.
 - Embedding is optional. Phase 1 must pass without an embedding provider, vector table, vector database, or vector retriever.
 - Retrieval profile defaults to SQL, keyword, dictionary, time, and event retrievers.
 - Open API uses `ApiKey` / `X-API-Key`; it must not accept app login token fallback.
@@ -124,7 +124,7 @@ foreach ($snippet in @(
     "App API Contract Draft",
     "Backend API Contract Draft",
     "Database And Storage Design",
-    "mem_"
+    "ai_"
 )) {
 ```
 
@@ -172,13 +172,13 @@ Create `Cargo.toml`:
 resolver = "2"
 members = [
   "crates/sdkwork-memory-contract",
-  "crates/sdkwork-memory-core",
+  "crates/sdkwork-memory-retrieval",
   "crates/sdkwork-memory-test-support",
-  "services/sdkwork-memory-product",
-  "services/sdkwork-memory-storage-sqlx",
-  "packages/native-rust/routes/open-api/sdkwork-routes-memory-open-api",
-  "packages/native-rust/routes/app-api/sdkwork-routes-memory-app-api",
-  "packages/native-rust/routes/backend-api/sdkwork-routes-memory-backend-api",
+  "crates/sdkwork-intelligence-memory-service",
+  "crates/sdkwork-intelligence-memory-repository-sqlx",
+  "crates/sdkwork-routes-memory-open-api",
+  "crates/sdkwork-routes-memory-app-api",
+  "crates/sdkwork-routes-memory-backend-api",
 ]
 
 [workspace.package]
@@ -443,8 +443,8 @@ Expected: PASS.
 ### Task 4: Phase 1 SQL Migrations
 
 **Files:**
-- Create: `services/sdkwork-memory-storage-sqlx/migrations/postgres/V202606100001__memory_core.sql`
-- Create: `services/sdkwork-memory-storage-sqlx/migrations/sqlite/V202606100001__memory_core.sql`
+- Create: `database/migrations/postgres/0001_memory_phase1.up.sql`
+- Create: `database/migrations/sqlite/0001_memory_phase1.up.sql`
 - Test: `tests/contracts/schema_registry_phase1_contract_test.mjs`
 
 - [ ] **Step 1: Write failing schema contract test**
@@ -456,20 +456,20 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const requiredTables = [
-  "mem_space",
-  "mem_event",
-  "mem_record",
-  "mem_record_source",
-  "mem_candidate",
-  "mem_habit",
-  "mem_retrieval_trace",
-  "mem_retrieval_hit",
-  "mem_context_pack",
+  "ai_space",
+  "ai_event",
+  "ai_record",
+  "ai_record_source",
+  "ai_candidate",
+  "ai_habit",
+  "ai_retrieval_trace",
+  "ai_retrieval_hit",
+  "ai_context_pack",
 ];
 
 for (const file of [
-  "services/sdkwork-memory-storage-sqlx/migrations/postgres/V202606100001__memory_core.sql",
-  "services/sdkwork-memory-storage-sqlx/migrations/sqlite/V202606100001__memory_core.sql",
+  "database/migrations/postgres/0001_memory_phase1.up.sql",
+  "database/migrations/sqlite/0001_memory_phase1.up.sql",
 ]) {
   const sql = fs.readFileSync(file, "utf8").toLowerCase();
   for (const table of requiredTables) {
@@ -492,7 +492,7 @@ Expected: FAIL because migration files do not exist.
 Create the required tables from the schema registry. Start with the core fields required by the product code:
 
 ```sql
-CREATE TABLE mem_space (
+CREATE TABLE ai_space (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
@@ -506,11 +506,11 @@ CREATE TABLE mem_space (
   version BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE TABLE mem_event (
+CREATE TABLE ai_event (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
-  space_id BIGINT NOT NULL REFERENCES mem_space(id),
+  space_id BIGINT NOT NULL REFERENCES ai_space(id),
   event_type VARCHAR(64) NOT NULL,
   event_time TIMESTAMPTZ NOT NULL,
   content_text_redacted TEXT,
@@ -522,11 +522,11 @@ CREATE TABLE mem_event (
   version BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE TABLE mem_record (
+CREATE TABLE ai_record (
   id BIGINT PRIMARY KEY,
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
-  space_id BIGINT NOT NULL REFERENCES mem_space(id),
+  space_id BIGINT NOT NULL REFERENCES ai_space(id),
   memory_type VARCHAR(64) NOT NULL,
   subject VARCHAR(256),
   predicate VARCHAR(128),
@@ -546,14 +546,14 @@ CREATE TABLE mem_record (
 );
 ```
 
-Add the remaining required Phase 1 tables in the same migration: `mem_record_source`, `mem_candidate`, `mem_habit`, `mem_retrieval_trace`, `mem_retrieval_hit`, and `mem_context_pack`.
+Add the remaining required Phase 1 tables in the same migration: `ai_record_source`, `ai_candidate`, `ai_habit`, `ai_retrieval_trace`, `ai_retrieval_hit`, and `ai_context_pack`.
 
 - [ ] **Step 3: Add minimal SQLite migration**
 
 Mirror the same logical schema with SQLite-compatible types:
 
 ```sql
-CREATE TABLE mem_space (
+CREATE TABLE ai_space (
   id INTEGER PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
@@ -584,9 +584,9 @@ Expected: PASS.
 ### Task 5: SQLx Repository Implementation
 
 **Files:**
-- Create: `services/sdkwork-memory-storage-sqlx/src/lib.rs`
-- Create: `services/sdkwork-memory-storage-sqlx/src/repositories.rs`
-- Test: `services/sdkwork-memory-storage-sqlx/tests/repository_sqlite_test.rs`
+- Create: `crates/sdkwork-intelligence-memory-repository-sqlx/src/lib.rs`
+- Create: `crates/sdkwork-intelligence-memory-repository-sqlx/src/repositories.rs`
+- Test: `crates/sdkwork-intelligence-memory-repository-sqlx/tests/repository_sqlite_test.rs`
 
 - [ ] **Step 1: Write failing repository test**
 
@@ -641,12 +641,12 @@ Expected: PASS.
 ### Task 6: Deterministic No-Embedding Retrievers
 
 **Files:**
-- Create: `crates/sdkwork-memory-core/src/retrieval/sql.rs`
-- Create: `crates/sdkwork-memory-core/src/retrieval/keyword.rs`
-- Create: `crates/sdkwork-memory-core/src/retrieval/dictionary.rs`
-- Create: `crates/sdkwork-memory-core/src/retrieval/time.rs`
-- Create: `crates/sdkwork-memory-core/src/retrieval/event.rs`
-- Test: `crates/sdkwork-memory-core/tests/no_embedding_retrievers_test.rs`
+- Create: `crates/sdkwork-memory-retrieval/src/retrieval/sql.rs`
+- Create: `crates/sdkwork-memory-retrieval/src/retrieval/keyword.rs`
+- Create: `crates/sdkwork-memory-retrieval/src/retrieval/dictionary.rs`
+- Create: `crates/sdkwork-memory-retrieval/src/retrieval/time.rs`
+- Create: `crates/sdkwork-memory-retrieval/src/retrieval/event.rs`
+- Test: `crates/sdkwork-memory-retrieval/tests/no_embedding_retrievers_test.rs`
 
 - [ ] **Step 1: Write failing retriever tests**
 
@@ -654,7 +654,7 @@ Create tests proving each retriever can return candidates without embeddings:
 
 ```rust
 use sdkwork_memory_contract::{MemoryRetrieveRequest, RetrieverKind};
-use sdkwork_memory_core::retrieval::{DictionaryRetriever, KeywordRetriever, TimeRetriever};
+use sdkwork_memory_retrieval::retrieval::{DictionaryRetriever, KeywordRetriever, TimeRetriever};
 
 #[tokio::test]
 async fn keyword_dictionary_and_time_retrievers_run_without_embedding_provider() {
@@ -674,7 +674,7 @@ async fn keyword_dictionary_and_time_retrievers_run_without_embedding_provider()
 Run:
 
 ```powershell
-cargo test -p sdkwork-memory-core --test no_embedding_retrievers_test
+cargo test -p sdkwork-memory-retrieval --test no_embedding_retrievers_test
 ```
 
 Expected: FAIL because retrievers do not exist.
@@ -705,7 +705,7 @@ Initial scoring:
 Run:
 
 ```powershell
-cargo test -p sdkwork-memory-core --test no_embedding_retrievers_test
+cargo test -p sdkwork-memory-retrieval --test no_embedding_retrievers_test
 ```
 
 Expected: PASS.
@@ -713,9 +713,9 @@ Expected: PASS.
 ### Task 7: Retrieval Orchestrator And Fusion
 
 **Files:**
-- Create: `crates/sdkwork-memory-core/src/retrieval/fusion.rs`
-- Create: `services/sdkwork-memory-product/src/retrieval_service.rs`
-- Test: `services/sdkwork-memory-product/tests/retrieval_service_test.rs`
+- Create: `crates/sdkwork-memory-retrieval/src/retrieval/fusion.rs`
+- Create: `crates/sdkwork-intelligence-memory-service/src/retrieval_service.rs`
+- Test: `crates/sdkwork-intelligence-memory-service/tests/retrieval_service_test.rs`
 
 - [ ] **Step 1: Write failing fusion test**
 
@@ -770,9 +770,9 @@ Expected: PASS.
 ### Task 8: Context Pack Assembler
 
 **Files:**
-- Create: `crates/sdkwork-memory-core/src/context_pack.rs`
-- Create: `services/sdkwork-memory-product/src/context_pack_service.rs`
-- Test: `services/sdkwork-memory-product/tests/context_pack_service_test.rs`
+- Create: `crates/sdkwork-memory-retrieval/src/context_pack.rs`
+- Create: `crates/sdkwork-intelligence-memory-service/src/context_pack_service.rs`
+- Test: `crates/sdkwork-intelligence-memory-service/tests/context_pack_service_test.rs`
 
 - [ ] **Step 1: Write failing context pack test**
 
@@ -824,9 +824,9 @@ Expected: PASS.
 ### Task 9: Candidate Learning And Habit Memory
 
 **Files:**
-- Create: `crates/sdkwork-memory-core/src/learning.rs`
-- Create: `services/sdkwork-memory-product/src/learning_service.rs`
-- Test: `services/sdkwork-memory-product/tests/learning_service_test.rs`
+- Create: `crates/sdkwork-memory-retrieval/src/learning.rs`
+- Create: `crates/sdkwork-intelligence-memory-service/src/learning_service.rs`
+- Test: `crates/sdkwork-intelligence-memory-service/tests/learning_service_test.rs`
 
 - [ ] **Step 1: Write failing learning tests**
 
@@ -977,11 +977,11 @@ Expected: PASS.
 ### Task 11: Open API Route Crate
 
 **Files:**
-- Create: `packages/native-rust/routes/open-api/sdkwork-routes-memory-open-api/src/paths.rs`
-- Create: `packages/native-rust/routes/open-api/sdkwork-routes-memory-open-api/src/routes.rs`
-- Create: `packages/native-rust/routes/open-api/sdkwork-routes-memory-open-api/src/manifest.rs`
-- Create: `packages/native-rust/routes/open-api/sdkwork-routes-memory-open-api/src/handlers.rs`
-- Test: `packages/native-rust/routes/open-api/sdkwork-routes-memory-open-api/tests/route_manifest_test.rs`
+- Create: `crates/sdkwork-routes-memory-open-api/src/paths.rs`
+- Create: `crates/sdkwork-routes-memory-open-api/src/routes.rs`
+- Create: `crates/sdkwork-routes-memory-open-api/src/manifest.rs`
+- Create: `crates/sdkwork-routes-memory-open-api/src/handlers.rs`
+- Test: `crates/sdkwork-routes-memory-open-api/tests/route_manifest_test.rs`
 
 - [ ] **Step 1: Write failing route manifest test**
 
@@ -1070,16 +1070,16 @@ Expected: PASS.
 ### Task 12: App API And Backend API Route Crates
 
 **Files:**
-- Create: `packages/native-rust/routes/app-api/sdkwork-routes-memory-app-api/src/lib.rs`
-- Create: `packages/native-rust/routes/app-api/sdkwork-routes-memory-app-api/src/paths.rs`
-- Create: `packages/native-rust/routes/app-api/sdkwork-routes-memory-app-api/src/routes.rs`
-- Create: `packages/native-rust/routes/app-api/sdkwork-routes-memory-app-api/src/manifest.rs`
-- Create: `packages/native-rust/routes/app-api/sdkwork-routes-memory-app-api/src/handlers.rs`
-- Create: `packages/native-rust/routes/backend-api/sdkwork-routes-memory-backend-api/src/lib.rs`
-- Create: `packages/native-rust/routes/backend-api/sdkwork-routes-memory-backend-api/src/paths.rs`
-- Create: `packages/native-rust/routes/backend-api/sdkwork-routes-memory-backend-api/src/routes.rs`
-- Create: `packages/native-rust/routes/backend-api/sdkwork-routes-memory-backend-api/src/manifest.rs`
-- Create: `packages/native-rust/routes/backend-api/sdkwork-routes-memory-backend-api/src/handlers.rs`
+- Create: `crates/sdkwork-routes-memory-app-api/src/lib.rs`
+- Create: `crates/sdkwork-routes-memory-app-api/src/paths.rs`
+- Create: `crates/sdkwork-routes-memory-app-api/src/routes.rs`
+- Create: `crates/sdkwork-routes-memory-app-api/src/manifest.rs`
+- Create: `crates/sdkwork-routes-memory-app-api/src/handlers.rs`
+- Create: `crates/sdkwork-routes-memory-backend-api/src/lib.rs`
+- Create: `crates/sdkwork-routes-memory-backend-api/src/paths.rs`
+- Create: `crates/sdkwork-routes-memory-backend-api/src/routes.rs`
+- Create: `crates/sdkwork-routes-memory-backend-api/src/manifest.rs`
+- Create: `crates/sdkwork-routes-memory-backend-api/src/handlers.rs`
 - Test: route manifest tests under both route crates
 
 - [ ] **Step 1: Write failing app/backend route manifest tests**
@@ -1294,8 +1294,8 @@ Expected: PASS.
 ### Task 16: Documentation And Evidence Bundle
 
 **Files:**
-- Modify: `docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md`
-- Modify: `docs/superpowers/plans/2026-06-10-memory-open-api-and-no-embedding-mvp.md`
+- Modify: `docs/architecture/tech/TECH-2026-06-10-ai-memory-architecture-design.md`
+- Modify: `docs/architecture/tech/TECH-2026-06-10-memory-open-api-and-no-embedding-mvp.md`
 - Modify: `specs/README.md` only through generator if contract artifact list changes
 
 - [ ] **Step 1: Update implementation evidence**

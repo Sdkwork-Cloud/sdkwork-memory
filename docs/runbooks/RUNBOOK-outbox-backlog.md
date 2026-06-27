@@ -26,7 +26,7 @@ Handle growing outbox backlog, stuck `processing` rows, or repeated delivery fai
 
 ## Investigation
 
-1. Confirm outbox publisher is running (embedded in api-server bootstrap or dedicated worker).
+1. Confirm outbox publisher is running (embedded in standalone-gateway bootstrap or dedicated worker).
 2. Inspect delivery mode: `SDKWORK_MEMORY_OUTBOX_DELIVERY_MODE` (`log` or `http`).
 3. For HTTP mode, verify `SDKWORK_MEMORY_OUTBOX_DELIVERY_URL` reachability and TLS.
 4. Query backlog by state:

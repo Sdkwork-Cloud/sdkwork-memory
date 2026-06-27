@@ -10,8 +10,14 @@ pub enum OutboxDeliveryMode {
 pub struct OutboxDeliveryConfig {
     pub mode: OutboxDeliveryMode,
     pub webhook_url: Option<String>,
+    /// Stored for diagnostics and configuration inspection; the actual
+    /// timeout is baked into `http_client` at construction time.
+    #[allow(dead_code)]
     pub timeout_seconds: u64,
     pub max_retries: u32,
+    /// Shared HTTP client with connection pooling — created once and reused
+    /// across all outbox delivery attempts to avoid per-request overhead.
+    pub http_client: reqwest::Client,
 }
 
 impl OutboxDeliveryConfig {
@@ -38,11 +44,17 @@ impl OutboxDeliveryConfig {
             .ok()
             .and_then(|value| value.parse().ok())
             .unwrap_or(5);
+        let http_client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(timeout_seconds.max(1)))
+            .pool_max_idle_per_host(16)
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
         Self {
             mode,
             webhook_url,
             timeout_seconds,
             max_retries,
+            http_client,
         }
     }
 }
@@ -93,11 +105,8 @@ pub async fn deliver_outbox_event(
                     "SDKWORK_MEMORY_OUTBOX_DELIVERY_URL is required when delivery mode is http"
                         .to_string()
                 })?;
-            let client = reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(config.timeout_seconds.max(1)))
-                .build()
-                .map_err(|error| format!("outbox delivery client init failed: {error}"))?;
-            let response = client
+            let response = config
+                .http_client
                 .post(url)
                 .header("content-type", "application/json")
                 .json(&envelope)
@@ -147,7 +156,7 @@ mod tests {
         };
         let envelope = build_cloud_event_envelope(&row);
         assert_eq!(envelope["type"], "memory.record.created");
-        assert_eq!(envelope["tenantId"], "100_001");
+        assert_eq!(envelope["tenantId"], "100001");
         assert_eq!(envelope["data"]["aggregateId"], "rec-1");
     }
 }

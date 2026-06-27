@@ -1888,6 +1888,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "sdkwork-database-id"
+version = "0.1.0"
+dependencies = [
+ "sdkwork-database-config",
+ "sdkwork-database-sqlx",
+ "sdkwork-id-core",
+ "sqlx",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "sdkwork-database-lifecycle"
 version = "0.1.0"
 dependencies = [
@@ -1912,8 +1924,8 @@ dependencies = [
  "chrono",
  "paste",
  "sdkwork-database-config",
+ "sdkwork-database-id",
  "sdkwork-database-sqlx",
- "sdkwork-id-core",
  "serde",
  "serde_json",
  "sqlx",
@@ -1956,9 +1968,9 @@ dependencies = [
  "base64",
  "chrono",
  "rand_core 0.6.4",
+ "sdkwork-database-id",
  "sdkwork-iam-context-service",
  "sdkwork-iam-module-registry",
- "sdkwork-id-core",
  "sha2",
  "sqlx",
  "uuid",
@@ -2026,12 +2038,14 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "sdkwork-database-config",
+ "sdkwork-database-id",
  "sdkwork-database-repository",
  "sdkwork-database-sqlx",
+ "sdkwork-intelligence-memory-service",
  "sdkwork-memory-contract",
  "sdkwork-memory-database-host",
  "sdkwork-memory-plugin-native-sql",
- "sdkwork-memory-runtime",
+ "sdkwork-memory-profile-resolver",
  "sdkwork-memory-spi",
  "sdkwork-utils-rust",
  "serde",
@@ -2047,11 +2061,12 @@ name = "sdkwork-intelligence-memory-service"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "regex",
  "reqwest",
- "sdkwork-id-core",
+ "sdkwork-database-id",
  "sdkwork-memory-contract",
- "sdkwork-memory-core",
  "sdkwork-memory-plugin-native-sql",
+ "sdkwork-memory-retrieval",
  "sdkwork-memory-spi",
  "sdkwork-utils-rust",
  "serde",
@@ -2059,29 +2074,7 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "sdkwork-memory-api-server"
-version = "0.1.0"
-dependencies = [
- "axum 0.8.9",
- "opentelemetry",
- "opentelemetry-otlp",
- "opentelemetry_sdk",
- "sdkwork-intelligence-memory-repository-sqlx",
- "sdkwork-intelligence-memory-service",
- "sdkwork-memory-database-host",
- "sdkwork-memory-gateway-assembly",
- "sdkwork-routes-memory-app-api",
- "sdkwork-routes-memory-backend-api",
- "sdkwork-routes-memory-common",
- "sdkwork-routes-memory-open-api",
- "sdkwork-web-bootstrap",
- "tokio",
- "tracing",
- "tracing-opentelemetry",
- "tracing-subscriber",
+ "url",
 ]
 
 [[package]]
@@ -2089,16 +2082,6 @@ name = "sdkwork-memory-contract"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "sdkwork-utils-rust",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "sdkwork-memory-core"
-version = "0.1.0"
-dependencies = [
- "sdkwork-memory-contract",
  "sdkwork-utils-rust",
  "serde",
  "serde_json",
@@ -2120,6 +2103,7 @@ name = "sdkwork-memory-gateway-assembly"
 version = "0.1.0"
 dependencies = [
  "axum 0.8.9",
+ "sdkwork-intelligence-memory-service",
  "sdkwork-routes-memory-app-api",
  "sdkwork-routes-memory-backend-api",
  "sdkwork-routes-memory-open-api",
@@ -2134,10 +2118,10 @@ dependencies = [
  "http",
  "sdkwork-iam-web-adapter",
  "sdkwork-intelligence-memory-service",
- "sdkwork-memory-api-server",
  "sdkwork-memory-contract",
  "sdkwork-memory-plugin-native-sql",
  "sdkwork-memory-spi",
+ "sdkwork-memory-standalone-gateway",
  "sdkwork-memory-test-support",
  "sdkwork-routes-memory-app-api",
  "sdkwork-routes-memory-backend-api",
@@ -2177,13 +2161,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "sdkwork-memory-runtime"
+name = "sdkwork-memory-profile-resolver"
 version = "0.1.0"
 dependencies = [
  "sdkwork-memory-spi",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "sdkwork-memory-retrieval"
+version = "0.1.0"
+dependencies = [
+ "sdkwork-memory-contract",
+ "sdkwork-utils-rust",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2194,6 +2188,27 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "sdkwork-memory-standalone-gateway"
+version = "0.1.0"
+dependencies = [
+ "axum 0.8.9",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
+ "sdkwork-intelligence-memory-repository-sqlx",
+ "sdkwork-intelligence-memory-service",
+ "sdkwork-memory-database-host",
+ "sdkwork-memory-gateway-assembly",
+ "sdkwork-routes-memory-support",
+ "sdkwork-web-bootstrap",
+ "tokio",
+ "tower 0.5.3",
+ "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -2219,7 +2234,7 @@ dependencies = [
  "sdkwork-memory-contract",
  "sdkwork-memory-plugin-native-sql",
  "sdkwork-memory-test-support",
- "sdkwork-routes-memory-common",
+ "sdkwork-routes-memory-support",
  "sdkwork-web-axum",
  "sdkwork-web-core",
  "serde",
@@ -2239,7 +2254,7 @@ dependencies = [
  "sdkwork-memory-contract",
  "sdkwork-memory-plugin-native-sql",
  "sdkwork-memory-test-support",
- "sdkwork-routes-memory-common",
+ "sdkwork-routes-memory-support",
  "sdkwork-web-axum",
  "sdkwork-web-core",
  "serde",
@@ -2249,7 +2264,27 @@ dependencies = [
 ]
 
 [[package]]
-name = "sdkwork-routes-memory-common"
+name = "sdkwork-routes-memory-open-api"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum 0.8.9",
+ "sdkwork-iam-web-adapter",
+ "sdkwork-intelligence-memory-service",
+ "sdkwork-memory-contract",
+ "sdkwork-memory-plugin-native-sql",
+ "sdkwork-memory-test-support",
+ "sdkwork-routes-memory-support",
+ "sdkwork-web-axum",
+ "sdkwork-web-core",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower 0.5.3",
+]
+
+[[package]]
+name = "sdkwork-routes-memory-support"
 version = "0.1.0"
 dependencies = [
  "async-trait",
@@ -2266,34 +2301,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "sdkwork-routes-memory-open-api"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "axum 0.8.9",
- "sdkwork-iam-web-adapter",
- "sdkwork-intelligence-memory-service",
- "sdkwork-memory-contract",
- "sdkwork-memory-plugin-native-sql",
- "sdkwork-memory-test-support",
- "sdkwork-routes-memory-common",
- "sdkwork-web-axum",
- "sdkwork-web-core",
- "serde",
- "serde_json",
- "tokio",
- "tower 0.5.3",
-]
-
-[[package]]
 name = "sdkwork-utils-rust"
 version = "0.10.0"
 dependencies = [
+ "aes-gcm",
  "base64",
  "chrono",
+ "hkdf",
  "hmac",
  "rand 0.8.6",
  "regex",
+ "serde",
  "serde_json",
  "sha2",
  "urlencoding",
@@ -3062,6 +3080,7 @@ dependencies = [
  "pin-project-lite",
  "sync_wrapper",
  "tokio",
+ "tokio-util",
  "tower-layer",
  "tower-service",
  "tracing",

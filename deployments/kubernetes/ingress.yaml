@@ -1,15 +1,23 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: sdkwork-memory-api-server
+  name: sdkwork-memory-standalone-gateway
   labels:
     app.kubernetes.io/name: sdkwork-memory
-    app.kubernetes.io/component: api-server
+    app.kubernetes.io/component: standalone-gateway
+    app.kubernetes.io/part-of: sdkwork-memory
   annotations:
-    kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"
+    nginx.ingress.kubernetes.io/proxy-body-size: "32m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    cert-manager.io/cluster-issuer: "sdkwork-prod-issuer"
 spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - api.sdkwork.com
+      secretName: sdkwork-memory-tls
   rules:
     - host: api.sdkwork.com
       http:
@@ -18,6 +26,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: sdkwork-memory-api-server
+                name: sdkwork-memory-standalone-gateway
                 port:
                   name: http

@@ -4,6 +4,104 @@ use sdkwork_memory_plugin_native_sql::NativeSqlMemoryStore;
 use crate::platform;
 use crate::store_error::map_native_sql_store_error;
 
+// ---------------------------------------------------------------------------
+// Commercial capability codes
+// ---------------------------------------------------------------------------
+
+/// Capability code controlling memory retrieval operations.
+pub const CAPABILITY_MEMORY_RETRIEVE: &str = "memory.retrieve";
+
+/// Capability code controlling memory write operations.
+pub const CAPABILITY_MEMORY_WRITE: &str = "memory.write";
+
+/// Check whether a capability binding is currently within its validity period.
+/// ISO 8601 timestamps support lexicographic comparison.
+fn is_capability_valid(valid_from: &Option<String>, valid_to: &Option<String>, now: &str) -> bool {
+    if let Some(from) = valid_from {
+        if now < from.as_str() {
+            return false;
+        }
+    }
+    if let Some(to) = valid_to {
+        if now > to.as_str() {
+            return false;
+        }
+    }
+    true
+}
+
+/// Resolve capabilities for a space and determine whether the given capability
+/// code is explicitly denied. Deny wins over allow per commercial management
+/// design §8.2. Backend operators with elevated tenant access bypass this check.
+async fn is_capability_denied(
+    store: &NativeSqlMemoryStore,
+    context: &MemoryOpenApiRequestContext,
+    space_id: u64,
+    capability_code: &str,
+) -> MemoryServiceResult<bool> {
+    if context.elevated_tenant_access {
+        return Ok(false);
+    }
+
+    let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
+    let space_id_i64 = platform::space_id_i64(space_id)?;
+    let capabilities = store
+        .resolve_capabilities_for_target(tenant_id, "space", space_id_i64)
+        .await
+        .map_err(map_native_sql_store_error)?;
+
+    let now = platform::current_timestamp();
+    for cap in &capabilities {
+        if cap.capability_code == capability_code
+            && cap.mode == "deny"
+            && is_capability_valid(&cap.valid_from, &cap.valid_to, &now)
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// Assert that retrieval is not explicitly denied for a space via capability
+/// bindings. This implements the capability resolver integration described in
+/// the commercial memory management design (§8.3 Retrieval Integration).
+pub async fn assert_retrieval_capability_allowed(
+    store: &NativeSqlMemoryStore,
+    context: &MemoryOpenApiRequestContext,
+    space_id: u64,
+) -> MemoryServiceResult<()> {
+    if is_capability_denied(store, context, space_id, CAPABILITY_MEMORY_RETRIEVE).await? {
+        tracing::warn!(
+            tenant_id = context.tenant_id,
+            space_id,
+            capability_code = CAPABILITY_MEMORY_RETRIEVE,
+            "retrieval denied by capability binding"
+        );
+        return forbidden("retrieval denied for this memory space by capability policy");
+    }
+    Ok(())
+}
+
+/// Assert that writing is not explicitly denied for a space via capability
+/// bindings. This implements the capability resolver integration described in
+/// the commercial memory management design (§8.4 Write Integration).
+pub async fn assert_write_capability_allowed(
+    store: &NativeSqlMemoryStore,
+    context: &MemoryOpenApiRequestContext,
+    space_id: u64,
+) -> MemoryServiceResult<()> {
+    if is_capability_denied(store, context, space_id, CAPABILITY_MEMORY_WRITE).await? {
+        tracing::warn!(
+            tenant_id = context.tenant_id,
+            space_id,
+            capability_code = CAPABILITY_MEMORY_WRITE,
+            "write denied by capability binding"
+        );
+        return forbidden("write denied for this memory space by capability policy");
+    }
+    Ok(())
+}
+
 fn forbidden(detail: impl Into<String>) -> MemoryServiceResult<()> {
     crate::domain_metrics::memory_domain_metrics().record_authz_denied();
     Err(MemoryServiceError::forbidden(detail))
@@ -31,6 +129,12 @@ pub async fn assert_actor_can_access_space_for_write(
 
     if space.is_none() {
         if context.elevated_tenant_access {
+            tracing::warn!(
+                tenant_id = context.tenant_id,
+                space_id,
+                actor_id = ?context.actor_id,
+                "elevated_tenant_access bypass: write to non-existent space"
+            );
             return Ok(());
         }
         return forbidden(
@@ -38,7 +142,10 @@ pub async fn assert_actor_can_access_space_for_write(
         );
     }
 
-    assert_actor_can_access_existing_space(store, context, space_id).await
+    assert_actor_can_access_existing_space(store, context, space_id).await?;
+
+    // Commercial capability check: deny write if explicitly denied for this space.
+    assert_write_capability_allowed(store, context, space_id).await
 }
 
 async fn assert_actor_can_access_existing_space(
@@ -61,6 +168,12 @@ async fn assert_actor_can_access_existing_space(
     }
 
     if context.elevated_tenant_access {
+        tracing::warn!(
+            tenant_id = context.tenant_id,
+            space_id,
+            actor_id = ?context.actor_id,
+            "elevated_tenant_access bypass: space access check skipped"
+        );
         return Ok(());
     }
 
@@ -92,13 +205,38 @@ pub fn actor_may_read_sensitivity(
     sensitivity_level: &str,
     actor_is_space_owner: bool,
 ) -> bool {
-    if context.elevated_tenant_access {
-        return true;
-    }
     match sensitivity_level {
         "public" | "internal" => true,
-        "private" | "sensitive" | "restricted" => actor_is_space_owner,
-        _ => true,
+        "private" | "sensitive" => {
+            if context.elevated_tenant_access {
+                tracing::warn!(
+                    tenant_id = context.tenant_id,
+                    sensitivity_level,
+                    actor_id = ?context.actor_id,
+                    "elevated_tenant_access: backend operator accessing private/sensitive memory"
+                );
+                return true;
+            }
+            actor_is_space_owner
+        }
+        // Restricted data always requires explicit space ownership, even for
+        // backend operators with elevated tenant access. This enforces the
+        // highest sensitivity tier per PRIVACY_SPEC §4.3 and prevents
+        // blanket access to compliance-critical data.
+        "restricted" => {
+            if context.elevated_tenant_access && !actor_is_space_owner {
+                tracing::warn!(
+                    tenant_id = context.tenant_id,
+                    sensitivity_level,
+                    actor_id = ?context.actor_id,
+                    "elevated_tenant_access denied for restricted memory: explicit ownership required"
+                );
+                return false;
+            }
+            actor_is_space_owner
+        }
+        // Unknown sensitivity levels default to the safest behavior.
+        _ => actor_is_space_owner,
     }
 }
 
@@ -108,6 +246,11 @@ pub async fn actor_is_space_owner(
     space_id: u64,
 ) -> MemoryServiceResult<bool> {
     if context.elevated_tenant_access {
+        tracing::warn!(
+            tenant_id = context.tenant_id,
+            space_id,
+            "elevated_tenant_access bypass: treated as space owner"
+        );
         return Ok(true);
     }
     let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
@@ -166,6 +309,11 @@ pub fn validate_user_space_owner(
     owner_subject_id: &str,
 ) -> MemoryServiceResult<()> {
     if context.elevated_tenant_access {
+        tracing::warn!(
+            tenant_id = context.tenant_id,
+            owner_subject_type,
+            "elevated_tenant_access bypass: space owner validation skipped"
+        );
         return Ok(());
     }
     if owner_subject_type != "user" {
@@ -291,8 +439,21 @@ mod tests {
     }
 
     #[test]
-    fn elevated_backend_may_read_any_sensitivity() {
+    fn elevated_backend_can_read_private_and_sensitive() {
         let context = MemoryOpenApiRequestContext::for_backend_surface(100_001, Some(9001));
-        assert!(actor_may_read_sensitivity(&context, "restricted", false));
+        assert!(actor_may_read_sensitivity(&context, "private", false));
+        assert!(actor_may_read_sensitivity(&context, "sensitive", false));
+    }
+
+    #[test]
+    fn elevated_backend_cannot_read_restricted_without_ownership() {
+        let context = MemoryOpenApiRequestContext::for_backend_surface(100_001, Some(9001));
+        assert!(!actor_may_read_sensitivity(&context, "restricted", false));
+    }
+
+    #[test]
+    fn elevated_backend_can_read_restricted_as_space_owner() {
+        let context = MemoryOpenApiRequestContext::for_backend_surface(100_001, Some(9001));
+        assert!(actor_may_read_sensitivity(&context, "restricted", true));
     }
 }

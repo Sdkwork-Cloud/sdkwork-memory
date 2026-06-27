@@ -27,11 +27,12 @@ async fn api_server_bootstrap_auth_and_healthz_contracts() {
     std::env::set_var("SDKWORK_MEMORY_ENVIRONMENT", "development");
     std::env::set_var("SDKWORK_MEMORY_DEV_AUTH_BYPASS", "true");
     std::env::set_var("SDKWORK_MEMORY_DATABASE_URL", "sqlite::memory:");
-    let dev_app = sdkwork_memory_api_server::build_router()
+    let dev_app = sdkwork_memory_standalone_gateway::build_router()
         .await
-        .expect("api-server bootstrap should succeed with in-memory sqlite");
+        .expect("standalone-gateway bootstrap should succeed with in-memory sqlite");
+    let dev_router = dev_app.router;
 
-    let healthz = dev_app
+    let healthz = dev_router
         .clone()
         .oneshot(
             Request::builder()
@@ -44,7 +45,7 @@ async fn api_server_bootstrap_auth_and_healthz_contracts() {
         .unwrap();
     assert_eq!(healthz.status(), StatusCode::OK);
 
-    let readyz = dev_app
+    let readyz = dev_router
         .clone()
         .oneshot(
             Request::builder()
@@ -57,7 +58,7 @@ async fn api_server_bootstrap_auth_and_healthz_contracts() {
         .unwrap();
     assert_eq!(readyz.status(), StatusCode::OK);
 
-    let metrics = dev_app
+    let metrics = dev_router
         .clone()
         .oneshot(
             Request::builder()
@@ -84,11 +85,12 @@ async fn api_server_bootstrap_auth_and_healthz_contracts() {
     std::env::remove_var("SDKWORK_IAM_DATABASE_URL");
     std::env::set_var("SDKWORK_MEMORY_DATABASE_URL", "sqlite::memory:");
 
-    let production_app = sdkwork_memory_api_server::build_router()
+    let production_app = sdkwork_memory_standalone_gateway::build_router()
         .await
-        .expect("api-server bootstrap should succeed with in-memory sqlite");
+        .expect("standalone-gateway bootstrap should succeed with in-memory sqlite");
+    let production_router = production_app.router;
 
-    let protected = production_app
+    let protected = production_router
         .clone()
         .oneshot(
             Request::builder()
@@ -103,7 +105,7 @@ async fn api_server_bootstrap_auth_and_healthz_contracts() {
 
     assert_eq!(protected.status(), StatusCode::UNAUTHORIZED);
 
-    let protected_app = production_app
+    let protected_app = production_router
         .oneshot(
             Request::builder()
                 .method("GET")
@@ -130,7 +132,7 @@ async fn database_migrate_only_succeeds_with_sqlite() {
     let _guard = env_test_lock();
     let previous_database_url = std::env::var("SDKWORK_MEMORY_DATABASE_URL").ok();
     std::env::set_var("SDKWORK_MEMORY_DATABASE_URL", "sqlite::memory:");
-    sdkwork_memory_api_server::run_database_migrate_only()
+    sdkwork_memory_standalone_gateway::run_database_migrate_only()
         .await
         .expect("db-migrate bootstrap must succeed with sqlite");
     restore_optional_env("SDKWORK_MEMORY_DATABASE_URL", previous_database_url);

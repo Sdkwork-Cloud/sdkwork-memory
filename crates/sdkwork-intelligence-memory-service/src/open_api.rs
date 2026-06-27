@@ -12,7 +12,7 @@ use sdkwork_memory_contract::{
     MemoryRetrievalResult, MemoryRetrievalTrace, MemoryRetrieverKind, MemoryServiceError,
     MemoryServiceResult, MemoryType,
 };
-use sdkwork_memory_core::{
+use sdkwork_memory_retrieval::{
     build_context_pack_from_hits, fuse_retrieval_candidates, orchestrate_retrieval_candidates,
     RetrievalCandidate, RetrievalEventInput, RetrievalRecordInput,
 };
@@ -29,6 +29,7 @@ use tracing::info;
 
 use crate::access;
 use crate::platform;
+use crate::sensitive_content::assert_memory_text_is_safe;
 use crate::store_error::map_native_sql_store_error;
 
 pub struct OpenMemoryService {
@@ -90,8 +91,14 @@ impl OpenMemoryService {
         }
     }
 
-    pub fn spawn_background_workers(service: &Arc<Self>) {
-        crate::outbox_publisher::spawn_outbox_publisher(service.store.clone());
+    /// Spawns background workers and returns a shutdown sender.
+    ///
+    /// The caller should call `send(true)` on the returned sender during
+    /// graceful shutdown so workers can drain in-flight work.
+    pub fn spawn_background_workers(
+        service: &Arc<Self>,
+    ) -> tokio::sync::watch::Sender<bool> {
+        crate::job_worker::spawn_background_workers(service.clone())
     }
 
     pub(crate) fn to_open_context(app: &MemoryAppRequestContext) -> MemoryOpenApiRequestContext {
@@ -249,7 +256,7 @@ impl OpenMemoryService {
             memory_id,
             uuid: Some(detail.memory_id),
             space_id,
-            user_id: None,
+            user_id: detail.user_id.and_then(|v| u64::try_from(v).ok()),
             scope: detail.scope,
             memory_type: Self::memory_type_from_db(&detail.memory_type),
             subject: detail.subject,
@@ -258,8 +265,8 @@ impl OpenMemoryService {
             canonical_text: detail.canonical_text,
             summary_text: None,
             confidence: detail.confidence,
-            evidence_count: Some(1),
-            contradiction_count: Some(0),
+            evidence_count: detail.evidence_count,
+            contradiction_count: detail.contradiction_count,
             status: detail.status,
             sensitivity_level: detail.sensitivity_level,
             supersedes_memory_id,
@@ -280,9 +287,9 @@ impl OpenMemoryService {
             event_id,
             uuid: Some(row.event_id),
             space_id,
-            user_id: None,
-            actor_type: None,
-            actor_id: None,
+            user_id: row.user_id.and_then(|v| u64::try_from(v).ok()),
+            actor_type: row.actor_type,
+            actor_id: row.actor_id,
             event_type: row.event_type,
             source_type: row.source_type,
             event_time: row.event_time,
@@ -345,6 +352,15 @@ impl MemoryOpenApi for OpenMemoryService {
         })
     }
 
+    #[tracing::instrument(
+        skip(self, context, request),
+        fields(
+            tenant_id = %context.tenant_id,
+            space_id = %request.space_id,
+            event_type = %request.event_type,
+            otel_kind = "create_event"
+        )
+    )]
     async fn create_event(
         &self,
         context: MemoryOpenApiRequestContext,
@@ -355,6 +371,8 @@ impl MemoryOpenApi for OpenMemoryService {
         let event_id = self.next_id()?.to_string();
         let sensitivity =
             Self::normalize_sensitivity_level(request.sensitivity_level.as_deref())?;
+        let payload_json = serde_json::to_string(&request.payload).unwrap_or_default();
+        assert_memory_text_is_safe(&[("eventPayload", &payload_json)])?;
         self.store
             .append_open_api_event(
                 &scope,
@@ -364,6 +382,19 @@ impl MemoryOpenApi for OpenMemoryService {
                 &request.event_time,
                 &request.payload,
                 sensitivity,
+            )
+            .await
+            .map_err(Self::map_store_error)?;
+
+        let audit_id = self.next_id()?.to_string();
+        self.store
+            .append_audit(
+                &scope,
+                &audit_id,
+                "memory.event.create",
+                "memory_event",
+                &event_id,
+                "accepted",
             )
             .await
             .map_err(Self::map_store_error)?;
@@ -394,7 +425,7 @@ impl MemoryOpenApi for OpenMemoryService {
         let space_id = access::require_list_space_id(query.space_id)?;
         access::assert_actor_can_access_space(&self.store, &context, space_id).await?;
         let scope = Self::scope(&context, space_id)?;
-        let page_size = query.page_size.unwrap_or(20);
+        let page_size = platform::clamp_page_size(query.page_size);
         let rows = self
             .store
             .list_record_details(
@@ -424,6 +455,15 @@ impl MemoryOpenApi for OpenMemoryService {
         })
     }
 
+    #[tracing::instrument(
+        skip(self, context, request),
+        fields(
+            tenant_id = %context.tenant_id,
+            space_id = %request.space_id,
+            memory_type = ?request.memory_type,
+            otel_kind = "create_memory"
+        )
+    )]
     async fn create_memory(
         &self,
         context: MemoryOpenApiRequestContext,
@@ -443,20 +483,74 @@ impl MemoryOpenApi for OpenMemoryService {
             .unwrap_or_else(|| request.canonical_text.clone());
         let sensitivity = Self::normalize_sensitivity_level(request.sensitivity_level.as_deref())?;
 
-        self.store
-            .create_record_open_api(
-                &scope,
-                &memory_id,
-                &request.scope,
-                Self::memory_type_to_db(request.memory_type),
-                request.subject.as_deref(),
-                request.predicate.as_deref(),
-                &object_text,
-                &request.canonical_text,
-                sensitivity,
-            )
+        assert_memory_text_is_safe(&[
+            ("canonicalText", &request.canonical_text),
+            ("objectText", &object_text),
+            ("subject", request.subject.as_deref().unwrap_or("")),
+            ("predicate", request.predicate.as_deref().unwrap_or("")),
+        ])?;
+
+        // Begin transaction: record creation + outbox event + audit log must be atomic.
+        let mut tx = self
+            .store
+            .begin_tx()
             .await
             .map_err(Self::map_store_error)?;
+
+        NativeSqlMemoryStore::create_record_on_tx(
+            &mut tx,
+            &scope,
+            &memory_id,
+            &request.scope,
+            Self::memory_type_to_db(request.memory_type),
+            request.subject.as_deref(),
+            request.predicate.as_deref(),
+            &object_text,
+            &request.canonical_text,
+            sensitivity,
+        )
+        .await
+        .map_err(Self::map_store_error)?;
+
+        let event_payload = serde_json::json!({
+            "memoryId": memory_id,
+            "spaceId": request.space_id,
+            "memoryType": request.memory_type,
+        });
+        let payload_json = serde_json::to_string(&event_payload).map_err(|error| {
+            MemoryServiceError::storage_internal(format!(
+                "domain event payload encode failed: {error}"
+            ))
+        })?;
+        let outbox_id = self.next_id()?.to_string();
+
+        NativeSqlMemoryStore::append_outbox_on_tx(
+            &mut tx,
+            &scope,
+            &outbox_id,
+            "memory_record",
+            &memory_id,
+            "memory.record.created",
+            "1.0",
+            &payload_json,
+        )
+        .await
+        .map_err(Self::map_store_error)?;
+
+        let audit_id = self.next_id()?.to_string();
+        NativeSqlMemoryStore::append_audit_on_tx(
+            &mut tx,
+            &scope,
+            &audit_id,
+            "memory.record.create",
+            "memory_record",
+            &memory_id,
+            "accepted",
+        )
+        .await
+        .map_err(Self::map_store_error)?;
+
+        tx.commit().await.map_err(|e| Self::map_store_error(e.into()))?;
 
         let record = self
             .store
@@ -465,20 +559,9 @@ impl MemoryOpenApi for OpenMemoryService {
             .map_err(Self::map_store_error)?
             .map(Self::map_record)
             .transpose()?
-            .ok_or_else(|| MemoryServiceError::storage("created memory could not be loaded"))?;
-
-        self.publish_domain_event(
-            &scope,
-            "memory.record.created",
-            "memory_record",
-            &memory_id,
-            serde_json::json!({
-                "memoryId": memory_id,
-                "spaceId": request.space_id,
-                "memoryType": request.memory_type,
-            }),
-        )
-        .await?;
+            .ok_or_else(|| {
+                MemoryServiceError::storage("created memory could not be loaded")
+            })?;
 
         Ok(record)
     }
@@ -493,6 +576,15 @@ impl MemoryOpenApi for OpenMemoryService {
             .await
     }
 
+    #[tracing::instrument(
+        skip(self, context, patch),
+        fields(
+            tenant_id = %context.tenant_id,
+            space_id = %space_id,
+            memory_id = %memory_id,
+            otel_kind = "update_memory"
+        )
+    )]
     async fn update_memory(
         &self,
         context: MemoryOpenApiRequestContext,
@@ -504,36 +596,97 @@ impl MemoryOpenApi for OpenMemoryService {
         let scope = Self::scope(&context, space_id)?;
         let _existing = self.load_scoped_record(&context, space_id, memory_id).await?;
 
-        match self
+        if let Some(ref text) = patch.canonical_text {
+            assert_memory_text_is_safe(&[("canonicalText", text)])?;
+        }
+        if let Some(ref subject) = patch.subject {
+            assert_memory_text_is_safe(&[("subject", subject)])?;
+        }
+
+        // Begin transaction: record update + outbox event + audit log must be atomic.
+        let mut tx = self
             .store
-            .update_record_open_api(
-                &scope,
-                &memory_id.to_string(),
-                patch.canonical_text.as_deref(),
-                patch.subject.as_deref(),
-            )
+            .begin_tx()
+            .await
+            .map_err(Self::map_store_error)?;
+
+        let updated = NativeSqlMemoryStore::update_record_on_tx(
+            &mut tx,
+            &scope,
+            &memory_id.to_string(),
+            patch.canonical_text.as_deref(),
+            patch.subject.as_deref(),
+        )
+        .await
+        .map_err(Self::map_store_error)?;
+
+        if !updated {
+            tx.rollback().await.map_err(|e| Self::map_store_error(e.into()))?;
+            return Err(MemoryServiceError::not_found("memory not found"));
+        }
+
+        let event_payload = serde_json::json!({
+            "memoryId": memory_id,
+            "spaceId": space_id,
+        });
+        let payload_json = serde_json::to_string(&event_payload).map_err(|error| {
+            MemoryServiceError::storage_internal(format!(
+                "domain event payload encode failed: {error}"
+            ))
+        })?;
+        let outbox_id = self.next_id()?.to_string();
+
+        NativeSqlMemoryStore::append_outbox_on_tx(
+            &mut tx,
+            &scope,
+            &outbox_id,
+            "memory_record",
+            &memory_id.to_string(),
+            "memory.record.updated",
+            "1.0",
+            &payload_json,
+        )
+        .await
+        .map_err(Self::map_store_error)?;
+
+        let audit_id = self.next_id()?.to_string();
+        NativeSqlMemoryStore::append_audit_on_tx(
+            &mut tx,
+            &scope,
+            &audit_id,
+            "memory.record.update",
+            "memory_record",
+            &memory_id.to_string(),
+            "accepted",
+        )
+        .await
+        .map_err(Self::map_store_error)?;
+
+        tx.commit().await.map_err(|e| Self::map_store_error(e.into()))?;
+
+        let record = self
+            .store
+            .retrieve_record_detail(&scope, &memory_id.to_string())
             .await
             .map_err(Self::map_store_error)?
-        {
-            Some(row) => {
-                let record = Self::map_record(row)?;
-                self.publish_domain_event(
-                    &scope,
-                    "memory.record.updated",
-                    "memory_record",
-                    &memory_id.to_string(),
-                    serde_json::json!({
-                        "memoryId": memory_id,
-                        "spaceId": space_id,
-                    }),
-                )
-                .await?;
-                Ok(record)
-            }
-            None => Err(MemoryServiceError::not_found("memory not found")),
-        }
+            .map(Self::map_record)
+            .transpose()?
+            .ok_or_else(|| {
+                MemoryServiceError::storage("updated memory could not be loaded")
+            })?;
+
+        Ok(record)
     }
 
+    #[tracing::instrument(
+        skip(self, context),
+        fields(
+            tenant_id = %context.tenant_id,
+            space_id = %space_id,
+            memory_id = %memory_id,
+            otel_kind = "delete_memory"
+        )
+    )]
     async fn delete_memory(
         &self,
         context: MemoryOpenApiRequestContext,
@@ -544,24 +697,77 @@ impl MemoryOpenApi for OpenMemoryService {
         let scope = Self::scope(&context, space_id)?;
         let _existing = self.load_scoped_record(&context, space_id, memory_id).await?;
 
-        self.store
-            .mark_record_deleted(&scope, &memory_id.to_string())
+        // Begin transaction: record deletion + outbox event + audit log must be atomic.
+        let mut tx = self
+            .store
+            .begin_tx()
             .await
             .map_err(Self::map_store_error)?;
-        self.publish_domain_event(
+
+        let deleted = NativeSqlMemoryStore::mark_record_deleted_on_tx(
+            &mut tx,
             &scope,
-            "memory.record.deleted",
+            &memory_id.to_string(),
+        )
+        .await
+        .map_err(Self::map_store_error)?;
+
+        if !deleted {
+            // Already deleted or not found — rollback and return Ok (idempotent).
+            tx.rollback().await.map_err(|e| Self::map_store_error(e.into()))?;
+            return Ok(());
+        }
+
+        let event_payload = serde_json::json!({
+            "memoryId": memory_id,
+            "spaceId": space_id,
+        });
+        let payload_json = serde_json::to_string(&event_payload).map_err(|error| {
+            MemoryServiceError::storage_internal(format!(
+                "domain event payload encode failed: {error}"
+            ))
+        })?;
+        let outbox_id = self.next_id()?.to_string();
+
+        NativeSqlMemoryStore::append_outbox_on_tx(
+            &mut tx,
+            &scope,
+            &outbox_id,
             "memory_record",
             &memory_id.to_string(),
-            serde_json::json!({
-                "memoryId": memory_id,
-                "spaceId": space_id,
-            }),
+            "memory.record.deleted",
+            "1.0",
+            &payload_json,
         )
-        .await?;
+        .await
+        .map_err(Self::map_store_error)?;
+
+        let audit_id = self.next_id()?.to_string();
+        NativeSqlMemoryStore::append_audit_on_tx(
+            &mut tx,
+            &scope,
+            &audit_id,
+            "memory.record.delete",
+            "memory_record",
+            &memory_id.to_string(),
+            "accepted",
+        )
+        .await
+        .map_err(Self::map_store_error)?;
+
+        tx.commit().await.map_err(|e| Self::map_store_error(e.into()))?;
         Ok(())
     }
 
+    #[tracing::instrument(
+        skip(self, context, request),
+        fields(
+            tenant_id = %context.tenant_id,
+            space_count = request.space_ids.len(),
+            top_k = request.top_k,
+            otel_kind = "create_retrieval"
+        )
+    )]
     async fn create_retrieval(
         &self,
         context: MemoryOpenApiRequestContext,
@@ -572,6 +778,11 @@ impl MemoryOpenApi for OpenMemoryService {
         }
 
         access::assert_actor_can_access_spaces(&self.store, &context, &request.space_ids).await?;
+
+        // Commercial capability check: deny retrieval if explicitly denied for any space.
+        for space_id in &request.space_ids {
+            access::assert_retrieval_capability_allowed(&self.store, &context, *space_id).await?;
+        }
 
         let started = std::time::Instant::now();
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
@@ -707,8 +918,7 @@ impl MemoryOpenApi for OpenMemoryService {
             .unwrap_or_else(|| r#"{"keyword":{"weight":1.0}}"#.to_string());
         let hits: Vec<MemoryRetrievalHit> = fused
             .iter()
-            .enumerate()
-            .map(|(_index, hit)| {
+            .map(|hit| {
                 Ok(MemoryRetrievalHit {
                     hit_id: self.next_id()?,
                     memory: Some(hit.memory.clone()),
@@ -875,11 +1085,10 @@ impl MemoryOpenApi for OpenMemoryService {
             .iter()
             .map(Self::map_provider_binding_public)
             .collect::<Result<Vec<_>, _>>()?;
-        let status = if providers.is_empty() {
-            MemoryProviderHealthStatus::Healthy
-        } else if providers
-            .iter()
-            .all(|provider| provider.health_state == "healthy")
+        let status = if providers.is_empty()
+            || providers
+                .iter()
+                .all(|provider| provider.health_state == "healthy")
         {
             MemoryProviderHealthStatus::Healthy
         } else if providers
@@ -897,6 +1106,15 @@ impl MemoryOpenApi for OpenMemoryService {
         })
     }
 
+    #[tracing::instrument(
+        skip(self, context, request),
+        fields(
+            tenant_id = %context.tenant_id,
+            space_count = request.space_ids.len(),
+            context_budget_tokens = request.context_budget_tokens,
+            otel_kind = "create_context_pack"
+        )
+    )]
     async fn create_context_pack(
         &self,
         context: MemoryOpenApiRequestContext,
@@ -907,6 +1125,11 @@ impl MemoryOpenApi for OpenMemoryService {
         }
 
         access::assert_actor_can_access_spaces(&self.store, &context, &request.space_ids).await?;
+
+        // Commercial capability check: deny context pack creation if retrieval is denied.
+        for space_id in &request.space_ids {
+            access::assert_retrieval_capability_allowed(&self.store, &context, *space_id).await?;
+        }
 
         let top_k = if request.context_budget_tokens > 0 {
             (request.context_budget_tokens / 200).clamp(1, 50)
@@ -999,6 +1222,15 @@ impl MemoryOpenApi for OpenMemoryService {
         })
     }
 
+    #[tracing::instrument(
+        skip(self, context, request),
+        fields(
+            tenant_id = %context.tenant_id,
+            target_type = %request.target_type,
+            target_id = %request.target_id,
+            otel_kind = "create_feedback"
+        )
+    )]
     async fn create_feedback(
         &self,
         context: MemoryOpenApiRequestContext,
@@ -1066,6 +1298,15 @@ impl MemoryOpenApi for OpenMemoryService {
         })
     }
 
+    #[tracing::instrument(
+        skip(self, context, request),
+        fields(
+            tenant_id = %context.tenant_id,
+            space_id = %request.space_id,
+            input_event_count = request.input_events.len(),
+            otel_kind = "create_extraction"
+        )
+    )]
     async fn create_extraction(
         &self,
         context: MemoryOpenApiRequestContext,
@@ -1088,6 +1329,7 @@ impl MemoryOpenApi for OpenMemoryService {
                     .and_then(|value| value.as_str())
                     .unwrap_or("extracted memory candidate")
                     .to_string();
+                assert_memory_text_is_safe(&[("proposedText", &proposed)])?;
                 let candidate_id = self.next_id()?.to_string();
                 self.store
                     .create_candidate(&CreateMemoryCandidateCommand {
@@ -1137,7 +1379,7 @@ impl MemoryOpenApi for OpenMemoryService {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let space_id = access::require_list_space_id(query.space_id)?;
         access::assert_actor_can_access_space(&self.store, &context, space_id).await?;
-        let page_size = query.page_size.unwrap_or(20);
+        let page_size = platform::clamp_page_size(query.page_size);
         let rows = self
             .store
             .list_candidates_for_tenant(

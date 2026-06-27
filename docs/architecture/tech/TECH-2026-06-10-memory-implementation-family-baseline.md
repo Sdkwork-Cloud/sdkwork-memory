@@ -7,7 +7,7 @@
 
 **Architecture:** Keep `native_sql` and `local_embedded` in `sdkwork-memory-plugin-native-sql`, because the existing plugin already owns the SQLite/PostgreSQL phase 1 store. Add one provider-neutral reference plugin for `event_sourced`, `search_first`, `graph_temporal`, `external_provider_bridge`, and `hybrid_platform`; it exposes explicit builders and fail-closed/provider-neutral ports without binding a graph/search/external vendor.
 
-**Tech Stack:** Rust 2021, Cargo workspace crates, `sdkwork-memory-spi`, `sdkwork-memory-runtime`, JSON plugin manifests, contract tests, Node phase 1 verification.
+**Tech Stack:** Rust 2021, Cargo workspace crates, `sdkwork-memory-spi`, `sdkwork-memory-profile-resolver`, JSON plugin manifests, contract tests, Node phase 1 verification.
 
 ---
 
@@ -16,7 +16,7 @@
 **Files:**
 - Modify: `crates/sdkwork-memory-spi/tests/manifest_contract.rs`
 - Modify: `crates/sdkwork-memory-spi/tests/registry_contract.rs`
-- Modify: `crates/sdkwork-memory-runtime/tests/profile_resolution_contract.rs`
+- Modify: `crates/sdkwork-memory-profile-resolver/tests/profile_resolution_contract.rs`
 
 - [ ] Write failing tests that require every implementation family to have a manifest/profile path.
 - [ ] Run focused tests and confirm they fail because non-native profiles are missing.
@@ -40,8 +40,8 @@
 ### Task 3: Implement Runtime Profiles
 
 **Files:**
-- Modify: `crates/sdkwork-memory-runtime/src/profile.rs`
-- Modify: `crates/sdkwork-memory-runtime/tests/profile_resolution_contract.rs`
+- Modify: `crates/sdkwork-memory-profile-resolver/src/profile.rs`
+- Modify: `crates/sdkwork-memory-profile-resolver/tests/profile_resolution_contract.rs`
 
 - [ ] Add `local_embedded_phase1`, `event_sourced_phase1`, `search_first_phase1`, `graph_temporal_phase1`, `external_provider_bridge_eval`, and `hybrid_platform_phase1` profile constructors.
 - [ ] Ensure each profile validates supported implementation kinds and required ports before serving.

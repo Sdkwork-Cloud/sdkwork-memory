@@ -15,7 +15,7 @@ The current repository is a contract and standards skeleton. It has no runtime `
 
 - `sdkwork.app.config.json`
 - `specs/component.spec.json`
-- `docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md`
+- `docs/architecture/tech/TECH-2026-06-10-ai-memory-architecture-design.md`
 - `docs/schema-registry/tables/*.yaml`
 - `sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json`
 - `sdks/sdkwork-memory-app-sdk/openapi/memory-app-api.openapi.json`
@@ -25,9 +25,9 @@ The current repository is a contract and standards skeleton. It has no runtime `
 
 The current contract already contains the right raw materials:
 
-- `mem_record` and `mem_event` are canonical source-of-truth tables.
-- `mem_index`, `mem_index_entry`, `mem_retrieval_profile`, `mem_retrieval_trace`, and `mem_context_pack` represent derived retrieval and context state.
-- `mem_implementation_profile`, `mem_provider_binding`, and `mem_policy` represent runtime selection and governance.
+- `ai_record` and `ai_event` are canonical source-of-truth tables.
+- `ai_index`, `ai_index_entry`, `ai_retrieval_profile`, `ai_retrieval_trace`, and `ai_context_pack` represent derived retrieval and context state.
+- `ai_implementation_profile`, `ai_provider_binding`, and `ai_policy` represent runtime selection and governance.
 - Backend API exposes implementation profiles, provider bindings, indexes, retrieval profiles, provider health, migrations, eval runs, and audit logs.
 
 The missing layer is an executable SPI and plugin contract that makes these profiles enforceable in runtime code and testable across implementations.
@@ -61,7 +61,7 @@ The implementation consequence is explicit: SDKWork Memory must not hard-code on
 ## 4. Design Principles
 
 1. Canonical truth is stable.
-   `mem_record`, `mem_event`, source links, audit logs, and deletion state are the durable authority. Derived indexes may be rebuilt or switched.
+   `ai_record`, `ai_event`, source links, audit logs, and deletion state are the durable authority. Derived indexes may be rebuilt or switched.
 
 2. Embeddings are optional.
    Vector search is one retriever/index plugin. It must not be required for write, list, retrieve, delete, context assembly, or no-embedding retrieval.
@@ -73,7 +73,7 @@ The implementation consequence is explicit: SDKWork Memory must not hard-code on
    Plugins may propose, retrieve, rank, index, or bridge. Core enforces tenant scope, organization scope, user scope, policy, sensitivity, retention, deletion, audit, and request context.
 
 5. Profiles configure composition.
-   `mem_implementation_profile`, `mem_provider_binding`, and typed runtime config select plugins and provider bindings. Code forks must not select behavior implicitly.
+   `ai_implementation_profile`, `ai_provider_binding`, and typed runtime config select plugins and provider bindings. Code forks must not select behavior implicitly.
 
 6. Conformance beats trust.
    Every plugin that claims a port must pass the same Conformance suite for that port, including negative tests for tenant isolation, deletion, degraded mode, and secret redaction.
@@ -274,7 +274,7 @@ export type MemoryRetrieverKind =
 Core retrieval flow:
 
 1. Resolve profile and policy.
-2. Select retrievers from `mem_retrieval_profile`.
+2. Select retrievers from `ai_retrieval_profile`.
 3. Apply scope and sensitivity pre-filters.
 4. Call retriever plugins with bounded request objects.
 5. Rehydrate canonical records.
@@ -535,8 +535,8 @@ Ports:
 
 Rules:
 
-- Must prove projection rebuild from `mem_event`.
-- May use `mem_record` as projection or canonical snapshot, but event evidence remains required.
+- Must prove projection rebuild from `ai_event`.
+- May use `ai_record` as projection or canonical snapshot, but event evidence remains required.
 
 ### 10.3 `search_first`
 
@@ -570,7 +570,7 @@ Ports:
 
 Rules:
 
-- Relational `mem_entity` and `mem_edge` are the first portable graph model.
+- Relational `ai_entity` and `ai_edge` are the first portable graph model.
 - External graph databases are optional providers.
 - Graph output must be explainable through memory ids, entity ids, edge ids, and valid time ranges.
 
@@ -638,9 +638,14 @@ Recommended first implementation layout:
 crates/
   sdkwork-memory-contract/
   sdkwork-memory-spi/
-  sdkwork-memory-runtime/
-  sdkwork-memory-core/
+  sdkwork-memory-profile-resolver/
+  sdkwork-memory-retrieval/
   sdkwork-memory-test-support/
+  sdkwork-intelligence-memory-service/
+  sdkwork-intelligence-memory-repository-sqlx/
+  sdkwork-routes-memory-open-api/
+  sdkwork-routes-memory-app-api/
+  sdkwork-routes-memory-backend-api/
 plugins/
   sdkwork-memory-plugin-native-sql/
     Cargo.toml
@@ -654,13 +659,6 @@ plugins/
   sdkwork-memory-plugin-search-opensearch/
   sdkwork-memory-plugin-graph-relational/
   sdkwork-memory-plugin-external-bridge/
-services/
-  sdkwork-memory-product/
-  sdkwork-memory-service/
-packages/native-rust/routes/
-  open-api/sdkwork-routes-memory-open-api/
-  app-api/sdkwork-routes-memory-app-api/
-  backend-api/sdkwork-routes-memory-backend-api/
 ```
 
 The repository can start with static Rust feature registration:
@@ -677,10 +675,10 @@ Dynamic plugin loading can be introduced later only after security, signing, com
 
 The database-backed profile tables remain the control-plane model.
 
-- `mem_implementation_profile` selects the active implementation kind, role, status, capabilities, rollout, and plugin config references.
-- `mem_provider_binding` selects provider kind, provider code, endpoint ref, secret ref, model ref, capabilities, health, and safe non-secret config.
-- `mem_retrieval_profile` selects retriever list, fusion policy, rerank policy, top K, token budget, and degraded-mode behavior.
-- `mem_policy` selects retention, privacy, review, learning, retrieval, provider, export, and deletion behavior.
+- `ai_implementation_profile` selects the active implementation kind, role, status, capabilities, rollout, and plugin config references.
+- `ai_provider_binding` selects provider kind, provider code, endpoint ref, secret ref, model ref, capabilities, health, and safe non-secret config.
+- `ai_retrieval_profile` selects retriever list, fusion policy, rerank policy, top K, token budget, and degraded-mode behavior.
+- `ai_policy` selects retention, privacy, review, learning, retrieval, provider, export, and deletion behavior.
 
 Runtime config may include plugin enablement and safe paths:
 
@@ -722,7 +720,7 @@ Rules:
 
 - Required core store failure returns an API error.
 - Optional retriever failure follows retrieval profile policy: fail, degrade with explanation, or skip.
-- Degraded retrieval must be recorded in `mem_retrieval_trace`.
+- Degraded retrieval must be recorded in `ai_retrieval_trace`.
 - External provider deletion uncertainty must block cutover and surface as an operator-visible migration/eval failure.
 - Raw provider errors, SQL, stack traces, payloads, object keys, signed URLs, and secrets must not appear in API responses or normal logs.
 
@@ -761,7 +759,7 @@ Future runtime verification commands:
 
 ```powershell
 cargo test -p sdkwork-memory-spi
-cargo test -p sdkwork-memory-runtime
+cargo test -p sdkwork-memory-profile-resolver
 cargo test -p sdkwork-memory-plugin-native-sql --test conformance_native_sql
 cargo test --workspace
 ```
@@ -808,7 +806,7 @@ Deliver:
 
 - `crates/sdkwork-memory-contract`
 - `crates/sdkwork-memory-spi`
-- `crates/sdkwork-memory-runtime`
+- `crates/sdkwork-memory-profile-resolver`
 - `crates/sdkwork-memory-test-support`
 - Manifest structs.
 - Port traits.
@@ -830,8 +828,8 @@ Deliver:
 
 Deliver:
 
-- `services/sdkwork-memory-product`
-- `services/sdkwork-memory-service`
+- `crates/sdkwork-intelligence-memory-service`
+- `crates/sdkwork-intelligence-memory-repository-sqlx`
 - Open API, App API, and Backend API Rust route crates.
 - Typed request-context consumption.
 - Smoke tests for API key and dual-token contexts using approved test resolvers.
@@ -872,8 +870,8 @@ These decisions are fixed for the first runtime landing so implementation can st
 4. The first external bridge is generic and `eval_only`.
    No Mem0, Zep/Graphiti, Letta, or other provider becomes a first-class production bridge in 0.1.0. The external bridge SPI is defined now, but production activation waits for native SQL conformance, deletion propagation tests, privacy review, and provider-specific SDK/security review.
 
-5. Plugin conformance results are stored in `mem_eval_run` for 0.1.0.
-   A dedicated `mem_plugin_conformance_run` table is deferred until conformance history needs lifecycle, retention, or operator workflow fields that do not fit eval runs.
+5. Plugin conformance results are stored in `ai_eval_run` for 0.1.0.
+   A dedicated `ai_plugin_conformance_run` table is deferred until conformance history needs lifecycle, retention, or operator workflow fields that do not fit eval runs.
 
 6. Backend plugin-list APIs wait until native SQL runtime manifests exist.
    Phase B validates manifests through repository and Rust tests. Backend-admin plugin listing is an additive API after runtime manifests, health summaries, and operator workflows are concrete.

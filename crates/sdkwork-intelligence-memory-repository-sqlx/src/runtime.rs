@@ -3,7 +3,7 @@
 use sdkwork_memory_plugin_native_sql::{
     native_sql_manifest, validate_native_sql_port_builders, NATIVE_SQL_PLUGIN_ID,
 };
-use sdkwork_memory_runtime::{MemoryImplementationProfileDraft, MemoryRuntimeProfileResolver};
+use sdkwork_memory_profile_resolver::{MemoryImplementationProfileDraft, MemoryRuntimeProfileResolver};
 use sdkwork_memory_spi::MemoryPluginRegistry;
 
 use crate::bootstrap::{bootstrap_memory_data_plane_from_env, MemoryDataPlane};

@@ -816,13 +816,13 @@ Example:
 ```text
 <memory_context>
 User preferences:
-- User prefers Chinese technical architecture answers. source=mem_123 confidence=0.91
+- User prefers Chinese technical architecture answers. source=ai_123 confidence=0.91
 
 Project state:
-- This project is designing an embedding-optional, multi-index AI memory service. source=mem_456 confidence=0.88
+- This project is designing an embedding-optional, multi-index AI memory service. source=ai_456 confidence=0.88
 
 Procedural guidance:
-- For this memory module, canonical records are the source of truth; indexes are optional and rebuildable. source=mem_789 confidence=0.93
+- For this memory module, canonical records are the source of truth; indexes are optional and rebuildable. source=ai_789 confidence=0.93
 </memory_context>
 ```
 
@@ -1737,7 +1737,7 @@ Capability: memory
 API path segment: memory
 OpenAPI tag: memory
 SDK family stem: memory
-Database prefix: mem_
+Database prefix: ai_
 Event prefix: memory.
 Permission prefix: memory.
 ```
@@ -1794,25 +1794,16 @@ sdkwork-memory/
       plans/
   crates/
     sdkwork-memory-contract/
-    sdkwork-memory-core/
-    sdkwork-memory-agent-provider/
-    sdkwork-memory-drive/
+    sdkwork-memory-retrieval/
+    sdkwork-intelligence-memory-service/
+    sdkwork-intelligence-memory-repository-sqlx/
     sdkwork-memory-test-support/
-  packages/
-    native-rust/
-      routes/
-        open-api/
-          sdkwork-routes-memory-open-api/
-        app-api/
-          sdkwork-routes-memory-app-api/
-        backend-api/
-          sdkwork-routes-memory-backend-api/
-  services/
-    sdkwork-memory-product/
-    sdkwork-memory-storage-sqlx/
-    sdkwork-memory-open-api/
-    sdkwork-memory-app-api/
-    sdkwork-memory-backend-api/
+    sdkwork-routes-memory-open-api/
+    sdkwork-routes-memory-app-api/
+    sdkwork-routes-memory-backend-api/
+  plugins/
+    sdkwork-memory-plugin-native-sql/
+    sdkwork-memory-plugin-reference-profiles/
   sdks/
     sdkwork-memory-sdk/
       .sdkwork-assembly.json
@@ -1858,17 +1849,14 @@ Component responsibilities:
 | Component | Responsibility |
 | --- | --- |
 | `sdkwork-memory-contract` | Public DTOs, enums, operation IDs, API schema helpers, provider manifest contracts. |
-| `sdkwork-memory-core` | ID helpers, scoring utilities, lifecycle state machines, query planning helpers. |
-| `sdkwork-memory-product` | Use cases, policy engine, learning engine, consolidation engine, retrieval orchestration, context assembly. |
-| `sdkwork-memory-storage-sqlx` | PostgreSQL/SQLite migrations, repository implementations, schema migration registry. |
+| `sdkwork-memory-retrieval` | ID helpers, scoring utilities, lifecycle state machines, query planning helpers. |
+| `sdkwork-intelligence-memory-service` | Use cases, policy engine, learning engine, consolidation engine, retrieval orchestration, context assembly. |
+| `sdkwork-intelligence-memory-repository-sqlx` | PostgreSQL/SQLite migrations, repository implementations, schema migration registry. |
 | `sdkwork-routes-memory-open-api` | Open API path constants, route manifest, router registration, and handler boundary for `/mem/v3/api`. |
 | `sdkwork-routes-memory-app-api` | App API path constants, route manifest, router registration, and handler boundary for `/app/v3/api`. |
 | `sdkwork-routes-memory-backend-api` | Backend API path constants, route manifest, router registration, and handler boundary for `/backend/v3/api`. |
-| `sdkwork-memory-open-api` | Open HTTP route boundary for external and server-to-server API-key Memory integrations. |
-| `sdkwork-memory-app-api` | App HTTP route boundary for user-facing and agent-facing generated App SDK operations. |
-| `sdkwork-memory-backend-api` | Backend HTTP route boundary for `backend-admin`, operator, and control-plane generated Backend SDK operations. |
-| `sdkwork-memory-agent-provider` | Adapter from Memory context/retrieval contracts to agent runtimes. |
-| `sdkwork-memory-drive` | Adapter for Drive-backed exports, imports, snapshots, replay packages, and large event payload references. |
+| `sdkwork-memory-plugin-native-sql` | Native SQL plugin: adapter from Memory context/retrieval contracts to SQL storage and agent runtimes. |
+| `sdkwork-memory-plugin-reference-profiles` | Reference profiles plugin: adapter for Drive-backed exports, imports, snapshots, replay packages, and large event payload references. |
 | `sdkwork-memory-test-support` | Fake stores, fake providers, deterministic event fixtures, eval datasets. |
 
 ## 27. Multi-Implementation Abstraction
@@ -1976,7 +1964,7 @@ Rules:
 1. App API and Backend API contracts must not change when the implementation profile changes.
 2. Hot switching is allowed for optional retrievers and derived indexes.
 3. Canonical store switching requires migration workflow, export/import verification, and usually a write freeze, dual write, or shadow read window.
-4. External provider bridges must keep local `mem_record`, `mem_event`, and `mem_audit_log` shadow records sufficient for source tracing, deletion, export, and SDKWork governance.
+4. External provider bridges must keep local `ai_record`, `ai_event`, and `ai_audit_log` shadow records sufficient for source tracing, deletion, export, and SDKWork governance.
 5. Provider-specific DTOs must not leak into public app-api/backend-api schemas.
 6. Every implementation provider must pass the same contract test suite.
 
@@ -2427,13 +2415,13 @@ docs/schema-registry/tables/005-memory-governance.yaml
 Physical migrations:
 
 ```text
-services/sdkwork-memory-storage-sqlx/migrations/postgres/V202606100001__memory_core.sql
-services/sdkwork-memory-storage-sqlx/migrations/sqlite/V202606100001__memory_core.sql
+database/migrations/postgres/0001_memory_phase1.up.sql
+database/migrations/sqlite/0001_memory_phase1.up.sql
 ```
 
 ### 32.3 Core Tables
 
-#### `mem_space`
+#### `ai_space`
 
 Memory namespace for user, project, organization, agent, or global memory.
 
@@ -2462,12 +2450,12 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_space_uuid (tenant_id, uuid)
-uk_mem_space_owner_type (tenant_id, owner_subject_type, owner_subject_id, space_type)
-idx_mem_space_tenant_status (tenant_id, status, updated_at)
+uk_ai_space_uuid (tenant_id, uuid)
+uk_ai_space_owner_type (tenant_id, owner_subject_type, owner_subject_id, space_type)
+idx_ai_space_tenant_status (tenant_id, status, updated_at)
 ```
 
-#### `mem_event`
+#### `ai_event`
 
 Append-only evidence log.
 
@@ -2500,14 +2488,14 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_event_uuid (tenant_id, uuid)
-idx_mem_event_space_time (tenant_id, space_id, event_time, id)
-idx_mem_event_session_time (tenant_id, session_id, event_time)
-idx_mem_event_type_time (tenant_id, event_type, event_time)
-idx_mem_event_hash (tenant_id, payload_hash)
+uk_ai_event_uuid (tenant_id, uuid)
+idx_ai_event_space_time (tenant_id, space_id, event_time, id)
+idx_ai_event_session_time (tenant_id, session_id, event_time)
+idx_ai_event_type_time (tenant_id, event_type, event_time)
+idx_ai_event_hash (tenant_id, payload_hash)
 ```
 
-#### `mem_record`
+#### `ai_record`
 
 Canonical memory record.
 
@@ -2556,15 +2544,15 @@ metadata JSONB
 Indexes:
 
 ```text
-uk_mem_record_uuid (tenant_id, uuid)
-idx_mem_record_scope_type_status (tenant_id, space_id, scope, memory_type, status, updated_at)
-idx_mem_record_user_type (tenant_id, user_id, memory_type, status, updated_at)
-idx_mem_record_subject_predicate (tenant_id, space_id, subject, predicate, status)
-idx_mem_record_validity (tenant_id, valid_from, valid_to, expires_at)
-idx_mem_record_supersession (tenant_id, supersedes_memory_id, superseded_by_memory_id)
+uk_ai_record_uuid (tenant_id, uuid)
+idx_ai_record_scope_type_status (tenant_id, space_id, scope, memory_type, status, updated_at)
+idx_ai_record_user_type (tenant_id, user_id, memory_type, status, updated_at)
+idx_ai_record_subject_predicate (tenant_id, space_id, subject, predicate, status)
+idx_ai_record_validity (tenant_id, valid_from, valid_to, expires_at)
+idx_ai_record_supersession (tenant_id, supersedes_memory_id, superseded_by_memory_id)
 ```
 
-#### `mem_record_source`
+#### `ai_record_source`
 
 Many-to-many link between memory records and evidence events.
 
@@ -2584,12 +2572,12 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_record_source_uuid (tenant_id, uuid)
-uk_mem_record_source_pair (tenant_id, memory_id, event_id, source_role)
-idx_mem_record_source_event (tenant_id, event_id)
+uk_ai_record_source_uuid (tenant_id, uuid)
+uk_ai_record_source_pair (tenant_id, memory_id, event_id, source_role)
+idx_ai_record_source_event (tenant_id, event_id)
 ```
 
-#### `mem_entity`
+#### `ai_entity`
 
 Entity dictionary for graph, dictionary, and dedupe.
 
@@ -2613,12 +2601,12 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_entity_uuid (tenant_id, uuid)
-uk_mem_entity_name (tenant_id, space_id, entity_type, canonical_name)
-idx_mem_entity_type_status (tenant_id, space_id, entity_type, status)
+uk_ai_entity_uuid (tenant_id, uuid)
+uk_ai_entity_name (tenant_id, space_id, entity_type, canonical_name)
+idx_ai_entity_type_status (tenant_id, space_id, entity_type, status)
 ```
 
-#### `mem_edge`
+#### `ai_edge`
 
 Graph-compatible relationship record.
 
@@ -2643,15 +2631,15 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_edge_uuid (tenant_id, uuid)
-idx_mem_edge_source (tenant_id, space_id, source_entity_id, relation_type, status)
-idx_mem_edge_target (tenant_id, space_id, target_entity_id, relation_type, status)
-idx_mem_edge_validity (tenant_id, valid_from, valid_to)
+uk_ai_edge_uuid (tenant_id, uuid)
+idx_ai_edge_source (tenant_id, space_id, source_entity_id, relation_type, status)
+idx_ai_edge_target (tenant_id, space_id, target_entity_id, relation_type, status)
+idx_ai_edge_validity (tenant_id, valid_from, valid_to)
 ```
 
 ### 32.4 Learning Tables
 
-#### `mem_candidate`
+#### `ai_candidate`
 
 Candidate memory proposed by extraction or user action.
 
@@ -2685,12 +2673,12 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_candidate_uuid (tenant_id, uuid)
-idx_mem_candidate_state (tenant_id, space_id, decision_state, updated_at)
-idx_mem_candidate_target (tenant_id, target_memory_id)
+uk_ai_candidate_uuid (tenant_id, uuid)
+idx_ai_candidate_state (tenant_id, space_id, decision_state, updated_at)
+idx_ai_candidate_target (tenant_id, target_memory_id)
 ```
 
-#### `mem_habit`
+#### `ai_habit`
 
 Habit memory state.
 
@@ -2723,12 +2711,12 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_habit_uuid (tenant_id, uuid)
-uk_mem_habit_key (tenant_id, space_id, user_id, habit_key)
-idx_mem_habit_stage (tenant_id, space_id, stage, confidence, updated_at)
+uk_ai_habit_uuid (tenant_id, uuid)
+uk_ai_habit_key (tenant_id, space_id, user_id, habit_key)
+idx_ai_habit_stage (tenant_id, space_id, stage, confidence, updated_at)
 ```
 
-#### `mem_habit_signal`
+#### `ai_habit_signal`
 
 Evidence used to form habits.
 
@@ -2752,12 +2740,12 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_habit_signal_uuid (tenant_id, uuid)
-idx_mem_habit_signal_habit (tenant_id, habit_id, observed_at)
-idx_mem_habit_signal_event (tenant_id, event_id)
+uk_ai_habit_signal_uuid (tenant_id, uuid)
+idx_ai_habit_signal_habit (tenant_id, habit_id, observed_at)
+idx_ai_habit_signal_event (tenant_id, event_id)
 ```
 
-#### `mem_learning_job`
+#### `ai_learning_job`
 
 Async extraction, consolidation, decay, retention, and migration jobs.
 
@@ -2787,14 +2775,14 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_learning_job_uuid (tenant_id, uuid)
-uk_mem_learning_job_idempotency (tenant_id, job_type, idempotency_key)
-idx_mem_learning_job_state (tenant_id, job_type, state, priority, created_at)
+uk_ai_learning_job_uuid (tenant_id, uuid)
+uk_ai_learning_job_idempotency (tenant_id, job_type, idempotency_key)
+idx_ai_learning_job_state (tenant_id, job_type, state, priority, created_at)
 ```
 
 ### 32.5 Retrieval And Index Tables
 
-#### `mem_index`
+#### `ai_index`
 
 Derived index definition.
 
@@ -2821,12 +2809,12 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_index_uuid (tenant_id, uuid)
-uk_mem_index_kind_space (tenant_id, space_id, index_kind, schema_version)
-idx_mem_index_status (tenant_id, space_id, index_kind, status)
+uk_ai_index_uuid (tenant_id, uuid)
+uk_ai_index_kind_space (tenant_id, space_id, index_kind, schema_version)
+idx_ai_index_status (tenant_id, space_id, index_kind, status)
 ```
 
-#### `mem_index_entry`
+#### `ai_index_entry`
 
 Provider-neutral pointer to derived index state.
 
@@ -2849,12 +2837,12 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_index_entry_uuid (tenant_id, uuid)
-uk_mem_index_entry_memory (tenant_id, index_id, memory_id, entry_kind)
-idx_mem_index_entry_hash (tenant_id, index_id, entry_hash)
+uk_ai_index_entry_uuid (tenant_id, uuid)
+uk_ai_index_entry_memory (tenant_id, index_id, memory_id, entry_kind)
+idx_ai_index_entry_hash (tenant_id, index_id, entry_hash)
 ```
 
-#### `mem_retrieval_profile`
+#### `ai_retrieval_profile`
 
 Retrieval strategy configuration.
 
@@ -2882,11 +2870,11 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_retrieval_profile_uuid (tenant_id, uuid)
-idx_mem_retrieval_profile_scope (tenant_id, space_id, status, updated_at)
+uk_ai_retrieval_profile_uuid (tenant_id, uuid)
+idx_ai_retrieval_profile_scope (tenant_id, space_id, status, updated_at)
 ```
 
-#### `mem_retrieval_trace`
+#### `ai_retrieval_trace`
 
 Retrieval and context assembly trace.
 
@@ -2915,12 +2903,12 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_retrieval_trace_uuid (tenant_id, uuid)
-idx_mem_retrieval_trace_profile_created (tenant_id, retrieval_profile_id, created_at)
-idx_mem_retrieval_trace_actor_created (tenant_id, actor_id, created_at)
+uk_ai_retrieval_trace_uuid (tenant_id, uuid)
+idx_ai_retrieval_trace_profile_created (tenant_id, retrieval_profile_id, created_at)
+idx_ai_retrieval_trace_actor_created (tenant_id, actor_id, created_at)
 ```
 
-#### `mem_retrieval_hit`
+#### `ai_retrieval_hit`
 
 Per-memory retrieval hit evidence.
 
@@ -2947,12 +2935,12 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_retrieval_hit_uuid (tenant_id, uuid)
-idx_mem_retrieval_hit_trace_rank (tenant_id, retrieval_trace_id, result_rank)
-idx_mem_retrieval_hit_memory (tenant_id, memory_id, status)
+uk_ai_retrieval_hit_uuid (tenant_id, uuid)
+idx_ai_retrieval_hit_trace_rank (tenant_id, retrieval_trace_id, result_rank)
+idx_ai_retrieval_hit_memory (tenant_id, memory_id, status)
 ```
 
-#### `mem_context_pack`
+#### `ai_context_pack`
 
 Assembled model-ready memory context.
 
@@ -2978,14 +2966,14 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_context_pack_uuid (tenant_id, uuid)
-idx_mem_context_pack_trace (tenant_id, retrieval_trace_id)
-idx_mem_context_pack_actor_created (tenant_id, actor_id, created_at)
+uk_ai_context_pack_uuid (tenant_id, uuid)
+idx_ai_context_pack_trace (tenant_id, retrieval_trace_id)
+idx_ai_context_pack_actor_created (tenant_id, actor_id, created_at)
 ```
 
 ### 32.6 Provider And Policy Tables
 
-#### `mem_implementation_profile`
+#### `ai_implementation_profile`
 
 Runtime profile for switching implementation families.
 
@@ -3011,11 +2999,11 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_implementation_profile_uuid (tenant_id, uuid)
-idx_mem_implementation_profile_kind (tenant_id, implementation_kind, status)
+uk_ai_implementation_profile_uuid (tenant_id, uuid)
+idx_ai_implementation_profile_kind (tenant_id, implementation_kind, status)
 ```
 
-#### `mem_provider_binding`
+#### `ai_provider_binding`
 
 Model, embedding, search, graph, external memory, and storage provider binding.
 
@@ -3041,12 +3029,12 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_provider_binding_uuid (tenant_id, uuid)
-uk_mem_provider_binding_code (tenant_id, provider_kind, provider_code)
-idx_mem_provider_binding_health (tenant_id, provider_kind, health_state, updated_at)
+uk_ai_provider_binding_uuid (tenant_id, uuid)
+uk_ai_provider_binding_code (tenant_id, provider_kind, provider_code)
+idx_ai_provider_binding_health (tenant_id, provider_kind, health_state, updated_at)
 ```
 
-#### `mem_policy`
+#### `ai_policy`
 
 Learning, retention, sensitivity, retrieval, and deletion policy.
 
@@ -3069,13 +3057,13 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_policy_uuid (tenant_id, uuid)
-idx_mem_policy_type_scope (tenant_id, policy_type, scope, status)
+uk_ai_policy_uuid (tenant_id, uuid)
+idx_ai_policy_type_scope (tenant_id, policy_type, scope, status)
 ```
 
 ### 32.7 Governance Tables
 
-#### `mem_audit_log`
+#### `ai_audit_log`
 
 Audit log for memory operations.
 
@@ -3103,13 +3091,13 @@ created_at TIMESTAMP NOT NULL
 Indexes:
 
 ```text
-uk_mem_audit_log_uuid (tenant_id, uuid)
-idx_mem_audit_actor_time (tenant_id, actor_type, actor_id, created_at)
-idx_mem_audit_resource_time (tenant_id, resource_type, resource_id, created_at)
-idx_mem_audit_action_time (tenant_id, action, created_at)
+uk_ai_audit_log_uuid (tenant_id, uuid)
+idx_ai_audit_actor_time (tenant_id, actor_type, actor_id, created_at)
+idx_ai_audit_resource_time (tenant_id, resource_type, resource_id, created_at)
+idx_ai_audit_action_time (tenant_id, action, created_at)
 ```
 
-#### `mem_eval_run`
+#### `ai_eval_run`
 
 Memory quality evaluation run.
 
@@ -3137,11 +3125,11 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_eval_run_uuid (tenant_id, uuid)
-idx_mem_eval_run_type_state (tenant_id, eval_type, state, created_at)
+uk_ai_eval_run_uuid (tenant_id, uuid)
+idx_ai_eval_run_type_state (tenant_id, eval_type, state, created_at)
 ```
 
-#### `mem_outbox_event`
+#### `ai_outbox_event`
 
 Transactional event publication.
 
@@ -3165,8 +3153,8 @@ version BIGINT NOT NULL DEFAULT 0
 Indexes:
 
 ```text
-uk_mem_outbox_event_uuid (tenant_id, uuid)
-idx_mem_outbox_state (tenant_id, publish_state, created_at)
+uk_ai_outbox_event_uuid (tenant_id, uuid)
+idx_ai_outbox_state (tenant_id, publish_state, created_at)
 ```
 
 ## 33. Event Contract Draft
@@ -3307,7 +3295,7 @@ Deliver:
 
 ```text
 PostgreSQL/SQLite migrations
-mem_space, mem_event, mem_record, mem_record_source, mem_candidate, mem_habit
+ai_space, ai_event, ai_record, ai_record_source, ai_candidate, ai_habit
 SQL/keyword/dictionary/time/event retrievers
 open-api route coverage
 app-api route coverage
@@ -3379,6 +3367,6 @@ release and migration runbooks
 3. Whether Knowledgebase integration is a dependency SDK, provider adapter, or only a documented composition pattern in Phase 1.
 4. Whether table IDs use service-generated Snowflake IDs like Knowledgebase or Drive-style varchar logical IDs.
 5. Whether OpenSearch is introduced in Phase 1 or keyword retrieval starts with PostgreSQL full-text and SQLite FTS only.
-6. Whether graph memory starts with relational `mem_entity`/`mem_edge` tables or an external graph provider behind the same port.
+6. Whether graph memory starts with relational `ai_entity`/`ai_edge` tables or an external graph provider behind the same port.
 7. Which implementation provider bridges are first-class in the standard: native SQL only, or native SQL plus one external bridge.
 

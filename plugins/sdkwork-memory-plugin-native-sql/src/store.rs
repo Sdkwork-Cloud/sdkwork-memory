@@ -97,51 +97,108 @@ impl NativeSqlMemoryStore {
     }
 
     async fn schema_is_initialized(&self) -> Result<bool, NativeSqlStoreError> {
-        match sqlx::query_scalar::<_, i32>("SELECT 1 FROM ai_space LIMIT 1")
-            .fetch_optional(&self.pool)
-            .await
+        // Check the migration tracking table for the latest expected migration version.
+        // This correctly handles partial upgrades: if any migration is missing,
+        // the check returns false so apply_embedded_sql_migrations can fill the gap.
+        match sqlx::query_scalar::<_, i32>(
+            "SELECT 1 FROM ops_memory_schema_version WHERE version = '0007' LIMIT 1",
+        )
+        .fetch_optional(&self.pool)
+        .await
         {
             Ok(Some(_)) => Ok(true),
-            Ok(None) => Ok(true),
-            Err(error) => {
-                let message = error.to_string().to_lowercase();
-                if message.contains("no such table")
-                    || message.contains("does not exist")
-                    || message.contains("unknown table")
-                {
-                    Ok(false)
-                } else {
-                    Err(error.into())
-                }
-            }
+            Ok(None) => Ok(false),
+            Err(_) => Ok(false), // Tracking table does not exist yet — fresh or legacy database.
         }
     }
 
     async fn apply_postgres_phase1_migration(&self) -> Result<(), NativeSqlStoreError> {
-        const MIGRATIONS: &[&str] = &[
-            include_str!("../migrations/postgres/V202606100001__memory_phase1.sql"),
-            include_str!("../migrations/postgres/V202606100002__memory_phase1_indexes.sql"),
-            include_str!("../migrations/postgres/V202606230001__mem_tenant_preference.sql"),
+        const MIGRATIONS: &[(&str, &str)] = &[
+            ("0001", include_str!("../migrations/postgres/V202606100001__memory_phase1.sql")),
+            ("0002", include_str!("../migrations/postgres/V202606100002__memory_phase1_indexes.sql")),
+            ("0003", include_str!("../migrations/postgres/V202606230001__mem_tenant_preference.sql")),
+            ("0004", include_str!("../migrations/postgres/V202606240001__ai_learning_job.sql")),
+            ("0005", include_str!("../migrations/postgres/V202606240002__ai_record_fulltext_search.sql")),
+            ("0006", include_str!("../migrations/postgres/V202606250001__ai_eval_run_extend.sql")),
+            ("0007", include_str!("../migrations/postgres/V202606250002__memory_commercial_management.sql")),
         ];
         self.apply_embedded_sql_migrations(MIGRATIONS).await
     }
 
     async fn apply_embedded_sql_migrations(
         &self,
-        migrations: &[&str],
+        migrations: &[(&str, &str)],
     ) -> Result<(), NativeSqlStoreError> {
         let mut connection = self.pool.acquire().await?;
-        for migration in migrations {
-            for statement in migration.split(';') {
+
+        // Ensure the migration tracking table exists so incremental upgrades work.
+        let create_tracking_table = match self.dialect {
+            MemorySqlDialect::Postgres => {
+                r"CREATE TABLE IF NOT EXISTS ops_memory_schema_version (
+                    version VARCHAR(32) PRIMARY KEY,
+                    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )"
+            }
+            MemorySqlDialect::Sqlite => {
+                r"CREATE TABLE IF NOT EXISTS ops_memory_schema_version (
+                    version TEXT PRIMARY KEY,
+                    applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+                )"
+            }
+        };
+        sqlx::query(create_tracking_table)
+            .execute(&mut *connection)
+            .await?;
+
+        for (version, migration_sql) in migrations {
+            // Skip if this migration was already recorded.
+            let already_applied =
+                sqlx::query_scalar::<_, i32>(
+                    "SELECT 1 FROM ops_memory_schema_version WHERE version = ? LIMIT 1",
+                )
+                .bind(version)
+                .fetch_optional(&mut *connection)
+                .await?;
+
+            if already_applied.is_some() {
+                continue;
+            }
+
+            // Apply each statement using the dollar-quote-aware splitter.
+            for statement in split_sql_statements(migration_sql) {
                 let statement = statement.trim();
-                if !statement.is_empty() {
-                    sqlx::query(statement).execute(&mut *connection).await?;
+                if statement.is_empty() {
+                    continue;
+                }
+                match sqlx::query(statement).execute(&mut *connection).await {
+                    Ok(_) => {}
+                    Err(error) => {
+                        let msg = error.to_string().to_lowercase();
+                        // SQLite ALTER TABLE ADD COLUMN fails if the column already exists.
+                        // Treat this as a no-op for idempotent upgrades from legacy databases.
+                        if msg.contains("duplicate column") || msg.contains("already exists") {
+                            tracing::debug!(
+                                version,
+                                "migration statement skipped (already applied)"
+                            );
+                            continue;
+                        }
+                        return Err(error.into());
+                    }
                 }
             }
+
+            // Record the migration.
+            sqlx::query("INSERT INTO ops_memory_schema_version (version) VALUES (?)")
+                .bind(version)
+                .execute(&mut *connection)
+                .await?;
         }
+
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn append_open_api_event(
         &self,
         scope: &MemoryScopeContext,
@@ -215,7 +272,7 @@ impl NativeSqlMemoryStore {
     ) -> Result<Option<NativeSqlOpenApiEventRow>, NativeSqlStoreError> {
         let row = sqlx::query(
             r#"
-            SELECT uuid, space_id, event_type, source_type, event_time, payload_json, payload_hash, ingestion_status, created_at
+            SELECT uuid, space_id, user_id, actor_type, actor_id, event_type, source_type, event_time, payload_json, payload_hash, ingestion_status, created_at
             FROM ai_event
             WHERE tenant_id = ? AND uuid = ?
             "#,
@@ -227,10 +284,13 @@ impl NativeSqlMemoryStore {
 
         Ok(row.map(|row| {
             let payload_json: String = row.get("payload_json");
-            NativeSqlOpenApiEventRow {
-                event_id: row.get("uuid"),
-                space_id: row.get("space_id"),
-                event_type: row.get("event_type"),
+NativeSqlOpenApiEventRow {
+event_id: row.get("uuid"),
+space_id: row.get("space_id"),
+user_id: row.try_get("user_id").ok(),
+actor_type: row.try_get("actor_type").ok(),
+actor_id: row.try_get("actor_id").ok(),
+event_type: row.get("event_type"),
                 source_type: row.get("source_type"),
                 event_time: row.get("event_time"),
                 payload: parse_event_payload(&payload_json).unwrap_or(Value::Null),
@@ -251,6 +311,7 @@ impl NativeSqlMemoryStore {
             SELECT
               r.uuid,
               r.space_id,
+              r.user_id,
               r.scope,
               r.memory_type,
               r.subject,
@@ -258,6 +319,8 @@ impl NativeSqlMemoryStore {
               r.object_text,
               r.canonical_text,
               r.confidence,
+              r.evidence_count,
+              r.contradiction_count,
               r.status,
               r.sensitivity_level,
               r.created_at,
@@ -290,7 +353,7 @@ impl NativeSqlMemoryStore {
     ) -> Result<Option<NativeSqlOpenApiEventRow>, NativeSqlStoreError> {
         let row = sqlx::query(
             r#"
-            SELECT uuid, space_id, event_type, source_type, event_time, payload_json, payload_hash, ingestion_status, created_at
+            SELECT uuid, space_id, user_id, actor_type, actor_id, event_type, source_type, event_time, payload_json, payload_hash, ingestion_status, created_at
             FROM ai_event
             WHERE tenant_id = ? AND space_id = ? AND uuid = ?
             "#,
@@ -303,10 +366,13 @@ impl NativeSqlMemoryStore {
 
         Ok(row.map(|row| {
             let payload_json: String = row.get("payload_json");
-            NativeSqlOpenApiEventRow {
-                event_id: row.get("uuid"),
-                space_id: row.get("space_id"),
-                event_type: row.get("event_type"),
+NativeSqlOpenApiEventRow {
+event_id: row.get("uuid"),
+space_id: row.get("space_id"),
+user_id: row.try_get("user_id").ok(),
+actor_type: row.try_get("actor_type").ok(),
+actor_id: row.try_get("actor_id").ok(),
+event_type: row.get("event_type"),
                 source_type: row.get("source_type"),
                 event_time: row.get("event_time"),
                 payload: parse_event_payload(&payload_json).unwrap_or(Value::Null),
@@ -317,6 +383,7 @@ impl NativeSqlMemoryStore {
         }))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn create_record_open_api(
         &self,
         scope: &MemoryScopeContext,
@@ -376,6 +443,7 @@ impl NativeSqlMemoryStore {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn supersede_record_open_api(
         &self,
         scope: &MemoryScopeContext,
@@ -466,6 +534,7 @@ impl NativeSqlMemoryStore {
             SELECT
               r.uuid,
               r.space_id,
+              r.user_id,
               r.scope,
               r.memory_type,
               r.subject,
@@ -473,6 +542,8 @@ impl NativeSqlMemoryStore {
               r.object_text,
               r.canonical_text,
               r.confidence,
+              r.evidence_count,
+              r.contradiction_count,
               r.status,
               r.sensitivity_level,
               r.created_at,
@@ -691,12 +762,19 @@ impl NativeSqlMemoryStore {
         query: &str,
         top_k: i32,
     ) -> Result<Vec<NativeSqlMemoryRecordDetail>, NativeSqlStoreError> {
-        let pattern = crate::privacy::like_pattern(query.trim());
-        let rows = sqlx::query(
+        match self
+            .search_record_details_fulltext(scope, query, top_k)
+            .await
+        {
+            Ok(rows) if !rows.is_empty() => Ok(rows),
+            Ok(_) | Err(_) => {
+                let pattern = crate::privacy::like_pattern(query.trim());
+                let rows = sqlx::query(
             r#"
             SELECT
               r.uuid,
               r.space_id,
+              r.user_id,
               r.scope,
               r.memory_type,
               r.subject,
@@ -704,6 +782,8 @@ impl NativeSqlMemoryStore {
               r.object_text,
               r.canonical_text,
               r.confidence,
+              r.evidence_count,
+              r.contradiction_count,
               r.status,
               r.sensitivity_level,
               r.created_at,
@@ -735,7 +815,9 @@ impl NativeSqlMemoryStore {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows.into_iter().map(record_detail_from_row).collect())
+                Ok(rows.into_iter().map(record_detail_from_row).collect())
+            }
+        }
     }
 
     pub async fn search_open_api_events_keyword(
@@ -769,6 +851,9 @@ impl NativeSqlMemoryStore {
             .map(|row| NativeSqlOpenApiEventRow {
                 event_id: row.get("uuid"),
                 space_id: row.get("space_id"),
+                user_id: row.try_get("user_id").ok(),
+                actor_type: row.try_get("actor_type").ok(),
+                actor_id: row.try_get("actor_id").ok(),
                 event_type: row.get("event_type"),
                 source_type: row.get("source_type"),
                 event_time: row.get("event_time"),
@@ -1082,23 +1167,30 @@ impl NativeSqlMemoryStore {
         resource_id: &str,
         result: &str,
     ) -> Result<NativeSqlMemoryAuditRecord, NativeSqlStoreError> {
+        let (actor_type, actor_id) = match scope.user_id {
+            Some(user_id) => ("user", Some(user_id.to_string())),
+            None => ("system", None),
+        };
         sqlx::query(
             r#"
             INSERT INTO ai_audit_log (
               uuid,
               tenant_id,
               actor_type,
+              actor_id,
               action,
               resource_type,
               resource_id,
               result,
               created_at
             )
-            VALUES (?, ?, 'system', ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
         .bind(audit_id)
         .bind(scope.tenant_id)
+        .bind(actor_type)
+        .bind(actor_id.as_deref())
         .bind(action)
         .bind(resource_type)
         .bind(resource_id)
@@ -1116,6 +1208,191 @@ impl NativeSqlMemoryStore {
         })
     }
 
+    // -----------------------------------------------------------------
+    // Transactional helpers — allow multi-step writes to be atomic.
+    // -----------------------------------------------------------------
+
+    /// Begin a database transaction for atomic multi-step operations.
+    pub async fn begin_tx(
+        &self,
+    ) -> Result<sqlx::Transaction<'_, sqlx::Any>, NativeSqlStoreError> {
+        self.pool.begin().await.map_err(Into::into)
+    }
+
+    /// Create a record within an existing transaction (no ensure_space check).
+    #[allow(clippy::too_many_arguments)]
+    pub async fn create_record_on_tx(
+        tx: &mut sqlx::Transaction<'_, sqlx::Any>,
+        scope: &MemoryScopeContext,
+        memory_id: &str,
+        scope_label: &str,
+        memory_type: &str,
+        subject: Option<&str>,
+        predicate: Option<&str>,
+        object_text: &str,
+        canonical_text: &str,
+        sensitivity_level: &str,
+    ) -> Result<(), NativeSqlStoreError> {
+        sqlx::query(
+            r#"
+            INSERT INTO ai_record (
+              uuid, tenant_id, space_id, user_id, scope, memory_type,
+              subject, predicate, object_text, canonical_text,
+              confidence, evidence_count, contradiction_count,
+              importance_score, recency_score,
+              status, sensitivity_level, created_at, updated_at, version
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1.0, 1, 0, 0.5, 0.5, 'active', ?, ?, ?, 1)
+            "#,
+        )
+        .bind(memory_id)
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
+        .bind(scope.user_id)
+        .bind(scope_label)
+        .bind(memory_type)
+        .bind(subject)
+        .bind(predicate.unwrap_or("is"))
+        .bind(object_text)
+        .bind(canonical_text)
+        .bind(sensitivity_level)
+        .bind(now_text())
+        .bind(now_text())
+        .execute(&mut **tx)
+        .await?;
+        Ok(())
+    }
+
+    /// Append an outbox event within an existing transaction (no idempotency check).
+    #[allow(clippy::too_many_arguments)]
+    pub async fn append_outbox_on_tx(
+        tx: &mut sqlx::Transaction<'_, sqlx::Any>,
+        scope: &MemoryScopeContext,
+        outbox_id: &str,
+        aggregate_type: &str,
+        aggregate_id: &str,
+        event_type: &str,
+        event_version: &str,
+        payload_json: &str,
+    ) -> Result<(), NativeSqlStoreError> {
+        sqlx::query(
+            r#"
+            INSERT INTO ai_outbox_event (
+              uuid, tenant_id, aggregate_type, aggregate_id,
+              event_type, event_version, payload_json,
+              publish_state, retry_count, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, ?)
+            "#,
+        )
+        .bind(outbox_id)
+        .bind(scope.tenant_id)
+        .bind(aggregate_type)
+        .bind(aggregate_id)
+        .bind(event_type)
+        .bind(event_version)
+        .bind(payload_json)
+        .bind(now_text())
+        .bind(now_text())
+        .execute(&mut **tx)
+        .await?;
+        Ok(())
+    }
+
+    /// Append an audit log entry within an existing transaction.
+    pub async fn append_audit_on_tx(
+        tx: &mut sqlx::Transaction<'_, sqlx::Any>,
+        scope: &MemoryScopeContext,
+        audit_id: &str,
+        action: &str,
+        resource_type: &str,
+        resource_id: &str,
+        result: &str,
+    ) -> Result<(), NativeSqlStoreError> {
+        let (actor_type, actor_id) = match scope.user_id {
+            Some(user_id) => ("user", Some(user_id.to_string())),
+            None => ("system", None),
+        };
+        sqlx::query(
+            r#"
+            INSERT INTO ai_audit_log (
+              uuid, tenant_id, actor_type, actor_id,
+              action, resource_type, resource_id, result, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(audit_id)
+        .bind(scope.tenant_id)
+        .bind(actor_type)
+        .bind(actor_id.as_deref())
+        .bind(action)
+        .bind(resource_type)
+        .bind(resource_id)
+        .bind(result)
+        .bind(now_text())
+        .execute(&mut **tx)
+        .await?;
+        Ok(())
+    }
+
+    /// Mark a record as deleted within an existing transaction.
+    pub async fn mark_record_deleted_on_tx(
+        tx: &mut sqlx::Transaction<'_, sqlx::Any>,
+        scope: &MemoryScopeContext,
+        memory_id: &str,
+    ) -> Result<bool, NativeSqlStoreError> {
+        let now = now_text();
+        let affected = sqlx::query(
+            r#"
+            UPDATE ai_record
+            SET status = 'deleted', deleted_at = ?, updated_at = ?, version = version + 1
+            WHERE tenant_id = ? AND space_id = ? AND uuid = ? AND status <> 'deleted'
+            "#,
+        )
+        .bind(&now)
+        .bind(&now)
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
+        .bind(memory_id)
+        .execute(&mut **tx)
+        .await?
+        .rows_affected();
+        Ok(affected > 0)
+    }
+
+    /// Update a record's text fields within an existing transaction.
+    pub async fn update_record_on_tx(
+        tx: &mut sqlx::Transaction<'_, sqlx::Any>,
+        scope: &MemoryScopeContext,
+        memory_id: &str,
+        canonical_text: Option<&str>,
+        subject: Option<&str>,
+    ) -> Result<bool, NativeSqlStoreError> {
+        let now = now_text();
+        let affected = sqlx::query(
+            r#"
+            UPDATE ai_record
+            SET canonical_text = COALESCE(?, canonical_text),
+                subject = COALESCE(?, subject),
+                updated_at = ?,
+                version = version + 1
+            WHERE tenant_id = ? AND space_id = ? AND uuid = ? AND status <> 'deleted'
+            "#,
+        )
+        .bind(canonical_text)
+        .bind(subject)
+        .bind(&now)
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
+        .bind(memory_id)
+        .execute(&mut **tx)
+        .await?
+        .rows_affected();
+        Ok(affected > 0)
+    }
+
+    #[allow(clippy::too_many_arguments)]
     pub async fn append_audit_with_metadata(
         &self,
         scope: &MemoryScopeContext,
@@ -1127,6 +1404,7 @@ impl NativeSqlMemoryStore {
         metadata_json: &str,
         actor_id: Option<&str>,
     ) -> Result<NativeSqlMemoryAuditRecord, NativeSqlStoreError> {
+        let actor_type = if actor_id.is_some() { "user" } else { "system" };
         sqlx::query(
             r#"
             INSERT INTO ai_audit_log (
@@ -1141,11 +1419,12 @@ impl NativeSqlMemoryStore {
               metadata_json,
               created_at
             )
-            VALUES (?, ?, 'user', ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
         .bind(audit_id)
         .bind(scope.tenant_id)
+        .bind(actor_type)
         .bind(actor_id)
         .bind(action)
         .bind(resource_type)
@@ -1550,6 +1829,10 @@ impl NativeSqlMemoryStore {
               SELECT id
               FROM ai_outbox_event
               WHERE publish_state = 'pending'
+                AND (
+                  retry_count = 0
+                  OR updated_at + (POWER(2, LEAST(retry_count, 5)) * INTERVAL '1 second') <= NOW()
+                )
               ORDER BY created_at ASC, id ASC
               LIMIT ?
               FOR UPDATE SKIP LOCKED
@@ -1614,6 +1897,17 @@ impl NativeSqlMemoryStore {
               retry_count
             FROM ai_outbox_event
             WHERE publish_state = 'pending'
+              AND (
+                retry_count = 0
+                OR datetime(updated_at, '+' ||
+                  CASE retry_count
+                    WHEN 1 THEN '2'
+                    WHEN 2 THEN '4'
+                    WHEN 3 THEN '8'
+                    WHEN 4 THEN '16'
+                    ELSE '32'
+                  END || ' seconds') <= datetime('now')
+              )
             ORDER BY created_at ASC, id ASC
             LIMIT ?
             "#,
@@ -2452,10 +2746,14 @@ impl NativeSqlMemoryStore {
     }
 
     async fn apply_sqlite_phase1_migration(&self) -> Result<(), NativeSqlStoreError> {
-        const MIGRATIONS: &[&str] = &[
-            include_str!("../migrations/sqlite/V202606100001__memory_phase1.sql"),
-            include_str!("../migrations/sqlite/V202606100002__memory_phase1_indexes.sql"),
-            include_str!("../migrations/sqlite/V202606230001__mem_tenant_preference.sql"),
+        const MIGRATIONS: &[(&str, &str)] = &[
+            ("0001", include_str!("../migrations/sqlite/V202606100001__memory_phase1.sql")),
+            ("0002", include_str!("../migrations/sqlite/V202606100002__memory_phase1_indexes.sql")),
+            ("0003", include_str!("../migrations/sqlite/V202606230001__mem_tenant_preference.sql")),
+            ("0004", include_str!("../migrations/sqlite/V202606240001__ai_learning_job.sql")),
+            ("0005", include_str!("../migrations/sqlite/V202606240002__ai_record_fulltext_search.sql")),
+            ("0006", include_str!("../migrations/sqlite/V202606250001__ai_eval_run_extend.sql")),
+            ("0007", include_str!("../migrations/sqlite/V202606250002__memory_commercial_management.sql")),
         ];
         self.apply_embedded_sql_migrations(MIGRATIONS).await
     }
@@ -2598,7 +2896,7 @@ impl NativeSqlMemoryStore {
         Ok(row)
     }
 
-    async fn lookup_record_row_id(
+    pub(crate) async fn lookup_record_row_id(
         &self,
         scope: &MemoryScopeContext,
         memory_id: &str,
@@ -2808,6 +3106,7 @@ impl NativeSqlMemoryStore {
             .collect())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn insert_context_pack_open_api(
         &self,
         tenant_id: i64,
@@ -3055,7 +3354,7 @@ impl NativeSqlMemoryStore {
         let rows = if let Some(space_id) = space_id {
             sqlx::query(
                 r#"
-                SELECT uuid, space_id, event_type, source_type, event_time, payload_json, payload_hash, ingestion_status, created_at
+                SELECT uuid, space_id, user_id, actor_type, actor_id, event_type, source_type, event_time, payload_json, payload_hash, ingestion_status, created_at
                 FROM ai_event
                 WHERE tenant_id = ? AND space_id = ? AND uuid > ?
                 ORDER BY uuid ASC
@@ -3071,7 +3370,7 @@ impl NativeSqlMemoryStore {
         } else {
             sqlx::query(
                 r#"
-                SELECT uuid, space_id, event_type, source_type, event_time, payload_json, payload_hash, ingestion_status, created_at
+                SELECT uuid, space_id, user_id, actor_type, actor_id, event_type, source_type, event_time, payload_json, payload_hash, ingestion_status, created_at
                 FROM ai_event
                 WHERE tenant_id = ? AND uuid > ?
                 ORDER BY uuid ASC
@@ -3089,10 +3388,13 @@ impl NativeSqlMemoryStore {
             .into_iter()
             .map(|row| {
                 let payload_json: String = row.get("payload_json");
-                NativeSqlOpenApiEventRow {
-                    event_id: row.get("uuid"),
-                    space_id: row.get("space_id"),
-                    event_type: row.get("event_type"),
+NativeSqlOpenApiEventRow {
+event_id: row.get("uuid"),
+space_id: row.get("space_id"),
+user_id: row.try_get("user_id").ok(),
+actor_type: row.try_get("actor_type").ok(),
+actor_id: row.try_get("actor_id").ok(),
+event_type: row.get("event_type"),
                     source_type: row.get("source_type"),
                     event_time: row.get("event_time"),
                     payload: parse_event_payload(&payload_json).unwrap_or(Value::Null),
@@ -3522,7 +3824,7 @@ impl NativeSqlMemoryStore {
         let cursor = cursor.unwrap_or("");
         let rows = sqlx::query(
             r#"
-            SELECT uuid, action, resource_type, resource_id, result, created_at
+            SELECT uuid, actor_type, actor_id, action, resource_type, resource_id, result, created_at
             FROM ai_audit_log
             WHERE tenant_id = ?
               AND (? IS NULL OR action = ?)
@@ -3543,6 +3845,8 @@ impl NativeSqlMemoryStore {
             .into_iter()
             .map(|row| NativeSqlAuditLogRow {
                 audit_id: row.get("uuid"),
+                actor_type: row.get("actor_type"),
+                actor_id: row.get("actor_id"),
                 action: row.get("action"),
                 resource_type: row.get("resource_type"),
                 resource_id: row.get("resource_id"),
@@ -3874,56 +4178,65 @@ impl MemoryRetrievalTraceStorePort for NativeSqlMemoryStore {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct NativeSqlOpenApiEventRow {
-    pub event_id: String,
-    pub space_id: i64,
-    pub event_type: String,
-    pub source_type: String,
-    pub event_time: String,
-    pub payload: Value,
-    pub payload_hash: String,
-    pub ingestion_status: String,
-    pub created_at: String,
+pub event_id: String,
+pub space_id: i64,
+pub user_id: Option<i64>,
+pub actor_type: Option<String>,
+pub actor_id: Option<String>,
+pub event_type: String,
+pub source_type: String,
+pub event_time: String,
+pub payload: Value,
+pub payload_hash: String,
+pub ingestion_status: String,
+pub created_at: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct NativeSqlMemoryRecordDetail {
-    pub memory_id: String,
-    pub space_id: i64,
-    pub scope: String,
-    pub memory_type: String,
-    pub subject: Option<String>,
-    pub predicate: Option<String>,
-    pub object_text: String,
-    pub canonical_text: String,
-    pub confidence: f64,
-    pub status: String,
-    pub sensitivity_level: String,
-    pub supersedes_memory_id: Option<String>,
-    pub superseded_by_memory_id: Option<String>,
-    pub created_at: String,
-    pub updated_at: String,
-    pub version: i64,
+pub memory_id: String,
+pub space_id: i64,
+pub user_id: Option<i64>,
+pub scope: String,
+pub memory_type: String,
+pub subject: Option<String>,
+pub predicate: Option<String>,
+pub object_text: String,
+pub canonical_text: String,
+pub confidence: f64,
+pub evidence_count: Option<i32>,
+pub contradiction_count: Option<i32>,
+pub status: String,
+pub sensitivity_level: String,
+pub supersedes_memory_id: Option<String>,
+pub superseded_by_memory_id: Option<String>,
+pub created_at: String,
+pub updated_at: String,
+pub version: i64,
 }
 
-fn record_detail_from_row(row: AnyRow) -> NativeSqlMemoryRecordDetail {
-    NativeSqlMemoryRecordDetail {
-        memory_id: row.get("uuid"),
-        space_id: row.get("space_id"),
-        scope: row.get("scope"),
-        memory_type: row.get("memory_type"),
-        subject: row.get("subject"),
-        predicate: row.get("predicate"),
-        object_text: row.get("object_text"),
-        canonical_text: row.get("canonical_text"),
-        confidence: row.get("confidence"),
-        status: row.get("status"),
-        sensitivity_level: row.get("sensitivity_level"),
-        supersedes_memory_id: row.try_get("supersedes_uuid").ok(),
-        superseded_by_memory_id: row.try_get("superseded_by_uuid").ok(),
-        created_at: row.get("created_at"),
-        updated_at: row.get("updated_at"),
-        version: row.get("version"),
-    }
+pub(crate) fn record_detail_from_row(row: AnyRow) -> NativeSqlMemoryRecordDetail {
+NativeSqlMemoryRecordDetail {
+memory_id: row.get("uuid"),
+space_id: row.get("space_id"),
+user_id: row.try_get("user_id").ok(),
+scope: row.get("scope"),
+memory_type: row.get("memory_type"),
+subject: row.get("subject"),
+predicate: row.get("predicate"),
+object_text: row.get("object_text"),
+canonical_text: row.get("canonical_text"),
+confidence: row.get("confidence"),
+evidence_count: row.try_get("evidence_count").ok(),
+contradiction_count: row.try_get("contradiction_count").ok(),
+status: row.get("status"),
+sensitivity_level: row.get("sensitivity_level"),
+supersedes_memory_id: row.try_get("supersedes_uuid").ok(),
+superseded_by_memory_id: row.try_get("superseded_by_uuid").ok(),
+created_at: row.get("created_at"),
+updated_at: row.get("updated_at"),
+version: row.get("version"),
+}
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -4014,6 +4327,8 @@ pub struct NativeSqlRecordSourceRow {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeSqlAuditLogRow {
     pub audit_id: String,
+    pub actor_type: String,
+    pub actor_id: Option<String>,
     pub action: String,
     pub resource_type: String,
     pub resource_id: String,
@@ -4317,4 +4632,119 @@ fn port_error(port: &str, error: NativeSqlStoreError) -> MemorySpiError {
         port: port.to_string(),
         message: error.to_string(),
     }
+}
+
+/// Split a multi-statement SQL string into individual statements.
+///
+/// Handles PostgreSQL dollar-quoted strings (`$$ ... $$` or `$tag$ ... $tag$`),
+/// single-quoted strings with `''` escapes, line comments (`--`), and block
+/// comments (`/* ... */`) so that `;` inside these constructs is not treated
+/// as a statement separator.
+pub(crate) fn split_sql_statements(sql: &str) -> Vec<String> {
+    let mut statements: Vec<String> = Vec::new();
+    let mut current = String::new();
+    let mut chars = sql.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        // Line comment: -- to end of line.
+        if ch == '-' && chars.peek() == Some(&'-') {
+            current.push_str("--");
+            chars.next();
+            while let Some(&c) = chars.peek() {
+                current.push(chars.next().unwrap());
+                if c == '\n' {
+                    break;
+                }
+            }
+            continue;
+        }
+
+        // Block comment: /* ... */
+        if ch == '/' && chars.peek() == Some(&'*') {
+            current.push_str("/*");
+            chars.next();
+            while let Some(c) = chars.next() {
+                current.push(c);
+                if c == '*' && chars.peek() == Some(&'/') {
+                    current.push(chars.next().unwrap());
+                    break;
+                }
+            }
+            continue;
+        }
+
+        // Single-quoted string with '' escape.
+        if ch == '\'' {
+            current.push('\'');
+            while let Some(c) = chars.next() {
+                current.push(c);
+                if c == '\'' {
+                    if chars.peek() == Some(&'\'') {
+                        current.push(chars.next().unwrap());
+                    } else {
+                        break;
+                    }
+                }
+            }
+            continue;
+        }
+
+        // Dollar-quoted string: $$ ... $$ or $tag$ ... $tag$
+        if ch == '$' {
+            let mut tag = String::from("$");
+            let mut found_delimiter = false;
+            while let Some(&c) = chars.peek() {
+                if c == '$' {
+                    tag.push('$');
+                    chars.next();
+                    found_delimiter = true;
+                    break;
+                }
+                if c.is_ascii_alphanumeric() || c == '_' {
+                    tag.push(c);
+                    chars.next();
+                } else {
+                    break;
+                }
+            }
+
+            if found_delimiter {
+                current.push_str(&tag);
+                // Read until the closing delimiter is found.
+                let mut buffer = String::new();
+                for c in chars.by_ref() {
+                    buffer.push(c);
+                    if buffer.ends_with(&tag) {
+                        current.push_str(&buffer);
+                        break;
+                    }
+                }
+                continue;
+            } else {
+                // Not a dollar-quote, just a literal $ character.
+                current.push('$');
+                current.push_str(&tag[1..]);
+                continue;
+            }
+        }
+
+        // Statement separator.
+        if ch == ';' {
+            let trimmed = current.trim();
+            if !trimmed.is_empty() {
+                statements.push(trimmed.to_string());
+            }
+            current.clear();
+            continue;
+        }
+
+        current.push(ch);
+    }
+
+    let trimmed = current.trim();
+    if !trimmed.is_empty() {
+        statements.push(trimmed.to_string());
+    }
+
+    statements
 }

@@ -95,8 +95,8 @@ assert(cargoToml.includes('sdkwork-database-sqlx'), 'Cargo.toml must declare sdk
 assert(cargoToml.includes('sdkwork-database-repository'), 'Cargo.toml must declare sdkwork-database-repository');
 assert(cargoToml.includes('sdkwork-utils-rust'), 'Cargo.toml must declare sdkwork-utils-rust');
 assert(cargoToml.includes('sdkwork-id-core'), 'Cargo.toml must declare sdkwork-id-core');
-assert(cargoToml.includes('sdkwork-memory-api-server'), 'Cargo.toml must include sdkwork-memory-api-server');
-assert(cargoToml.includes('sdkwork-routes-memory-common'), 'Cargo.toml must include sdkwork-routes-memory-common');
+assert(cargoToml.includes('sdkwork-memory-standalone-gateway'), 'Cargo.toml must include sdkwork-memory-standalone-gateway');
+assert(cargoToml.includes('sdkwork-routes-memory-support'), 'Cargo.toml must include sdkwork-routes-memory-support');
 assert(!cargoToml.includes('sdkwork-discovery'), 'sdkwork-discovery is not required until RPC services exist');
 
 const runtimeEnvSource = readText('crates/sdkwork-memory-contract/src/runtime_env.rs');
@@ -164,23 +164,23 @@ assert(
   'open-api web bootstrap must not gate auth on DATABASE_URL presence',
 );
 
-const memoryWebAuth = readText('crates/sdkwork-routes-memory-common/src/lib.rs');
+const memoryWebAuth = readText('crates/sdkwork-routes-memory-support/src/lib.rs');
 assert(
   memoryWebAuth.includes('ProductionFailClosedResolver'),
-  'routes-memory-common must provide production fail-closed auth resolver',
+  'routes-memory-support must provide production fail-closed auth resolver',
 );
 assert(
   memoryWebAuth.includes('resolve_access_token'),
   'production fail-closed resolver must reject access-token auth',
 );
 
-const memoryProblem = readText('crates/sdkwork-routes-memory-common/src/problem.rs');
+const memoryProblem = readText('crates/sdkwork-routes-memory-support/src/problem.rs');
 assert(
   memoryProblem.includes('MemoryApiProblem'),
-  'routes-memory-common must provide shared MemoryApiProblem responses',
+  'routes-memory-support must provide shared MemoryApiProblem responses',
 );
 assert(
-  readText('crates/sdkwork-routes-memory-open-api/src/error.rs').includes('sdkwork_routes_memory_common'),
+  readText('crates/sdkwork-routes-memory-open-api/src/error.rs').includes('sdkwork_routes_memory_support'),
   'open-api router must reuse shared problem responses',
 );
 
@@ -263,18 +263,18 @@ assert(
   'k8s readiness probe must target /readyz for database-backed readiness',
 );
 assert(
-  readText('crates/sdkwork-memory-api-server/src/bootstrap.rs').includes('bootstrap_memory_runtime_from_env'),
-  'api-server bootstrap must use unified memory runtime bootstrap',
+  readText('crates/sdkwork-memory-standalone-gateway/src/bootstrap.rs').includes('bootstrap_memory_runtime_from_env'),
+  'standalone-gateway bootstrap must use unified memory runtime bootstrap',
 );
 assert(
-  readText('crates/sdkwork-memory-api-server/src/bootstrap.rs').includes('route("/readyz"'),
-  'api-server must expose /readyz readiness endpoint',
+  readText('crates/sdkwork-memory-standalone-gateway/src/bootstrap.rs').includes('route("/readyz"'),
+  'standalone-gateway must expose /readyz readiness endpoint',
 );
 assert(
-  readText('crates/sdkwork-memory-api-server/src/bootstrap.rs').includes(
+  readText('crates/sdkwork-memory-standalone-gateway/src/bootstrap.rs').includes(
     'memory_dependency_ready_check',
   ),
-  'api-server /readyz must validate IAM database dependency in production',
+  'standalone-gateway /readyz must validate IAM database dependency in production',
 );
 assert(
   readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs').includes(
@@ -301,7 +301,7 @@ assert(
   'outbox publisher must deliver events through a dedicated adapter',
 );
 assert(
-  !readText('crates/sdkwork-memory-api-server/src/bootstrap.rs')
+  !readText('crates/sdkwork-memory-standalone-gateway/src/bootstrap.rs')
     .split('async fn metrics')[1]
     .split('async fn build_router')[0]
     .includes('ready_check'),
@@ -313,11 +313,11 @@ assert(
 );
 assert(
   k8sDeployment.includes('podAntiAffinity'),
-  'k8s deployment must spread api-server replicas across nodes',
+  'k8s deployment must spread standalone-gateway replicas across nodes',
 );
 assert(
-  readText('crates/sdkwork-memory-api-server/src/bootstrap.rs').includes('route("/metrics"'),
-  'api-server must expose /metrics for Prometheus scraping',
+  readText('crates/sdkwork-memory-standalone-gateway/src/bootstrap.rs').includes('route("/metrics"'),
+  'standalone-gateway must expose /metrics for Prometheus scraping',
 );
 assert(
   readText('deployments/kubernetes/service.yaml').includes('prometheus.io/scrape'),
@@ -325,23 +325,23 @@ assert(
 );
 assert(
   readText('deployments/kubernetes/migration-job.yaml').includes('db-migrate'),
-  'k8s migration job must run api-server db-migrate subcommand',
+  'k8s migration job must run standalone-gateway db-migrate subcommand',
 );
 assert(
-  readText('crates/sdkwork-routes-memory-common/src/metrics.rs').includes(
+  readText('crates/sdkwork-routes-memory-support/src/metrics.rs').includes(
     'memory_metric_environment_label',
   ),
   'memory metrics must export canonical environment label per OBSERVABILITY_SPEC',
 );
 assert(
-  readText('crates/sdkwork-routes-memory-common/src/correlation.rs').includes('http_request'),
+  readText('crates/sdkwork-routes-memory-support/src/correlation.rs').includes('http_request'),
   'correlation middleware must emit tracing spans for request correlation',
 );
 assert(
-  readText('crates/sdkwork-memory-api-server/src/observability.rs').includes(
+  readText('crates/sdkwork-memory-standalone-gateway/src/observability.rs').includes(
     'OTEL_EXPORTER_OTLP_ENDPOINT',
   ),
-  'api-server must support optional OTLP tracing per OBSERVABILITY_SPEC',
+  'standalone-gateway must support optional OTLP tracing per OBSERVABILITY_SPEC',
 );
 assert(
   fs.existsSync(path.join(repoRoot, 'deployments/kubernetes/prometheus-rules.yaml')),
@@ -400,7 +400,7 @@ assert(
   'tenant quota module must map exhaustion to quota_exceeded problem code',
 );
 assert(
-  readText('crates/sdkwork-routes-memory-common/src/problem.rs').includes('QuotaExceeded'),
+  readText('crates/sdkwork-routes-memory-support/src/problem.rs').includes('QuotaExceeded'),
   'router problem mapping must translate quota_exceeded to HTTP 429',
 );
 assert(
@@ -632,7 +632,7 @@ assert(
 const apiServerSmoke = readText('crates/sdkwork-memory-integration-tests/tests/api_server_smoke_test.rs');
 assert(
   apiServerSmoke.includes('memory_auth_token_bearer'),
-  'api-server smoke test must verify production fail-closed behavior for app-api dual tokens',
+  'standalone-gateway smoke test must verify production fail-closed behavior for app-api dual tokens',
 );
 
 const repositorySqlxToml = readText('crates/sdkwork-intelligence-memory-repository-sqlx/Cargo.toml');
@@ -812,11 +812,11 @@ for (const specFile of [
 
 const crateComponentSpecs = [
   'crates/sdkwork-memory-contract/specs/component.spec.json',
-  'crates/sdkwork-routes-memory-common/specs/component.spec.json',
+  'crates/sdkwork-routes-memory-support/specs/component.spec.json',
   'crates/sdkwork-intelligence-memory-service/specs/component.spec.json',
   'crates/sdkwork-intelligence-memory-repository-sqlx/specs/component.spec.json',
   'crates/sdkwork-memory-database-host/specs/component.spec.json',
-  'crates/sdkwork-memory-api-server/specs/component.spec.json',
+  'crates/sdkwork-memory-standalone-gateway/specs/component.spec.json',
 ];
 for (const relativePath of crateComponentSpecs) {
   assert(fs.existsSync(path.join(repoRoot, relativePath)), `${relativePath} must exist`);

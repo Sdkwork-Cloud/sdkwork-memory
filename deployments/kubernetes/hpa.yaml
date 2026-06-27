@@ -1,15 +1,15 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: sdkwork-memory-api-server
+  name: sdkwork-memory-standalone-gateway
   labels:
     app.kubernetes.io/name: sdkwork-memory
-    app.kubernetes.io/component: api-server
+    app.kubernetes.io/component: standalone-gateway
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: sdkwork-memory-api-server
+    name: sdkwork-memory-standalone-gateway
   minReplicas: 2
   maxReplicas: 6
   metrics:
@@ -19,3 +19,9 @@ spec:
         target:
           type: Utilization
           averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

@@ -97,6 +97,111 @@
       "owner": "memory-platform",
       "compliance_level": "L2",
       "lifecycle_status": "active"
+    },
+    {
+      "table_name": "ai_tenant_preference",
+      "owner": "memory-platform",
+      "compliance_level": "L2",
+      "lifecycle_status": "active",
+      "source_migration": "0003_ai_tenant_preference"
+    },
+    {
+      "table_name": "ai_learning_job",
+      "owner": "memory-platform",
+      "compliance_level": "L2",
+      "lifecycle_status": "active",
+      "source_migration": "0004_ai_learning_job"
+    },
+    {
+      "table_name": "ai_record_fts",
+      "owner": "memory-platform",
+      "compliance_level": "L2",
+      "lifecycle_status": "active",
+      "engines": ["sqlite"],
+      "kind": "virtual_table",
+      "virtual_engine": "fts5",
+      "source_migration": "0005_ai_record_fulltext_search",
+      "note": "P2-8: sqlite-only FTS5 virtual table. postgres uses ai_record.search_document TSVECTOR column instead."
+    },
+    {
+      "table_name": "ai_entity",
+      "owner": "memory-platform",
+      "compliance_level": "L2",
+      "lifecycle_status": "active",
+      "source_migration": "0007_memory_commercial_management"
+    },
+    {
+      "table_name": "ai_edge",
+      "owner": "memory-platform",
+      "compliance_level": "L2",
+      "lifecycle_status": "active",
+      "source_migration": "0007_memory_commercial_management"
+    },
+    {
+      "table_name": "ai_policy",
+      "owner": "memory-platform",
+      "compliance_level": "L2",
+      "lifecycle_status": "active",
+      "source_migration": "0007_memory_commercial_management"
+    },
+    {
+      "table_name": "ai_subject",
+      "owner": "memory-platform",
+      "compliance_level": "L2",
+      "lifecycle_status": "active",
+      "source_migration": "0007_memory_commercial_management"
+    },
+    {
+      "table_name": "ai_memory_binding",
+      "owner": "memory-platform",
+      "compliance_level": "L2",
+      "lifecycle_status": "active",
+      "source_migration": "0007_memory_commercial_management"
+    },
+    {
+      "table_name": "ai_capability_binding",
+      "owner": "memory-platform",
+      "compliance_level": "L2",
+      "lifecycle_status": "active",
+      "source_migration": "0007_memory_commercial_management"
+    },
+    {
+      "table_name": "ai_policy_assignment",
+      "owner": "memory-platform",
+      "compliance_level": "L2",
+      "lifecycle_status": "active",
+      "source_migration": "0007_memory_commercial_management"
+    },
+    {
+      "table_name": "ai_relation_rebuild_job",
+      "owner": "memory-platform",
+      "compliance_level": "L2",
+      "lifecycle_status": "active",
+      "source_migration": "0007_memory_commercial_management"
+    },
+    {
+      "table_name": "ai_commercial_readiness_snapshot",
+      "owner": "memory-platform",
+      "compliance_level": "L2",
+      "lifecycle_status": "active",
+      "source_migration": "0007_memory_commercial_management"
     }
-  ]
+  ],
+  "engine_overrides": {
+    "postgres": {
+      "ai_record": {
+        "columns": [
+          {
+            "name": "search_document",
+            "type": "tsvector",
+            "nullable": true,
+            "maintained_by": "trigger",
+            "trigger": "trg_ai_record_search_document",
+            "source_migration": "0005_ai_record_fulltext_search"
+          }
+        ]
+      }
+    },
+    "sqlite": {}
+  }
 }

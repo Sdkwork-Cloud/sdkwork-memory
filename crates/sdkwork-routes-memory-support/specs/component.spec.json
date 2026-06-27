@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.component.spec",
+  "component": {
+    "name": "sdkwork-routes-memory-support",
+    "displayName": "SDKWork Memory Router Support",
+    "version": "0.1.0",
+    "type": "route-crate",
+    "root": "crates/sdkwork-routes-memory-support",
+    "domain": "intelligence",
+    "capability": "memory",
+    "surface": "shared-router",
+    "languages": ["rust"],
+    "generated": false,
+    "status": "active"
+  },
+  "contracts": {
+    "sdkDependencies": [
+      { "workspace": "sdkwork-web-framework" },
+      { "workspace": "sdkwork-appbase" }
+    ],
+    "canonicalSpecs": [
+      {
+        "file": "WEB_FRAMEWORK_SPEC.md",
+        "path": "../../../sdkwork-specs/WEB_FRAMEWORK_SPEC.md"
+      },
+      {
+        "file": "SECURITY_SPEC.md",
+        "path": "../../../sdkwork-specs/SECURITY_SPEC.md"
+      }
+    ]
+  }
+}
