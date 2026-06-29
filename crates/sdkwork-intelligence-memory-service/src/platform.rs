@@ -1,6 +1,8 @@
 use std::sync::OnceLock;
 
+use rand::Rng;
 use sdkwork_database_id::{NodeLease, SnowflakeIdGenerator};
+use sdkwork_id_core::max_snowflake_node_id;
 use sdkwork_memory_contract::{MemoryServiceError, MemoryServiceResult};
 
 pub fn tenant_id_i64(tenant_id: u64) -> MemoryServiceResult<i64> {
@@ -51,10 +53,11 @@ pub fn init_id_generator(generator: SnowflakeIdGenerator, lease: Option<NodeLeas
     });
 }
 
-/// Fallback: resolve a node_id from env var or hostname hash.
+/// Fallback: resolve a node_id from env var or a random value.
 ///
-/// This is used only when database-backed allocation is not available
-/// (e.g. dev/test without a database).
+/// Used only when database-backed allocation is not available (e.g. dev/test).
+/// Uses `SDKWORK_MEMORY_SNOWFLAKE_NODE_ID` if set, otherwise a random u16
+/// in `0..1024` to avoid collisions between processes on the same host.
 fn resolve_snowflake_node_id() -> u16 {
     if let Ok(value) = std::env::var("SDKWORK_MEMORY_SNOWFLAKE_NODE_ID") {
         if let Ok(parsed) = value.parse::<u16>() {
@@ -62,17 +65,8 @@ fn resolve_snowflake_node_id() -> u16 {
         }
     }
 
-    for key in ["POD_NAME", "HOSTNAME", "COMPUTERNAME"] {
-        if let Ok(name) = std::env::var(key) {
-            let mut hash: u32 = 0;
-            for byte in name.as_bytes() {
-                hash = hash.wrapping_mul(31).wrapping_add(u32::from(*byte));
-            }
-            return (hash % 1024) as u16;
-        }
-    }
-
-    1
+    // Random node_id to avoid collisions between processes on the same host.
+    rand::thread_rng().gen::<u16>() % max_snowflake_node_id()
 }
 
 fn id_generator() -> &'static SnowflakeIdGenerator {
@@ -85,7 +79,9 @@ fn id_generator() -> &'static SnowflakeIdGenerator {
         );
         IdGeneratorHolder {
             generator: SnowflakeIdGenerator::new(node_id)
-                .expect("memory snowflake generator must initialize"),
+                .unwrap_or_else(|error| {
+                    panic!("memory snowflake generator must initialize: {error}")
+                }),
             _lease: None,
         }
     });

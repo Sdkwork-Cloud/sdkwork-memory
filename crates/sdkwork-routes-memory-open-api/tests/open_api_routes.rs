@@ -1,8 +1,9 @@
 use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
 use sdkwork_intelligence_memory_service::OpenMemoryService;
-use sdkwork_memory_contract::{MemoryOpenApiRequestContext, ProblemDetails};
+use sdkwork_memory_contract::MemoryOpenApiRequestContext;
 use sdkwork_memory_plugin_native_sql::NativeSqlMemoryStore;
+use sdkwork_memory_test_support::api_envelope;
 use sdkwork_routes_memory_open_api::{build_router_with_open_api, open_route_manifest};
 use tower::util::ServiceExt;
 
@@ -30,8 +31,9 @@ async fn open_capabilities_route_returns_no_embedding_profile() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(json["embeddingOptional"], true);
-    assert!(json["retrievers"]
+    let item = api_envelope::item(&json);
+    assert_eq!(item["embeddingOptional"], true);
+    assert!(item["retrievers"]
         .as_array()
         .unwrap()
         .iter()
@@ -56,11 +58,9 @@ async fn open_capabilities_route_rejects_missing_context() {
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-    let problem: ProblemDetails = serde_json::from_slice(&body).unwrap();
-    assert_eq!(
-        problem.code.as_deref(),
-        Some("missing_open_api_request_context")
-    );
+    let problem: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(problem["code"].as_i64().unwrap(), 40101);
+    assert!(problem["traceId"].as_str().is_some());
 }
 
 #[test]

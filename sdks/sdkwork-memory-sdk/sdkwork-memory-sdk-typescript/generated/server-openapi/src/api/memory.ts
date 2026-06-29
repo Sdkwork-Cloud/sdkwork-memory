@@ -1,7 +1,7 @@
 import { customApiPath } from './paths';
 import type { HttpClient } from '../http/client';
 
-import type { MemoryCandidate, MemoryCandidateList, MemoryCapabilities, MemoryContextPack, MemoryContextPackRequest, MemoryEvent, MemoryEventRequest, MemoryExtractionRequest, MemoryFeedback, MemoryFeedbackRequest, MemoryLearningJob, MemoryProviderHealth, MemoryRecord, MemoryRecordList, MemoryRecordRequest, MemoryRetrievalRequest, MemoryRetrievalResult } from '../types';
+import type { MemoryCandidate, MemoryCapabilities, MemoryContextPack, MemoryContextPackRequest, MemoryEvent, MemoryEventRequest, MemoryExtractionRequest, MemoryFeedback, MemoryFeedbackRequest, MemoryLearningJob, MemoryProviderHealth, MemoryRecord, MemoryRecordRequest, MemoryRetrievalRequest, MemoryRetrievalResult, PageInfo } from '../types';
 
 
 export class MemoryProviderHealthApi {
@@ -32,14 +32,14 @@ export class MemoryCandidatesApi {
   }
 
 
-async list(params?: MemoryCandidatesListParams): Promise<MemoryCandidateList> {
+async list(params?: MemoryCandidatesListParams): Promise<Record<string, unknown>> {
     const query = buildQueryString([
       { name: 'q', value: params?.q, style: 'form', explode: true, allowReserved: false },
       { name: 'cursor', value: params?.cursor, style: 'form', explode: true, allowReserved: false },
       { name: 'page_size', value: params?.pageSize, style: 'form', explode: true, allowReserved: false },
       { name: 'decision_state', value: params?.decisionState, style: 'form', explode: true, allowReserved: false },
     ]);
-    return this.client.get<MemoryCandidateList>(appendQueryString(customApiPath(`/memory/candidates`), query));
+    return this.client.get<Record<string, unknown>>(appendQueryString(customApiPath(`/memory/candidates`), query));
   }
 
 async retrieve(candidateId: string): Promise<MemoryCandidate> {
@@ -151,6 +151,10 @@ export interface MemoryEventsCreateParams {
   idempotencyKey?: string;
 }
 
+export interface MemoryEventsRetrieveParams {
+  spaceId: string;
+}
+
 export class MemoryEventsApi {
   private client: HttpClient;
 
@@ -169,8 +173,11 @@ async create(body: MemoryEventRequest, params?: MemoryEventsCreateParams): Promi
     return this.client.post<MemoryEvent>(customApiPath(`/memory/events`), body, undefined, requestHeaders, 'application/json');
   }
 
-async retrieve(eventId: string): Promise<MemoryEvent> {
-    return this.client.get<MemoryEvent>(customApiPath(`/memory/events/${serializePathParameter(eventId, { name: 'eventId', style: 'simple', explode: false })}`));
+async retrieve(eventId: string, params: MemoryEventsRetrieveParams): Promise<MemoryEvent> {
+    const query = buildQueryString([
+      { name: 'space_id', value: params.spaceId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<MemoryEvent>(appendQueryString(customApiPath(`/memory/events/${serializePathParameter(eventId, { name: 'eventId', style: 'simple', explode: false })}`), query));
   }
 }
 
@@ -191,13 +198,25 @@ export interface MemoryListParams {
   q?: string;
   cursor?: string;
   pageSize?: number;
-  spaceId?: string;
+  spaceId: string;
   memoryType?: string;
   externalSubjectRef?: string;
 }
 
 export interface MemoryCreateParams {
   idempotencyKey?: string;
+}
+
+export interface MemoryRetrieveParams {
+  spaceId: string;
+}
+
+export interface MemoryUpdateParams {
+  spaceId: string;
+}
+
+export interface MemoryDeleteParams {
+  spaceId: string;
 }
 
 export class MemoryApi {
@@ -224,16 +243,16 @@ export class MemoryApi {
   }
 
 
-async list(params?: MemoryListParams): Promise<MemoryRecordList> {
+async list(params: MemoryListParams): Promise<Record<string, unknown>> {
     const query = buildQueryString([
-      { name: 'q', value: params?.q, style: 'form', explode: true, allowReserved: false },
-      { name: 'cursor', value: params?.cursor, style: 'form', explode: true, allowReserved: false },
-      { name: 'page_size', value: params?.pageSize, style: 'form', explode: true, allowReserved: false },
-      { name: 'space_id', value: params?.spaceId, style: 'form', explode: true, allowReserved: false },
-      { name: 'memory_type', value: params?.memoryType, style: 'form', explode: true, allowReserved: false },
-      { name: 'external_subject_ref', value: params?.externalSubjectRef, style: 'form', explode: true, allowReserved: false },
+      { name: 'q', value: params.q, style: 'form', explode: true, allowReserved: false },
+      { name: 'cursor', value: params.cursor, style: 'form', explode: true, allowReserved: false },
+      { name: 'page_size', value: params.pageSize, style: 'form', explode: true, allowReserved: false },
+      { name: 'space_id', value: params.spaceId, style: 'form', explode: true, allowReserved: false },
+      { name: 'memory_type', value: params.memoryType, style: 'form', explode: true, allowReserved: false },
+      { name: 'external_subject_ref', value: params.externalSubjectRef, style: 'form', explode: true, allowReserved: false },
     ]);
-    return this.client.get<MemoryRecordList>(appendQueryString(customApiPath(`/memory/memories`), query));
+    return this.client.get<Record<string, unknown>>(appendQueryString(customApiPath(`/memory/memories`), query));
   }
 
 async create(body: MemoryRecordRequest, params?: MemoryCreateParams): Promise<MemoryRecord> {
@@ -246,16 +265,25 @@ async create(body: MemoryRecordRequest, params?: MemoryCreateParams): Promise<Me
     return this.client.post<MemoryRecord>(customApiPath(`/memory/memories`), body, undefined, requestHeaders, 'application/json');
   }
 
-async retrieve(memoryId: string): Promise<MemoryRecord> {
-    return this.client.get<MemoryRecord>(customApiPath(`/memory/memories/${serializePathParameter(memoryId, { name: 'memoryId', style: 'simple', explode: false })}`));
+async retrieve(memoryId: string, params: MemoryRetrieveParams): Promise<MemoryRecord> {
+    const query = buildQueryString([
+      { name: 'space_id', value: params.spaceId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<MemoryRecord>(appendQueryString(customApiPath(`/memory/memories/${serializePathParameter(memoryId, { name: 'memoryId', style: 'simple', explode: false })}`), query));
   }
 
-async update(memoryId: string, body: MemoryRecordRequest): Promise<MemoryRecord> {
-    return this.client.patch<MemoryRecord>(customApiPath(`/memory/memories/${serializePathParameter(memoryId, { name: 'memoryId', style: 'simple', explode: false })}`), body, undefined, undefined, 'application/json');
+async update(memoryId: string, body: MemoryRecordRequest, params: MemoryUpdateParams): Promise<MemoryRecord> {
+    const query = buildQueryString([
+      { name: 'space_id', value: params.spaceId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.patch<MemoryRecord>(appendQueryString(customApiPath(`/memory/memories/${serializePathParameter(memoryId, { name: 'memoryId', style: 'simple', explode: false })}`), query), body, undefined, undefined, 'application/json');
   }
 
-async delete(memoryId: string): Promise<void> {
-    return this.client.delete<void>(customApiPath(`/memory/memories/${serializePathParameter(memoryId, { name: 'memoryId', style: 'simple', explode: false })}`));
+async delete(memoryId: string, params: MemoryDeleteParams): Promise<void> {
+    const query = buildQueryString([
+      { name: 'space_id', value: params.spaceId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.delete<void>(appendQueryString(customApiPath(`/memory/memories/${serializePathParameter(memoryId, { name: 'memoryId', style: 'simple', explode: false })}`), query));
   }
 }
 

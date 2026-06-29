@@ -39,6 +39,7 @@ tracing = { version = "0.1", features = ["attributes"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 url = "2"
+rand = "0.8"
 
 sdkwork-memory-database-host = { path = "crates/sdkwork-memory-database-host" }
 sdkwork-memory-spi = { path = "crates/sdkwork-memory-spi" }

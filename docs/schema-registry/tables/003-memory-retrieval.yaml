@@ -29,14 +29,10 @@ tables:
       - { name: uk_ai_index_uuid, unique: true, columns: [tenant_id, uuid] }
       - { name: uk_ai_index_kind_space, unique: true, columns: [tenant_id, space_id, index_kind, schema_version] }
       - { name: idx_ai_index_status, columns: [tenant_id, space_id, index_kind, status] }
-  # P1-DB3: planned table not yet implemented in physical migrations.
-  # Declared here as a design contract; status will move to `active` once a
-  # migration creates this table.
   - table: ai_index_entry
     profile: projection
     compliance_level: L2
     system_of_record: false
-    status: planned
     description: Provider-neutral pointer to derived index state; vector payloads may be externalized while canonical memory stays in ai_record.
     columns:
       - { name: id, type: bigint, constraints: [primary_key, snowflake] }

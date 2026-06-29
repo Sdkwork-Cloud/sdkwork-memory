@@ -371,7 +371,8 @@ impl MemoryOpenApi for OpenMemoryService {
         let event_id = self.next_id()?.to_string();
         let sensitivity =
             Self::normalize_sensitivity_level(request.sensitivity_level.as_deref())?;
-        let payload_json = serde_json::to_string(&request.payload).unwrap_or_default();
+        let payload_json = serde_json::to_string(&request.payload)
+            .map_err(|error| MemoryServiceError::storage(format!("payload serialization failed: {error}")))?;
         assert_memory_text_is_safe(&[("eventPayload", &payload_json)])?;
         self.store
             .append_open_api_event(
@@ -818,28 +819,48 @@ impl MemoryOpenApi for OpenMemoryService {
                 .collect::<Vec<_>>()
         });
 
-        let mut candidates = Vec::new();
-        let mut space_owner_cache = std::collections::HashMap::new();
-        for space_id in &request.space_ids {
-            let scope = Self::scope(&context, *space_id)?;
-            let actor_is_owner = if let Some(cached) = space_owner_cache.get(space_id) {
-                *cached
-            } else {
-                let is_owner = access::actor_is_space_owner(&self.store, &context, *space_id).await?;
-                space_owner_cache.insert(*space_id, is_owner);
-                is_owner
-            };
-            let rows = self
-                .store
-                .search_record_details_keyword(&scope, &request.query, effective_top_k)
-                .await
-                .map_err(Self::map_store_error)?;
+        let mut candidates: Vec<RetrievalCandidate> = Vec::new();
 
-            let event_rows = self
-                .store
-                .search_open_api_events_keyword(&scope, &request.query, effective_top_k)
-                .await
-                .map_err(Self::map_store_error)?;
+        // Phase 1: collect all access checks and owner checks in parallel.
+        let space_futures: Vec<_> = request.space_ids.iter().map(|space_id| {
+            let context = &context;
+            async move {
+                let scope = Self::scope(context, *space_id)?;
+                let actor_is_owner = access::actor_is_space_owner(&self.store, context, *space_id).await?;
+                Ok::<_, MemoryServiceError>((*space_id, scope, actor_is_owner))
+            }
+        }).collect();
+        let space_results: Vec<MemoryServiceResult<(u64, MemoryScopeContext, bool)>> =
+            futures::future::join_all(space_futures).await;
+        let mut space_data: Vec<(MemoryScopeContext, bool)> = Vec::with_capacity(space_results.len());
+        for result in space_results {
+            let (_space_id, scope, is_owner) = result?;
+            space_data.push((scope, is_owner));
+        }
+
+        // Phase 2: search all spaces in parallel.
+        let search_futures: Vec<_> = space_data.iter().map(|(scope, _actor_is_owner)| {
+            let query = &request.query;
+            let top_k = effective_top_k;
+            async move {
+                let rows = self.store
+                    .search_record_details_keyword(scope, query, top_k)
+                    .await
+                    .map_err(Self::map_store_error)?;
+                let event_rows = self.store
+                    .search_open_api_events_keyword(scope, query, top_k)
+                    .await
+                    .map_err(Self::map_store_error)?;
+                Ok::<_, MemoryServiceError>((rows, event_rows))
+            }
+        }).collect();
+        let search_results: Vec<MemoryServiceResult<(Vec<NativeSqlMemoryRecordDetail>, Vec<NativeSqlOpenApiEventRow>)>> =
+            futures::future::join_all(search_futures).await;
+
+        // Phase 3: combine and score results.
+        for (space_idx, search_result) in search_results.into_iter().enumerate() {
+            let (rows, event_rows) = search_result?;
+            let (_scope, actor_is_owner) = &space_data[space_idx];
 
             let record_inputs: Vec<RetrievalRecordInput> = rows
                 .iter()
@@ -885,7 +906,7 @@ impl MemoryOpenApi for OpenMemoryService {
                 if !access::actor_may_read_sensitivity(
                     &context,
                     &memory.sensitivity_level,
-                    actor_is_owner,
+                    *actor_is_owner,
                 ) {
                     continue;
                 }

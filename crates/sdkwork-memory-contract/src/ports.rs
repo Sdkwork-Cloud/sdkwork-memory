@@ -131,142 +131,106 @@ pub type MemoryServiceResult<T> = Result<T, MemoryServiceError>;
 pub trait MemoryOpenApi: Send + Sync + 'static {
     async fn retrieve_capabilities(
         &self,
-        _context: MemoryOpenApiRequestContext,
-    ) -> MemoryServiceResult<MemoryCapabilities> {
-        Err(MemoryServiceError::not_implemented("capabilities.retrieve"))
-    }
+        context: MemoryOpenApiRequestContext,
+    ) -> MemoryServiceResult<MemoryCapabilities>;
 
     async fn create_event(
         &self,
-        _context: MemoryOpenApiRequestContext,
-        _request: MemoryEventRequest,
-    ) -> MemoryServiceResult<MemoryEvent> {
-        Err(MemoryServiceError::not_implemented("events.create"))
-    }
+        context: MemoryOpenApiRequestContext,
+        request: MemoryEventRequest,
+    ) -> MemoryServiceResult<MemoryEvent>;
 
     async fn retrieve_event(
         &self,
-        _context: MemoryOpenApiRequestContext,
-        _event_id: u64,
-        _space_id: u64,
-    ) -> MemoryServiceResult<MemoryEvent> {
-        Err(MemoryServiceError::not_implemented("events.retrieve"))
-    }
+        context: MemoryOpenApiRequestContext,
+        event_id: u64,
+        space_id: u64,
+    ) -> MemoryServiceResult<MemoryEvent>;
 
     async fn list_memories(
         &self,
-        _context: MemoryOpenApiRequestContext,
-        _query: ListMemoriesQuery,
-    ) -> MemoryServiceResult<MemoryRecordList> {
-        Err(MemoryServiceError::not_implemented("memories.list"))
-    }
+        context: MemoryOpenApiRequestContext,
+        query: ListMemoriesQuery,
+    ) -> MemoryServiceResult<MemoryRecordList>;
 
     async fn create_memory(
         &self,
-        _context: MemoryOpenApiRequestContext,
-        _request: MemoryRecordRequest,
-    ) -> MemoryServiceResult<MemoryRecord> {
-        Err(MemoryServiceError::not_implemented("memories.create"))
-    }
+        context: MemoryOpenApiRequestContext,
+        request: MemoryRecordRequest,
+    ) -> MemoryServiceResult<MemoryRecord>;
 
     async fn retrieve_memory(
         &self,
-        _context: MemoryOpenApiRequestContext,
-        _memory_id: u64,
-        _space_id: u64,
-    ) -> MemoryServiceResult<MemoryRecord> {
-        Err(MemoryServiceError::not_implemented("memories.retrieve"))
-    }
+        context: MemoryOpenApiRequestContext,
+        memory_id: u64,
+        space_id: u64,
+    ) -> MemoryServiceResult<MemoryRecord>;
 
     async fn update_memory(
         &self,
-        _context: MemoryOpenApiRequestContext,
-        _memory_id: u64,
-        _space_id: u64,
-        _patch: MemoryRecordPatch,
-    ) -> MemoryServiceResult<MemoryRecord> {
-        Err(MemoryServiceError::not_implemented("memories.update"))
-    }
+        context: MemoryOpenApiRequestContext,
+        memory_id: u64,
+        space_id: u64,
+        patch: MemoryRecordPatch,
+    ) -> MemoryServiceResult<MemoryRecord>;
 
     async fn delete_memory(
         &self,
-        _context: MemoryOpenApiRequestContext,
-        _memory_id: u64,
-        _space_id: u64,
-    ) -> MemoryServiceResult<()> {
-        Err(MemoryServiceError::not_implemented("memories.delete"))
-    }
+        context: MemoryOpenApiRequestContext,
+        memory_id: u64,
+        space_id: u64,
+    ) -> MemoryServiceResult<()>;
 
     async fn create_retrieval(
         &self,
-        _context: MemoryOpenApiRequestContext,
-        _request: MemoryRetrievalRequest,
-    ) -> MemoryServiceResult<MemoryRetrievalResult> {
-        Err(MemoryServiceError::not_implemented("retrievals.create"))
-    }
+        context: MemoryOpenApiRequestContext,
+        request: MemoryRetrievalRequest,
+    ) -> MemoryServiceResult<MemoryRetrievalResult>;
 
     async fn retrieve_retrieval(
         &self,
-        _context: MemoryOpenApiRequestContext,
-        _retrieval_id: u64,
-    ) -> MemoryServiceResult<MemoryRetrievalResult> {
-        Err(MemoryServiceError::not_implemented("retrievals.retrieve"))
-    }
+        context: MemoryOpenApiRequestContext,
+        retrieval_id: u64,
+    ) -> MemoryServiceResult<MemoryRetrievalResult>;
 
     async fn create_context_pack(
         &self,
-        _context: MemoryOpenApiRequestContext,
-        _request: MemoryContextPackRequest,
-    ) -> MemoryServiceResult<MemoryContextPack> {
-        Err(MemoryServiceError::not_implemented("contextPacks.create"))
-    }
+        context: MemoryOpenApiRequestContext,
+        request: MemoryContextPackRequest,
+    ) -> MemoryServiceResult<MemoryContextPack>;
 
     async fn retrieve_context_pack(
         &self,
-        _context: MemoryOpenApiRequestContext,
-        _context_pack_id: u64,
-    ) -> MemoryServiceResult<MemoryContextPack> {
-        Err(MemoryServiceError::not_implemented("contextPacks.retrieve"))
-    }
+        context: MemoryOpenApiRequestContext,
+        context_pack_id: u64,
+    ) -> MemoryServiceResult<MemoryContextPack>;
 
     async fn create_feedback(
         &self,
-        _context: MemoryOpenApiRequestContext,
-        _request: MemoryFeedbackRequest,
-    ) -> MemoryServiceResult<MemoryFeedback> {
-        Err(MemoryServiceError::not_implemented("feedback.create"))
-    }
+        context: MemoryOpenApiRequestContext,
+        request: MemoryFeedbackRequest,
+    ) -> MemoryServiceResult<MemoryFeedback>;
 
     async fn create_extraction(
         &self,
-        _context: MemoryOpenApiRequestContext,
-        _request: MemoryExtractionRequest,
-    ) -> MemoryServiceResult<MemoryLearningJob> {
-        Err(MemoryServiceError::not_implemented("extractions.create"))
-    }
+        context: MemoryOpenApiRequestContext,
+        request: MemoryExtractionRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob>;
 
     async fn list_candidates(
         &self,
-        _context: MemoryOpenApiRequestContext,
-        _query: ListCandidatesQuery,
-    ) -> MemoryServiceResult<MemoryCandidateList> {
-        Err(MemoryServiceError::not_implemented("candidates.list"))
-    }
+        context: MemoryOpenApiRequestContext,
+        query: ListCandidatesQuery,
+    ) -> MemoryServiceResult<MemoryCandidateList>;
 
     async fn retrieve_candidate(
         &self,
-        _context: MemoryOpenApiRequestContext,
-        _candidate_id: u64,
-    ) -> MemoryServiceResult<MemoryCandidate> {
-        Err(MemoryServiceError::not_implemented("candidates.retrieve"))
-    }
+        context: MemoryOpenApiRequestContext,
+        candidate_id: u64,
+    ) -> MemoryServiceResult<MemoryCandidate>;
 
     async fn retrieve_provider_health(
         &self,
-        _context: MemoryOpenApiRequestContext,
-    ) -> MemoryServiceResult<MemoryProviderHealth> {
-        Err(MemoryServiceError::not_implemented(
-            "providerHealth.retrieve",
-        ))
-    }
+        context: MemoryOpenApiRequestContext,
+    ) -> MemoryServiceResult<MemoryProviderHealth>;
 }

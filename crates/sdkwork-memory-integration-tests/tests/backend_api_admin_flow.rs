@@ -5,6 +5,7 @@ use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_routes_memory_backend_api::{
     build_router_with_backend_api, wrap_router_with_iam_database_web_framework,
 };
+use sdkwork_memory_test_support::api_envelope;
 use sdkwork_memory_test_support::web_auth::{
     lock_integration_test_env, memory_access_token, memory_auth_token_bearer,
     MEMORY_TEST_IDEMPOTENCY_KEY,
@@ -52,7 +53,7 @@ async fn backend_api_indexes_and_retrieval_profiles_return_phase1_defaults() {
     assert_eq!(indexes.status(), StatusCode::OK);
     let indexes_body = to_bytes(indexes.into_body(), usize::MAX).await.unwrap();
     let indexes_json: serde_json::Value = serde_json::from_slice(&indexes_body).unwrap();
-    assert_eq!(indexes_json["items"][0]["indexKind"], "keyword");
+    assert_eq!(api_envelope::items(&indexes_json)[0]["indexKind"], "keyword");
 
     let profiles = app
         .oneshot(authed_get("/backend/v3/api/memory/retrieval_profiles"))
@@ -61,7 +62,7 @@ async fn backend_api_indexes_and_retrieval_profiles_return_phase1_defaults() {
     assert_eq!(profiles.status(), StatusCode::OK);
     let profiles_body = to_bytes(profiles.into_body(), usize::MAX).await.unwrap();
     let profiles_json: serde_json::Value = serde_json::from_slice(&profiles_body).unwrap();
-    assert_eq!(profiles_json["items"][0]["name"], "keyword-default");
+    assert_eq!(api_envelope::items(&profiles_json)[0]["name"], "keyword-default");
 }
 
 #[tokio::test]
@@ -90,7 +91,7 @@ async fn backend_api_migration_job_round_trip_via_dual_token() {
     assert_eq!(create.status(), StatusCode::CREATED);
     let create_body = to_bytes(create.into_body(), usize::MAX).await.unwrap();
     let create_json: serde_json::Value = serde_json::from_slice(&create_body).unwrap();
-    let job_id = create_json["jobId"].as_str().unwrap();
+    let job_id = api_envelope::item(&create_json)["jobId"].as_str().unwrap();
 
     let retrieve = app
         .oneshot(authed_get(&format!(
@@ -101,7 +102,7 @@ async fn backend_api_migration_job_round_trip_via_dual_token() {
     assert_eq!(retrieve.status(), StatusCode::OK);
     let retrieve_body = to_bytes(retrieve.into_body(), usize::MAX).await.unwrap();
     let retrieve_json: serde_json::Value = serde_json::from_slice(&retrieve_body).unwrap();
-    assert_eq!(retrieve_json["jobType"], "migration");
+    assert_eq!(api_envelope::item(&retrieve_json)["jobType"], "migration");
 }
 
 #[tokio::test]
@@ -142,7 +143,7 @@ async fn backend_api_admin_config_persists_in_sql_tables() {
     assert_eq!(create.status(), StatusCode::CREATED);
     let create_body = to_bytes(create.into_body(), usize::MAX).await.unwrap();
     let create_json: serde_json::Value = serde_json::from_slice(&create_body).unwrap();
-    let eval_run_id = create_json["evalRunId"].as_str().unwrap();
+    let eval_run_id = api_envelope::item(&create_json)["evalRunId"].as_str().unwrap();
 
     let eval_row = store
         .retrieve_mem_eval_run_for_tenant(100_001, eval_run_id)
@@ -170,11 +171,12 @@ async fn backend_api_admin_config_persists_in_sql_tables() {
     assert_eq!(binding.status(), StatusCode::CREATED);
     let binding_body = to_bytes(binding.into_body(), usize::MAX).await.unwrap();
     let binding_json: serde_json::Value = serde_json::from_slice(&binding_body).unwrap();
-    assert_eq!(binding_json["capabilities"]["keyword"], true);
-    assert_eq!(binding_json["endpointRef"], "providers/native-sql");
-    assert_eq!(binding_json["config"]["timeoutMs"], 5000);
+    let binding_item = api_envelope::item(&binding_json);
+    assert_eq!(binding_item["capabilities"]["keyword"], true);
+    assert_eq!(binding_item["endpointRef"], "providers/native-sql");
+    assert_eq!(binding_item["config"]["timeoutMs"], 5000);
 
-    let binding_id = binding_json["providerBindingId"].as_str().unwrap();
+    let binding_id = binding_item["providerBindingId"].as_str().unwrap();
     let binding_row = store
         .retrieve_mem_provider_binding_for_tenant(100_001, binding_id)
         .await
@@ -202,7 +204,7 @@ async fn backend_api_admin_config_persists_in_sql_tables() {
     assert_eq!(profile.status(), StatusCode::CREATED);
     let profile_body = to_bytes(profile.into_body(), usize::MAX).await.unwrap();
     let profile_json: serde_json::Value = serde_json::from_slice(&profile_body).unwrap();
-    assert_eq!(profile_json["fusionPolicy"]["mode"], "rrf");
+    assert_eq!(api_envelope::item(&profile_json)["fusionPolicy"]["mode"], "rrf");
 
     let audit_config = store
         .retrieve_admin_config_entity(100_001, "eval_run", eval_run_id)
@@ -258,9 +260,10 @@ async fn backend_api_governance_jobs_consolidation_and_retention_succeed() {
         .unwrap();
     let consolidation_json: serde_json::Value =
         serde_json::from_slice(&consolidation_body).unwrap();
-    assert_eq!(consolidation_json["state"], "succeeded");
+    let consolidation_item = api_envelope::item(&consolidation_json);
+    assert_eq!(consolidation_item["state"], "succeeded");
     assert!(
-        consolidation_json["result"]["mergedDuplicates"]
+        consolidation_item["result"]["mergedDuplicates"]
             .as_u64()
             .unwrap_or(0)
             >= 1
@@ -281,7 +284,7 @@ async fn backend_api_governance_jobs_consolidation_and_retention_succeed() {
     assert_eq!(retention.status(), StatusCode::CREATED);
     let retention_body = to_bytes(retention.into_body(), usize::MAX).await.unwrap();
     let retention_json: serde_json::Value = serde_json::from_slice(&retention_body).unwrap();
-    assert_eq!(retention_json["state"], "succeeded");
+    assert_eq!(api_envelope::item(&retention_json)["state"], "succeeded");
 }
 
 #[tokio::test]
@@ -334,10 +337,11 @@ async fn backend_api_supersede_memory_links_chain_and_marks_old_record() {
     assert_eq!(supersede.status(), StatusCode::OK);
     let supersede_body = to_bytes(supersede.into_body(), usize::MAX).await.unwrap();
     let supersede_json: serde_json::Value = serde_json::from_slice(&supersede_body).unwrap();
-    let new_memory_id = supersede_json["memoryId"].as_str().unwrap();
+    let supersede_item = api_envelope::item(&supersede_json);
+    let new_memory_id = supersede_item["memoryId"].as_str().unwrap();
 
-    assert_eq!(supersede_json["status"], "active");
-    assert_eq!(supersede_json["supersedesMemoryId"], "100");
+    assert_eq!(supersede_item["status"], "active");
+    assert_eq!(supersede_item["supersedesMemoryId"], "100");
     assert_ne!(new_memory_id, "100");
 
     let old_record = app
@@ -348,6 +352,7 @@ async fn backend_api_supersede_memory_links_chain_and_marks_old_record() {
     assert_eq!(old_record.status(), StatusCode::OK);
     let old_body = to_bytes(old_record.into_body(), usize::MAX).await.unwrap();
     let old_json: serde_json::Value = serde_json::from_slice(&old_body).unwrap();
-    assert_eq!(old_json["status"], "superseded");
-    assert_eq!(old_json["supersededByMemoryId"], new_memory_id);
+    let old_item = api_envelope::item(&old_json);
+    assert_eq!(old_item["status"], "superseded");
+    assert_eq!(old_item["supersededByMemoryId"], new_memory_id);
 }

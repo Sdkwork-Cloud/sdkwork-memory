@@ -3,6 +3,7 @@
 use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
 use sdkwork_intelligence_memory_service::OpenMemoryService;
+use sdkwork_memory_test_support::api_envelope;
 use sdkwork_routes_memory_open_api::build_router_with_open_api;
 use serde_json::json;
 use tower::util::ServiceExt;
@@ -40,7 +41,7 @@ async fn open_api_rejects_memory_retrieve_when_space_id_does_not_match_record() 
     assert_eq!(create.status(), StatusCode::CREATED);
     let body = to_bytes(create.into_body(), usize::MAX).await.unwrap();
     let memory_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    let memory_id = memory_json["memoryId"].as_str().unwrap();
+    let memory_id = api_envelope::item(&memory_json)["memoryId"].as_str().unwrap();
 
     let wrong_space = app
         .oneshot(

@@ -2,6 +2,7 @@ use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
 use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_contract::MemoryOpenApiRequestContext;
+use sdkwork_memory_test_support::api_envelope;
 use sdkwork_routes_memory_open_api::build_router_with_open_api;
 use serde_json::json;
 use tower::util::ServiceExt;
@@ -62,7 +63,7 @@ async fn open_api_mvp_flow_memory_retrieval_and_context_pack_without_embeddings(
     assert_eq!(retrieval.status(), StatusCode::CREATED);
     let retrieval_body = to_bytes(retrieval.into_body(), usize::MAX).await.unwrap();
     let retrieval_json: serde_json::Value = serde_json::from_slice(&retrieval_body).unwrap();
-    assert!(retrieval_json["hits"]
+    assert!(api_envelope::item(&retrieval_json)["hits"]
         .as_array()
         .unwrap()
         .iter()
@@ -92,10 +93,11 @@ async fn open_api_mvp_flow_memory_retrieval_and_context_pack_without_embeddings(
         .await
         .unwrap();
     let pack_json: serde_json::Value = serde_json::from_slice(&pack_body).unwrap();
-    assert!(pack_json["pack"]["embeddingOptional"]
+    let pack_item = api_envelope::item(&pack_json);
+    assert!(pack_item["pack"]["embeddingOptional"]
         .as_bool()
         .unwrap_or(false));
-    assert!(pack_json["pack"]["fragments"].as_array().unwrap().len() >= 1);
+    assert!(pack_item["pack"]["fragments"].as_array().unwrap().len() >= 1);
 }
 
 #[tokio::test]
@@ -130,7 +132,7 @@ async fn open_api_mvp_flow_event_extraction_candidates_and_feedback() {
         .await
         .unwrap();
     let event_json: serde_json::Value = serde_json::from_slice(&event_body).unwrap();
-    let event_id = event_json["eventId"].as_str().unwrap();
+    let event_id = api_envelope::item(&event_json)["eventId"].as_str().unwrap();
 
     let extraction = app
         .clone()
@@ -154,8 +156,9 @@ async fn open_api_mvp_flow_event_extraction_candidates_and_feedback() {
     assert_eq!(extraction.status(), StatusCode::CREATED);
     let extraction_body = to_bytes(extraction.into_body(), usize::MAX).await.unwrap();
     let extraction_json: serde_json::Value = serde_json::from_slice(&extraction_body).unwrap();
-    assert_eq!(extraction_json["jobType"], "extraction");
-    assert_eq!(extraction_json["state"], "completed");
+    let extraction_item = api_envelope::item(&extraction_json);
+    assert_eq!(extraction_item["jobType"], "extraction");
+    assert_eq!(extraction_item["state"], "completed");
 
     let candidates = app
         .clone()
@@ -172,7 +175,7 @@ async fn open_api_mvp_flow_event_extraction_candidates_and_feedback() {
     assert_eq!(candidates.status(), StatusCode::OK);
     let candidates_body = to_bytes(candidates.into_body(), usize::MAX).await.unwrap();
     let candidates_json: serde_json::Value = serde_json::from_slice(&candidates_body).unwrap();
-    let candidate_id = candidates_json["items"][0]["candidateId"]
+    let candidate_id = api_envelope::items(&candidates_json)[0]["candidateId"]
         .as_str()
         .unwrap()
         .to_string();

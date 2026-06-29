@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { migrateOpenApiDocument } from "../../sdkwork-specs/tools/lib/migrate-openapi-legacy-envelope.mjs";
 
 const root = process.cwd();
 const owner = "sdkwork-memory";
@@ -51,6 +52,10 @@ function writeText(relativePath, content) {
 
 function writeJson(relativePath, value) {
   writeText(relativePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function writeAlignedOpenApi(relativePath, document) {
+  writeJson(relativePath, migrateOpenApiDocument(document));
 }
 
 function readJsonIfExists(relativePath) {
@@ -2830,7 +2835,7 @@ function writeOpenApi() {
     responseSchema: "MemoryProviderHealth"
   }));
 
-  writeJson("sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json", createOpenApi({
+  writeAlignedOpenApi("sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json", createOpenApi({
     title: "SDKWork Memory Open API",
     authority,
     prefix: memoryOpenApiPrefix,
@@ -2885,7 +2890,7 @@ function writeAppOpenApi() {
   addPath(paths, `${P}/learning_settings`, "get", operation({ method: "get", authority, operationId: "learningSettings.retrieve", permission: "memory.learningSettings.read", auditEvent: "memory.learning_settings.read", responseSchema: "MemoryLearningSettings" }));
   addPath(paths, `${P}/learning_settings`, "patch", operation({ method: "patch", authority, operationId: "learningSettings.update", permission: "memory.learningSettings.write", auditEvent: "memory.learning_settings.updated", requestSchema: "MemoryLearningSettingsRequest", responseSchema: "MemoryLearningSettings" }));
 
-  writeJson("sdks/sdkwork-memory-app-sdk/openapi/memory-app-api.openapi.json", createOpenApi({
+  writeAlignedOpenApi("sdks/sdkwork-memory-app-sdk/openapi/memory-app-api.openapi.json", createOpenApi({
     title: "SDKWork Memory App API",
     authority,
     prefix: "/app/v3/api",
@@ -2940,7 +2945,7 @@ function writeBackendOpenApi() {
   addPath(paths, `${P}/migration_jobs`, "post", operation({ method: "post", authority, operationId: "migrationJobs.create", permission: "memory.backend.migrations.write", auditEvent: "memory.backend.migration_job.created", requestSchema: "MemoryMigrationJobRequest", responseSchema: "MemoryLearningJob", idempotent: true }));
   addPath(paths, `${P}/migration_jobs/{migrationJobId}`, "get", operation({ method: "get", authority, operationId: "migrationJobs.retrieve", permission: "memory.backend.migrations.read", auditEvent: "memory.backend.migration_job.read", pathParams: [pathParam("migrationJobId")], responseSchema: "MemoryLearningJob" }));
 
-  writeJson("sdks/sdkwork-memory-backend-sdk/openapi/memory-backend-api.openapi.json", createOpenApi({
+  writeAlignedOpenApi("sdks/sdkwork-memory-backend-sdk/openapi/memory-backend-api.openapi.json", createOpenApi({
     title: "SDKWork Memory Backend API",
     authority,
     prefix: "/backend/v3/api",

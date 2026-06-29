@@ -76,6 +76,16 @@ pub async fn bootstrap_memory_data_plane_from_env() -> Result<MemoryDataPlane, S
         .map(|value| value == "true" || value == "1")
         .unwrap_or(false);
 
+    // Guard: reject SQLite in production-like environments.
+    if sdkwork_memory_contract::memory_is_production_like_environment() && config.engine == DatabaseEngine::Sqlite {
+        return Err(
+            "production-like environment detected with SQLite engine — "
+                .to_string()
+                + "PostgreSQL is required for production deployments. "
+                + "Set SDKWORK_MEMORY_DATABASE_ENGINE=postgres and provide a valid PostgreSQL connection URL.",
+        );
+    }
+
     // Always create a pool up front so we can use it for both Snowflake
     // node_id allocation and store creation. This is especially important
     // for SQLite in-memory databases which must share the same connection.
@@ -87,17 +97,22 @@ pub async fn bootstrap_memory_data_plane_from_env() -> Result<MemoryDataPlane, S
     // store. This prevents ID collisions in multi-instance deployments.
     allocate_and_init_snowflake_node(&pool).await;
 
-    // Create the store from the same pool, then decide whether to also
-    // run database migrations.
-    let (phase1, host_pool) = if config.engine == DatabaseEngine::Postgres && auto_migrate {
-        bootstrap_memory_database(pool.clone())
-            .await
-            .map_err(|error| format!("memory database migrate failed: {error}"))?;
-        let store = open_native_sql_store_from_pool(&pool)
+    // Create the phase-1 runtime from the shared pool or via NativeSqlPhase1Runtime::connect.
+    let (phase1, host_pool) = if config.engine == DatabaseEngine::Postgres {
+        if auto_migrate {
+            bootstrap_memory_database(pool.clone())
+                .await
+                .map_err(|error| format!("memory database migrate failed: {error}"))?;
+        }
+        let phase1 = NativeSqlPhase1Runtime::connect_without_migration(&config)
             .await
             .map_err(|error| error.to_string())?;
-        let phase1 = NativeSqlPhase1Runtime::from_store(store);
         (phase1, Some(pool))
+    } else if auto_migrate && !config.url.contains(":memory:") {
+        let phase1 = NativeSqlPhase1Runtime::connect(&config)
+            .await
+            .map_err(|error| error.to_string())?;
+        (phase1, None)
     } else {
         let store = open_native_sql_store_from_pool(&pool)
             .await

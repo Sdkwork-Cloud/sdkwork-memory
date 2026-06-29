@@ -10,6 +10,7 @@ use sdkwork_routes_memory_app_api::{
 use serde_json::json;
 use tower::util::ServiceExt;
 
+use sdkwork_memory_test_support::api_envelope;
 use sdkwork_memory_test_support::web_auth::{
     lock_integration_test_env, memory_access_token, memory_auth_token_bearer,
     MEMORY_TEST_IDEMPOTENCY_KEY,
@@ -81,7 +82,7 @@ async fn app_api_mvp_flow_space_memory_and_retrieval_via_dual_token() {
     assert_eq!(retrieval.status(), StatusCode::CREATED);
     let retrieval_body = to_bytes(retrieval.into_body(), usize::MAX).await.unwrap();
     let retrieval_json: serde_json::Value = serde_json::from_slice(&retrieval_body).unwrap();
-    assert!(retrieval_json["hits"]
+    assert!(api_envelope::item(&retrieval_json)["hits"]
         .as_array()
         .unwrap()
         .iter()
@@ -133,7 +134,7 @@ async fn app_api_habit_confirm_flow_via_dual_token() {
     assert_eq!(confirm.status(), StatusCode::OK);
     let confirm_body = to_bytes(confirm.into_body(), usize::MAX).await.unwrap();
     let confirm_json: serde_json::Value = serde_json::from_slice(&confirm_body).unwrap();
-    assert_eq!(confirm_json["stage"], "confirmed");
+    assert_eq!(api_envelope::item(&confirm_json)["stage"], "confirmed");
 }
 
 #[tokio::test]
@@ -166,7 +167,7 @@ async fn app_api_memory_sources_list_returns_linked_event_sources() {
         .await
         .unwrap();
     let memory_json: serde_json::Value = serde_json::from_slice(&memory_body).unwrap();
-    let memory_id = memory_json["memoryId"].as_str().unwrap();
+    let memory_id = api_envelope::item(&memory_json)["memoryId"].as_str().unwrap();
 
     let seed_store = NativeSqlMemoryStore::from_any_pool(pool, MemorySqlDialect::Sqlite).await;
     let scope = MemoryScopeContext::for_test(100_001, space_id.parse().unwrap());
@@ -196,7 +197,7 @@ async fn app_api_memory_sources_list_returns_linked_event_sources() {
     assert_eq!(sources.status(), StatusCode::OK);
     let sources_body = to_bytes(sources.into_body(), usize::MAX).await.unwrap();
     let sources_json: serde_json::Value = serde_json::from_slice(&sources_body).unwrap();
-    let items = sources_json["items"].as_array().unwrap();
+    let items = api_envelope::items(&sources_json).as_array().unwrap();
     assert_eq!(items.len(), 1);
     assert_eq!(items[0]["sourceId"], "8101");
     assert_eq!(items[0]["eventId"], "8001");
@@ -254,7 +255,7 @@ async fn app_api_candidate_approve_promotes_memory_and_links_event_sources() {
     assert_eq!(candidates.status(), StatusCode::OK);
     let candidates_body = to_bytes(candidates.into_body(), usize::MAX).await.unwrap();
     let candidates_json: serde_json::Value = serde_json::from_slice(&candidates_body).unwrap();
-    let candidate_id = candidates_json["items"][0]["candidateId"]
+    let candidate_id = api_envelope::items(&candidates_json)[0]["candidateId"]
         .as_str()
         .expect("candidate id");
 
@@ -270,7 +271,7 @@ async fn app_api_candidate_approve_promotes_memory_and_links_event_sources() {
     assert_eq!(approve.status(), StatusCode::OK);
     let approve_body = to_bytes(approve.into_body(), usize::MAX).await.unwrap();
     let approve_json: serde_json::Value = serde_json::from_slice(&approve_body).unwrap();
-    assert_eq!(approve_json["decisionState"], "approved");
+    assert_eq!(api_envelope::item(&approve_json)["decisionState"], "approved");
 
     let memories = app
         .clone()
@@ -282,7 +283,7 @@ async fn app_api_candidate_approve_promotes_memory_and_links_event_sources() {
     assert_eq!(memories.status(), StatusCode::OK);
     let memories_body = to_bytes(memories.into_body(), usize::MAX).await.unwrap();
     let memories_json: serde_json::Value = serde_json::from_slice(&memories_body).unwrap();
-    let memory_id = memories_json["items"][0]["memoryId"].as_str().unwrap();
+    let memory_id = api_envelope::items(&memories_json)[0]["memoryId"].as_str().unwrap();
 
     let sources = app
         .oneshot(authed_get_request(&format!(
@@ -293,6 +294,6 @@ async fn app_api_candidate_approve_promotes_memory_and_links_event_sources() {
     assert_eq!(sources.status(), StatusCode::OK);
     let sources_body = to_bytes(sources.into_body(), usize::MAX).await.unwrap();
     let sources_json: serde_json::Value = serde_json::from_slice(&sources_body).unwrap();
-    assert_eq!(sources_json["items"][0]["eventId"], "7001");
-    assert_eq!(sources_json["items"][0]["sourceRole"], "evidence");
+    assert_eq!(api_envelope::items(&sources_json)[0]["eventId"], "7001");
+    assert_eq!(api_envelope::items(&sources_json)[0]["sourceRole"], "evidence");
 }

@@ -13,6 +13,10 @@ use sdkwork_memory_contract::{
     CreateSubjectCommand, ListBindingsQuery, ListCapabilityBindingsQuery, ListSubjectsQuery,
     MemoryBackendRequestContext, UpdateSubjectCommand,
 };
+use sdkwork_routes_memory_support::{
+    success_created_resource_response, success_no_content_response, success_page_response,
+    success_resource_response,
+};
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -90,7 +94,7 @@ async fn create_subject(
         return forbidden("tenantId mismatch");
     }
     match product.create_subject(cmd).await {
-        Ok(subject) => (StatusCode::CREATED, Json(subject)).into_response(),
+        Ok(subject) => success_created_resource_response(subject),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
 }
@@ -110,7 +114,7 @@ async fn retrieve_subject(
         Err(resp) => return resp,
     };
     match product.retrieve_subject(tenant_id, &subject_id).await {
-        Ok(subject) => (StatusCode::OK, Json(subject)).into_response(),
+        Ok(subject) => success_resource_response(subject),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
 }
@@ -128,7 +132,7 @@ async fn list_subjects(
         return forbidden("tenantId mismatch");
     }
     match product.list_subjects(query).await {
-        Ok(list) => (StatusCode::OK, Json(list)).into_response(),
+        Ok(list) => success_page_response(list),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
 }
@@ -149,7 +153,7 @@ async fn update_subject(
         Err(resp) => return resp,
     };
     match product.update_subject(tenant_id, &subject_id, cmd).await {
-        Ok(subject) => (StatusCode::OK, Json(subject)).into_response(),
+        Ok(subject) => success_resource_response(subject),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
 }
@@ -169,7 +173,7 @@ async fn delete_subject(
         Err(resp) => return resp,
     };
     match product.delete_subject(tenant_id, &subject_id).await {
-        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Ok(()) => success_no_content_response(),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
 }
@@ -189,7 +193,7 @@ async fn create_binding(
         return forbidden("tenantId mismatch");
     }
     match product.create_binding(cmd).await {
-        Ok(binding) => (StatusCode::CREATED, Json(binding)).into_response(),
+        Ok(binding) => success_created_resource_response(binding),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
 }
@@ -209,7 +213,7 @@ async fn retrieve_binding(
         Err(resp) => return resp,
     };
     match product.retrieve_binding(tenant_id, &binding_id).await {
-        Ok(binding) => (StatusCode::OK, Json(binding)).into_response(),
+        Ok(binding) => success_resource_response(binding),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
 }
@@ -227,7 +231,7 @@ async fn list_bindings(
         return forbidden("tenantId mismatch");
     }
     match product.list_bindings(query).await {
-        Ok(list) => (StatusCode::OK, Json(list)).into_response(),
+        Ok(list) => success_page_response(list),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
 }
@@ -247,7 +251,7 @@ async fn delete_binding(
         Err(resp) => return resp,
     };
     match product.delete_binding(tenant_id, &binding_id).await {
-        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Ok(()) => success_no_content_response(),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
 }
@@ -267,7 +271,7 @@ async fn create_capability_binding(
         return forbidden("tenantId mismatch");
     }
     match product.create_capability_binding(cmd).await {
-        Ok(cap) => (StatusCode::CREATED, Json(cap)).into_response(),
+        Ok(cap) => success_created_resource_response(cap),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
 }
@@ -290,7 +294,7 @@ async fn retrieve_capability_binding(
         .retrieve_capability_binding(tenant_id, &cap_id)
         .await
     {
-        Ok(cap) => (StatusCode::OK, Json(cap)).into_response(),
+        Ok(cap) => success_resource_response(cap),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
 }
@@ -308,7 +312,7 @@ async fn list_capability_bindings(
         return forbidden("tenantId mismatch");
     }
     match product.list_capability_bindings(query).await {
-        Ok(list) => (StatusCode::OK, Json(list)).into_response(),
+        Ok(list) => success_page_response(list),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
 }
@@ -331,7 +335,7 @@ async fn delete_capability_binding(
         .delete_capability_binding(tenant_id, &cap_id)
         .await
     {
-        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Ok(()) => success_no_content_response(),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
 }
@@ -376,7 +380,7 @@ async fn resolve_capabilities(
         .resolve_capabilities(tenant_id, target_type, target_id)
         .await
     {
-        Ok(caps) => (StatusCode::OK, Json(caps)).into_response(),
+        Ok(caps) => success_resource_response(caps),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
 }

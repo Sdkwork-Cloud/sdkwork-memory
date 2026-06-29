@@ -4,6 +4,7 @@ pub mod correlation;
 pub mod metrics;
 pub mod problem;
 pub mod readiness;
+pub mod response;
 
 use async_trait::async_trait;
 use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
@@ -16,6 +17,12 @@ pub use correlation::{with_problem_correlation, MemoryProblemCorrelation};
 pub use metrics::{memory_http_metrics, memory_metric_environment_label, refresh_memory_http_metric_dimensions};
 pub use problem::{MemoryApiError, MemoryApiProblem, MemoryApiResult};
 pub use readiness::memory_dependency_ready_check;
+pub use response::{
+    created_resource_json, finish_created_resource_response, finish_no_content_response,
+    finish_page_response, finish_resource_response, no_content_json, ok_page_json,
+    ok_resource_json, resolved_trace_id, success_created_resource_response,
+    success_no_content_response, success_page_response, success_resource_response,
+};
 
 const PRODUCTION_AUTH_UNAVAILABLE: &str =
     "production memory auth requires IAM PostgreSQL database";
@@ -57,7 +64,7 @@ impl WebRequestContextResolver for ProductionFailClosedResolver {
         &self,
         _raw_api_key: &str,
     ) -> Result<WebRequestPrincipal, WebFrameworkError> {
-        Err(WebFrameworkError::invalid_credentials(PRODUCTION_AUTH_UNAVAILABLE))
+        Err(WebFrameworkError::dependency_unavailable(PRODUCTION_AUTH_UNAVAILABLE))
     }
 
     async fn resolve_dual_token(
@@ -65,21 +72,21 @@ impl WebRequestContextResolver for ProductionFailClosedResolver {
         _raw_auth_token: &str,
         _raw_access_token: &str,
     ) -> Result<WebRequestPrincipal, WebFrameworkError> {
-        Err(WebFrameworkError::invalid_credentials(PRODUCTION_AUTH_UNAVAILABLE))
+        Err(WebFrameworkError::dependency_unavailable(PRODUCTION_AUTH_UNAVAILABLE))
     }
 
     async fn resolve_access_token(
         &self,
         _raw_access_token: &str,
     ) -> Result<WebRequestPrincipal, WebFrameworkError> {
-        Err(WebFrameworkError::invalid_credentials(PRODUCTION_AUTH_UNAVAILABLE))
+        Err(WebFrameworkError::dependency_unavailable(PRODUCTION_AUTH_UNAVAILABLE))
     }
 
     async fn resolve_oauth_bearer(
         &self,
         _raw_bearer_token: &str,
     ) -> Result<WebRequestPrincipal, WebFrameworkError> {
-        Err(WebFrameworkError::invalid_credentials(PRODUCTION_AUTH_UNAVAILABLE))
+        Err(WebFrameworkError::dependency_unavailable(PRODUCTION_AUTH_UNAVAILABLE))
     }
 }
 

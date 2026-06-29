@@ -64,14 +64,10 @@ tables:
       - { name: uk_ai_habit_uuid, unique: true, columns: [tenant_id, uuid] }
       - { name: uk_ai_habit_key, unique: true, columns: [tenant_id, space_id, user_id, habit_key] }
       - { name: idx_ai_habit_stage, columns: [tenant_id, space_id, stage, confidence, updated_at] }
-  # P1-DB3: planned table not yet implemented in physical migrations.
-  # Declared here as a design contract; status will move to `active` once a
-  # migration creates this table.
   - table: ai_habit_signal
     profile: event_log
     compliance_level: L2
     system_of_record: true
-    status: planned
     description: Evidence signal attached to habit scoring and promotion/decay decisions.
     columns:
       - { name: id, type: bigint, constraints: [primary_key, snowflake] }

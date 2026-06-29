@@ -20,6 +20,7 @@ sdkwork-memory-profile-resolver.workspace = true
 sdkwork-memory-spi.workspace = true
 sdkwork-intelligence-memory-service.workspace = true
 sdkwork-utils-rust.workspace = true
+sdkwork-memory-contract.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

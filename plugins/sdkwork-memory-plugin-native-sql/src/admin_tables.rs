@@ -189,6 +189,17 @@ impl NativeSqlMemoryStore {
         Ok(rows.into_iter().map(map_index_row).collect())
     }
 
+    pub async fn list_ai_indexes_for_tenant(
+        &self,
+        tenant_id: i64,
+        space_id: Option<i64>,
+        page_size: i32,
+        cursor: Option<&str>,
+    ) -> Result<Vec<NativeSqlMemoryIndexRow>, NativeSqlStoreError> {
+        self.list_mem_indexes_for_tenant(tenant_id, space_id, page_size, cursor)
+            .await
+    }
+
     pub async fn retrieve_mem_index_for_tenant(
         &self,
         tenant_id: i64,

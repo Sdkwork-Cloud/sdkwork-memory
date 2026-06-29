@@ -149,7 +149,6 @@ tables:
       - { name: canonical_name, type: varchar(256), constraints: [required] }
       - { name: aliases_json, type: json, nullable: true }
       - { name: attributes_json, type: json, nullable: true }
-      - { name: sensitivity_level, type: varchar(32), constraints: ["enum: [public, internal, private, sensitive, restricted]"] }
       - { name: status, type: varchar(32), constraints: ["enum: [active, merged, deleted]"] }
       - { name: created_at, type: timestamp, constraints: [required] }
       - { name: updated_at, type: timestamp, constraints: [required] }

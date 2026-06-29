@@ -3,8 +3,17 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
 use sdkwork_memory_contract::{
-    MemoryAppApi, MemoryAppRequestContext, MemoryLearningSettings, MemoryServiceResult,
+    ListCandidatesQuery, ListHabitsQuery, ListMemoriesQuery, ListMemorySourcesQuery,
+    MemoryAppApi, MemoryAppRequestContext, MemoryCandidate, MemoryCandidateList, MemoryContextPack,
+    MemoryContextPackRequest, MemoryEvent, MemoryEventRequest, MemoryExportJob,
+    MemoryExportRequest, MemoryExtractionRequest, MemoryFeedback, MemoryFeedbackRequest,
+    MemoryForgetJob, MemoryForgetRequest, MemoryHabit, MemoryHabitList, MemoryHabitRequest,
+    MemoryLearningJob, MemoryLearningSettings, MemoryLearningSettingsPatch, MemoryRecord,
+    MemoryRecordList, MemoryRecordPatch, MemoryRecordRequest, MemoryRecordSourceList,
+    MemoryRetrievalRequest, MemoryRetrievalResult, MemoryReviewRequest, MemoryServiceResult,
+    MemorySpace, MemorySpaceList, MemorySpaceRequest,
 };
+use sdkwork_memory_contract::space::ListSpacesQuery;
 use sdkwork_routes_memory_app_api::{
     build_router_with_shared_app_api, wrap_router_with_iam_database_web_framework,
 };
@@ -82,5 +91,273 @@ impl MemoryAppApi for RecordingAppApi {
             habit_learning_enabled: true,
             updated_at: "2026-06-10T00:00:00Z".to_string(),
         })
+    }
+
+    async fn list_spaces(
+        &self,
+        _context: MemoryAppRequestContext,
+        _query: ListSpacesQuery,
+    ) -> MemoryServiceResult<MemorySpaceList> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn create_space(
+        &self,
+        _context: MemoryAppRequestContext,
+        _request: MemorySpaceRequest,
+    ) -> MemoryServiceResult<MemorySpace> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn retrieve_space(
+        &self,
+        _context: MemoryAppRequestContext,
+        _space_id: u64,
+    ) -> MemoryServiceResult<MemorySpace> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn update_space(
+        &self,
+        _context: MemoryAppRequestContext,
+        _space_id: u64,
+        _request: MemorySpaceRequest,
+    ) -> MemoryServiceResult<MemorySpace> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn create_event(
+        &self,
+        _context: MemoryAppRequestContext,
+        _request: MemoryEventRequest,
+    ) -> MemoryServiceResult<MemoryEvent> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn retrieve_event(
+        &self,
+        _context: MemoryAppRequestContext,
+        _event_id: u64,
+        _space_id: u64,
+    ) -> MemoryServiceResult<MemoryEvent> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn list_memories(
+        &self,
+        _context: MemoryAppRequestContext,
+        _query: ListMemoriesQuery,
+    ) -> MemoryServiceResult<MemoryRecordList> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn create_memory(
+        &self,
+        _context: MemoryAppRequestContext,
+        _request: MemoryRecordRequest,
+    ) -> MemoryServiceResult<MemoryRecord> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn retrieve_memory(
+        &self,
+        _context: MemoryAppRequestContext,
+        _memory_id: u64,
+        _space_id: u64,
+    ) -> MemoryServiceResult<MemoryRecord> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn update_memory(
+        &self,
+        _context: MemoryAppRequestContext,
+        _memory_id: u64,
+        _space_id: u64,
+        _patch: MemoryRecordPatch,
+    ) -> MemoryServiceResult<MemoryRecord> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn delete_memory(
+        &self,
+        _context: MemoryAppRequestContext,
+        _memory_id: u64,
+        _space_id: u64,
+    ) -> MemoryServiceResult<()> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn list_memory_sources(
+        &self,
+        _context: MemoryAppRequestContext,
+        _memory_id: u64,
+        _query: ListMemorySourcesQuery,
+    ) -> MemoryServiceResult<MemoryRecordSourceList> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn create_forget_request(
+        &self,
+        _context: MemoryAppRequestContext,
+        _request: MemoryForgetRequest,
+    ) -> MemoryServiceResult<MemoryForgetJob> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn retrieve_forget_request(
+        &self,
+        _context: MemoryAppRequestContext,
+        _forget_job_id: u64,
+    ) -> MemoryServiceResult<MemoryForgetJob> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn create_extraction(
+        &self,
+        _context: MemoryAppRequestContext,
+        _request: MemoryExtractionRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn list_candidates(
+        &self,
+        _context: MemoryAppRequestContext,
+        _query: ListCandidatesQuery,
+    ) -> MemoryServiceResult<MemoryCandidateList> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn retrieve_candidate(
+        &self,
+        _context: MemoryAppRequestContext,
+        _candidate_id: u64,
+    ) -> MemoryServiceResult<MemoryCandidate> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn approve_candidate(
+        &self,
+        _context: MemoryAppRequestContext,
+        _candidate_id: u64,
+        _request: MemoryReviewRequest,
+    ) -> MemoryServiceResult<MemoryCandidate> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn reject_candidate(
+        &self,
+        _context: MemoryAppRequestContext,
+        _candidate_id: u64,
+        _request: MemoryReviewRequest,
+    ) -> MemoryServiceResult<MemoryCandidate> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn list_habits(
+        &self,
+        _context: MemoryAppRequestContext,
+        _query: ListHabitsQuery,
+    ) -> MemoryServiceResult<MemoryHabitList> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn retrieve_habit(
+        &self,
+        _context: MemoryAppRequestContext,
+        _habit_id: u64,
+    ) -> MemoryServiceResult<MemoryHabit> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn update_habit(
+        &self,
+        _context: MemoryAppRequestContext,
+        _habit_id: u64,
+        _request: MemoryHabitRequest,
+    ) -> MemoryServiceResult<MemoryHabit> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn confirm_habit(
+        &self,
+        _context: MemoryAppRequestContext,
+        _habit_id: u64,
+        _request: MemoryReviewRequest,
+    ) -> MemoryServiceResult<MemoryHabit> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn reject_habit(
+        &self,
+        _context: MemoryAppRequestContext,
+        _habit_id: u64,
+        _request: MemoryReviewRequest,
+    ) -> MemoryServiceResult<MemoryHabit> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn create_retrieval(
+        &self,
+        _context: MemoryAppRequestContext,
+        _request: MemoryRetrievalRequest,
+    ) -> MemoryServiceResult<MemoryRetrievalResult> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn retrieve_retrieval(
+        &self,
+        _context: MemoryAppRequestContext,
+        _retrieval_id: u64,
+    ) -> MemoryServiceResult<MemoryRetrievalResult> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn create_context_pack(
+        &self,
+        _context: MemoryAppRequestContext,
+        _request: MemoryContextPackRequest,
+    ) -> MemoryServiceResult<MemoryContextPack> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn retrieve_context_pack(
+        &self,
+        _context: MemoryAppRequestContext,
+        _context_pack_id: u64,
+    ) -> MemoryServiceResult<MemoryContextPack> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn create_feedback(
+        &self,
+        _context: MemoryAppRequestContext,
+        _request: MemoryFeedbackRequest,
+    ) -> MemoryServiceResult<MemoryFeedback> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn create_export_job(
+        &self,
+        _context: MemoryAppRequestContext,
+        _request: MemoryExportRequest,
+    ) -> MemoryServiceResult<MemoryExportJob> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn retrieve_export_job(
+        &self,
+        _context: MemoryAppRequestContext,
+        _export_job_id: u64,
+    ) -> MemoryServiceResult<MemoryExportJob> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn update_learning_settings(
+        &self,
+        _context: MemoryAppRequestContext,
+        _patch: MemoryLearningSettingsPatch,
+    ) -> MemoryServiceResult<MemoryLearningSettings> {
+        unimplemented!("stub -- not called in web-framework test")
     }
 }

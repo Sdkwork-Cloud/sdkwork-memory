@@ -8,10 +8,7 @@ use sdkwork_routes_memory_support::{
     ProductionFailClosedResolver,
 };
 use sdkwork_web_axum::{with_web_request_context, WebFrameworkLayer};
-use sdkwork_web_core::{
-    DefaultWebRequestContextResolver, DomainContextInjector, WebRequestContext,
-    WebRequestContextProfile,
-};
+use sdkwork_web_core::{DefaultWebRequestContextResolver, WebRequestContextProfile};
 
 use crate::http_route_manifest::open_route_manifest;
 use crate::paths;
@@ -27,8 +24,8 @@ pub fn memory_open_api_prefixes() -> Vec<String> {
 #[derive(Clone, Default)]
 struct MemoryOpenApiContextInjector;
 
-impl DomainContextInjector for MemoryOpenApiContextInjector {
-    fn inject(&self, request: &mut axum::extract::Request, context: &WebRequestContext) {
+impl sdkwork_web_core::DomainContextInjector for MemoryOpenApiContextInjector {
+    fn inject(&self, request: &mut axum::extract::Request, context: &sdkwork_web_core::WebRequestContext) {
         if let Some(open_context) = memory_open_api_context_from_web_request(context) {
             request.extensions_mut().insert(open_context);
         }
@@ -36,7 +33,7 @@ impl DomainContextInjector for MemoryOpenApiContextInjector {
 }
 
 fn memory_open_api_context_from_web_request(
-    context: &WebRequestContext,
+    context: &sdkwork_web_core::WebRequestContext,
 ) -> Option<MemoryOpenApiRequestContext> {
     let principal = context.principal.as_ref()?;
     let tenant_id = principal.tenant_id().parse().ok()?;
@@ -54,29 +51,12 @@ fn memory_open_api_context_from_web_request(
     })
 }
 
-pub fn wrap_router_with_web_framework(
-    resolver: DefaultWebRequestContextResolver,
-    router: Router,
-) -> Router {
-    with_web_request_context(
-        with_problem_correlation(router),
-        build_memory_open_api_framework_layer(resolver),
-    )
-}
-
-pub fn wrap_router_with_iam_database_web_framework(
-    resolver: IamWebRequestContextResolver,
-    router: Router,
-) -> Router {
-    with_web_request_context(
-        with_problem_correlation(router),
-        build_memory_open_api_framework_layer(resolver),
-    )
-}
-
-fn build_memory_open_api_framework_layer<R>(resolver: R) -> WebFrameworkLayer<R>
+/// Build the framework layer for open-api routes.
+/// Each route crate provides its own closure that configures the layer
+/// with route-specific settings (context injector, manifest, profile).
+fn build_open_api_framework_layer<R>(resolver: R) -> WebFrameworkLayer<R>
 where
-    R: sdkwork_web_core::WebRequestContextResolver + Clone,
+    R: sdkwork_web_core::WebRequestContextResolver,
 {
     let route_manifest = open_route_manifest();
     route_manifest
@@ -94,6 +74,29 @@ where
         .with_metrics(memory_http_metrics())
 }
 
+/// Wrap router using the dev-inline web framework.
+pub fn wrap_router_with_web_framework(
+    resolver: DefaultWebRequestContextResolver,
+    router: Router,
+) -> Router {
+    with_web_request_context(
+        with_problem_correlation(router),
+        build_open_api_framework_layer(resolver),
+    )
+}
+
+/// Wrap router using the IAM database web framework.
+pub fn wrap_router_with_iam_database_web_framework(
+    resolver: IamWebRequestContextResolver,
+    router: Router,
+) -> Router {
+    with_web_request_context(
+        with_problem_correlation(router),
+        build_open_api_framework_layer(resolver),
+    )
+}
+
+/// Dispatch router wrapping based on configured auth mode.
 pub async fn wrap_router_with_web_framework_from_env(router: Router) -> Router {
     match memory_web_auth_mode_from_env().await {
         MemoryWebAuthMode::DevInline => {
@@ -101,7 +104,7 @@ pub async fn wrap_router_with_web_framework_from_env(router: Router) -> Router {
         }
         MemoryWebAuthMode::ProductionFailClosed => with_web_request_context(
             with_problem_correlation(router),
-            build_memory_open_api_framework_layer(ProductionFailClosedResolver),
+            WebFrameworkLayer::new(ProductionFailClosedResolver),
         ),
         MemoryWebAuthMode::IamDatabase(resolver) => {
             wrap_router_with_iam_database_web_framework(resolver, router)

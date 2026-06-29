@@ -1,6 +1,20 @@
+use async_trait::async_trait;
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
-use sdkwork_memory_contract::MemoryBackendApi;
+use sdkwork_memory_contract::{
+    ListAdminResourcesQuery, ListAuditLogsQuery, ListCandidatesQuery, ListEventsQuery,
+    ListMemoriesQuery, ListRetrievalTracesQuery, ListSpacesQuery, MemoryAuditLogList,
+    MemoryBackendApi, MemoryBackendRequestContext,
+    MemoryCandidate, MemoryCandidateList, MemoryEvalRun, MemoryEvalRunList, MemoryEvalRunRequest,
+    MemoryEvent, MemoryEventList, MemoryExtractionRequest, MemoryImplementationProfile,
+    MemoryImplementationProfileList, MemoryImplementationProfileRequest, MemoryIndex,
+    MemoryIndexList, MemoryIndexRequest, MemoryLearningJob, MemoryMigrationJobRequest,
+    MemoryProviderBinding, MemoryProviderBindingList, MemoryProviderBindingRequest,
+    MemoryProviderHealth, MemoryRecord, MemoryRecordList, MemoryRecordPatch, MemoryRecordRequest,
+    MemoryRetentionJobRequest, MemoryRetrievalProfile, MemoryRetrievalProfileList,
+    MemoryRetrievalProfileRequest, MemoryRetrievalTrace, MemoryRetrievalTraceList,
+    MemoryReviewRequest, MemoryServiceResult, MemorySpace, MemorySpaceList, MemorySpaceRequest,
+};
 use sdkwork_routes_memory_backend_api::build_router_with_shared_backend_api;
 use serde_json::Value;
 use std::sync::Arc;
@@ -45,7 +59,307 @@ async fn backend_router_mounts_every_backend_openapi_operation_path() {
 
 struct StubBackendApi;
 
-impl MemoryBackendApi for StubBackendApi {}
+#[async_trait]
+impl MemoryBackendApi for StubBackendApi {
+    async fn list_spaces(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _q: ListSpacesQuery,
+    ) -> MemoryServiceResult<MemorySpaceList> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn retrieve_space(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+    ) -> MemoryServiceResult<MemorySpace> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn update_space(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+        _r: MemorySpaceRequest,
+    ) -> MemoryServiceResult<MemorySpace> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn list_memories(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _q: ListMemoriesQuery,
+    ) -> MemoryServiceResult<MemoryRecordList> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn retrieve_memory(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+        _s: u64,
+    ) -> MemoryServiceResult<MemoryRecord> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn update_memory(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+        _s: u64,
+        _p: MemoryRecordPatch,
+    ) -> MemoryServiceResult<MemoryRecord> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn supersede_memory(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+        _r: MemoryRecordRequest,
+    ) -> MemoryServiceResult<MemoryRecord> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn list_events(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _q: ListEventsQuery,
+    ) -> MemoryServiceResult<MemoryEventList> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn retrieve_event(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+        _s: u64,
+    ) -> MemoryServiceResult<MemoryEvent> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn list_candidates(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _q: ListCandidatesQuery,
+    ) -> MemoryServiceResult<MemoryCandidateList> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn approve_candidate(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+        _r: MemoryReviewRequest,
+    ) -> MemoryServiceResult<MemoryCandidate> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn reject_candidate(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+        _r: MemoryReviewRequest,
+    ) -> MemoryServiceResult<MemoryCandidate> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn create_extraction_job(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _r: MemoryExtractionRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn retrieve_extraction_job(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn create_consolidation_job(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _r: MemoryExtractionRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn list_indexes(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _q: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryIndexList> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn create_index(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _r: MemoryIndexRequest,
+    ) -> MemoryServiceResult<MemoryIndex> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn retrieve_index(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+    ) -> MemoryServiceResult<MemoryIndex> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn update_index(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+        _r: MemoryIndexRequest,
+    ) -> MemoryServiceResult<MemoryIndex> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn rebuild_index(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn list_retrieval_profiles(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _q: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryRetrievalProfileList> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn create_retrieval_profile(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _r: MemoryRetrievalProfileRequest,
+    ) -> MemoryServiceResult<MemoryRetrievalProfile> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn retrieve_retrieval_profile(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+    ) -> MemoryServiceResult<MemoryRetrievalProfile> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn update_retrieval_profile(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+        _r: MemoryRetrievalProfileRequest,
+    ) -> MemoryServiceResult<MemoryRetrievalProfile> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn list_implementation_profiles(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _q: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryImplementationProfileList> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn create_implementation_profile(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _r: MemoryImplementationProfileRequest,
+    ) -> MemoryServiceResult<MemoryImplementationProfile> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn retrieve_implementation_profile(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+    ) -> MemoryServiceResult<MemoryImplementationProfile> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn update_implementation_profile(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+        _r: MemoryImplementationProfileRequest,
+    ) -> MemoryServiceResult<MemoryImplementationProfile> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn list_provider_bindings(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _q: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryProviderBindingList> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn create_provider_binding(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _r: MemoryProviderBindingRequest,
+    ) -> MemoryServiceResult<MemoryProviderBinding> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn update_provider_binding(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+        _r: MemoryProviderBindingRequest,
+    ) -> MemoryServiceResult<MemoryProviderBinding> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn retrieve_provider_health(
+        &self,
+        _c: MemoryBackendRequestContext,
+    ) -> MemoryServiceResult<MemoryProviderHealth> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn list_eval_runs(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _q: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryEvalRunList> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn create_eval_run(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _r: MemoryEvalRunRequest,
+    ) -> MemoryServiceResult<MemoryEvalRun> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn retrieve_eval_run(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+    ) -> MemoryServiceResult<MemoryEvalRun> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn list_retrieval_traces(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _q: ListRetrievalTracesQuery,
+    ) -> MemoryServiceResult<MemoryRetrievalTraceList> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn retrieve_retrieval_trace(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+    ) -> MemoryServiceResult<MemoryRetrievalTrace> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn list_audit_logs(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _q: ListAuditLogsQuery,
+    ) -> MemoryServiceResult<MemoryAuditLogList> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn create_retention_job(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _r: MemoryRetentionJobRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn create_migration_job(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _r: MemoryMigrationJobRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn retrieve_migration_job(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+}
 
 fn method_from_openapi(method_name: &str) -> Method {
     match method_name {

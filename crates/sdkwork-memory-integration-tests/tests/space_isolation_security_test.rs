@@ -8,6 +8,7 @@ use sdkwork_routes_memory_app_api::{
     build_router_with_app_api, wrap_router_with_iam_database_web_framework,
 };
 use sdkwork_routes_memory_open_api::build_router_with_shared_open_api;
+use sdkwork_memory_test_support::api_envelope;
 use sdkwork_memory_test_support::web_auth::{
     lock_integration_test_env, memory_access_token, memory_auth_token_bearer,
     MEMORY_TEST_IDEMPOTENCY_KEY,
@@ -76,7 +77,7 @@ async fn open_api_rejects_cross_space_memory_access() {
         .await
         .unwrap();
     let memory_json: serde_json::Value = serde_json::from_slice(&memory_body).unwrap();
-    let memory_id = memory_json["memoryId"].as_str().unwrap();
+    let memory_id = api_envelope::item(&memory_json)["memoryId"].as_str().unwrap();
 
     let wrong_space = open_app
         .oneshot(
@@ -112,7 +113,7 @@ async fn app_api_requires_space_id_for_memory_list() {
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(payload["code"], "validation_error");
+    assert_eq!(payload["code"].as_i64().unwrap(), 40001);
 }
 
 #[tokio::test]
@@ -146,8 +147,9 @@ async fn learning_settings_persist_across_retrieve() {
     assert_eq!(retrieve.status(), StatusCode::OK);
     let body = to_bytes(retrieve.into_body(), usize::MAX).await.unwrap();
     let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(payload["autoPromoteCandidates"], true);
-    assert_eq!(payload["habitLearningEnabled"], false);
+    let item = api_envelope::item(&payload);
+    assert_eq!(item["autoPromoteCandidates"], true);
+    assert_eq!(item["habitLearningEnabled"], false);
 }
 
 #[tokio::test]
@@ -255,7 +257,7 @@ async fn app_api_lists_only_actor_owned_spaces() {
     assert_eq!(list.status(), StatusCode::OK);
     let body = to_bytes(list.into_body(), usize::MAX).await.unwrap();
     let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    let items = payload["items"].as_array().unwrap();
+    let items = api_envelope::items(&payload).as_array().unwrap();
     assert_eq!(items.len(), 1);
     assert_eq!(items[0]["displayName"], "Test Space 2");
 }

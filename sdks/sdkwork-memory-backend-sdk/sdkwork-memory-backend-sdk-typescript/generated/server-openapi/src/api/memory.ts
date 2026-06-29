@@ -1,7 +1,7 @@
 import { backendApiPath } from './paths';
 import type { HttpClient } from '../http/client';
 
-import type { MemoryAuditLogList, MemoryCandidate, MemoryCandidateList, MemoryEvalRun, MemoryEvalRunList, MemoryEvalRunRequest, MemoryEvent, MemoryEventList, MemoryExtractionRequest, MemoryImplementationProfile, MemoryImplementationProfileList, MemoryImplementationProfileRequest, MemoryIndex, MemoryIndexList, MemoryIndexRequest, MemoryLearningJob, MemoryMigrationJobRequest, MemoryProviderBinding, MemoryProviderBindingList, MemoryProviderBindingRequest, MemoryProviderHealth, MemoryRecord, MemoryRecordList, MemoryRecordRequest, MemoryRetentionJobRequest, MemoryRetrievalProfile, MemoryRetrievalProfileList, MemoryRetrievalProfileRequest, MemoryRetrievalTrace, MemoryRetrievalTraceList, MemoryReviewRequest, MemorySpace, MemorySpaceList, MemorySpaceRequest } from '../types';
+import type { MemoryAuditLog, MemoryCandidate, MemoryEvalRun, MemoryEvalRunRequest, MemoryEvent, MemoryExtractionRequest, MemoryImplementationProfile, MemoryImplementationProfileRequest, MemoryIndex, MemoryIndexRequest, MemoryLearningJob, MemoryMigrationJobRequest, MemoryProviderBinding, MemoryProviderBindingRequest, MemoryProviderHealth, MemoryRecord, MemoryRecordRequest, MemoryRetentionJobRequest, MemoryRetrievalProfile, MemoryRetrievalProfileRequest, MemoryRetrievalTrace, MemoryReviewRequest, MemorySpace, MemorySpaceRequest, PageInfo } from '../types';
 
 
 export interface MemoryMigrationJobsCreateParams {
@@ -68,13 +68,13 @@ export class MemoryAuditLogsApi {
   }
 
 
-async list(params?: MemoryAuditLogsListParams): Promise<MemoryAuditLogList> {
+async list(params?: MemoryAuditLogsListParams): Promise<Record<string, unknown>> {
     const query = buildQueryString([
       { name: 'q', value: params?.q, style: 'form', explode: true, allowReserved: false },
       { name: 'cursor', value: params?.cursor, style: 'form', explode: true, allowReserved: false },
       { name: 'page_size', value: params?.pageSize, style: 'form', explode: true, allowReserved: false },
     ]);
-    return this.client.get<MemoryAuditLogList>(appendQueryString(backendApiPath(`/memory/audit_logs`), query));
+    return this.client.get<Record<string, unknown>>(appendQueryString(backendApiPath(`/memory/audit_logs`), query));
   }
 }
 
@@ -92,13 +92,13 @@ export class MemoryRetrievalTracesApi {
   }
 
 
-async list(params?: MemoryRetrievalTracesListParams): Promise<MemoryRetrievalTraceList> {
+async list(params?: MemoryRetrievalTracesListParams): Promise<Record<string, unknown>> {
     const query = buildQueryString([
       { name: 'q', value: params?.q, style: 'form', explode: true, allowReserved: false },
       { name: 'cursor', value: params?.cursor, style: 'form', explode: true, allowReserved: false },
       { name: 'page_size', value: params?.pageSize, style: 'form', explode: true, allowReserved: false },
     ]);
-    return this.client.get<MemoryRetrievalTraceList>(appendQueryString(backendApiPath(`/memory/retrieval_traces`), query));
+    return this.client.get<Record<string, unknown>>(appendQueryString(backendApiPath(`/memory/retrieval_traces`), query));
   }
 
 async retrieve(traceId: string): Promise<MemoryRetrievalTrace> {
@@ -124,13 +124,13 @@ export class MemoryEvalRunsApi {
   }
 
 
-async list(params?: MemoryEvalRunsListParams): Promise<MemoryEvalRunList> {
+async list(params?: MemoryEvalRunsListParams): Promise<Record<string, unknown>> {
     const query = buildQueryString([
       { name: 'q', value: params?.q, style: 'form', explode: true, allowReserved: false },
       { name: 'cursor', value: params?.cursor, style: 'form', explode: true, allowReserved: false },
       { name: 'page_size', value: params?.pageSize, style: 'form', explode: true, allowReserved: false },
     ]);
-    return this.client.get<MemoryEvalRunList>(appendQueryString(backendApiPath(`/memory/eval_runs`), query));
+    return this.client.get<Record<string, unknown>>(appendQueryString(backendApiPath(`/memory/eval_runs`), query));
   }
 
 async create(body: MemoryEvalRunRequest, params?: MemoryEvalRunsCreateParams): Promise<MemoryEvalRun> {
@@ -179,13 +179,13 @@ export class MemoryProviderBindingsApi {
   }
 
 
-async list(params?: MemoryProviderBindingsListParams): Promise<MemoryProviderBindingList> {
+async list(params?: MemoryProviderBindingsListParams): Promise<Record<string, unknown>> {
     const query = buildQueryString([
       { name: 'q', value: params?.q, style: 'form', explode: true, allowReserved: false },
       { name: 'cursor', value: params?.cursor, style: 'form', explode: true, allowReserved: false },
       { name: 'page_size', value: params?.pageSize, style: 'form', explode: true, allowReserved: false },
     ]);
-    return this.client.get<MemoryProviderBindingList>(appendQueryString(backendApiPath(`/memory/provider_bindings`), query));
+    return this.client.get<Record<string, unknown>>(appendQueryString(backendApiPath(`/memory/provider_bindings`), query));
   }
 
 async create(body: MemoryProviderBindingRequest, params?: MemoryProviderBindingsCreateParams): Promise<MemoryProviderBinding> {
@@ -221,13 +221,13 @@ export class MemoryImplementationProfilesApi {
   }
 
 
-async list(params?: MemoryImplementationProfilesListParams): Promise<MemoryImplementationProfileList> {
+async list(params?: MemoryImplementationProfilesListParams): Promise<Record<string, unknown>> {
     const query = buildQueryString([
       { name: 'q', value: params?.q, style: 'form', explode: true, allowReserved: false },
       { name: 'cursor', value: params?.cursor, style: 'form', explode: true, allowReserved: false },
       { name: 'page_size', value: params?.pageSize, style: 'form', explode: true, allowReserved: false },
     ]);
-    return this.client.get<MemoryImplementationProfileList>(appendQueryString(backendApiPath(`/memory/implementation_profiles`), query));
+    return this.client.get<Record<string, unknown>>(appendQueryString(backendApiPath(`/memory/implementation_profiles`), query));
   }
 
 async create(body: MemoryImplementationProfileRequest, params?: MemoryImplementationProfilesCreateParams): Promise<MemoryImplementationProfile> {
@@ -267,13 +267,13 @@ export class MemoryRetrievalProfilesApi {
   }
 
 
-async list(params?: MemoryRetrievalProfilesListParams): Promise<MemoryRetrievalProfileList> {
+async list(params?: MemoryRetrievalProfilesListParams): Promise<Record<string, unknown>> {
     const query = buildQueryString([
       { name: 'q', value: params?.q, style: 'form', explode: true, allowReserved: false },
       { name: 'cursor', value: params?.cursor, style: 'form', explode: true, allowReserved: false },
       { name: 'page_size', value: params?.pageSize, style: 'form', explode: true, allowReserved: false },
     ]);
-    return this.client.get<MemoryRetrievalProfileList>(appendQueryString(backendApiPath(`/memory/retrieval_profiles`), query));
+    return this.client.get<Record<string, unknown>>(appendQueryString(backendApiPath(`/memory/retrieval_profiles`), query));
   }
 
 async create(body: MemoryRetrievalProfileRequest, params?: MemoryRetrievalProfilesCreateParams): Promise<MemoryRetrievalProfile> {
@@ -317,13 +317,13 @@ export class MemoryIndexesApi {
   }
 
 
-async list(params?: MemoryIndexesListParams): Promise<MemoryIndexList> {
+async list(params?: MemoryIndexesListParams): Promise<Record<string, unknown>> {
     const query = buildQueryString([
       { name: 'q', value: params?.q, style: 'form', explode: true, allowReserved: false },
       { name: 'cursor', value: params?.cursor, style: 'form', explode: true, allowReserved: false },
       { name: 'page_size', value: params?.pageSize, style: 'form', explode: true, allowReserved: false },
     ]);
-    return this.client.get<MemoryIndexList>(appendQueryString(backendApiPath(`/memory/indexes`), query));
+    return this.client.get<Record<string, unknown>>(appendQueryString(backendApiPath(`/memory/indexes`), query));
   }
 
 async create(body: MemoryIndexRequest, params?: MemoryIndexesCreateParams): Promise<MemoryIndex> {
@@ -427,13 +427,13 @@ export class MemoryCandidatesApi {
   }
 
 
-async list(params?: MemoryCandidatesListParams): Promise<MemoryCandidateList> {
+async list(params?: MemoryCandidatesListParams): Promise<Record<string, unknown>> {
     const query = buildQueryString([
       { name: 'q', value: params?.q, style: 'form', explode: true, allowReserved: false },
       { name: 'cursor', value: params?.cursor, style: 'form', explode: true, allowReserved: false },
       { name: 'page_size', value: params?.pageSize, style: 'form', explode: true, allowReserved: false },
     ]);
-    return this.client.get<MemoryCandidateList>(appendQueryString(backendApiPath(`/memory/candidates`), query));
+    return this.client.get<Record<string, unknown>>(appendQueryString(backendApiPath(`/memory/candidates`), query));
   }
 
 async approve(candidateId: string, body: MemoryReviewRequest, params?: MemoryCandidatesApproveParams): Promise<MemoryCandidate> {
@@ -463,6 +463,10 @@ export interface MemoryEventsListParams {
   pageSize?: number;
 }
 
+export interface MemoryEventsRetrieveParams {
+  spaceId: string;
+}
+
 export class MemoryEventsApi {
   private client: HttpClient;
 
@@ -471,17 +475,20 @@ export class MemoryEventsApi {
   }
 
 
-async list(params?: MemoryEventsListParams): Promise<MemoryEventList> {
+async list(params?: MemoryEventsListParams): Promise<Record<string, unknown>> {
     const query = buildQueryString([
       { name: 'q', value: params?.q, style: 'form', explode: true, allowReserved: false },
       { name: 'cursor', value: params?.cursor, style: 'form', explode: true, allowReserved: false },
       { name: 'page_size', value: params?.pageSize, style: 'form', explode: true, allowReserved: false },
     ]);
-    return this.client.get<MemoryEventList>(appendQueryString(backendApiPath(`/memory/events`), query));
+    return this.client.get<Record<string, unknown>>(appendQueryString(backendApiPath(`/memory/events`), query));
   }
 
-async retrieve(eventId: string): Promise<MemoryEvent> {
-    return this.client.get<MemoryEvent>(backendApiPath(`/memory/events/${serializePathParameter(eventId, { name: 'eventId', style: 'simple', explode: false })}`));
+async retrieve(eventId: string, params: MemoryEventsRetrieveParams): Promise<MemoryEvent> {
+    const query = buildQueryString([
+      { name: 'space_id', value: params.spaceId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<MemoryEvent>(appendQueryString(backendApiPath(`/memory/events/${serializePathParameter(eventId, { name: 'eventId', style: 'simple', explode: false })}`), query));
   }
 }
 
@@ -499,13 +506,13 @@ export class MemorySpacesApi {
   }
 
 
-async list(params?: MemorySpacesListParams): Promise<MemorySpaceList> {
+async list(params?: MemorySpacesListParams): Promise<Record<string, unknown>> {
     const query = buildQueryString([
       { name: 'q', value: params?.q, style: 'form', explode: true, allowReserved: false },
       { name: 'cursor', value: params?.cursor, style: 'form', explode: true, allowReserved: false },
       { name: 'page_size', value: params?.pageSize, style: 'form', explode: true, allowReserved: false },
     ]);
-    return this.client.get<MemorySpaceList>(appendQueryString(backendApiPath(`/memory/spaces`), query));
+    return this.client.get<Record<string, unknown>>(appendQueryString(backendApiPath(`/memory/spaces`), query));
   }
 
 async retrieve(spaceId: string): Promise<MemorySpace> {
@@ -521,6 +528,14 @@ export interface MemoryListParams {
   q?: string;
   cursor?: string;
   pageSize?: number;
+}
+
+export interface MemoryRetrieveParams {
+  spaceId: string;
+}
+
+export interface MemoryUpdateParams {
+  spaceId: string;
 }
 
 export interface MemorySupersedeParams {
@@ -565,21 +580,27 @@ export class MemoryApi {
   }
 
 
-async list(params?: MemoryListParams): Promise<MemoryRecordList> {
+async list(params?: MemoryListParams): Promise<Record<string, unknown>> {
     const query = buildQueryString([
       { name: 'q', value: params?.q, style: 'form', explode: true, allowReserved: false },
       { name: 'cursor', value: params?.cursor, style: 'form', explode: true, allowReserved: false },
       { name: 'page_size', value: params?.pageSize, style: 'form', explode: true, allowReserved: false },
     ]);
-    return this.client.get<MemoryRecordList>(appendQueryString(backendApiPath(`/memory/memories`), query));
+    return this.client.get<Record<string, unknown>>(appendQueryString(backendApiPath(`/memory/memories`), query));
   }
 
-async retrieve(memoryId: string): Promise<MemoryRecord> {
-    return this.client.get<MemoryRecord>(backendApiPath(`/memory/memories/${serializePathParameter(memoryId, { name: 'memoryId', style: 'simple', explode: false })}`));
+async retrieve(memoryId: string, params: MemoryRetrieveParams): Promise<MemoryRecord> {
+    const query = buildQueryString([
+      { name: 'space_id', value: params.spaceId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<MemoryRecord>(appendQueryString(backendApiPath(`/memory/memories/${serializePathParameter(memoryId, { name: 'memoryId', style: 'simple', explode: false })}`), query));
   }
 
-async update(memoryId: string, body: MemoryRecordRequest): Promise<MemoryRecord> {
-    return this.client.patch<MemoryRecord>(backendApiPath(`/memory/memories/${serializePathParameter(memoryId, { name: 'memoryId', style: 'simple', explode: false })}`), body, undefined, undefined, 'application/json');
+async update(memoryId: string, body: MemoryRecordRequest, params: MemoryUpdateParams): Promise<MemoryRecord> {
+    const query = buildQueryString([
+      { name: 'space_id', value: params.spaceId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.patch<MemoryRecord>(appendQueryString(backendApiPath(`/memory/memories/${serializePathParameter(memoryId, { name: 'memoryId', style: 'simple', explode: false })}`), query), body, undefined, undefined, 'application/json');
   }
 
 async supersede(memoryId: string, body: MemoryRecordRequest, params?: MemorySupersedeParams): Promise<MemoryRecord> {

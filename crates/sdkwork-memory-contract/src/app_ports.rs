@@ -9,7 +9,7 @@ use crate::dto::{
     MemoryRecordList, MemoryRecordPatch, MemoryRecordRequest, MemoryRecordSourceList,
     MemoryRetrievalRequest, MemoryRetrievalResult, MemoryReviewRequest,
 };
-use crate::ports::{MemoryServiceError, MemoryServiceResult};
+use crate::ports::MemoryServiceResult;
 use crate::space::{ListSpacesQuery, MemorySpace, MemorySpaceList, MemorySpaceRequest};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,286 +20,214 @@ pub struct MemoryAppRequestContext {
     pub session_id: Option<String>,
 }
 
-macro_rules! app_not_implemented {
-    ($name:literal, $ret:ty) => {
-        Err(MemoryServiceError::not_implemented($name)) as MemoryServiceResult<$ret>
-    };
-}
-
 #[async_trait]
 pub trait MemoryAppApi: Send + Sync + 'static {
     async fn list_spaces(
         &self,
-        _context: MemoryAppRequestContext,
-        _query: ListSpacesQuery,
-    ) -> MemoryServiceResult<MemorySpaceList> {
-        app_not_implemented!("spaces.list", MemorySpaceList)
-    }
+        context: MemoryAppRequestContext,
+        query: ListSpacesQuery,
+    ) -> MemoryServiceResult<MemorySpaceList>;
 
     async fn create_space(
         &self,
-        _context: MemoryAppRequestContext,
-        _request: MemorySpaceRequest,
-    ) -> MemoryServiceResult<MemorySpace> {
-        app_not_implemented!("spaces.create", MemorySpace)
-    }
+        context: MemoryAppRequestContext,
+        request: MemorySpaceRequest,
+    ) -> MemoryServiceResult<MemorySpace>;
 
     async fn retrieve_space(
         &self,
-        _context: MemoryAppRequestContext,
-        _space_id: u64,
-    ) -> MemoryServiceResult<MemorySpace> {
-        app_not_implemented!("spaces.retrieve", MemorySpace)
-    }
+        context: MemoryAppRequestContext,
+        space_id: u64,
+    ) -> MemoryServiceResult<MemorySpace>;
 
     async fn update_space(
         &self,
-        _context: MemoryAppRequestContext,
-        _space_id: u64,
-        _request: MemorySpaceRequest,
-    ) -> MemoryServiceResult<MemorySpace> {
-        app_not_implemented!("spaces.update", MemorySpace)
-    }
+        context: MemoryAppRequestContext,
+        space_id: u64,
+        request: MemorySpaceRequest,
+    ) -> MemoryServiceResult<MemorySpace>;
 
     async fn create_event(
         &self,
-        _context: MemoryAppRequestContext,
-        _request: MemoryEventRequest,
-    ) -> MemoryServiceResult<MemoryEvent> {
-        app_not_implemented!("events.create", MemoryEvent)
-    }
+        context: MemoryAppRequestContext,
+        request: MemoryEventRequest,
+    ) -> MemoryServiceResult<MemoryEvent>;
 
     async fn retrieve_event(
         &self,
-        _context: MemoryAppRequestContext,
-        _event_id: u64,
-        _space_id: u64,
-    ) -> MemoryServiceResult<MemoryEvent> {
-        app_not_implemented!("events.retrieve", MemoryEvent)
-    }
+        context: MemoryAppRequestContext,
+        event_id: u64,
+        space_id: u64,
+    ) -> MemoryServiceResult<MemoryEvent>;
 
     async fn list_memories(
         &self,
-        _context: MemoryAppRequestContext,
-        _query: ListMemoriesQuery,
-    ) -> MemoryServiceResult<MemoryRecordList> {
-        app_not_implemented!("memories.list", MemoryRecordList)
-    }
+        context: MemoryAppRequestContext,
+        query: ListMemoriesQuery,
+    ) -> MemoryServiceResult<MemoryRecordList>;
 
     async fn create_memory(
         &self,
-        _context: MemoryAppRequestContext,
-        _request: MemoryRecordRequest,
-    ) -> MemoryServiceResult<MemoryRecord> {
-        app_not_implemented!("memories.create", MemoryRecord)
-    }
+        context: MemoryAppRequestContext,
+        request: MemoryRecordRequest,
+    ) -> MemoryServiceResult<MemoryRecord>;
 
     async fn retrieve_memory(
         &self,
-        _context: MemoryAppRequestContext,
-        _memory_id: u64,
-        _space_id: u64,
-    ) -> MemoryServiceResult<MemoryRecord> {
-        app_not_implemented!("memories.retrieve", MemoryRecord)
-    }
+        context: MemoryAppRequestContext,
+        memory_id: u64,
+        space_id: u64,
+    ) -> MemoryServiceResult<MemoryRecord>;
 
     async fn update_memory(
         &self,
-        _context: MemoryAppRequestContext,
-        _memory_id: u64,
-        _space_id: u64,
-        _patch: MemoryRecordPatch,
-    ) -> MemoryServiceResult<MemoryRecord> {
-        app_not_implemented!("memories.update", MemoryRecord)
-    }
+        context: MemoryAppRequestContext,
+        memory_id: u64,
+        space_id: u64,
+        patch: MemoryRecordPatch,
+    ) -> MemoryServiceResult<MemoryRecord>;
 
     async fn delete_memory(
         &self,
-        _context: MemoryAppRequestContext,
-        _memory_id: u64,
-        _space_id: u64,
-    ) -> MemoryServiceResult<()> {
-        app_not_implemented!("memories.delete", ())
-    }
+        context: MemoryAppRequestContext,
+        memory_id: u64,
+        space_id: u64,
+    ) -> MemoryServiceResult<()>;
 
     async fn list_memory_sources(
         &self,
-        _context: MemoryAppRequestContext,
-        _memory_id: u64,
-        _query: ListMemorySourcesQuery,
-    ) -> MemoryServiceResult<MemoryRecordSourceList> {
-        app_not_implemented!("memories.sources.list", MemoryRecordSourceList)
-    }
+        context: MemoryAppRequestContext,
+        memory_id: u64,
+        query: ListMemorySourcesQuery,
+    ) -> MemoryServiceResult<MemoryRecordSourceList>;
 
     async fn create_forget_request(
         &self,
-        _context: MemoryAppRequestContext,
-        _request: MemoryForgetRequest,
-    ) -> MemoryServiceResult<MemoryForgetJob> {
-        app_not_implemented!("forgetRequests.create", MemoryForgetJob)
-    }
+        context: MemoryAppRequestContext,
+        request: MemoryForgetRequest,
+    ) -> MemoryServiceResult<MemoryForgetJob>;
 
     async fn retrieve_forget_request(
         &self,
-        _context: MemoryAppRequestContext,
-        _forget_request_id: u64,
-    ) -> MemoryServiceResult<MemoryForgetJob> {
-        app_not_implemented!("forgetRequests.retrieve", MemoryForgetJob)
-    }
+        context: MemoryAppRequestContext,
+        forget_job_id: u64,
+    ) -> MemoryServiceResult<MemoryForgetJob>;
 
     async fn create_extraction(
         &self,
-        _context: MemoryAppRequestContext,
-        _request: MemoryExtractionRequest,
-    ) -> MemoryServiceResult<MemoryLearningJob> {
-        app_not_implemented!("extractions.create", MemoryLearningJob)
-    }
+        context: MemoryAppRequestContext,
+        request: MemoryExtractionRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob>;
 
     async fn list_candidates(
         &self,
-        _context: MemoryAppRequestContext,
-        _query: ListCandidatesQuery,
-    ) -> MemoryServiceResult<MemoryCandidateList> {
-        app_not_implemented!("candidates.list", MemoryCandidateList)
-    }
+        context: MemoryAppRequestContext,
+        query: ListCandidatesQuery,
+    ) -> MemoryServiceResult<MemoryCandidateList>;
 
     async fn retrieve_candidate(
         &self,
-        _context: MemoryAppRequestContext,
-        _candidate_id: u64,
-    ) -> MemoryServiceResult<MemoryCandidate> {
-        app_not_implemented!("candidates.retrieve", MemoryCandidate)
-    }
+        context: MemoryAppRequestContext,
+        candidate_id: u64,
+    ) -> MemoryServiceResult<MemoryCandidate>;
 
     async fn approve_candidate(
         &self,
-        _context: MemoryAppRequestContext,
-        _candidate_id: u64,
-        _request: MemoryReviewRequest,
-    ) -> MemoryServiceResult<MemoryCandidate> {
-        app_not_implemented!("candidates.approve", MemoryCandidate)
-    }
+        context: MemoryAppRequestContext,
+        candidate_id: u64,
+        request: MemoryReviewRequest,
+    ) -> MemoryServiceResult<MemoryCandidate>;
 
     async fn reject_candidate(
         &self,
-        _context: MemoryAppRequestContext,
-        _candidate_id: u64,
-        _request: MemoryReviewRequest,
-    ) -> MemoryServiceResult<MemoryCandidate> {
-        app_not_implemented!("candidates.reject", MemoryCandidate)
-    }
+        context: MemoryAppRequestContext,
+        candidate_id: u64,
+        request: MemoryReviewRequest,
+    ) -> MemoryServiceResult<MemoryCandidate>;
 
     async fn list_habits(
         &self,
-        _context: MemoryAppRequestContext,
-        _query: ListHabitsQuery,
-    ) -> MemoryServiceResult<MemoryHabitList> {
-        app_not_implemented!("habits.list", MemoryHabitList)
-    }
+        context: MemoryAppRequestContext,
+        query: ListHabitsQuery,
+    ) -> MemoryServiceResult<MemoryHabitList>;
 
     async fn retrieve_habit(
         &self,
-        _context: MemoryAppRequestContext,
-        _habit_id: u64,
-    ) -> MemoryServiceResult<MemoryHabit> {
-        app_not_implemented!("habits.retrieve", MemoryHabit)
-    }
+        context: MemoryAppRequestContext,
+        habit_id: u64,
+    ) -> MemoryServiceResult<MemoryHabit>;
 
     async fn update_habit(
         &self,
-        _context: MemoryAppRequestContext,
-        _habit_id: u64,
-        _request: MemoryHabitRequest,
-    ) -> MemoryServiceResult<MemoryHabit> {
-        app_not_implemented!("habits.update", MemoryHabit)
-    }
+        context: MemoryAppRequestContext,
+        habit_id: u64,
+        request: MemoryHabitRequest,
+    ) -> MemoryServiceResult<MemoryHabit>;
 
     async fn confirm_habit(
         &self,
-        _context: MemoryAppRequestContext,
-        _habit_id: u64,
-        _request: MemoryReviewRequest,
-    ) -> MemoryServiceResult<MemoryHabit> {
-        app_not_implemented!("habits.confirm", MemoryHabit)
-    }
+        context: MemoryAppRequestContext,
+        habit_id: u64,
+        request: MemoryReviewRequest,
+    ) -> MemoryServiceResult<MemoryHabit>;
 
     async fn reject_habit(
         &self,
-        _context: MemoryAppRequestContext,
-        _habit_id: u64,
-        _request: MemoryReviewRequest,
-    ) -> MemoryServiceResult<MemoryHabit> {
-        app_not_implemented!("habits.reject", MemoryHabit)
-    }
+        context: MemoryAppRequestContext,
+        habit_id: u64,
+        request: MemoryReviewRequest,
+    ) -> MemoryServiceResult<MemoryHabit>;
 
     async fn create_retrieval(
         &self,
-        _context: MemoryAppRequestContext,
-        _request: MemoryRetrievalRequest,
-    ) -> MemoryServiceResult<MemoryRetrievalResult> {
-        app_not_implemented!("retrievals.create", MemoryRetrievalResult)
-    }
+        context: MemoryAppRequestContext,
+        request: MemoryRetrievalRequest,
+    ) -> MemoryServiceResult<MemoryRetrievalResult>;
 
     async fn retrieve_retrieval(
         &self,
-        _context: MemoryAppRequestContext,
-        _retrieval_id: u64,
-    ) -> MemoryServiceResult<MemoryRetrievalResult> {
-        app_not_implemented!("retrievals.retrieve", MemoryRetrievalResult)
-    }
+        context: MemoryAppRequestContext,
+        retrieval_id: u64,
+    ) -> MemoryServiceResult<MemoryRetrievalResult>;
 
     async fn create_context_pack(
         &self,
-        _context: MemoryAppRequestContext,
-        _request: MemoryContextPackRequest,
-    ) -> MemoryServiceResult<MemoryContextPack> {
-        app_not_implemented!("contextPacks.create", MemoryContextPack)
-    }
+        context: MemoryAppRequestContext,
+        request: MemoryContextPackRequest,
+    ) -> MemoryServiceResult<MemoryContextPack>;
 
     async fn retrieve_context_pack(
         &self,
-        _context: MemoryAppRequestContext,
-        _context_pack_id: u64,
-    ) -> MemoryServiceResult<MemoryContextPack> {
-        app_not_implemented!("contextPacks.retrieve", MemoryContextPack)
-    }
+        context: MemoryAppRequestContext,
+        context_pack_id: u64,
+    ) -> MemoryServiceResult<MemoryContextPack>;
 
     async fn create_feedback(
         &self,
-        _context: MemoryAppRequestContext,
-        _request: MemoryFeedbackRequest,
-    ) -> MemoryServiceResult<MemoryFeedback> {
-        app_not_implemented!("feedback.create", MemoryFeedback)
-    }
+        context: MemoryAppRequestContext,
+        request: MemoryFeedbackRequest,
+    ) -> MemoryServiceResult<MemoryFeedback>;
 
     async fn create_export_job(
         &self,
-        _context: MemoryAppRequestContext,
-        _request: MemoryExportRequest,
-    ) -> MemoryServiceResult<MemoryExportJob> {
-        app_not_implemented!("exportJobs.create", MemoryExportJob)
-    }
+        context: MemoryAppRequestContext,
+        request: MemoryExportRequest,
+    ) -> MemoryServiceResult<MemoryExportJob>;
 
     async fn retrieve_export_job(
         &self,
-        _context: MemoryAppRequestContext,
-        _export_job_id: u64,
-    ) -> MemoryServiceResult<MemoryExportJob> {
-        app_not_implemented!("exportJobs.retrieve", MemoryExportJob)
-    }
+        context: MemoryAppRequestContext,
+        export_job_id: u64,
+    ) -> MemoryServiceResult<MemoryExportJob>;
 
     async fn retrieve_learning_settings(
         &self,
-        _context: MemoryAppRequestContext,
-    ) -> MemoryServiceResult<MemoryLearningSettings> {
-        app_not_implemented!("learningSettings.retrieve", MemoryLearningSettings)
-    }
+        context: MemoryAppRequestContext,
+    ) -> MemoryServiceResult<MemoryLearningSettings>;
 
     async fn update_learning_settings(
         &self,
-        _context: MemoryAppRequestContext,
-        _patch: MemoryLearningSettingsPatch,
-    ) -> MemoryServiceResult<MemoryLearningSettings> {
-        app_not_implemented!("learningSettings.update", MemoryLearningSettings)
-    }
+        context: MemoryAppRequestContext,
+        patch: MemoryLearningSettingsPatch,
+    ) -> MemoryServiceResult<MemoryLearningSettings>;
 }

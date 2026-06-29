@@ -2,8 +2,13 @@ use async_trait::async_trait;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use sdkwork_memory_contract::{
-    MemoryCapabilities, MemoryImplementationKind, MemoryOpenApi, MemoryOpenApiRequestContext,
-    MemoryProviderInterface, MemoryRetrieverKind, MemoryServiceResult,
+    ListCandidatesQuery, ListMemoriesQuery, MemoryCapabilities, MemoryCandidate,
+    MemoryCandidateList, MemoryContextPack, MemoryContextPackRequest, MemoryEvent,
+    MemoryEventRequest, MemoryExtractionRequest, MemoryFeedback, MemoryFeedbackRequest,
+    MemoryImplementationKind, MemoryLearningJob, MemoryOpenApi, MemoryOpenApiRequestContext,
+    MemoryProviderHealth, MemoryProviderInterface, MemoryRecord, MemoryRecordList,
+    MemoryRecordPatch, MemoryRecordRequest, MemoryRetrievalRequest, MemoryRetrievalResult,
+    MemoryRetrieverKind, MemoryServiceResult,
 };
 use sdkwork_routes_memory_open_api::{
     build_router_with_shared_open_api, wrap_router_with_web_framework,
@@ -87,5 +92,137 @@ impl MemoryOpenApi for RecordingOpenApi {
             checked_at: "2026-06-10T00:00:00Z".to_string(),
             metadata: None,
         })
+    }
+
+    async fn create_event(
+        &self,
+        _ctx: MemoryOpenApiRequestContext,
+        _request: MemoryEventRequest,
+    ) -> MemoryServiceResult<MemoryEvent> {
+        unimplemented!("not called in this test")
+    }
+
+    async fn retrieve_event(
+        &self,
+        _ctx: MemoryOpenApiRequestContext,
+        _event_id: u64,
+        _space_id: u64,
+    ) -> MemoryServiceResult<MemoryEvent> {
+        unimplemented!("not called in this test")
+    }
+
+    async fn list_memories(
+        &self,
+        _ctx: MemoryOpenApiRequestContext,
+        _query: ListMemoriesQuery,
+    ) -> MemoryServiceResult<MemoryRecordList> {
+        unimplemented!("not called in this test")
+    }
+
+    async fn create_memory(
+        &self,
+        _ctx: MemoryOpenApiRequestContext,
+        _request: MemoryRecordRequest,
+    ) -> MemoryServiceResult<MemoryRecord> {
+        unimplemented!("not called in this test")
+    }
+
+    async fn retrieve_memory(
+        &self,
+        _ctx: MemoryOpenApiRequestContext,
+        _memory_id: u64,
+        _space_id: u64,
+    ) -> MemoryServiceResult<MemoryRecord> {
+        unimplemented!("not called in this test")
+    }
+
+    async fn update_memory(
+        &self,
+        _ctx: MemoryOpenApiRequestContext,
+        _memory_id: u64,
+        _space_id: u64,
+        _patch: MemoryRecordPatch,
+    ) -> MemoryServiceResult<MemoryRecord> {
+        unimplemented!("not called in this test")
+    }
+
+    async fn delete_memory(
+        &self,
+        _ctx: MemoryOpenApiRequestContext,
+        _memory_id: u64,
+        _space_id: u64,
+    ) -> MemoryServiceResult<()> {
+        unimplemented!("not called in this test")
+    }
+
+    async fn create_retrieval(
+        &self,
+        _ctx: MemoryOpenApiRequestContext,
+        _request: MemoryRetrievalRequest,
+    ) -> MemoryServiceResult<MemoryRetrievalResult> {
+        unimplemented!("not called in this test")
+    }
+
+    async fn retrieve_retrieval(
+        &self,
+        _ctx: MemoryOpenApiRequestContext,
+        _retrieval_id: u64,
+    ) -> MemoryServiceResult<MemoryRetrievalResult> {
+        unimplemented!("not called in this test")
+    }
+
+    async fn create_context_pack(
+        &self,
+        _ctx: MemoryOpenApiRequestContext,
+        _request: MemoryContextPackRequest,
+    ) -> MemoryServiceResult<MemoryContextPack> {
+        unimplemented!("not called in this test")
+    }
+
+    async fn retrieve_context_pack(
+        &self,
+        _ctx: MemoryOpenApiRequestContext,
+        _context_pack_id: u64,
+    ) -> MemoryServiceResult<MemoryContextPack> {
+        unimplemented!("not called in this test")
+    }
+
+    async fn create_feedback(
+        &self,
+        _ctx: MemoryOpenApiRequestContext,
+        _request: MemoryFeedbackRequest,
+    ) -> MemoryServiceResult<MemoryFeedback> {
+        unimplemented!("not called in this test")
+    }
+
+    async fn create_extraction(
+        &self,
+        _ctx: MemoryOpenApiRequestContext,
+        _request: MemoryExtractionRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        unimplemented!("not called in this test")
+    }
+
+    async fn list_candidates(
+        &self,
+        _ctx: MemoryOpenApiRequestContext,
+        _query: ListCandidatesQuery,
+    ) -> MemoryServiceResult<MemoryCandidateList> {
+        unimplemented!("not called in this test")
+    }
+
+    async fn retrieve_candidate(
+        &self,
+        _ctx: MemoryOpenApiRequestContext,
+        _candidate_id: u64,
+    ) -> MemoryServiceResult<MemoryCandidate> {
+        unimplemented!("not called in this test")
+    }
+
+    async fn retrieve_provider_health(
+        &self,
+        _ctx: MemoryOpenApiRequestContext,
+    ) -> MemoryServiceResult<MemoryProviderHealth> {
+        unimplemented!("not called in this test")
     }
 }

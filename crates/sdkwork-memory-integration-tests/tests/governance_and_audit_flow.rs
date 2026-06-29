@@ -10,6 +10,7 @@ use sdkwork_routes_memory_backend_api::{
     wrap_router_with_iam_database_web_framework as wrap_backend_router,
 };
 use sdkwork_routes_memory_open_api::build_router_with_shared_open_api;
+use sdkwork_memory_test_support::api_envelope;
 use sdkwork_memory_test_support::web_auth::{
     lock_integration_test_env, memory_access_token, memory_auth_token_bearer,
     MEMORY_TEST_IDEMPOTENCY_KEY,
@@ -70,7 +71,8 @@ async fn app_api_forget_and_export_jobs_round_trip_via_dual_token() {
         .await
         .unwrap();
     let memory_json: serde_json::Value = serde_json::from_slice(&memory_body).unwrap();
-    let memory_id = memory_json["memoryId"].as_str().unwrap();
+    let memory_item = api_envelope::item(&memory_json);
+    let memory_id = memory_item["memoryId"].as_str().unwrap();
 
     let forget = app
         .clone()
@@ -90,9 +92,10 @@ async fn app_api_forget_and_export_jobs_round_trip_via_dual_token() {
     assert_eq!(forget.status(), StatusCode::CREATED);
     let forget_body = to_bytes(forget.into_body(), usize::MAX).await.unwrap();
     let forget_json: serde_json::Value = serde_json::from_slice(&forget_body).unwrap();
-    assert_eq!(forget_json["state"], "succeeded");
-    assert_eq!(forget_json["result"]["deletedCount"], 1);
-    let forget_request_id = forget_json["forgetRequestId"].as_str().unwrap();
+    let forget_item = api_envelope::item(&forget_json);
+    assert_eq!(forget_item["state"], "succeeded");
+    assert_eq!(forget_item["result"]["deletedCount"], 1);
+    let forget_request_id = forget_item["forgetRequestId"].as_str().unwrap();
 
     let deleted_memory = app
         .clone()
@@ -131,9 +134,10 @@ async fn app_api_forget_and_export_jobs_round_trip_via_dual_token() {
     assert_eq!(export.status(), StatusCode::CREATED);
     let export_body = to_bytes(export.into_body(), usize::MAX).await.unwrap();
     let export_json: serde_json::Value = serde_json::from_slice(&export_body).unwrap();
-    assert_eq!(export_json["state"], "succeeded");
-    assert!(export_json["result"]["exportPayload"].is_object());
-    let export_job_id = export_json["exportJobId"].as_str().unwrap();
+    let export_item = api_envelope::item(&export_json);
+    assert_eq!(export_item["state"], "succeeded");
+    assert!(export_item["result"]["exportPayload"].is_object());
+    let export_job_id = export_item["exportJobId"].as_str().unwrap();
 
     let retrieve_export = app
         .oneshot(authed_get(
@@ -147,8 +151,9 @@ async fn app_api_forget_and_export_jobs_round_trip_via_dual_token() {
         .await
         .unwrap();
     let stored_export_json: serde_json::Value = serde_json::from_slice(&stored_export_body).unwrap();
-    assert!(stored_export_json["result"]["exportRef"].is_string());
-    assert!(stored_export_json["result"].get("exportPayload").is_none());
+    let stored_export_item = api_envelope::item(&stored_export_json);
+    assert!(stored_export_item["result"]["exportRef"].is_string());
+    assert!(stored_export_item["result"].get("exportPayload").is_none());
 }
 
 #[tokio::test]
@@ -194,10 +199,11 @@ async fn app_api_drive_export_job_stages_artifact_and_emits_outbox_event() {
     assert_eq!(export.status(), StatusCode::CREATED);
     let export_body = to_bytes(export.into_body(), usize::MAX).await.unwrap();
     let export_json: serde_json::Value = serde_json::from_slice(&export_body).unwrap();
-    assert_eq!(export_json["state"], "accepted");
-    assert!(export_json["driveObjectRef"].as_str().unwrap().starts_with("mem-export/"));
-    assert!(export_json["result"].get("exportPayload").is_none());
-    let export_job_id = export_json["exportJobId"].as_str().unwrap();
+    let export_item = api_envelope::item(&export_json);
+    assert_eq!(export_item["state"], "accepted");
+    assert!(export_item["driveObjectRef"].as_str().unwrap().starts_with("mem-export/"));
+    assert!(export_item["result"].get("exportPayload").is_none());
+    let export_job_id = export_item["exportJobId"].as_str().unwrap();
 
     let artifact = store
         .retrieve_admin_config_entity(100_001, "export_artifact", export_job_id)
@@ -258,7 +264,8 @@ async fn backend_api_lists_audit_logs_after_open_api_feedback() {
         .await
         .unwrap();
     let memory_json: serde_json::Value = serde_json::from_slice(&memory_body).unwrap();
-    let memory_id = memory_json["memoryId"].as_str().unwrap();
+    let memory_item = api_envelope::item(&memory_json);
+    let memory_id = memory_item["memoryId"].as_str().unwrap();
 
     let feedback = open_app
         .oneshot(
@@ -295,7 +302,7 @@ async fn backend_api_lists_audit_logs_after_open_api_feedback() {
     assert_eq!(audits.status(), StatusCode::OK);
     let audits_body = to_bytes(audits.into_body(), usize::MAX).await.unwrap();
     let audits_json: serde_json::Value = serde_json::from_slice(&audits_body).unwrap();
-    assert!(audits_json["items"]
+    assert!(api_envelope::items(&audits_json)
         .as_array()
         .unwrap()
         .iter()
@@ -331,7 +338,8 @@ async fn app_api_rejects_foreign_actor_retrieving_forget_job() {
         .await
         .unwrap();
     let memory_json: serde_json::Value = serde_json::from_slice(&memory_body).unwrap();
-    let memory_id = memory_json["memoryId"].as_str().unwrap();
+    let memory_item = api_envelope::item(&memory_json);
+    let memory_id = memory_item["memoryId"].as_str().unwrap();
 
     let forget = app
         .clone()
@@ -351,7 +359,9 @@ async fn app_api_rejects_foreign_actor_retrieving_forget_job() {
     assert_eq!(forget.status(), StatusCode::CREATED);
     let forget_body = to_bytes(forget.into_body(), usize::MAX).await.unwrap();
     let forget_json: serde_json::Value = serde_json::from_slice(&forget_body).unwrap();
-    let forget_request_id = forget_json["forgetRequestId"].as_str().unwrap();
+    let forget_request_id = api_envelope::item(&forget_json)["forgetRequestId"]
+        .as_str()
+        .unwrap();
 
     let foreign_retrieve = app
         .oneshot(authed_get(

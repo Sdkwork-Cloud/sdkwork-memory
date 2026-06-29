@@ -3,6 +3,7 @@ use axum::http::{Request, StatusCode};
 use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_contract::MemoryAppRequestContext;
 use sdkwork_memory_plugin_native_sql::NativeSqlMemoryStore;
+use sdkwork_memory_test_support::api_envelope;
 use sdkwork_routes_memory_app_api::{app_route_manifest, build_router_with_app_api};
 use tower::util::ServiceExt;
 
@@ -35,7 +36,7 @@ async fn app_learning_settings_route_returns_defaults() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    assert_eq!(json["autoPromoteCandidates"], false);
+    assert_eq!(api_envelope::item(&json)["autoPromoteCandidates"], false);
 }
 
 #[tokio::test]

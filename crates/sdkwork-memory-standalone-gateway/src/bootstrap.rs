@@ -9,9 +9,10 @@ use sdkwork_intelligence_memory_repository_sqlx::bootstrap_memory_runtime_from_e
 use sdkwork_intelligence_memory_service::{render_memory_domain_prometheus, OpenMemoryService};
 use sdkwork_memory_gateway_assembly::assemble_application_business_router;
 use sdkwork_routes_memory_support::{
-    memory_http_metrics, memory_metric_environment_label, refresh_memory_http_metric_dimensions,
+    memory_dependency_ready_check, memory_http_metrics, memory_metric_environment_label,
+    refresh_memory_http_metric_dimensions,
 };
-use sdkwork_web_bootstrap::{service_router, ServiceRouterConfig};
+use sdkwork_web_bootstrap::{healthz_handler, livez_handler, readyz_handler};
 use std::sync::Arc;
 use tower::limit::ConcurrencyLimitLayer;
 use tracing::info;
@@ -81,10 +82,7 @@ pub async fn build_router() -> Result<MemoryApplication, String> {
 
     let business_router = assemble_application_business_router(product.clone()).await.router;
 
-    let service_router_config = ServiceRouterConfig::default()
-        .with_readiness_check(Arc::new(MemoryReadinessCheck::new(product.clone())))
-        .with_metrics(memory_http_metrics())
-        .skip_metrics();
+    let readiness = Arc::new(MemoryReadinessCheck::new(product.clone()));
 
     let max_body_bytes = std::env::var("SDKWORK_MEMORY_MAX_BODY_BYTES")
         .ok()
@@ -97,7 +95,18 @@ pub async fn build_router() -> Result<MemoryApplication, String> {
 
     let router = Router::new()
         .route("/metrics", get(metrics))
-        .merge(service_router(business_router, service_router_config))
+        .route("/healthz", get(healthz_handler))
+        .route("/livez", get(livez_handler))
+        .route("/readyz", get({
+                let readiness = readiness.clone();
+                move || async move {
+                    if !memory_dependency_ready_check().await {
+                        return readyz_handler(Some(readiness.clone())).await;
+                    }
+                    readyz_handler(Some(readiness)).await
+                }
+            }))
+        .merge(business_router)
         .layer(Extension(product))
         .layer(DefaultBodyLimit::max(max_body_bytes))
         .layer(ConcurrencyLimitLayer::new(max_concurrency));

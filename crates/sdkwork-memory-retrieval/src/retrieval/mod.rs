@@ -45,6 +45,61 @@ pub struct OrchestratedCandidate {
     pub raw_score: f64,
 }
 
+// ---------------------------------------------------------------------------
+// Tokenisation helpers — CJK-aware
+// ---------------------------------------------------------------------------
+
+/// True when `ch` is a CJK Unified Ideograph (U+4E00–U+9FFF), CJK
+/// Extension A (U+3400–U+4DBF), or a full-width punctuation/compatibility
+/// ideograph.
+fn is_cjk(ch: char) -> bool {
+    matches!(ch,
+        '\u{3400}'..='\u{4DBF}'    // CJK Unified Extension A
+        | '\u{4E00}'..='\u{9FFF}'  // CJK Unified Ideographs
+        | '\u{F900}'..='\u{FAFF}'  // CJK Compatibility Ideographs
+        | '\u{2F800}'..='\u{2FA1F}' // CJK Compatibility Supplement (supplementary plane)
+    )
+}
+
+/// Tokenise a trimmed, lowercased query into searchable tokens.
+///
+/// For CJK text, each character is treated as a separate token (character-level
+/// unigram).  For non-CJK text, whitespace delimiters are used.  Mixed text
+/// (e.g. "hello世界") is handled correctly because we look at each character
+/// individually.
+fn tokenise_query(text: &str) -> Vec<String> {
+    let text = text.trim().to_lowercase();
+    if text.is_empty() {
+        return vec![];
+    }
+
+    let chars: Vec<char> = text.chars().collect();
+
+    // If *any* character in the query is CJK, use character-level tokenisation
+    // for the entire query so that a CJK query string finds CJK content and
+    // ASCII tokens still get found by substring.
+    let has_cjk = chars.iter().any(|c| is_cjk(*c));
+
+    if has_cjk {
+        // Character-level unigrams — deduplicate while preserving order.
+        let mut seen = std::collections::HashSet::new();
+        let mut tokens = Vec::new();
+        for ch in chars {
+            if ch.is_alphanumeric() && seen.insert(ch) {
+                tokens.push(ch.to_string());
+            }
+        }
+        tokens
+    } else {
+        // Whitespace-delimited word-level tokens.
+        chars
+            .split(|c| c.is_ascii_whitespace())
+            .filter(|w| !w.is_empty())
+            .map(|w| w.iter().collect::<String>())
+            .collect()
+    }
+}
+
 pub fn fuse_retrieval_candidates(
     candidates: Vec<RetrievalCandidate>,
     top_k: usize,
@@ -86,7 +141,7 @@ pub fn keyword_match_score(query: &str, canonical_text: &str) -> f64 {
         return 0.85;
     }
 
-    token_overlap_score(&query, &haystack)
+    token_overlap_score(&query, &haystack, &tokenise_query(&query))
 }
 
 pub fn dictionary_match_score(
@@ -105,7 +160,8 @@ pub fn dictionary_match_score(
         corpus.push(' ');
     }
     corpus.push_str(object_text);
-    token_overlap_score(&query.trim().to_lowercase(), &corpus.to_lowercase())
+    let tokens = tokenise_query(&query.trim().to_lowercase());
+    token_overlap_score(&query.trim().to_lowercase(), &corpus.to_lowercase(), &tokens)
 }
 
 pub fn sql_structured_match_score(
@@ -119,6 +175,7 @@ pub fn sql_structured_match_score(
     }
 
     let mut score: f64 = 0.0;
+    let tokens = tokenise_query(&query);
     if subject
         .map(|value| value.to_lowercase() == query)
         .unwrap_or(false)
@@ -131,11 +188,16 @@ pub fn sql_structured_match_score(
     {
         score = score.max(0.95);
     }
-    if subject
-        .map(|value| value.to_lowercase().contains(&query))
-        .unwrap_or(false)
-    {
-        score = score.max(0.8);
+
+    // CJK-aware partial match
+    for token in &tokens {
+        if subject
+            .map(|value| value.to_lowercase().contains(token.as_str()))
+            .unwrap_or(false)
+        {
+            score = score.max(0.8);
+            break;
+        }
     }
     score
 }
@@ -153,14 +215,23 @@ pub fn event_match_score(query: &str, payload_text: &str) -> f64 {
     keyword_match_score(query, payload_text)
 }
 
-fn token_overlap_score(query: &str, haystack: &str) -> f64 {
-    let tokens: Vec<&str> = query.split_whitespace().collect();
+fn token_overlap_score(_query: &str, haystack: &str, tokens: &[String]) -> f64 {
     if tokens.is_empty() {
         return 0.0;
     }
+
+    // For CJK text, a character-level overlap heuristic is more meaningful.
+    if tokens.iter().any(|t| is_cjk(t.chars().next().unwrap_or_default())) {
+        let matched = tokens
+            .iter()
+            .filter(|token| haystack.contains(token.as_str()))
+            .count();
+        return matched as f64 / tokens.len() as f64;
+    }
+
     let matched = tokens
         .iter()
-        .filter(|token| haystack.contains(**token))
+        .filter(|token| haystack.contains(token.as_str()))
         .count();
     matched as f64 / tokens.len() as f64
 }

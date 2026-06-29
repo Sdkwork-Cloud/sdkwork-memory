@@ -5,7 +5,6 @@ export interface ProblemDetails {
   detail?: string | null;
   instance?: string | null;
   code?: string | null;
-  requestId?: string | null;
   traceId?: string | null;
   retryable?: boolean | null;
 }

@@ -75,7 +75,7 @@ mod tests {
             "canonicalText",
             "User prefers dark mode in the IDE.",
         )])
-        .unwrap();
+        .expect("normal text should be accepted");
     }
 
     #[test]
@@ -117,6 +117,6 @@ mod tests {
             "canonicalText",
             "User contact email is user@example.com, phone is 13800138000.",
         )])
-        .unwrap();
+        .expect("email and phone should be accepted");
     }
 }

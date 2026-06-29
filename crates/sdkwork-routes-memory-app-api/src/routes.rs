@@ -1,7 +1,6 @@
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::{IntoResponse, Response},
+    response::Response,
     routing::{get, post},
     Extension, Json, Router,
 };
@@ -10,7 +9,10 @@ use sdkwork_memory_contract::{
     MemoryAppRequestContext, MemoryContextPackRequest, MemoryEventRequest, MemoryExportRequest,
     MemoryExtractionRequest, MemoryFeedbackRequest, MemoryForgetRequest, MemoryHabitRequest,
     MemoryLearningSettingsPatch, MemoryRecordPatch, MemoryRecordRequest, MemoryRetrievalRequest,
-    MemoryReviewRequest, MemoryServiceResult, MemorySpaceRequest, MemorySpaceScopeQuery,
+    MemoryReviewRequest, MemorySpaceRequest, MemorySpaceScopeQuery,
+};
+use sdkwork_routes_memory_support::{
+    created_resource_json, no_content_json, ok_page_json, ok_resource_json,
 };
 use std::sync::Arc;
 
@@ -73,7 +75,7 @@ async fn list_spaces(
     Query(query): Query<ListSpacesQuery>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(state.api.list_spaces(context, query).await)
+    ok_page_json(state.api.list_spaces(context, query).await)
 }
 
 async fn create_space(
@@ -82,7 +84,7 @@ async fn create_space(
     Json(request): Json<MemorySpaceRequest>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    created_json(state.api.create_space(context, request).await)
+    created_resource_json(state.api.create_space(context, request).await)
 }
 
 async fn retrieve_space(
@@ -91,7 +93,7 @@ async fn retrieve_space(
     Path(space_id): Path<u64>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(state.api.retrieve_space(context, space_id).await)
+    ok_resource_json(state.api.retrieve_space(context, space_id).await)
 }
 
 async fn update_space(
@@ -101,7 +103,7 @@ async fn update_space(
     Json(request): Json<MemorySpaceRequest>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(state.api.update_space(context, space_id, request).await)
+    ok_resource_json(state.api.update_space(context, space_id, request).await)
 }
 
 async fn create_event(
@@ -110,7 +112,7 @@ async fn create_event(
     Json(request): Json<MemoryEventRequest>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    created_json(state.api.create_event(context, request).await)
+    created_resource_json(state.api.create_event(context, request).await)
 }
 
 async fn retrieve_event(
@@ -120,7 +122,7 @@ async fn retrieve_event(
     Query(scope): Query<MemorySpaceScopeQuery>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(
+    ok_resource_json(
         state
             .api
             .retrieve_event(context, event_id, scope.space_id)
@@ -134,7 +136,7 @@ async fn list_memories(
     Query(query): Query<ListMemoriesQuery>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(state.api.list_memories(context, query).await)
+    ok_page_json(state.api.list_memories(context, query).await)
 }
 
 async fn create_memory(
@@ -143,7 +145,7 @@ async fn create_memory(
     Json(request): Json<MemoryRecordRequest>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    created_json(state.api.create_memory(context, request).await)
+    created_resource_json(state.api.create_memory(context, request).await)
 }
 
 async fn retrieve_memory(
@@ -153,7 +155,7 @@ async fn retrieve_memory(
     Query(scope): Query<MemorySpaceScopeQuery>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(
+    ok_resource_json(
         state
             .api
             .retrieve_memory(context, memory_id, scope.space_id)
@@ -169,7 +171,7 @@ async fn update_memory(
     Json(patch): Json<MemoryRecordPatch>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(
+    ok_resource_json(
         state
             .api
             .update_memory(context, memory_id, scope.space_id, patch)
@@ -184,7 +186,7 @@ async fn delete_memory(
     Query(scope): Query<MemorySpaceScopeQuery>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    no_content(
+    no_content_json(
         state
             .api
             .delete_memory(context, memory_id, scope.space_id)
@@ -199,7 +201,7 @@ async fn list_memory_sources(
     Query(query): Query<ListMemorySourcesQuery>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(
+    ok_page_json(
         state
             .api
             .list_memory_sources(context, memory_id, query)
@@ -213,7 +215,7 @@ async fn create_forget_request(
     Json(request): Json<MemoryForgetRequest>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    created_json(state.api.create_forget_request(context, request).await)
+    created_resource_json(state.api.create_forget_request(context, request).await)
 }
 
 async fn retrieve_forget_request(
@@ -222,7 +224,7 @@ async fn retrieve_forget_request(
     Path(forget_request_id): Path<u64>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(
+    ok_resource_json(
         state
             .api
             .retrieve_forget_request(context, forget_request_id)
@@ -236,7 +238,7 @@ async fn create_extraction(
     Json(request): Json<MemoryExtractionRequest>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    created_json(state.api.create_extraction(context, request).await)
+    created_resource_json(state.api.create_extraction(context, request).await)
 }
 
 async fn list_candidates(
@@ -245,7 +247,7 @@ async fn list_candidates(
     Query(query): Query<ListCandidatesQuery>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(state.api.list_candidates(context, query).await)
+    ok_page_json(state.api.list_candidates(context, query).await)
 }
 
 async fn retrieve_candidate(
@@ -254,7 +256,7 @@ async fn retrieve_candidate(
     Path(candidate_id): Path<u64>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(state.api.retrieve_candidate(context, candidate_id).await)
+    ok_resource_json(state.api.retrieve_candidate(context, candidate_id).await)
 }
 
 async fn approve_candidate(
@@ -264,7 +266,7 @@ async fn approve_candidate(
     Json(request): Json<MemoryReviewRequest>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(
+    ok_resource_json(
         state
             .api
             .approve_candidate(context, candidate_id, request)
@@ -279,7 +281,7 @@ async fn reject_candidate(
     Json(request): Json<MemoryReviewRequest>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(
+    ok_resource_json(
         state
             .api
             .reject_candidate(context, candidate_id, request)
@@ -293,7 +295,7 @@ async fn list_habits(
     Query(query): Query<ListHabitsQuery>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(state.api.list_habits(context, query).await)
+    ok_page_json(state.api.list_habits(context, query).await)
 }
 
 async fn retrieve_habit(
@@ -302,7 +304,7 @@ async fn retrieve_habit(
     Path(habit_id): Path<u64>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(state.api.retrieve_habit(context, habit_id).await)
+    ok_resource_json(state.api.retrieve_habit(context, habit_id).await)
 }
 
 async fn update_habit(
@@ -312,7 +314,7 @@ async fn update_habit(
     Json(request): Json<MemoryHabitRequest>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(state.api.update_habit(context, habit_id, request).await)
+    ok_resource_json(state.api.update_habit(context, habit_id, request).await)
 }
 
 async fn confirm_habit(
@@ -322,7 +324,7 @@ async fn confirm_habit(
     Json(request): Json<MemoryReviewRequest>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(state.api.confirm_habit(context, habit_id, request).await)
+    ok_resource_json(state.api.confirm_habit(context, habit_id, request).await)
 }
 
 async fn reject_habit(
@@ -332,7 +334,7 @@ async fn reject_habit(
     Json(request): Json<MemoryReviewRequest>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(state.api.reject_habit(context, habit_id, request).await)
+    ok_resource_json(state.api.reject_habit(context, habit_id, request).await)
 }
 
 async fn create_retrieval(
@@ -341,7 +343,7 @@ async fn create_retrieval(
     Json(request): Json<MemoryRetrievalRequest>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    created_json(state.api.create_retrieval(context, request).await)
+    created_resource_json(state.api.create_retrieval(context, request).await)
 }
 
 async fn retrieve_retrieval(
@@ -350,7 +352,7 @@ async fn retrieve_retrieval(
     Path(retrieval_id): Path<u64>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(state.api.retrieve_retrieval(context, retrieval_id).await)
+    ok_resource_json(state.api.retrieve_retrieval(context, retrieval_id).await)
 }
 
 async fn create_context_pack(
@@ -359,7 +361,7 @@ async fn create_context_pack(
     Json(request): Json<MemoryContextPackRequest>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    created_json(state.api.create_context_pack(context, request).await)
+    created_resource_json(state.api.create_context_pack(context, request).await)
 }
 
 async fn retrieve_context_pack(
@@ -368,7 +370,7 @@ async fn retrieve_context_pack(
     Path(context_pack_id): Path<u64>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(
+    ok_resource_json(
         state
             .api
             .retrieve_context_pack(context, context_pack_id)
@@ -382,7 +384,7 @@ async fn create_feedback(
     Json(request): Json<MemoryFeedbackRequest>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    created_json(state.api.create_feedback(context, request).await)
+    created_resource_json(state.api.create_feedback(context, request).await)
 }
 
 async fn create_export_job(
@@ -391,7 +393,7 @@ async fn create_export_job(
     Json(request): Json<MemoryExportRequest>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    created_json(state.api.create_export_job(context, request).await)
+    created_resource_json(state.api.create_export_job(context, request).await)
 }
 
 async fn retrieve_export_job(
@@ -400,7 +402,7 @@ async fn retrieve_export_job(
     Path(export_job_id): Path<u64>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(state.api.retrieve_export_job(context, export_job_id).await)
+    ok_resource_json(state.api.retrieve_export_job(context, export_job_id).await)
 }
 
 async fn retrieve_learning_settings(
@@ -408,7 +410,7 @@ async fn retrieve_learning_settings(
     context: Option<Extension<MemoryAppRequestContext>>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(state.api.retrieve_learning_settings(context).await)
+    ok_resource_json(state.api.retrieve_learning_settings(context).await)
 }
 
 async fn update_learning_settings(
@@ -417,32 +419,5 @@ async fn update_learning_settings(
     Json(patch): Json<MemoryLearningSettingsPatch>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
-    ok_json(state.api.update_learning_settings(context, patch).await)
-}
-
-fn ok_json<T>(result: MemoryServiceResult<T>) -> Result<Response, ApiProblem>
-where
-    T: serde::Serialize,
-{
-    match result {
-        Ok(value) => Ok((StatusCode::OK, Json(value)).into_response()),
-        Err(error) => Err(error.into()),
-    }
-}
-
-fn created_json<T>(result: MemoryServiceResult<T>) -> Result<Response, ApiProblem>
-where
-    T: serde::Serialize,
-{
-    match result {
-        Ok(value) => Ok((StatusCode::CREATED, Json(value)).into_response()),
-        Err(error) => Err(error.into()),
-    }
-}
-
-fn no_content(result: MemoryServiceResult<()>) -> Result<Response, ApiProblem> {
-    match result {
-        Ok(()) => Ok(StatusCode::NO_CONTENT.into_response()),
-        Err(error) => Err(error.into()),
-    }
+    ok_resource_json(state.api.update_learning_settings(context, patch).await)
 }

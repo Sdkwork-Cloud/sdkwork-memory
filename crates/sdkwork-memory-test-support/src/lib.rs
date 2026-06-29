@@ -1,5 +1,6 @@
 //! SDKWork Memory test support and conformance helpers.
 
+pub mod api_envelope;
 pub mod space_fixtures;
 pub mod web_auth;
 

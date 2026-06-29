@@ -41,12 +41,6 @@ Read `sdkwork.app.config.json` only when the task touches Memory application beh
 - `configs/`, `deployments/`, `scripts/`, `tools/`, `docs/`, `tests/`: config templates, deployment descriptors, thin command entrypoints, validators, documentation, and verification assets.
 - `package.json`, `Cargo.toml`: language/build manifests.
 
-## Documentation Canon
-
-- [docs/README.md](docs/README.md)
-- [docs/product/prd/PRD.md](docs/product/prd/PRD.md)
-- [docs/architecture/tech/TECH_ARCHITECTURE.md](docs/architecture/tech/TECH_ARCHITECTURE.md)
-
 ## Spec Resolution Order
 
 Use dynamic progressive loading:
@@ -76,6 +70,8 @@ Language-specific specs are on-demand; do not load Rust, Java, TypeScript, and f
 ## Code Style Rules
 
 Read `../sdkwork-specs/CODE_STYLE_SPEC.md` and `../sdkwork-specs/NAMING_SPEC.md` before code changes. Generated SDK output under `generated/server-openapi` must not be hand-edited. Fix OpenAPI, route manifests, generator input, or approved composed facades, then regenerate. Use `sdkwork-utils-rust` and `sdkwork-id-core` for shared helpers instead of duplicating utility logic locally.
+
+Build scripts, dev runners, and `pnpm clean` must follow `CODE_STYLE_SPEC.md` §7 (Build Source Integrity And Self-Healing). Git-tracked build-critical source files must be verified before builds and self-healed from git when missing; `clean` must not delete them.
 
 ## Build, Test, and Verification
 

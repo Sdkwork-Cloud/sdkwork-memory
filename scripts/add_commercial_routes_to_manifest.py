@@ -2,7 +2,7 @@
 """Add commercial management routes to the backend route manifest."""
 import json
 
-MANIFEST_PATH = "sdks/_route-manifests/backend-api/sdkwork-router-memory-backend-api.route-manifest.json"
+MANIFEST_PATH = "sdks/_route-manifests/backend-api/sdkwork-routes-memory-backend-api.route-manifest.json"
 
 with open(MANIFEST_PATH, "r", encoding="utf-8") as f:
     manifest = json.load(f)

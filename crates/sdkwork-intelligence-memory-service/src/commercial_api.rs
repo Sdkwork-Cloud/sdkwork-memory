@@ -34,7 +34,9 @@ impl super::open_api::OpenMemoryService {
         let metadata_json = cmd
             .metadata
             .as_ref()
-            .map(|v| serde_json::to_string(v).unwrap_or_default());
+            .map(serde_json::to_string)
+            .transpose()
+            .map_err(|error| MemoryServiceError::storage(format!("metadata serialization failed: {error}")))?;
 
         self.store
             .insert_subject(InsertSubjectCommand {
@@ -127,7 +129,9 @@ impl super::open_api::OpenMemoryService {
         let metadata_json = cmd
             .metadata
             .as_ref()
-            .map(|v| serde_json::to_string(v).unwrap_or_default());
+            .map(serde_json::to_string)
+            .transpose()
+            .map_err(|error| MemoryServiceError::storage(format!("metadata serialization failed: {error}")))?;
 
         let updated = self
             .store
@@ -191,11 +195,15 @@ impl super::open_api::OpenMemoryService {
         let capability_codes_json = cmd
             .capability_codes
             .as_ref()
-            .map(|codes| serde_json::to_string(codes).unwrap_or_default());
+            .map(serde_json::to_string)
+            .transpose()
+            .map_err(|error| MemoryServiceError::storage(format!("capability_codes serialization failed: {error}")))?;
         let metadata_json = cmd
             .metadata
             .as_ref()
-            .map(|v| serde_json::to_string(v).unwrap_or_default());
+            .map(serde_json::to_string)
+            .transpose()
+            .map_err(|error| MemoryServiceError::storage(format!("metadata serialization failed: {error}")))?;
 
         self.store
             .insert_binding(
@@ -319,7 +327,9 @@ impl super::open_api::OpenMemoryService {
         let metadata_json = cmd
             .metadata
             .as_ref()
-            .map(|v| serde_json::to_string(v).unwrap_or_default());
+            .map(serde_json::to_string)
+            .transpose()
+            .map_err(|error| MemoryServiceError::storage(format!("metadata serialization failed: {error}")))?;
 
         self.store
             .insert_capability_binding(

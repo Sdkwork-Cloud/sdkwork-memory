@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use sdkwork_memory_contract::MemoryOpenApi;
@@ -45,7 +46,147 @@ async fn open_router_mounts_every_open_openapi_operation_path() {
 
 struct StubOpenApi;
 
-impl MemoryOpenApi for StubOpenApi {}
+#[async_trait]
+impl MemoryOpenApi for StubOpenApi {
+    async fn retrieve_capabilities(
+        &self,
+        _context: sdkwork_memory_contract::MemoryOpenApiRequestContext,
+    ) -> sdkwork_memory_contract::MemoryServiceResult<sdkwork_memory_contract::MemoryCapabilities> {
+        unimplemented!("stub — not called in route-mount test")
+    }
+
+    async fn create_event(
+        &self,
+        _context: sdkwork_memory_contract::MemoryOpenApiRequestContext,
+        _request: sdkwork_memory_contract::MemoryEventRequest,
+    ) -> sdkwork_memory_contract::MemoryServiceResult<sdkwork_memory_contract::MemoryEvent> {
+        unimplemented!("stub — not called in route-mount test")
+    }
+
+    async fn retrieve_event(
+        &self,
+        _context: sdkwork_memory_contract::MemoryOpenApiRequestContext,
+        _event_id: u64,
+        _space_id: u64,
+    ) -> sdkwork_memory_contract::MemoryServiceResult<sdkwork_memory_contract::MemoryEvent> {
+        unimplemented!("stub — not called in route-mount test")
+    }
+
+    async fn list_memories(
+        &self,
+        _context: sdkwork_memory_contract::MemoryOpenApiRequestContext,
+        _query: sdkwork_memory_contract::ListMemoriesQuery,
+    ) -> sdkwork_memory_contract::MemoryServiceResult<sdkwork_memory_contract::MemoryRecordList> {
+        unimplemented!("stub — not called in route-mount test")
+    }
+
+    async fn create_memory(
+        &self,
+        _context: sdkwork_memory_contract::MemoryOpenApiRequestContext,
+        _request: sdkwork_memory_contract::MemoryRecordRequest,
+    ) -> sdkwork_memory_contract::MemoryServiceResult<sdkwork_memory_contract::MemoryRecord> {
+        unimplemented!("stub — not called in route-mount test")
+    }
+
+    async fn retrieve_memory(
+        &self,
+        _context: sdkwork_memory_contract::MemoryOpenApiRequestContext,
+        _memory_id: u64,
+        _space_id: u64,
+    ) -> sdkwork_memory_contract::MemoryServiceResult<sdkwork_memory_contract::MemoryRecord> {
+        unimplemented!("stub — not called in route-mount test")
+    }
+
+    async fn update_memory(
+        &self,
+        _context: sdkwork_memory_contract::MemoryOpenApiRequestContext,
+        _memory_id: u64,
+        _space_id: u64,
+        _patch: sdkwork_memory_contract::MemoryRecordPatch,
+    ) -> sdkwork_memory_contract::MemoryServiceResult<sdkwork_memory_contract::MemoryRecord> {
+        unimplemented!("stub — not called in route-mount test")
+    }
+
+    async fn delete_memory(
+        &self,
+        _context: sdkwork_memory_contract::MemoryOpenApiRequestContext,
+        _memory_id: u64,
+        _space_id: u64,
+    ) -> sdkwork_memory_contract::MemoryServiceResult<()> {
+        unimplemented!("stub — not called in route-mount test")
+    }
+
+    async fn create_retrieval(
+        &self,
+        _context: sdkwork_memory_contract::MemoryOpenApiRequestContext,
+        _request: sdkwork_memory_contract::MemoryRetrievalRequest,
+    ) -> sdkwork_memory_contract::MemoryServiceResult<sdkwork_memory_contract::MemoryRetrievalResult> {
+        unimplemented!("stub — not called in route-mount test")
+    }
+
+    async fn retrieve_retrieval(
+        &self,
+        _context: sdkwork_memory_contract::MemoryOpenApiRequestContext,
+        _retrieval_id: u64,
+    ) -> sdkwork_memory_contract::MemoryServiceResult<sdkwork_memory_contract::MemoryRetrievalResult> {
+        unimplemented!("stub — not called in route-mount test")
+    }
+
+    async fn create_context_pack(
+        &self,
+        _context: sdkwork_memory_contract::MemoryOpenApiRequestContext,
+        _request: sdkwork_memory_contract::MemoryContextPackRequest,
+    ) -> sdkwork_memory_contract::MemoryServiceResult<sdkwork_memory_contract::MemoryContextPack> {
+        unimplemented!("stub — not called in route-mount test")
+    }
+
+    async fn retrieve_context_pack(
+        &self,
+        _context: sdkwork_memory_contract::MemoryOpenApiRequestContext,
+        _context_pack_id: u64,
+    ) -> sdkwork_memory_contract::MemoryServiceResult<sdkwork_memory_contract::MemoryContextPack> {
+        unimplemented!("stub — not called in route-mount test")
+    }
+
+    async fn create_feedback(
+        &self,
+        _context: sdkwork_memory_contract::MemoryOpenApiRequestContext,
+        _request: sdkwork_memory_contract::MemoryFeedbackRequest,
+    ) -> sdkwork_memory_contract::MemoryServiceResult<sdkwork_memory_contract::MemoryFeedback> {
+        unimplemented!("stub — not called in route-mount test")
+    }
+
+    async fn create_extraction(
+        &self,
+        _context: sdkwork_memory_contract::MemoryOpenApiRequestContext,
+        _request: sdkwork_memory_contract::MemoryExtractionRequest,
+    ) -> sdkwork_memory_contract::MemoryServiceResult<sdkwork_memory_contract::MemoryLearningJob> {
+        unimplemented!("stub — not called in route-mount test")
+    }
+
+    async fn list_candidates(
+        &self,
+        _context: sdkwork_memory_contract::MemoryOpenApiRequestContext,
+        _query: sdkwork_memory_contract::ListCandidatesQuery,
+    ) -> sdkwork_memory_contract::MemoryServiceResult<sdkwork_memory_contract::MemoryCandidateList> {
+        unimplemented!("stub — not called in route-mount test")
+    }
+
+    async fn retrieve_candidate(
+        &self,
+        _context: sdkwork_memory_contract::MemoryOpenApiRequestContext,
+        _candidate_id: u64,
+    ) -> sdkwork_memory_contract::MemoryServiceResult<sdkwork_memory_contract::MemoryCandidate> {
+        unimplemented!("stub — not called in route-mount test")
+    }
+
+    async fn retrieve_provider_health(
+        &self,
+        _context: sdkwork_memory_contract::MemoryOpenApiRequestContext,
+    ) -> sdkwork_memory_contract::MemoryServiceResult<sdkwork_memory_contract::MemoryProviderHealth> {
+        unimplemented!("stub — not called in route-mount test")
+    }
+}
 
 fn method_from_openapi(method_name: &str) -> Method {
     match method_name {

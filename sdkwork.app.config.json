@@ -40,11 +40,7 @@
       "CONTAINER_IMAGE"
     ],
     "defaultPlatform": "API",
-    "defaultArchitecture": "x64",
-    "supportedDeploymentProfiles": [
-      "standalone",
-      "cloud"
-    ]
+    "defaultArchitecture": "x64"
   },
   "media": {
     "icons": {

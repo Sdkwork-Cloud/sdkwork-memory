@@ -1,48 +1,65 @@
 use sdkwork_memory_standalone_gateway::{build_router, init_tracing, run_database_migrate_only};
+use std::process;
 use tokio::signal;
 use tokio::time::Duration;
+
+fn exit_with_error(context: &str, message: impl std::fmt::Display) -> ! {
+    tracing::error!(context, error = %message, "fatal startup failure");
+    eprintln!("FATAL [{context}]: {message}");
+    process::exit(1);
+}
 
 #[tokio::main]
 async fn main() {
     init_tracing();
 
     if matches!(std::env::args().nth(1).as_deref(), Some("db-migrate")) {
-        run_database_migrate_only()
-            .await
-            .expect("memory database migration failed");
+        if let Err(error) = run_database_migrate_only().await {
+            exit_with_error("db-migrate", error);
+        }
         return;
     }
 
     let bind_address = std::env::var("SDKWORK_MEMORY_APPLICATION_PUBLIC_INGRESS_BIND")
         .unwrap_or_else(|_| "127.0.0.1:8080".to_owned());
-    let app = build_router()
-        .await
-        .expect("memory standalone-gateway bootstrap failed");
-    let listener = tokio::net::TcpListener::bind(&bind_address)
-        .await
-        .expect("bind memory standalone-gateway listener failed");
+
+    let app = match build_router().await {
+        Ok(app) => app,
+        Err(error) => exit_with_error("bootstrap", error),
+    };
+
+    let listener = match tokio::net::TcpListener::bind(&bind_address).await {
+        Ok(listener) => listener,
+        Err(error) => exit_with_error("bind", format!("{bind_address}: {error}")),
+    };
     tracing::info!("sdkwork-memory-standalone-gateway listening on {bind_address}");
 
     let worker_shutdown_tx = app.worker_shutdown_tx;
-    axum::serve(listener, app.router)
+    if let Err(error) = axum::serve(listener, app.router)
         .with_graceful_shutdown(shutdown_signal(worker_shutdown_tx))
         .await
-        .expect("serve memory standalone-gateway failed");
+    {
+        exit_with_error("serve", error);
+    }
 }
 
 async fn shutdown_signal(worker_shutdown_tx: tokio::sync::watch::Sender<bool>) {
     let ctrl_c = async {
-        signal::ctrl_c()
-            .await
-            .expect("failed to install Ctrl+C handler");
+        if let Err(error) = signal::ctrl_c().await {
+            tracing::warn!(%error, "failed to install Ctrl+C handler; ignoring");
+        }
     };
 
     #[cfg(unix)]
     let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("failed to install SIGTERM handler")
-            .recv()
-            .await;
+        match signal::unix::signal(signal::unix::SignalKind::terminate()) {
+            Ok(mut sig) => {
+                sig.recv().await;
+            }
+            Err(error) => {
+                tracing::warn!(%error, "failed to install SIGTERM handler; ignoring");
+            }
+        }
     };
 
     #[cfg(not(unix))]
@@ -59,8 +76,6 @@ async fn shutdown_signal(worker_shutdown_tx: tokio::sync::watch::Sender<bool>) {
     let _ = worker_shutdown_tx.send(true);
 
     // Give workers a bounded grace period to drain in-flight work.
-    // Workers log their own shutdown confirmation; we only wait
-    // a short time to avoid hanging on unresponsive workers.
     tokio::time::sleep(Duration::from_secs(3)).await;
     tracing::info!("sdkwork-memory-standalone-gateway background workers shutdown complete");
 }

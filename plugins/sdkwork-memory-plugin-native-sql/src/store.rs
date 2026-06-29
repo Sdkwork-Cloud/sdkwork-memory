@@ -4711,13 +4711,21 @@ pub(crate) fn split_sql_statements(sql: &str) -> Vec<String> {
             if found_delimiter {
                 current.push_str(&tag);
                 // Read until the closing delimiter is found.
+                // Use a manual peek loop instead of by_ref() so we don't
+                // lose the chars iterator if the closing tag is never found.
+                let mut closing_found = false;
                 let mut buffer = String::new();
                 for c in chars.by_ref() {
                     buffer.push(c);
                     if buffer.ends_with(&tag) {
                         current.push_str(&buffer);
+                        closing_found = true;
                         break;
                     }
+                }
+                if !closing_found {
+                    // Unclosed dollar-quote: push what we have and continue.
+                    current.push_str(&buffer);
                 }
                 continue;
             } else {
@@ -4747,4 +4755,129 @@ pub(crate) fn split_sql_statements(sql: &str) -> Vec<String> {
     }
 
     statements
+}
+
+#[cfg(test)]
+mod split_sql_statements_tests {
+    use super::*;
+
+    #[test]
+    fn test_empty_input() {
+        assert_eq!(split_sql_statements(""), Vec::<String>::new());
+        assert_eq!(split_sql_statements("   "), Vec::<String>::new());
+        assert_eq!(split_sql_statements("\n\n"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_single_statement() {
+        let result = split_sql_statements("SELECT 1");
+        assert_eq!(result, vec!["SELECT 1"]);
+    }
+
+    #[test]
+    fn test_multiple_statements() {
+        let result = split_sql_statements("SELECT 1; SELECT 2; SELECT 3");
+        assert_eq!(result, vec!["SELECT 1", "SELECT 2", "SELECT 3"]);
+    }
+
+    #[test]
+    fn test_trailing_semicolon() {
+        let result = split_sql_statements("SELECT 1;");
+        assert_eq!(result, vec!["SELECT 1"]);
+    }
+
+    #[test]
+    fn test_line_comment() {
+        // Semicolon in line comment should not split
+        let result = split_sql_statements("SELECT 1; -- comment with ; inside\nSELECT 2");
+        assert_eq!(result, vec!["SELECT 1", "-- comment with ; inside\nSELECT 2"]);
+    }
+
+    #[test]
+    fn test_block_comment() {
+        // Semicolon in block comment should not split
+        let result = split_sql_statements("SELECT 1; /* comment; with; semicolons */ SELECT 2");
+        assert_eq!(result, vec!["SELECT 1", "/* comment; with; semicolons */ SELECT 2"]);
+    }
+
+    #[test]
+    fn test_single_quoted_string() {
+        // Semicolon in string should not split
+        let result = split_sql_statements("INSERT INTO t VALUES ('a;b;c'); SELECT 1");
+        assert_eq!(result, vec!["INSERT INTO t VALUES ('a;b;c')", "SELECT 1"]);
+    }
+
+    #[test]
+    fn test_single_quoted_string_with_escape() {
+        // Escaped single quote '' should not end string
+        let result = split_sql_statements("INSERT INTO t VALUES ('it''s;ok'); SELECT 1");
+        assert_eq!(result, vec!["INSERT INTO t VALUES ('it''s;ok')", "SELECT 1"]);
+    }
+
+    #[test]
+    fn test_dollar_quoted_string() {
+        // Dollar-quoted string $$ ... $$
+        let result = split_sql_statements("SELECT $$text;with;semicolons$$; SELECT 2");
+        assert_eq!(result, vec!["SELECT $$text;with;semicolons$$", "SELECT 2"]);
+    }
+
+    #[test]
+    fn test_dollar_quoted_string_with_tag() {
+        // Dollar-quoted string with tag $tag$ ... $tag$
+        let result = split_sql_statements("SELECT $tag$content;here$tag$; SELECT 2");
+        assert_eq!(result, vec!["SELECT $tag$content;here$tag$", "SELECT 2"]);
+    }
+
+    #[test]
+    fn test_mixed_constructs() {
+        let sql = r#"CREATE FUNCTION f() RETURNS void AS $$
+BEGIN
+    -- comment; here
+    SELECT 'string; value';
+    /* block; comment */
+END;
+$$ LANGUAGE plpgsql;
+SELECT 1;"#;
+        let result = split_sql_statements(sql);
+        assert_eq!(result.len(), 2);
+        assert!(result[0].starts_with("CREATE FUNCTION"));
+        assert_eq!(result[1], "SELECT 1");
+    }
+
+    #[test]
+    fn test_whitespace_handling() {
+        let result = split_sql_statements("  SELECT 1  ;  SELECT 2  ");
+        assert_eq!(result, vec!["SELECT 1", "SELECT 2"]);
+    }
+
+    #[test]
+    fn test_consecutive_semicolons() {
+        let result = split_sql_statements("SELECT 1;; SELECT 2");
+        assert_eq!(result, vec!["SELECT 1", "SELECT 2"]);
+    }
+
+    #[test]
+    fn test_nested_block_comments() {
+        // Note: SQL standard doesn't support nested block comments
+        // but we handle them as sequential
+        let result = split_sql_statements("/* outer /* inner */ */ SELECT 1");
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn test_complex_postgres_function() {
+        let sql = r#"CREATE OR REPLACE FUNCTION test_fn() RETURNS text AS $func$
+DECLARE
+    msg text := 'Hello; World';
+BEGIN
+    -- This is a comment; with semicolon
+    RETURN msg;
+END;
+$func$ LANGUAGE plpgsql;
+GRANT EXECUTE ON FUNCTION test_fn() TO PUBLIC;"#;
+        let result = split_sql_statements(sql);
+        assert_eq!(result.len(), 2);
+        assert!(result[0].contains("CREATE OR REPLACE FUNCTION"));
+        assert!(result[1].starts_with("GRANT"));
+    }
 }

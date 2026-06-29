@@ -15,7 +15,7 @@ use crate::dto::{
     MemoryRecordList, MemoryRecordPatch, MemoryRecordRequest, MemoryRetrievalTrace,
     MemoryRetrievalTraceList, MemoryReviewRequest,
 };
-use crate::ports::{MemoryServiceError, MemoryServiceResult};
+use crate::ports::MemoryServiceResult;
 use crate::space::{ListSpacesQuery, MemorySpace, MemorySpaceList, MemorySpaceRequest};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,350 +24,262 @@ pub struct MemoryBackendRequestContext {
     pub operator_id: Option<u64>,
 }
 
-macro_rules! backend_not_implemented {
-    ($name:literal, $ret:ty) => {
-        Err(MemoryServiceError::not_implemented($name)) as MemoryServiceResult<$ret>
-    };
-}
-
 #[async_trait]
 pub trait MemoryBackendApi: Send + Sync + 'static {
     async fn list_spaces(
         &self,
-        _context: MemoryBackendRequestContext,
-        _query: ListSpacesQuery,
-    ) -> MemoryServiceResult<MemorySpaceList> {
-        backend_not_implemented!("spaces.list", MemorySpaceList)
-    }
+        context: MemoryBackendRequestContext,
+        query: ListSpacesQuery,
+    ) -> MemoryServiceResult<MemorySpaceList>;
 
     async fn retrieve_space(
         &self,
-        _context: MemoryBackendRequestContext,
-        _space_id: u64,
-    ) -> MemoryServiceResult<MemorySpace> {
-        backend_not_implemented!("spaces.retrieve", MemorySpace)
-    }
+        context: MemoryBackendRequestContext,
+        space_id: u64,
+    ) -> MemoryServiceResult<MemorySpace>;
 
     async fn update_space(
         &self,
-        _context: MemoryBackendRequestContext,
-        _space_id: u64,
-        _request: MemorySpaceRequest,
-    ) -> MemoryServiceResult<MemorySpace> {
-        backend_not_implemented!("spaces.update", MemorySpace)
-    }
+        context: MemoryBackendRequestContext,
+        space_id: u64,
+        request: MemorySpaceRequest,
+    ) -> MemoryServiceResult<MemorySpace>;
 
     async fn list_memories(
         &self,
-        _context: MemoryBackendRequestContext,
-        _query: ListMemoriesQuery,
-    ) -> MemoryServiceResult<MemoryRecordList> {
-        backend_not_implemented!("memories.list", MemoryRecordList)
-    }
+        context: MemoryBackendRequestContext,
+        query: ListMemoriesQuery,
+    ) -> MemoryServiceResult<MemoryRecordList>;
 
     async fn retrieve_memory(
         &self,
-        _context: MemoryBackendRequestContext,
-        _memory_id: u64,
-        _space_id: u64,
-    ) -> MemoryServiceResult<MemoryRecord> {
-        backend_not_implemented!("memories.retrieve", MemoryRecord)
-    }
+        context: MemoryBackendRequestContext,
+        memory_id: u64,
+        space_id: u64,
+    ) -> MemoryServiceResult<MemoryRecord>;
 
     async fn update_memory(
         &self,
-        _context: MemoryBackendRequestContext,
-        _memory_id: u64,
-        _space_id: u64,
-        _patch: MemoryRecordPatch,
-    ) -> MemoryServiceResult<MemoryRecord> {
-        backend_not_implemented!("memories.update", MemoryRecord)
-    }
+        context: MemoryBackendRequestContext,
+        memory_id: u64,
+        space_id: u64,
+        patch: MemoryRecordPatch,
+    ) -> MemoryServiceResult<MemoryRecord>;
 
     async fn supersede_memory(
         &self,
-        _context: MemoryBackendRequestContext,
-        _memory_id: u64,
-        _request: MemoryRecordRequest,
-    ) -> MemoryServiceResult<MemoryRecord> {
-        backend_not_implemented!("memories.supersede", MemoryRecord)
-    }
+        context: MemoryBackendRequestContext,
+        memory_id: u64,
+        request: MemoryRecordRequest,
+    ) -> MemoryServiceResult<MemoryRecord>;
 
     async fn list_events(
         &self,
-        _context: MemoryBackendRequestContext,
-        _query: ListEventsQuery,
-    ) -> MemoryServiceResult<MemoryEventList> {
-        backend_not_implemented!("events.list", MemoryEventList)
-    }
+        context: MemoryBackendRequestContext,
+        query: ListEventsQuery,
+    ) -> MemoryServiceResult<MemoryEventList>;
 
     async fn retrieve_event(
         &self,
-        _context: MemoryBackendRequestContext,
-        _event_id: u64,
-        _space_id: u64,
-    ) -> MemoryServiceResult<MemoryEvent> {
-        backend_not_implemented!("events.retrieve", MemoryEvent)
-    }
+        context: MemoryBackendRequestContext,
+        event_id: u64,
+        space_id: u64,
+    ) -> MemoryServiceResult<MemoryEvent>;
 
     async fn list_candidates(
         &self,
-        _context: MemoryBackendRequestContext,
-        _query: ListCandidatesQuery,
-    ) -> MemoryServiceResult<MemoryCandidateList> {
-        backend_not_implemented!("candidates.list", MemoryCandidateList)
-    }
+        context: MemoryBackendRequestContext,
+        query: ListCandidatesQuery,
+    ) -> MemoryServiceResult<MemoryCandidateList>;
 
     async fn approve_candidate(
         &self,
-        _context: MemoryBackendRequestContext,
-        _candidate_id: u64,
-        _request: MemoryReviewRequest,
-    ) -> MemoryServiceResult<MemoryCandidate> {
-        backend_not_implemented!("candidates.approve", MemoryCandidate)
-    }
+        context: MemoryBackendRequestContext,
+        candidate_id: u64,
+        request: MemoryReviewRequest,
+    ) -> MemoryServiceResult<MemoryCandidate>;
 
     async fn reject_candidate(
         &self,
-        _context: MemoryBackendRequestContext,
-        _candidate_id: u64,
-        _request: MemoryReviewRequest,
-    ) -> MemoryServiceResult<MemoryCandidate> {
-        backend_not_implemented!("candidates.reject", MemoryCandidate)
-    }
+        context: MemoryBackendRequestContext,
+        candidate_id: u64,
+        request: MemoryReviewRequest,
+    ) -> MemoryServiceResult<MemoryCandidate>;
 
     async fn create_extraction_job(
         &self,
-        _context: MemoryBackendRequestContext,
-        _request: MemoryExtractionRequest,
-    ) -> MemoryServiceResult<MemoryLearningJob> {
-        backend_not_implemented!("extractionJobs.create", MemoryLearningJob)
-    }
+        context: MemoryBackendRequestContext,
+        request: MemoryExtractionRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob>;
 
     async fn retrieve_extraction_job(
         &self,
-        _context: MemoryBackendRequestContext,
-        _job_id: u64,
-    ) -> MemoryServiceResult<MemoryLearningJob> {
-        backend_not_implemented!("extractionJobs.retrieve", MemoryLearningJob)
-    }
+        context: MemoryBackendRequestContext,
+        job_id: u64,
+    ) -> MemoryServiceResult<MemoryLearningJob>;
 
     async fn create_consolidation_job(
         &self,
-        _context: MemoryBackendRequestContext,
-        _request: MemoryExtractionRequest,
-    ) -> MemoryServiceResult<MemoryLearningJob> {
-        backend_not_implemented!("consolidationJobs.create", MemoryLearningJob)
-    }
+        context: MemoryBackendRequestContext,
+        request: MemoryExtractionRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob>;
 
     async fn list_indexes(
         &self,
-        _context: MemoryBackendRequestContext,
-        _query: ListAdminResourcesQuery,
-    ) -> MemoryServiceResult<MemoryIndexList> {
-        backend_not_implemented!("indexes.list", MemoryIndexList)
-    }
+        context: MemoryBackendRequestContext,
+        query: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryIndexList>;
 
     async fn create_index(
         &self,
-        _context: MemoryBackendRequestContext,
-        _request: MemoryIndexRequest,
-    ) -> MemoryServiceResult<MemoryIndex> {
-        backend_not_implemented!("indexes.create", MemoryIndex)
-    }
+        context: MemoryBackendRequestContext,
+        request: MemoryIndexRequest,
+    ) -> MemoryServiceResult<MemoryIndex>;
 
     async fn retrieve_index(
         &self,
-        _context: MemoryBackendRequestContext,
-        _index_id: u64,
-    ) -> MemoryServiceResult<MemoryIndex> {
-        backend_not_implemented!("indexes.retrieve", MemoryIndex)
-    }
+        context: MemoryBackendRequestContext,
+        index_id: u64,
+    ) -> MemoryServiceResult<MemoryIndex>;
 
     async fn update_index(
         &self,
-        _context: MemoryBackendRequestContext,
-        _index_id: u64,
-        _request: MemoryIndexRequest,
-    ) -> MemoryServiceResult<MemoryIndex> {
-        backend_not_implemented!("indexes.update", MemoryIndex)
-    }
+        context: MemoryBackendRequestContext,
+        index_id: u64,
+        request: MemoryIndexRequest,
+    ) -> MemoryServiceResult<MemoryIndex>;
 
     async fn rebuild_index(
         &self,
-        _context: MemoryBackendRequestContext,
-        _index_id: u64,
-    ) -> MemoryServiceResult<MemoryLearningJob> {
-        backend_not_implemented!("indexes.rebuild", MemoryLearningJob)
-    }
+        context: MemoryBackendRequestContext,
+        index_id: u64,
+    ) -> MemoryServiceResult<MemoryLearningJob>;
 
     async fn list_retrieval_profiles(
         &self,
-        _context: MemoryBackendRequestContext,
-        _query: ListAdminResourcesQuery,
-    ) -> MemoryServiceResult<MemoryRetrievalProfileList> {
-        backend_not_implemented!("retrievalProfiles.list", MemoryRetrievalProfileList)
-    }
+        context: MemoryBackendRequestContext,
+        query: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryRetrievalProfileList>;
 
     async fn create_retrieval_profile(
         &self,
-        _context: MemoryBackendRequestContext,
-        _request: MemoryRetrievalProfileRequest,
-    ) -> MemoryServiceResult<MemoryRetrievalProfile> {
-        backend_not_implemented!("retrievalProfiles.create", MemoryRetrievalProfile)
-    }
+        context: MemoryBackendRequestContext,
+        request: MemoryRetrievalProfileRequest,
+    ) -> MemoryServiceResult<MemoryRetrievalProfile>;
 
     async fn retrieve_retrieval_profile(
         &self,
-        _context: MemoryBackendRequestContext,
-        _profile_id: u64,
-    ) -> MemoryServiceResult<MemoryRetrievalProfile> {
-        backend_not_implemented!("retrievalProfiles.retrieve", MemoryRetrievalProfile)
-    }
+        context: MemoryBackendRequestContext,
+        profile_id: u64,
+    ) -> MemoryServiceResult<MemoryRetrievalProfile>;
 
     async fn update_retrieval_profile(
         &self,
-        _context: MemoryBackendRequestContext,
-        _profile_id: u64,
-        _request: MemoryRetrievalProfileRequest,
-    ) -> MemoryServiceResult<MemoryRetrievalProfile> {
-        backend_not_implemented!("retrievalProfiles.update", MemoryRetrievalProfile)
-    }
+        context: MemoryBackendRequestContext,
+        profile_id: u64,
+        request: MemoryRetrievalProfileRequest,
+    ) -> MemoryServiceResult<MemoryRetrievalProfile>;
 
     async fn list_implementation_profiles(
         &self,
-        _context: MemoryBackendRequestContext,
-        _query: ListAdminResourcesQuery,
-    ) -> MemoryServiceResult<MemoryImplementationProfileList> {
-        backend_not_implemented!("implementationProfiles.list", MemoryImplementationProfileList)
-    }
+        context: MemoryBackendRequestContext,
+        query: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryImplementationProfileList>;
 
     async fn create_implementation_profile(
         &self,
-        _context: MemoryBackendRequestContext,
-        _request: MemoryImplementationProfileRequest,
-    ) -> MemoryServiceResult<MemoryImplementationProfile> {
-        backend_not_implemented!("implementationProfiles.create", MemoryImplementationProfile)
-    }
+        context: MemoryBackendRequestContext,
+        request: MemoryImplementationProfileRequest,
+    ) -> MemoryServiceResult<MemoryImplementationProfile>;
 
     async fn retrieve_implementation_profile(
         &self,
-        _context: MemoryBackendRequestContext,
-        _profile_id: u64,
-    ) -> MemoryServiceResult<MemoryImplementationProfile> {
-        backend_not_implemented!("implementationProfiles.retrieve", MemoryImplementationProfile)
-    }
+        context: MemoryBackendRequestContext,
+        profile_id: u64,
+    ) -> MemoryServiceResult<MemoryImplementationProfile>;
 
     async fn update_implementation_profile(
         &self,
-        _context: MemoryBackendRequestContext,
-        _profile_id: u64,
-        _request: MemoryImplementationProfileRequest,
-    ) -> MemoryServiceResult<MemoryImplementationProfile> {
-        backend_not_implemented!("implementationProfiles.update", MemoryImplementationProfile)
-    }
+        context: MemoryBackendRequestContext,
+        profile_id: u64,
+        request: MemoryImplementationProfileRequest,
+    ) -> MemoryServiceResult<MemoryImplementationProfile>;
 
     async fn list_provider_bindings(
         &self,
-        _context: MemoryBackendRequestContext,
-        _query: ListAdminResourcesQuery,
-    ) -> MemoryServiceResult<MemoryProviderBindingList> {
-        backend_not_implemented!("providerBindings.list", MemoryProviderBindingList)
-    }
+        context: MemoryBackendRequestContext,
+        query: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryProviderBindingList>;
 
     async fn create_provider_binding(
         &self,
-        _context: MemoryBackendRequestContext,
-        _request: MemoryProviderBindingRequest,
-    ) -> MemoryServiceResult<crate::dto::MemoryProviderBinding> {
-        backend_not_implemented!("providerBindings.create", crate::dto::MemoryProviderBinding)
-    }
+        context: MemoryBackendRequestContext,
+        request: MemoryProviderBindingRequest,
+    ) -> MemoryServiceResult<crate::dto::MemoryProviderBinding>;
 
     async fn update_provider_binding(
         &self,
-        _context: MemoryBackendRequestContext,
-        _provider_binding_id: u64,
-        _request: MemoryProviderBindingRequest,
-    ) -> MemoryServiceResult<crate::dto::MemoryProviderBinding> {
-        backend_not_implemented!("providerBindings.update", crate::dto::MemoryProviderBinding)
-    }
+        context: MemoryBackendRequestContext,
+        provider_binding_id: u64,
+        request: MemoryProviderBindingRequest,
+    ) -> MemoryServiceResult<crate::dto::MemoryProviderBinding>;
 
     async fn retrieve_provider_health(
         &self,
-        _context: MemoryBackendRequestContext,
-    ) -> MemoryServiceResult<MemoryProviderHealth> {
-        backend_not_implemented!("providerHealth.retrieve", MemoryProviderHealth)
-    }
+        context: MemoryBackendRequestContext,
+    ) -> MemoryServiceResult<MemoryProviderHealth>;
 
     async fn list_eval_runs(
         &self,
-        _context: MemoryBackendRequestContext,
-        _query: ListAdminResourcesQuery,
-    ) -> MemoryServiceResult<MemoryEvalRunList> {
-        backend_not_implemented!("evalRuns.list", MemoryEvalRunList)
-    }
+        context: MemoryBackendRequestContext,
+        query: ListAdminResourcesQuery,
+    ) -> MemoryServiceResult<MemoryEvalRunList>;
 
     async fn create_eval_run(
         &self,
-        _context: MemoryBackendRequestContext,
-        _request: MemoryEvalRunRequest,
-    ) -> MemoryServiceResult<MemoryEvalRun> {
-        backend_not_implemented!("evalRuns.create", MemoryEvalRun)
-    }
+        context: MemoryBackendRequestContext,
+        request: MemoryEvalRunRequest,
+    ) -> MemoryServiceResult<MemoryEvalRun>;
 
     async fn retrieve_eval_run(
         &self,
-        _context: MemoryBackendRequestContext,
-        _eval_run_id: u64,
-    ) -> MemoryServiceResult<MemoryEvalRun> {
-        backend_not_implemented!("evalRuns.retrieve", MemoryEvalRun)
-    }
+        context: MemoryBackendRequestContext,
+        eval_run_id: u64,
+    ) -> MemoryServiceResult<MemoryEvalRun>;
 
     async fn list_retrieval_traces(
         &self,
-        _context: MemoryBackendRequestContext,
-        _query: ListRetrievalTracesQuery,
-    ) -> MemoryServiceResult<MemoryRetrievalTraceList> {
-        backend_not_implemented!("retrievalTraces.list", MemoryRetrievalTraceList)
-    }
+        context: MemoryBackendRequestContext,
+        query: ListRetrievalTracesQuery,
+    ) -> MemoryServiceResult<MemoryRetrievalTraceList>;
 
     async fn retrieve_retrieval_trace(
         &self,
-        _context: MemoryBackendRequestContext,
-        _trace_id: u64,
-    ) -> MemoryServiceResult<MemoryRetrievalTrace> {
-        backend_not_implemented!("retrievalTraces.retrieve", MemoryRetrievalTrace)
-    }
+        context: MemoryBackendRequestContext,
+        trace_id: u64,
+    ) -> MemoryServiceResult<MemoryRetrievalTrace>;
 
     async fn list_audit_logs(
         &self,
-        _context: MemoryBackendRequestContext,
-        _query: ListAuditLogsQuery,
-    ) -> MemoryServiceResult<MemoryAuditLogList> {
-        backend_not_implemented!("auditLogs.list", MemoryAuditLogList)
-    }
+        context: MemoryBackendRequestContext,
+        query: ListAuditLogsQuery,
+    ) -> MemoryServiceResult<MemoryAuditLogList>;
 
     async fn create_retention_job(
         &self,
-        _context: MemoryBackendRequestContext,
-        _request: MemoryRetentionJobRequest,
-    ) -> MemoryServiceResult<MemoryLearningJob> {
-        backend_not_implemented!("retentionJobs.create", MemoryLearningJob)
-    }
+        context: MemoryBackendRequestContext,
+        request: MemoryRetentionJobRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob>;
 
     async fn create_migration_job(
         &self,
-        _context: MemoryBackendRequestContext,
-        _request: MemoryMigrationJobRequest,
-    ) -> MemoryServiceResult<MemoryLearningJob> {
-        backend_not_implemented!("migrationJobs.create", MemoryLearningJob)
-    }
+        context: MemoryBackendRequestContext,
+        request: MemoryMigrationJobRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob>;
 
     async fn retrieve_migration_job(
         &self,
-        _context: MemoryBackendRequestContext,
-        _migration_job_id: u64,
-    ) -> MemoryServiceResult<MemoryLearningJob> {
-        backend_not_implemented!("migrationJobs.retrieve", MemoryLearningJob)
-    }
+        context: MemoryBackendRequestContext,
+        migration_job_id: u64,
+    ) -> MemoryServiceResult<MemoryLearningJob>;
 }
