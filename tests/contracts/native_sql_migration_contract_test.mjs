@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-const migrationPaths = [
-  "database/migrations/sqlite/0001_memory_phase1.up.sql",
-  "database/migrations/postgres/0001_memory_phase1.up.sql",
+const baselinePaths = [
+  "database/ddl/baseline/sqlite/0001_memory_baseline.sql",
+  "database/ddl/baseline/postgres/0001_memory_baseline.sql",
   "plugins/sdkwork-memory-plugin-native-sql/migrations/sqlite/V202606100001__memory_phase1.sql",
   "plugins/sdkwork-memory-plugin-native-sql/migrations/postgres/V202606100001__memory_phase1.sql",
 ];
@@ -27,21 +27,21 @@ const requiredTables = [
   "ai_outbox_event",
 ];
 
-for (const migrationPath of migrationPaths) {
-  assert.ok(fs.existsSync(migrationPath), `${migrationPath} must exist`);
-  const sql = fs.readFileSync(migrationPath, "utf8").toLowerCase();
+for (const baselinePath of baselinePaths) {
+  assert.ok(fs.existsSync(baselinePath), `${baselinePath} must exist`);
+  const sql = fs.readFileSync(baselinePath, "utf8").toLowerCase();
 
   for (const table of requiredTables) {
     assert.match(
       sql,
       new RegExp(`create\\s+table\\s+(if\\s+not\\s+exists\\s+)?${table}\\b`),
-      `${migrationPath} must create ${table}`,
+      `${baselinePath} must create ${table}`,
     );
   }
 
   assert.doesNotMatch(
     sql,
     /\b(vector|embedding|embeddings|pgvector)\b/,
-    `${migrationPath} must not require vector or embedding storage in native_sql phase1`,
+    `${baselinePath} must not require vector or embedding storage in native_sql phase1`,
   );
 }

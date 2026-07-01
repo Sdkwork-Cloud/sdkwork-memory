@@ -1,4 +1,5 @@
 # sdkwork-memory
+repository-kind: application
 
 SDKWork Memory service and SDK families for embedding-optional AI memory, self-learning, habit memory, and provider-switchable retrieval.
 

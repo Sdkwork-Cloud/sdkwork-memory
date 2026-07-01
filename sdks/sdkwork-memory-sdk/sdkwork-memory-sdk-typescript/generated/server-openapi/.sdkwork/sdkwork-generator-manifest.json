@@ -44,7 +44,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "f54ab1527b790643be0def212af20b79247ea5298ee2ba953ed2995e45750aa0"
+      "sha256": "d3239993c966482d2214020692637bbaefa44d932a376d4f9280c91c6248cbf6"
     },
     {
       "path": "sdkwork-sdk.json",
@@ -80,11 +80,11 @@
     },
     {
       "path": "src/index.ts",
-      "sha256": "be1ba971d7c153f90af599aff97d71c8047fbb6b97a0adb57c2fceaaca4a4749"
+      "sha256": "0af7368dc136e38086c809a7b4641b7f41a916a6916cf8e3697d4811b81bcd8d"
     },
     {
       "path": "src/sdk.ts",
-      "sha256": "9d3823fb7b0c7f8b1966f964abc64b1ecaaab0c18e9724a6637c687c8ee0e438"
+      "sha256": "70991a7d0512ea0da87277872f881096d034379fcaa0bbe7152e45ae94bf5964"
     },
     {
       "path": "src/types/candidates-list-response.ts",
@@ -132,7 +132,7 @@
     },
     {
       "path": "src/types/index.ts",
-      "sha256": "5cafdb7c1e5f297aab7cdd8824dd89018a3a585a71cbf11bb1629de0040be71d"
+      "sha256": "d1cbccd43e13184847302b57079fc5391f9c930f7a5480c41c3b990cecc191f5"
     },
     {
       "path": "src/types/memories-create-response201.ts",
@@ -381,10 +381,6 @@
     {
       "path": "src/types/problem-detail.ts",
       "sha256": "deca621176487754cbfa2012aa3eab046131ced5829ddf7cff64de692f8bcb0e"
-    },
-    {
-      "path": "src/types/problem-details.ts",
-      "sha256": "a3a82c1d1b69f0f453feb5ac6bb49d140ea27444cc34cf2b6169363c3fe5c6ca"
     },
     {
       "path": "src/types/provider-health-retrieve-response.ts",

@@ -14,6 +14,7 @@ pub type MemoryApiResult<T> = Result<T, MemoryApiError>;
 #[derive(Debug, Clone)]
 pub struct MemoryApiError {
     status: StatusCode,
+    #[allow(dead_code)]
     code: String,
     detail: String,
 }

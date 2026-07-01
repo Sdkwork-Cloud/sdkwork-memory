@@ -120,7 +120,21 @@ pub fn stable_query_hash(query: &str) -> String {
 }
 
 pub fn parse_numeric_id(value: &str) -> Option<u64> {
-    value.parse().ok()
+    sdkwork_utils_rust::parse_int(value).and_then(|parsed| u64::try_from(parsed).ok())
+}
+
+pub fn read_env_u64(key: &str, default: u64) -> u64 {
+    std::env::var(key)
+        .ok()
+        .and_then(|value| sdkwork_utils_rust::parse_int(&value))
+        .and_then(|parsed| u64::try_from(parsed).ok())
+        .unwrap_or(default)
+}
+
+pub fn read_env_usize(key: &str, default: usize) -> usize {
+    read_env_u64(key, default as u64)
+        .try_into()
+        .unwrap_or(default)
 }
 
 /// Maximum allowed page size for list operations.

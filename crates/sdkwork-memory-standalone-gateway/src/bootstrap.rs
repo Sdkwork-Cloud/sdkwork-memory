@@ -6,7 +6,7 @@ use axum::{
     Router,
 };
 use sdkwork_intelligence_memory_repository_sqlx::bootstrap_memory_runtime_from_env;
-use sdkwork_intelligence_memory_service::{render_memory_domain_prometheus, OpenMemoryService};
+use sdkwork_intelligence_memory_service::{platform, render_memory_domain_prometheus, OpenMemoryService};
 use sdkwork_memory_gateway_assembly::assemble_application_business_router;
 use sdkwork_routes_memory_support::{
     memory_dependency_ready_check, memory_http_metrics, memory_metric_environment_label,
@@ -73,25 +73,25 @@ pub async fn build_router() -> Result<MemoryApplication, String> {
         postgres_host_pool = runtime.data_plane.host_pool.is_some(),
         "memory runtime ready"
     );
-    let product = Arc::new(OpenMemoryService::from_phase1_runtime(
+    let mut product = OpenMemoryService::from_phase1_runtime(
         runtime.data_plane.phase1,
         runtime.profile_id,
         runtime.primary_plugin_id,
-    ));
+    );
+    if let Some(uploader) =
+        sdkwork_memory_drive::bootstrap_memory_drive_export_uploader_from_env().await?
+    {
+        product = product.with_drive_export_uploader(uploader);
+    }
+    let product = Arc::new(product);
     let worker_shutdown_tx = OpenMemoryService::spawn_background_workers(&product);
 
     let business_router = assemble_application_business_router(product.clone()).await.router;
 
     let readiness = Arc::new(MemoryReadinessCheck::new(product.clone()));
 
-    let max_body_bytes = std::env::var("SDKWORK_MEMORY_MAX_BODY_BYTES")
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(DEFAULT_MAX_BODY_BYTES);
-    let max_concurrency = std::env::var("SDKWORK_MEMORY_MAX_CONCURRENCY")
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(DEFAULT_MAX_CONCURRENCY);
+    let max_body_bytes = platform::read_env_usize("SDKWORK_MEMORY_MAX_BODY_BYTES", DEFAULT_MAX_BODY_BYTES);
+    let max_concurrency = platform::read_env_usize("SDKWORK_MEMORY_MAX_CONCURRENCY", DEFAULT_MAX_CONCURRENCY);
 
     let router = Router::new()
         .route("/metrics", get(metrics))

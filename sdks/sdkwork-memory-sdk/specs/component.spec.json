@@ -10,7 +10,7 @@
     "domain": "intelligence",
     "capability": "memory",
     "surface": "open-api",
-    "status": "draft",
+    "status": "active",
     "languages": [
       "typescript"
     ],

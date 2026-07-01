@@ -1,10 +1,12 @@
 //! Tracing bootstrap for `sdkwork-memory-standalone-gateway` (`OBSERVABILITY_SPEC.md` §2, §4).
 
+use sdkwork_utils_rust::is_blank;
+
 pub fn init_tracing() {
     #[cfg(feature = "otel")]
     if std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT")
-        .map(|value| !value.trim().is_empty())
-        .unwrap_or(false)
+        .ok()
+        .is_some_and(|value| !is_blank(Some(value.as_str())))
     {
         match init_otel_tracing("sdkwork-memory-standalone-gateway") {
             Ok(()) => return,

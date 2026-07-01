@@ -5,6 +5,7 @@
 - Container image digest is pinned in the release manifest.
 - `SDKWORK_MEMORY_ENVIRONMENT=production` and `SDKWORK_MEMORY_DEPLOYMENT_PROFILE=cloud`.
 - IAM and memory database secrets exist in the target namespace.
+- For Drive-backed exports: configure `SDKWORK_MEMORY_DRIVE_DATABASE_URL` and either `SDKWORK_MEMORY_DRIVE_OBJECT_STORE_ROOT` (local) or `SDKWORK_MEMORY_DRIVE_S3_*` credentials (production S3-compatible storage).
 - Database migrations completed via release Job (`deployments/kubernetes/migration-job.yaml`) or `sdkwork-memory-standalone-gateway db-migrate`.
 
 ## Rollout
@@ -27,6 +28,7 @@
 ## Post-deploy verification
 
 - `pnpm check` and integration smoke tests against staging.
-- Confirm ProblemDetails responses include `requestId` and `traceId`.
+- Confirm error responses use `application/problem+json` with numeric `code` and `traceId` (no `requestId`).
 - Confirm export job retrieve returns `exportRef` only, not inline payload.
+- For Drive exports, confirm `memory.export.drive_upload_completed` outbox events and `drive://nodes/{id}` references (not legacy local artifact staging).
 - Run `pnpm release:evidence` before tagging a release to refresh SBOM and container checksum in `sdkwork.app.config.json`.

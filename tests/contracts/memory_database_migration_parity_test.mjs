@@ -8,10 +8,19 @@ import path from "node:path";
 
 const root = process.cwd();
 const engines = ["postgres", "sqlite"];
+
+function normalizeSql(sql) {
+  return sql.replace(/\r\n/g, "\n");
+}
+
 const mappings = [
   ["V202606100001__memory_phase1.sql", "0001_memory_phase1.up.sql"],
   ["V202606100002__memory_phase1_indexes.sql", "0002_memory_phase1_indexes.up.sql"],
-  ["V202606230001__mem_tenant_preference.sql", "0003_mem_tenant_preference.up.sql"],
+  ["V202606230001__mem_tenant_preference.sql", "0003_ai_tenant_preference.up.sql"],
+  ["V202606240001__ai_learning_job.sql", "0004_ai_learning_job.up.sql"],
+  ["V202606240002__ai_record_fulltext_search.sql", "0005_ai_record_fulltext_search.up.sql"],
+  ["V202606250001__ai_eval_run_extend.sql", "0006_ai_eval_run_extend.up.sql"],
+  ["V202606250002__memory_commercial_management.sql", "0007_memory_commercial_management.up.sql"],
 ];
 
 for (const engine of engines) {
@@ -28,8 +37,8 @@ for (const engine of engines) {
     const pluginSql = fs.readFileSync(pluginPath, "utf8");
     const canonicalSql = fs.readFileSync(canonicalPath, "utf8");
     assert.equal(
-      canonicalSql,
-      pluginSql,
+      normalizeSql(canonicalSql),
+      normalizeSql(pluginSql),
       `${canonicalPath} must match plugin authority ${pluginPath}`,
     );
   }
@@ -51,7 +60,7 @@ for (const engine of engines) {
   }
 
   const tenantPreference = fs.readFileSync(
-    path.join(root, "database/migrations", engine, "0003_mem_tenant_preference.up.sql"),
+    path.join(root, "database/migrations", engine, "0003_ai_tenant_preference.up.sql"),
     "utf8",
   ).toLowerCase();
   assert.match(

@@ -1,9 +1,12 @@
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
+use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_contract::runtime_env::env_test_lock;
 use sdkwork_memory_test_support::web_auth::{
     memory_access_token, memory_auth_token_bearer, memory_dev_api_key,
 };
+use sdkwork_routes_memory_app_api::build_router_with_app_api;
+use sdkwork_routes_memory_open_api::build_router_with_open_api;
 use tower::util::ServiceExt;
 
 const DEV_API_KEY: &str = "dev-key";
@@ -85,12 +88,22 @@ async fn api_server_bootstrap_auth_and_healthz_contracts() {
     std::env::remove_var("SDKWORK_IAM_DATABASE_URL");
     std::env::set_var("SDKWORK_MEMORY_DATABASE_URL", "sqlite::memory:");
 
-    let production_app = sdkwork_memory_standalone_gateway::build_router()
-        .await
-        .expect("standalone-gateway bootstrap should succeed with in-memory sqlite");
-    let production_router = production_app.router;
+    let production_bootstrap = sdkwork_memory_standalone_gateway::build_router().await;
+    let Err(error) = production_bootstrap else {
+        panic!("production bootstrap must reject sqlite database configuration");
+    };
+    assert!(
+        error.contains("PostgreSQL is required"),
+        "production sqlite rejection must explain postgres requirement"
+    );
 
-    let protected = production_router
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
+    let production_open_router =
+        build_router_with_open_api(OpenMemoryService::new(store.clone()));
+    let production_app_router =
+        build_router_with_app_api(OpenMemoryService::new(store));
+
+    let protected = production_open_router
         .clone()
         .oneshot(
             Request::builder()
@@ -105,7 +118,7 @@ async fn api_server_bootstrap_auth_and_healthz_contracts() {
 
     assert_eq!(protected.status(), StatusCode::UNAUTHORIZED);
 
-    let protected_app = production_router
+    let protected_app = production_app_router
         .oneshot(
             Request::builder()
                 .method("GET")

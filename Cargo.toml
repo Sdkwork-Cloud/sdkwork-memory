@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/sdkwork-memory-gateway-assembly",
   "crates/sdkwork-memory-database-host",
+  "crates/sdkwork-memory-drive",
   "crates/sdkwork-routes-memory-support",
   "crates/sdkwork-memory-spi",
   "crates/sdkwork-memory-profile-resolver",
@@ -26,6 +27,7 @@ version = "0.1.0"
 license = "UNLICENSED"
 
 [workspace.dependencies]
+sdkwork-utils-rust = { path = "../sdkwork-utils/packages/sdkwork-utils-rust" }
 async-trait = "0.1"
 axum = "0.8"
 http = "1.4"
@@ -42,6 +44,7 @@ url = "2"
 rand = "0.8"
 
 sdkwork-memory-database-host = { path = "crates/sdkwork-memory-database-host" }
+sdkwork-memory-drive = { path = "crates/sdkwork-memory-drive" }
 sdkwork-memory-spi = { path = "crates/sdkwork-memory-spi" }
 sdkwork-memory-profile-resolver = { path = "crates/sdkwork-memory-profile-resolver" }
 sdkwork-memory-contract = { path = "crates/sdkwork-memory-contract" }
@@ -72,4 +75,3 @@ sdkwork_database_spi = { path = "../sdkwork-database/crates/sdkwork-database-spi
 sdkwork_database_sqlx = { path = "../sdkwork-database/crates/sdkwork-database-sqlx", package = "sdkwork-database-sqlx" }
 sdkwork-id-core = { path = "../sdkwork-id/crates/sdkwork-id-core" }
 sdkwork-database-id = { path = "../sdkwork-database/crates/sdkwork-database-id", package = "sdkwork-database-id" }
-sdkwork-utils-rust = { path = "../sdkwork-utils/packages/sdkwork-utils-rust" }

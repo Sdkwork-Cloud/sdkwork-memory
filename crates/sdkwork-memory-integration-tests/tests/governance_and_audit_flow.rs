@@ -157,12 +157,14 @@ async fn app_api_forget_and_export_jobs_round_trip_via_dual_token() {
 }
 
 #[tokio::test]
-async fn app_api_drive_export_job_stages_artifact_and_emits_outbox_event() {
+async fn app_api_drive_export_job_uploads_through_drive() {
     let _env = lock_integration_test_env();
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamWebRequestContextResolver::new(None),
-        build_router_with_app_api(OpenMemoryService::new(store.clone())),
+        build_router_with_app_api(sdkwork_memory_test_support::drive_export::open_memory_service_with_drive(
+            store.clone(),
+        )),
     );
 
     let create_memory = app
@@ -200,16 +202,13 @@ async fn app_api_drive_export_job_stages_artifact_and_emits_outbox_event() {
     let export_body = to_bytes(export.into_body(), usize::MAX).await.unwrap();
     let export_json: serde_json::Value = serde_json::from_slice(&export_body).unwrap();
     let export_item = api_envelope::item(&export_json);
-    assert_eq!(export_item["state"], "accepted");
-    assert!(export_item["driveObjectRef"].as_str().unwrap().starts_with("mem-export/"));
+    assert_eq!(export_item["state"], "completed");
+    assert!(export_item["driveObjectRef"]
+        .as_str()
+        .unwrap()
+        .starts_with("drive://nodes/"));
     assert!(export_item["result"].get("exportPayload").is_none());
     let export_job_id = export_item["exportJobId"].as_str().unwrap();
-
-    let artifact = store
-        .retrieve_admin_config_entity(100_001, "export_artifact", export_job_id)
-        .await
-        .unwrap();
-    assert!(artifact.is_some(), "drive export must stage artifact for pickup");
 
     let pending = store
         .list_pending_outbox_events(&sdkwork_memory_spi::MemoryScopeContext::for_test(100_001, 1), 10)
@@ -218,9 +217,16 @@ async fn app_api_drive_export_job_stages_artifact_and_emits_outbox_event() {
     assert!(
         pending
             .iter()
-            .any(|event| event.event_type == "memory.export.drive_upload_requested"),
-        "drive export must emit domain outbox event"
+            .any(|event| event.event_type == "memory.export.drive_upload_completed"),
+        "drive export must emit completed domain outbox event"
     );
+    assert!(
+        !pending
+            .iter()
+            .any(|event| event.event_type == "memory.export.drive_upload_requested"),
+        "drive export must not emit legacy requested outbox event"
+    );
+    let _ = export_job_id;
 }
 
 #[tokio::test]

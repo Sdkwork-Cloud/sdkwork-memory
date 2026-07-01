@@ -30,6 +30,8 @@ $requiredFiles = @(
     "sdkwork.app.config.json",
     "specs/README.md",
     "specs/component.spec.json",
+    "docs/architecture/tech/TECH-2026-06-10-ai-memory-architecture-design.md",
+    "docs/architecture/tech/TECH-2026-06-10-memory-spi-plugin-architecture-design.md",
     "docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md",
     "docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md",
     "docs/schema-registry/README.md",
@@ -307,7 +309,7 @@ $appOpenApiCheck = @{
         "learningSettings.retrieve", "learningSettings.update"
     )
     RequiredSchemas = @(
-        "ProblemDetails", "MemorySpace", "MemoryEvent", "MemoryRecord", "MemoryCandidate", "MemoryHabit",
+        "ProblemDetail", "MemorySpace", "MemoryEvent", "MemoryRecord", "MemoryCandidate", "MemoryHabit",
         "MemoryRetrievalRequest", "MemoryRetrievalResult", "MemoryContextPackRequest", "MemoryContextPack",
         "MemoryLearningSettings", "MemoryForgetJob", "MemoryExportJob"
     )
@@ -333,7 +335,7 @@ $openApiCheck = @{
         "providerHealth.retrieve"
     )
     RequiredSchemas = @(
-        "ProblemDetails", "MemoryCapabilities", "MemoryEvent", "MemoryRecord",
+        "ProblemDetail", "MemoryCapabilities", "MemoryEvent", "MemoryRecord",
         "MemoryRetrievalRequest", "MemoryRetrievalResult", "MemoryContextPackRequest", "MemoryContextPack",
         "MemoryFeedbackRequest", "MemoryFeedback", "MemoryExtractionRequest", "MemoryLearningJob",
         "MemoryCandidate", "MemoryProviderHealth"
@@ -364,7 +366,7 @@ $backendOpenApiCheck = @{
         "auditLogs.list", "retentionJobs.create", "migrationJobs.create", "migrationJobs.retrieve"
     )
     RequiredSchemas = @(
-        "ProblemDetails", "MemoryIndex", "MemoryRetrievalProfile", "MemoryImplementationProfile",
+        "ProblemDetail", "MemoryIndex", "MemoryRetrievalProfile", "MemoryImplementationProfile",
         "MemoryProviderBinding", "MemoryProviderHealth", "MemoryEvalRun", "MemoryAuditLog",
         "MemoryMigrationJobRequest", "MemoryRetentionJobRequest"
     )
@@ -411,7 +413,7 @@ foreach ($requiredTable in @(
     }
 }
 
-$design = Get-Content -Raw "docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md"
+$design = Get-Content -Raw "docs/architecture/tech/TECH-2026-06-10-ai-memory-architecture-design.md"
 foreach ($snippet in @(
     "Embedding Optional",
     "Multi-Implementation Abstraction",
@@ -421,10 +423,10 @@ foreach ($snippet in @(
     "Database And Storage Design",
     "ai_"
 )) {
-    Assert-Contains -Content $design -Needle $snippet -Path "docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md"
+    Assert-Contains -Content $design -Needle $snippet -Path "docs/architecture/tech/TECH-2026-06-10-ai-memory-architecture-design.md"
 }
 
-$spiDesign = Get-Content -Raw "docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md"
+$spiDesign = Get-Content -Raw "docs/architecture/tech/TECH-2026-06-10-memory-spi-plugin-architecture-design.md"
 foreach ($snippet in @(
     "MemoryPluginManifest",
     "MemoryRuntimePlugin",
@@ -441,7 +443,13 @@ foreach ($snippet in @(
     'Do not place runtime Memory plugins under `.sdkwork/plugins/`',
     "Industry References"
 )) {
-    Assert-Contains -Content $spiDesign -Needle $snippet -Path "docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md"
+    Assert-Contains -Content $spiDesign -Needle $snippet -Path "docs/architecture/tech/TECH-2026-06-10-memory-spi-plugin-architecture-design.md"
+}
+
+foreach ($legacyStub in @("docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md", "docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md")) {
+    $stubContent = Get-Content -Raw $legacyStub
+    Assert-Contains -Content $stubContent -Needle "Migrated" -Path $legacyStub
+    Assert-Contains -Content $stubContent -Needle "docs/architecture/tech/" -Path $legacyStub
 }
 
 if ($spiDesign.Contains("## 17. Open Decisions")) {

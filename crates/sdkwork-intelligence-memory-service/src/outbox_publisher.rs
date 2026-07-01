@@ -4,6 +4,7 @@ use std::time::Duration;
 use sdkwork_memory_plugin_native_sql::NativeSqlMemoryStore;
 
 use crate::outbox_delivery::{deliver_outbox_event, OutboxDeliveryConfig};
+use crate::platform;
 
 pub fn spawn_outbox_publisher(
     store: Arc<NativeSqlMemoryStore>,
@@ -11,15 +12,9 @@ pub fn spawn_outbox_publisher(
 ) {
     tokio::spawn(async move {
         let config = OutboxDeliveryConfig::from_env();
-        let poll_interval = std::env::var("SDKWORK_MEMORY_OUTBOX_POLL_INTERVAL_SECS")
-            .ok()
-            .and_then(|value| value.parse().ok())
-            .unwrap_or(2);
+        let poll_interval = platform::read_env_u64("SDKWORK_MEMORY_OUTBOX_POLL_INTERVAL_SECS", 2);
         let stale_processing_seconds =
-            std::env::var("SDKWORK_MEMORY_OUTBOX_STALE_PROCESSING_SECS")
-                .ok()
-                .and_then(|value| value.parse().ok())
-                .unwrap_or(300);
+            platform::read_env_u64("SDKWORK_MEMORY_OUTBOX_STALE_PROCESSING_SECS", 300);
         loop {
             tokio::select! {
                 _ = shutdown_rx.changed() => {

@@ -32,7 +32,7 @@
     {
       "workspace": "sdkwork-drive-backend-sdk",
       "role": "drive-backend-memory-export-and-retention-capability",
-      "required": false,
+      "required": true,
       "dependencyMode": "consumer-sdk",
       "apiPrefix": "/backend/v3/api",
       "apiAuthority": "sdkwork-drive.backend",

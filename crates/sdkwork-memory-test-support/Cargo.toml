@@ -5,9 +5,12 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+async-trait.workspace = true
 sdkwork-memory-contract = { path = "../sdkwork-memory-contract" }
 sdkwork-memory-spi = { path = "../sdkwork-memory-spi" }
+sdkwork-intelligence-memory-service = { path = "../sdkwork-intelligence-memory-service" }
 sdkwork-memory-plugin-native-sql = { path = "../../plugins/sdkwork-memory-plugin-native-sql" }
+sdkwork-utils-rust.workspace = true
 sdkwork-web-core.workspace = true
 serde_json.workspace = true
 

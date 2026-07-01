@@ -1,5 +1,4 @@
 export * from './common';
-export type { ProblemDetails } from './problem-details';
 export type { MemoryPageInfo } from './memory-page-info';
 export type { MemorySpace } from './memory-space';
 export type { MemorySpaceRequest } from './memory-space-request';

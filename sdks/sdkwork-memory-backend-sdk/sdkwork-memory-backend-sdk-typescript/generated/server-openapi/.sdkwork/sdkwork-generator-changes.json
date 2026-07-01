@@ -9,9 +9,16 @@
     "protocol": "http",
     "packageName": "@sdkwork/memory-backend-sdk"
   },
-  "changeFingerprint": "a04f904bdcc6925a8172f9b54d399eb53f291bc66b299455732c66c10c53a4ae",
+  "changeFingerprint": "fadf1e22396bca43686af7b01b64b20d83065b6dbc2c78eb8fdfa1d228b031cb",
   "changes": {
-    "createdGeneratedFiles": [
+    "createdGeneratedFiles": [],
+    "updatedGeneratedFiles": [
+      "README.md",
+      "src/index.ts",
+      "src/sdk.ts",
+      "src/types/index.ts"
+    ],
+    "unchangedGeneratedFiles": [
       "bin/publish-core.mjs",
       "bin/publish.ps1",
       "bin/publish.sh",
@@ -20,7 +27,6 @@
       "CHANGELOG.md",
       "LICENSE",
       "package.json",
-      "README.md",
       "sdkwork-sdk.json",
       "src/api/base.ts",
       "src/api/index.ts",
@@ -29,8 +35,6 @@
       "src/auth/index.ts",
       "src/http/client.ts",
       "src/http/index.ts",
-      "src/index.ts",
-      "src/sdk.ts",
       "src/types/audit-logs-list-response.ts",
       "src/types/candidates-approve-response201.ts",
       "src/types/candidates-list-response.ts",
@@ -49,7 +53,6 @@
       "src/types/implementation-profiles-list-response.ts",
       "src/types/implementation-profiles-retrieve-response.ts",
       "src/types/implementation-profiles-update-response.ts",
-      "src/types/index.ts",
       "src/types/indexes-create-response201.ts",
       "src/types/indexes-list-response.ts",
       "src/types/indexes-rebuild-response201.ts",
@@ -119,7 +122,6 @@
       "src/types/migration-jobs-retrieve-response.ts",
       "src/types/page-info.ts",
       "src/types/problem-detail.ts",
-      "src/types/problem-details.ts",
       "src/types/provider-bindings-create-response201.ts",
       "src/types/provider-bindings-list-response.ts",
       "src/types/provider-bindings-update-response.ts",
@@ -144,14 +146,14 @@
       "src/types/spaces-update-response.ts",
       "tsconfig.json"
     ],
-    "updatedGeneratedFiles": [],
-    "unchangedGeneratedFiles": [],
-    "deletedGeneratedFiles": [],
-    "scaffoldedFiles": [
+    "deletedGeneratedFiles": [
+      "src/types/problem-details.ts"
+    ],
+    "scaffoldedFiles": [],
+    "preservedScaffoldFiles": [
       "custom/build-runtime.mjs",
       "custom/README.md"
     ],
-    "preservedScaffoldFiles": [],
     "backedUpFiles": []
   },
   "impact": {
@@ -159,203 +161,49 @@
     "areas": [
       "api-surface",
       "models",
-      "runtime",
-      "build-metadata",
-      "publish-workflow",
       "documentation",
-      "custom-scaffold",
       "unknown"
     ],
     "details": [
       {
         "area": "api-surface",
         "paths": [
-          "src/api/base.ts",
-          "src/api/index.ts",
-          "src/api/memory.ts",
-          "src/api/paths.ts",
-          "src/http/client.ts",
           "src/sdk.ts"
         ]
       },
       {
         "area": "models",
         "paths": [
-          "src/types/audit-logs-list-response.ts",
-          "src/types/candidates-approve-response201.ts",
-          "src/types/candidates-list-response.ts",
-          "src/types/candidates-reject-response201.ts",
-          "src/types/common.ts",
-          "src/types/consolidation-jobs-create-response201.ts",
-          "src/types/eval-runs-create-response201.ts",
-          "src/types/eval-runs-list-response.ts",
-          "src/types/eval-runs-retrieve-response.ts",
-          "src/types/events-list-response.ts",
-          "src/types/events-retrieve-response.ts",
-          "src/types/extraction-jobs-create-response201.ts",
-          "src/types/extraction-jobs-retrieve-response.ts",
-          "src/types/field-error.ts",
-          "src/types/implementation-profiles-create-response201.ts",
-          "src/types/implementation-profiles-list-response.ts",
-          "src/types/implementation-profiles-retrieve-response.ts",
-          "src/types/implementation-profiles-update-response.ts",
           "src/types/index.ts",
-          "src/types/indexes-create-response201.ts",
-          "src/types/indexes-list-response.ts",
-          "src/types/indexes-rebuild-response201.ts",
-          "src/types/indexes-retrieve-response.ts",
-          "src/types/indexes-update-response.ts",
-          "src/types/memories-list-response.ts",
-          "src/types/memories-retrieve-response.ts",
-          "src/types/memories-supersede-response201.ts",
-          "src/types/memories-update-response.ts",
-          "src/types/memory-audit-log-list.ts",
-          "src/types/memory-audit-log.ts",
-          "src/types/memory-candidate-list.ts",
-          "src/types/memory-candidate.ts",
-          "src/types/memory-capabilities.ts",
-          "src/types/memory-context-pack-request.ts",
-          "src/types/memory-context-pack.ts",
-          "src/types/memory-eval-run-list.ts",
-          "src/types/memory-eval-run-request.ts",
-          "src/types/memory-eval-run.ts",
-          "src/types/memory-event-list.ts",
-          "src/types/memory-event-request.ts",
-          "src/types/memory-event.ts",
-          "src/types/memory-export-job.ts",
-          "src/types/memory-export-request.ts",
-          "src/types/memory-extraction-request.ts",
-          "src/types/memory-feedback-request.ts",
-          "src/types/memory-feedback.ts",
-          "src/types/memory-forget-job.ts",
-          "src/types/memory-forget-request.ts",
-          "src/types/memory-habit-list.ts",
-          "src/types/memory-habit-request.ts",
-          "src/types/memory-habit.ts",
-          "src/types/memory-implementation-profile-list.ts",
-          "src/types/memory-implementation-profile-request.ts",
-          "src/types/memory-implementation-profile.ts",
-          "src/types/memory-index-list.ts",
-          "src/types/memory-index-request.ts",
-          "src/types/memory-index.ts",
-          "src/types/memory-learning-job.ts",
-          "src/types/memory-learning-settings-request.ts",
-          "src/types/memory-learning-settings.ts",
-          "src/types/memory-migration-job-request.ts",
-          "src/types/memory-page-info.ts",
-          "src/types/memory-provider-binding-list.ts",
-          "src/types/memory-provider-binding-request.ts",
-          "src/types/memory-provider-binding.ts",
-          "src/types/memory-provider-health.ts",
-          "src/types/memory-record-list.ts",
-          "src/types/memory-record-request.ts",
-          "src/types/memory-record-source-list.ts",
-          "src/types/memory-record-source.ts",
-          "src/types/memory-record.ts",
-          "src/types/memory-retention-job-request.ts",
-          "src/types/memory-retrieval-hit.ts",
-          "src/types/memory-retrieval-profile-list.ts",
-          "src/types/memory-retrieval-profile-request.ts",
-          "src/types/memory-retrieval-profile.ts",
-          "src/types/memory-retrieval-request.ts",
-          "src/types/memory-retrieval-result.ts",
-          "src/types/memory-retrieval-trace-list.ts",
-          "src/types/memory-retrieval-trace.ts",
-          "src/types/memory-review-request.ts",
-          "src/types/memory-space-list.ts",
-          "src/types/memory-space-request.ts",
-          "src/types/memory-space.ts",
-          "src/types/migration-jobs-create-response201.ts",
-          "src/types/migration-jobs-retrieve-response.ts",
-          "src/types/page-info.ts",
-          "src/types/problem-detail.ts",
-          "src/types/problem-details.ts",
-          "src/types/provider-bindings-create-response201.ts",
-          "src/types/provider-bindings-list-response.ts",
-          "src/types/provider-bindings-update-response.ts",
-          "src/types/provider-health-retrieve-response.ts",
-          "src/types/retention-jobs-create-response201.ts",
-          "src/types/retrieval-profiles-create-response201.ts",
-          "src/types/retrieval-profiles-list-response.ts",
-          "src/types/retrieval-profiles-retrieve-response.ts",
-          "src/types/retrieval-profiles-update-response.ts",
-          "src/types/retrieval-traces-list-response.ts",
-          "src/types/retrieval-traces-retrieve-response.ts",
-          "src/types/sdk-work-api-response.ts",
-          "src/types/sdk-work-command-data.ts",
-          "src/types/sdk-work-command-response.ts",
-          "src/types/sdk-work-list-response.ts",
-          "src/types/sdk-work-page-data.ts",
-          "src/types/sdk-work-platform-error-code.ts",
-          "src/types/sdk-work-resource-data.ts",
-          "src/types/sdk-work-resource-response.ts",
-          "src/types/spaces-list-response.ts",
-          "src/types/spaces-retrieve-response.ts",
-          "src/types/spaces-update-response.ts"
-        ]
-      },
-      {
-        "area": "runtime",
-        "paths": [
-          "src/auth/index.ts",
-          "src/http/client.ts",
-          "src/http/index.ts"
-        ]
-      },
-      {
-        "area": "build-metadata",
-        "paths": [
-          "package.json",
-          "sdkwork-sdk.json",
-          "tsconfig.json"
-        ]
-      },
-      {
-        "area": "publish-workflow",
-        "paths": [
-          "bin/publish-core.mjs",
-          "bin/publish.ps1",
-          "bin/publish.sh",
-          "bin/sdk-gen.bat",
-          "bin/sdk-gen.sh"
+          "src/types/problem-details.ts"
         ]
       },
       {
         "area": "documentation",
         "paths": [
-          "CHANGELOG.md",
-          "custom/README.md",
           "README.md"
-        ]
-      },
-      {
-        "area": "custom-scaffold",
-        "paths": [
-          "custom/build-runtime.mjs",
-          "custom/README.md"
         ]
       },
       {
         "area": "unknown",
         "paths": [
-          "LICENSE",
           "src/index.ts"
         ]
       }
     ],
     "requiresVerification": true,
-    "summary": "Detected impact areas: api-surface, models, runtime, build-metadata, publish-workflow, documentation, custom-scaffold, unknown. Verification is required."
+    "summary": "Detected impact areas: api-surface, models, documentation, unknown. Verification is required."
   },
   "verificationPlan": {
     "shouldRun": true,
     "runPhase": "now",
-    "summary": "Detected impact areas: api-surface, models, runtime, build-metadata, publish-workflow, documentation, custom-scaffold, unknown. Verification is required. Run the required verification commands now against the generated SDK output.",
+    "summary": "Detected impact areas: api-surface, models, documentation, unknown. Verification is required. Run the required verification commands now against the generated SDK output.",
     "steps": [
       {
         "id": "check",
         "title": "Unified package check",
         "required": true,
-        "rationale": "Validate the generated package with the unified publish helper. Triggered by: api-surface, models, runtime, build-metadata, publish-workflow, documentation, custom-scaffold, unknown.",
+        "rationale": "Validate the generated package with the unified publish helper. Triggered by: api-surface, models, documentation, unknown.",
         "workingDirectory": "E:\\sdkwork-space\\sdkwork-memory\\sdks\\sdkwork-memory-backend-sdk\\sdkwork-memory-backend-sdk-typescript\\generated\\server-openapi",
         "command": "node",
         "args": [
@@ -373,7 +221,7 @@
         "id": "build",
         "title": "Unified package build",
         "required": true,
-        "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: api-surface, models, runtime, build-metadata, publish-workflow, documentation, custom-scaffold, unknown.",
+        "rationale": "Run the full package build because this language uses a lighter check path than the final build. Triggered by: api-surface, models, documentation, unknown.",
         "workingDirectory": "E:\\sdkwork-space\\sdkwork-memory\\sdks\\sdkwork-memory-backend-sdk\\sdkwork-memory-backend-sdk-typescript\\generated\\server-openapi",
         "command": "node",
         "args": [
@@ -397,11 +245,11 @@
     "applyRequiresExpectedFingerprint": false,
     "summary": "Changes have been applied. Run the required verification plan now.",
     "reasons": [
+      "deleted-generated-files",
       "manual-review-required",
-      "preserved-legacy-files",
       "unknown-impact",
       "verification-required"
     ]
   },
-  "preservedLegacyFiles": true
+  "preservedLegacyFiles": false
 }

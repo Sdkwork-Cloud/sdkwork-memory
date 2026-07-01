@@ -41,3 +41,18 @@ sdks/**/generated/server-openapi/package-lock.json
 # SDKWork local runtime state
 .runtime/
 **/.runtime/
+**/node_modules/
+/target/
+**/target/
+!.env.postgres.example
+**/dist/
+**/.pnpm-store/
+**/.sdkwork/local/
+**/.sdkwork/secrets/
+**/.sdkwork/cache/
+**/.sdkwork/tmp/
+**/.sdkwork/dart/pub-cache/
+**/.sdkwork/manual-backups/
+**/.sdkwork/sdkwork-generator-changes.json
+**/.sdkwork/sdkwork-generator-manifest.json
+**/.sdkwork/sdkwork-generator-report.json

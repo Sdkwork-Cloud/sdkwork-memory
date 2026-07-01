@@ -10,6 +10,14 @@ const version = "0.1.0";
 const standardVersion = "2026-06-10";
 const memoryOpenApiPrefix = "/mem/v3/api";
 const memoryOpenApiSchemaUrl = "/mem/v3/openapi.json";
+const canonicalDesignDoc =
+  "docs/architecture/tech/TECH-2026-06-10-ai-memory-architecture-design.md";
+const canonicalSpiDesignDoc =
+  "docs/architecture/tech/TECH-2026-06-10-memory-spi-plugin-architecture-design.md";
+const legacyDesignStub =
+  "docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md";
+const legacySpiDesignStub =
+  "docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md";
 
 const AUTH_CRITICAL_OPERATION_IDS = new Set([
   "forgetRequests.create",
@@ -159,7 +167,7 @@ const appSdkDependencies = [
   {
     workspace: "sdkwork-drive-app-sdk",
     role: "drive-memory-export-import-capability",
-    required: false,
+    required: true,
     dependencyMode: "consumer-sdk",
     apiPrefix: "/app/v3/api",
     apiAuthority: "sdkwork-drive.app",
@@ -192,7 +200,7 @@ const backendSdkDependencies = [
   {
     workspace: "sdkwork-drive-backend-sdk",
     role: "drive-backend-memory-export-and-retention-capability",
-    required: false,
+    required: true,
     dependencyMode: "consumer-sdk",
     apiPrefix: "/backend/v3/api",
     apiAuthority: "sdkwork-drive.backend",
@@ -254,6 +262,12 @@ const platformWorkspaceDependencies = [
     dependencyMode: "platform-tooling",
     generatedTransportImportPolicy: "forbidden"
   }
+];
+
+const rootSdkDependencies = [
+  ...platformWorkspaceDependencies,
+  ...appSdkDependencies,
+  ...backendSdkDependencies,
 ];
 
 const rootCanonicalSpecs = [
@@ -626,6 +640,7 @@ function writeAppManifest() {
       },
       sourceRoot: "sdkwork-memory"
     },
+    sdkDependencies: rootSdkDependencies,
     metadata: {
       standardOwner: "sdkwork-platform",
       initializedAt: "2026-06-10T00:00:00Z",
@@ -668,8 +683,13 @@ Primary standards for this component:
 
 Local design authority:
 
-- \`docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md\`
-- \`docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md\`
+- \`${canonicalDesignDoc}\`
+- \`${canonicalSpiDesignDoc}\`
+
+Legacy redirect stubs (do not edit content here):
+
+- \`${legacyDesignStub}\`
+- \`${legacySpiDesignStub}\`
 
 Draft contract artifacts:
 
@@ -703,7 +723,7 @@ powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1
       surface: "backend-service",
       languages: ["rust", "typescript"],
       generated: false,
-      status: "draft",
+      status: "active",
       manifests: [
         "sdkwork.app.config.json",
         "AGENTS.md",
@@ -743,11 +763,7 @@ powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1
         "SdkworkMemoryAppClient",
         "SdkworkMemoryBackendClient"
       ],
-      sdkDependencies: [
-        ...platformWorkspaceDependencies,
-        ...appSdkDependencies,
-        ...backendSdkDependencies
-      ],
+      sdkDependencies: rootSdkDependencies,
       dependencyApiExports: [],
       dependencyApiSurfaces: [],
       events: [
@@ -785,8 +801,8 @@ powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1
     },
     metadata: {
       standardVersion,
-      status: "draft",
-      design: "docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md",
+      status: "active",
+      design: canonicalDesignDoc,
       managedBy: "tools/materialize_phase1_contracts.mjs"
     }
   });
@@ -891,7 +907,7 @@ function sdkComponentSpec({ surface, prefix, title, authority, openapiFile, clie
       domain,
       capability,
       surface: profile.componentSurface,
-      status: "draft",
+      status: "active",
       languages: ["typescript"],
       generated: true,
       private: false,
@@ -1743,7 +1759,7 @@ function errorResponses() {
     description: "Problem detail",
     content: {
       "application/problem+json": {
-        schema: schemaRef("ProblemDetails")
+        schema: schemaRef("ProblemDetail")
       }
     }
   };
@@ -1895,22 +1911,6 @@ function baseSchemas() {
   const candidateState = enumSchema(["pending", "auto_approved", "approved", "rejected", "expired", "superseded"]);
   const habitStage = enumSchema(["observing", "emerging", "confirmed", "decaying", "inactive", "rejected"]);
   return {
-    ProblemDetails: {
-      type: "object",
-      required: ["type", "title", "status"],
-      properties: {
-        type: { type: "string" },
-        title: { type: "string" },
-        status: { type: "integer", format: "int32" },
-        detail: nullableString,
-        instance: nullableString,
-        code: nullableString,
-        requestId: nullableString,
-        traceId: nullableString,
-        retryable: { anyOf: [{ type: "boolean" }, { type: "null" }] }
-      },
-      additionalProperties: true
-    },
     MemoryPageInfo: {
       type: "object",
       required: ["hasMore"],
@@ -3169,8 +3169,10 @@ $requiredFiles = @(
     "sdkwork.app.config.json",
     "specs/README.md",
     "specs/component.spec.json",
-    "docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md",
-    "docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md",
+    "${canonicalDesignDoc}",
+    "${canonicalSpiDesignDoc}",
+    "${legacyDesignStub}",
+    "${legacySpiDesignStub}",
     "docs/schema-registry/README.md",
     "docs/schema-registry/tables/001-memory-core.yaml",
     "docs/schema-registry/tables/002-memory-learning.yaml",
@@ -3446,7 +3448,7 @@ $appOpenApiCheck = @{
         "learningSettings.retrieve", "learningSettings.update"
     )
     RequiredSchemas = @(
-        "ProblemDetails", "MemorySpace", "MemoryEvent", "MemoryRecord", "MemoryCandidate", "MemoryHabit",
+        "ProblemDetail", "MemorySpace", "MemoryEvent", "MemoryRecord", "MemoryCandidate", "MemoryHabit",
         "MemoryRetrievalRequest", "MemoryRetrievalResult", "MemoryContextPackRequest", "MemoryContextPack",
         "MemoryLearningSettings", "MemoryForgetJob", "MemoryExportJob"
     )
@@ -3472,7 +3474,7 @@ $openApiCheck = @{
         "providerHealth.retrieve"
     )
     RequiredSchemas = @(
-        "ProblemDetails", "MemoryCapabilities", "MemoryEvent", "MemoryRecord",
+        "ProblemDetail", "MemoryCapabilities", "MemoryEvent", "MemoryRecord",
         "MemoryRetrievalRequest", "MemoryRetrievalResult", "MemoryContextPackRequest", "MemoryContextPack",
         "MemoryFeedbackRequest", "MemoryFeedback", "MemoryExtractionRequest", "MemoryLearningJob",
         "MemoryCandidate", "MemoryProviderHealth"
@@ -3503,7 +3505,7 @@ $backendOpenApiCheck = @{
         "auditLogs.list", "retentionJobs.create", "migrationJobs.create", "migrationJobs.retrieve"
     )
     RequiredSchemas = @(
-        "ProblemDetails", "MemoryIndex", "MemoryRetrievalProfile", "MemoryImplementationProfile",
+        "ProblemDetail", "MemoryIndex", "MemoryRetrievalProfile", "MemoryImplementationProfile",
         "MemoryProviderBinding", "MemoryProviderHealth", "MemoryEvalRun", "MemoryAuditLog",
         "MemoryMigrationJobRequest", "MemoryRetentionJobRequest"
     )
@@ -3550,7 +3552,7 @@ foreach ($requiredTable in @(
     }
 }
 
-$design = Get-Content -Raw "docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md"
+$design = Get-Content -Raw "${canonicalDesignDoc}"
 foreach ($snippet in @(
     "Embedding Optional",
     "Multi-Implementation Abstraction",
@@ -3560,10 +3562,10 @@ foreach ($snippet in @(
     "Database And Storage Design",
     "ai_"
 )) {
-    Assert-Contains -Content $design -Needle $snippet -Path "docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md"
+    Assert-Contains -Content $design -Needle $snippet -Path "${canonicalDesignDoc}"
 }
 
-$spiDesign = Get-Content -Raw "docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md"
+$spiDesign = Get-Content -Raw "${canonicalSpiDesignDoc}"
 foreach ($snippet in @(
     "MemoryPluginManifest",
     "MemoryRuntimePlugin",
@@ -3580,7 +3582,13 @@ foreach ($snippet in @(
     'Do not place runtime Memory plugins under \`.sdkwork/plugins/\`',
     "Industry References"
 )) {
-    Assert-Contains -Content $spiDesign -Needle $snippet -Path "docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md"
+    Assert-Contains -Content $spiDesign -Needle $snippet -Path "${canonicalSpiDesignDoc}"
+}
+
+foreach ($legacyStub in @("${legacyDesignStub}", "${legacySpiDesignStub}")) {
+    $stubContent = Get-Content -Raw $legacyStub
+    Assert-Contains -Content $stubContent -Needle "Migrated" -Path $legacyStub
+    Assert-Contains -Content $stubContent -Needle "docs/architecture/tech/" -Path $legacyStub
 }
 
 if ($spiDesign.Contains("## 17. Open Decisions")) {

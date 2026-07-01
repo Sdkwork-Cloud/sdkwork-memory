@@ -17,7 +17,7 @@ pub mod web_bootstrap;
 pub use error::{BackendApiError, BackendApiProblem, BackendApiResult};
 pub use http_route_manifest::backend_route_manifest;
 pub use routes::{build_router_with_backend_api, build_router_with_shared_backend_api};
-pub use sdkwork_memory_contract::{MemoryBackendApi, MemoryBackendRequestContext, ProblemDetails};
+pub use sdkwork_memory_contract::{MemoryBackendApi, MemoryBackendRequestContext};
 pub use web_bootstrap::{
     memory_backend_api_prefixes, memory_backend_api_public_path_prefixes,
     wrap_router_with_iam_database_web_framework, wrap_router_with_web_framework,

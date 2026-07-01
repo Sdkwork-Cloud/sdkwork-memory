@@ -32,7 +32,7 @@ $requiredBySpec = @{
 }
 
 $requiredSchemas = @(
-    "ProblemDetails"
+    "ProblemDetail"
 )
 
 foreach ($specPath in $specPaths) {

@@ -21,8 +21,8 @@ use sdkwork_memory_plugin_native_sql::{
     NativeSqlOpenApiEventRow,
 };
 use sdkwork_memory_spi::{
-    AppendMemoryRetrievalTraceCommand, CreateMemoryCandidateCommand, MemoryRetrievalHitDraft,
-    MemoryScopeContext,
+    AppendMemoryRetrievalTraceCommand, CreateMemoryCandidateCommand, MemoryDriveExportUploader,
+    MemoryRetrievalHitDraft, MemoryScopeContext,
 };
 
 use tracing::info;
@@ -36,6 +36,7 @@ pub struct OpenMemoryService {
     pub(crate) store: Arc<NativeSqlMemoryStore>,
     pub(crate) profile_id: String,
     pub(crate) primary_plugin_id: String,
+    pub(crate) drive_export_uploader: Option<Arc<dyn MemoryDriveExportUploader>>,
 }
 
 impl OpenMemoryService {
@@ -56,7 +57,20 @@ impl OpenMemoryService {
             store: Arc::new(store),
             profile_id: profile_id.into(),
             primary_plugin_id: primary_plugin_id.into(),
+            drive_export_uploader: None,
         }
+    }
+
+    pub fn with_drive_export_uploader(
+        mut self,
+        uploader: Arc<dyn MemoryDriveExportUploader>,
+    ) -> Self {
+        self.drive_export_uploader = Some(uploader);
+        self
+    }
+
+    pub fn drive_export_uploader(&self) -> Option<&Arc<dyn MemoryDriveExportUploader>> {
+        self.drive_export_uploader.as_ref()
     }
 
     pub fn from_phase1_runtime(
@@ -68,6 +82,7 @@ impl OpenMemoryService {
             store: phase1.into_arc_store(),
             profile_id: profile_id.into(),
             primary_plugin_id: primary_plugin_id.into(),
+            drive_export_uploader: None,
         }
     }
 

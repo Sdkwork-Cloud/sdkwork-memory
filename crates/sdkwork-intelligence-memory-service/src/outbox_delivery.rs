@@ -1,5 +1,5 @@
 use sdkwork_memory_plugin_native_sql::NativeSqlScopedOutboxEvent;
-use sdkwork_utils_rust::format_datetime;
+use sdkwork_utils_rust::{format_datetime, is_blank};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OutboxDeliveryMode {
@@ -35,17 +35,18 @@ impl OutboxDeliveryConfig {
             .unwrap_or(OutboxDeliveryMode::Log);
         let webhook_url = std::env::var("SDKWORK_MEMORY_OUTBOX_DELIVERY_URL")
             .ok()
-            .filter(|value| !value.trim().is_empty());
+            .filter(|value| !is_blank(Some(value.as_str())));
         let timeout_seconds = std::env::var("SDKWORK_MEMORY_OUTBOX_DELIVERY_TIMEOUT_SECS")
             .ok()
-            .and_then(|value| value.parse().ok())
-            .unwrap_or(10);
+            .and_then(|value| sdkwork_utils_rust::parse_int(&value))
+            .unwrap_or(10)
+            .max(1) as u64;
         let max_retries = std::env::var("SDKWORK_MEMORY_OUTBOX_MAX_RETRIES")
             .ok()
-            .and_then(|value| value.parse().ok())
-            .unwrap_or(5);
+            .and_then(|value| sdkwork_utils_rust::parse_int(&value))
+            .unwrap_or(5) as u32;
         let http_client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(timeout_seconds.max(1)))
+            .timeout(std::time::Duration::from_secs(timeout_seconds))
             .pool_max_idle_per_host(16)
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());

@@ -15,7 +15,7 @@
       "typescript"
     ],
     "generated": false,
-    "status": "draft",
+    "status": "active",
     "manifests": [
       "sdkwork.app.config.json",
       "AGENTS.md",
@@ -193,7 +193,7 @@
       {
         "workspace": "sdkwork-drive-app-sdk",
         "role": "drive-memory-export-import-capability",
-        "required": false,
+        "required": true,
         "dependencyMode": "consumer-sdk",
         "apiPrefix": "/app/v3/api",
         "apiAuthority": "sdkwork-drive.app",
@@ -241,7 +241,7 @@
       {
         "workspace": "sdkwork-drive-backend-sdk",
         "role": "drive-backend-memory-export-and-retention-capability",
-        "required": false,
+        "required": true,
         "dependencyMode": "consumer-sdk",
         "apiPrefix": "/backend/v3/api",
         "apiAuthority": "sdkwork-drive.backend",
@@ -308,8 +308,8 @@
   },
   "metadata": {
     "standardVersion": "2026-06-10",
-    "status": "draft",
-    "design": "docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md",
+    "status": "active",
+    "design": "docs/architecture/tech/TECH-2026-06-10-ai-memory-architecture-design.md",
     "managedBy": "tools/materialize_phase1_contracts.mjs"
   }
 }

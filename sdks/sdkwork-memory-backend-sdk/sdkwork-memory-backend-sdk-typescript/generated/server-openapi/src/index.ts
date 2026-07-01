@@ -1,4 +1,4 @@
-export { SdkworkBackendClient, createClient } from './sdk';
+export { SdkworkMemoryBackendClient, createClient } from './sdk';
 export * from './types';
 export * from './api';
 export * from './http';

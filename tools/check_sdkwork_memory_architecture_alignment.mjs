@@ -355,9 +355,13 @@ assert(
 );
 assert(
   readText('crates/sdkwork-intelligence-memory-service/src/app_backend_api.rs').includes(
-    'memory.export.drive_upload_requested',
+    'memory.export.drive_upload_completed',
   ),
-  'app backend must emit drive export outbox events instead of not_implemented stubs',
+  'app backend must upload drive exports through SDKWork Drive and emit completion events',
+);
+assert(
+  cargoToml.includes('sdkwork-memory-drive'),
+  'Cargo.toml must declare sdkwork-memory-drive integration crate',
 );
 assert(
   fs.existsSync(path.join(repoRoot, 'tools/check_sdkwork_memory_release_readiness.mjs')),
@@ -733,6 +737,14 @@ assert(
 assert(
   fs.existsSync(path.join(repoRoot, 'tools/verify_openapi_operation_ids.ps1')),
   'tools/verify_openapi_operation_ids.ps1 must exist',
+);
+assert(
+  fs.existsSync(path.join(repoRoot, 'deployments/deploy.yaml')),
+  'deployments/deploy.yaml must exist per SDKWORK_DEPLOY_SPEC.md',
+);
+assert(
+  fs.existsSync(path.join(repoRoot, 'crates/sdkwork-memory-drive/Cargo.toml')),
+  'crates/sdkwork-memory-drive must exist for Drive-backed export integration',
 );
 assert(
   fs.existsSync(path.join(repoRoot, 'deployments/kubernetes/deployment.yaml')),

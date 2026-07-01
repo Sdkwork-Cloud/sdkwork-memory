@@ -24,8 +24,8 @@ use sdkwork_memory_plugin_native_sql::{
     NativeSqlRetrievalTraceSummaryRow,
 };
 use sdkwork_memory_spi::{
-    DecayMemoryHabitCommand, MemoryScopeContext, PromoteMemoryHabitCommand,
-    RejectMemoryCandidateCommand, UpsertMemoryHabitCommand,
+    DecayMemoryHabitCommand, MemoryDriveExportUploadRequest, MemoryScopeContext,
+    PromoteMemoryHabitCommand, RejectMemoryCandidateCommand, UpsertMemoryHabitCommand,
 };
 
 use tracing::info;
@@ -837,25 +837,32 @@ impl MemoryAppApi for OpenMemoryService {
         let export_body = Self::encode_export_payload(&request.format, &payload)?;
 
         if let Some(drive_target_ref) = &request.drive_target_ref {
-            let drive_object_ref = format!("mem-export/{tenant_id}/{job_id}");
-            let export_ref = format!("export-job-{job_id}");
-            let artifact_json = serde_json::to_string(&serde_json::json!({
-                "exportRef": export_ref,
-                "format": request.format,
-                "exportPayload": export_body,
-            }))
-            .map_err(|error| {
-                MemoryServiceError::storage(format!("export artifact encode failed: {error}"))
-            })?;
-            self.store
-                .save_admin_config_entity(
-                    tenant_id,
-                    "export_artifact",
-                    &job_id.to_string(),
-                    &artifact_json,
+            let uploader = self.drive_export_uploader.as_ref().ok_or_else(|| {
+                MemoryServiceError::validation(
+                    "drive export requires configured SDKWork Drive uploader integration",
                 )
+            })?;
+            let export_ref = format!("export-job-{job_id}");
+            let export_bytes = export_payload_bytes(&export_body)?;
+            let upload = uploader
+                .upload_export(MemoryDriveExportUploadRequest {
+                    tenant_id,
+                    organization_id: context
+                        .organization_id
+                        .and_then(|id| i64::try_from(id).ok()),
+                    user_id: context.actor_id.and_then(|id| i64::try_from(id).ok()),
+                    export_job_id: job_id,
+                    format: request.format.clone(),
+                    drive_target_ref: drive_target_ref.clone(),
+                    body: export_bytes,
+                    content_type: export_content_type(&request.format),
+                    original_file_name: export_file_name(job_id, &request.format),
+                })
                 .await
-                .map_err(OpenMemoryService::map_store_error)?;
+                .map_err(|error| {
+                    MemoryServiceError::storage(format!("drive export upload failed: {error}"))
+                })?;
+            let drive_object_ref = upload.drive_object_ref.clone();
 
             let scope = MemoryScopeContext {
                 tenant_id,
@@ -867,13 +874,15 @@ impl MemoryAppApi for OpenMemoryService {
             };
             self.publish_domain_event(
                 &scope,
-                "memory.export.drive_upload_requested",
+                "memory.export.drive_upload_completed",
                 "export_job",
                 &job_id.to_string(),
                 serde_json::json!({
                     "exportRef": export_ref,
                     "driveTargetRef": drive_target_ref,
                     "driveObjectRef": drive_object_ref,
+                    "driveNodeId": upload.drive_node_id,
+                    "checksumSha256Hex": upload.checksum_sha256_hex,
                     "format": request.format,
                     "exportedRecords": exported_records,
                     "exportedEvents": exported_events,
@@ -884,7 +893,7 @@ impl MemoryAppApi for OpenMemoryService {
 
             let job = MemoryExportJob {
                 export_job_id: job_id,
-                state: "accepted".to_string(),
+                state: "completed".to_string(),
                 format: request.format.clone(),
                 drive_object_ref: Some(drive_object_ref.clone()),
                 result: Some(serde_json::json!({
@@ -914,7 +923,8 @@ impl MemoryAppApi for OpenMemoryService {
                 exported_events,
                 format = %request.format,
                 drive_target_ref = %drive_target_ref,
-                "drive-backed export job accepted"
+                drive_object_ref = %drive_object_ref,
+                "drive-backed export uploaded through SDKWork Drive"
             );
             return Ok(job);
         }
@@ -1962,4 +1972,33 @@ fn map_audit_log(row: NativeSqlAuditLogRow) -> MemoryAuditLog {
         metadata: None,
         created_at: row.created_at,
     }
+}
+
+fn export_payload_bytes(payload: &serde_json::Value) -> MemoryServiceResult<Vec<u8>> {
+    match payload {
+        serde_json::Value::String(body) => Ok(body.as_bytes().to_vec()),
+        other => serde_json::to_vec(other).map_err(|error| {
+            MemoryServiceError::storage(format!("export payload encode failed: {error}"))
+        }),
+    }
+}
+
+fn export_content_type(format: &str) -> String {
+    match format.trim().to_ascii_lowercase().as_str() {
+        "json" => "application/json".to_string(),
+        "jsonl" => "application/x-ndjson".to_string(),
+        "markdown" => "text/markdown".to_string(),
+        other => format!("application/{other}"),
+    }
+}
+
+fn export_file_name(job_id: u64, format: &str) -> String {
+    let normalized = format.trim().to_ascii_lowercase();
+    let extension = match normalized.as_str() {
+        "json" => "json",
+        "jsonl" => "jsonl",
+        "markdown" => "md",
+        other => other,
+    };
+    format!("memory-export-{job_id}.{extension}")
 }

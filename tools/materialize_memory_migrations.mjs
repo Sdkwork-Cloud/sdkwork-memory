@@ -32,6 +32,14 @@ const mappings = [
     source: "V202606240002__ai_record_fulltext_search.sql",
     target: "0005_ai_record_fulltext_search.up.sql",
   },
+  {
+    source: "V202606250001__ai_eval_run_extend.sql",
+    target: "0006_ai_eval_run_extend.up.sql",
+  },
+  {
+    source: "V202606250002__memory_commercial_management.sql",
+    target: "0007_memory_commercial_management.up.sql",
+  },
 ];
 
 for (const engine of ["postgres", "sqlite"]) {

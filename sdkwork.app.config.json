@@ -211,6 +211,146 @@
     },
     "sourceRoot": "sdkwork-memory"
   },
+  "sdkDependencies": [
+    {
+      "workspace": "sdkwork-web-framework",
+      "role": "http-web-framework-runtime",
+      "required": true,
+      "dependencyMode": "platform-framework",
+      "generatedTransportImportPolicy": "forbidden"
+    },
+    {
+      "workspace": "sdkwork-database",
+      "role": "database-runtime",
+      "required": true,
+      "dependencyMode": "platform-framework",
+      "generatedTransportImportPolicy": "forbidden"
+    },
+    {
+      "workspace": "sdkwork-appbase",
+      "role": "appbase-platform-runtime",
+      "required": true,
+      "dependencyMode": "platform-framework",
+      "generatedTransportImportPolicy": "forbidden"
+    },
+    {
+      "workspace": "sdkwork-utils",
+      "role": "cross-language-utility-runtime",
+      "required": true,
+      "dependencyMode": "platform-framework",
+      "generatedTransportImportPolicy": "forbidden"
+    },
+    {
+      "workspace": "sdkwork-id",
+      "role": "id-generation-runtime",
+      "required": true,
+      "dependencyMode": "platform-framework",
+      "generatedTransportImportPolicy": "forbidden"
+    },
+    {
+      "workspace": "sdkwork-sdk-generator",
+      "role": "sdk-generation-tooling",
+      "required": true,
+      "dependencyMode": "platform-tooling",
+      "generatedTransportImportPolicy": "forbidden"
+    },
+    {
+      "workspace": "sdkwork-iam-app-sdk",
+      "role": "appbase-identity-and-session-capability",
+      "required": true,
+      "dependencyMode": "consumer-sdk",
+      "apiPrefix": "/app/v3/api",
+      "apiAuthority": "sdkwork-iam-app-api",
+      "generatedTransportImportPolicy": "forbidden",
+      "packageByLanguage": {
+        "typescript": "@sdkwork/iam-app-sdk",
+        "rust": "sdkwork-iam-app-sdk",
+        "java": "com.sdkwork:sdkwork-iam-app-sdk",
+        "python": "sdkwork-iam-app-sdk",
+        "go": "github.com/sdkwork/sdkwork-iam-app-sdk"
+      }
+    },
+    {
+      "workspace": "sdkwork-drive-app-sdk",
+      "role": "drive-memory-export-import-capability",
+      "required": true,
+      "dependencyMode": "consumer-sdk",
+      "apiPrefix": "/app/v3/api",
+      "apiAuthority": "sdkwork-drive.app",
+      "generatedTransportImportPolicy": "forbidden",
+      "packageByLanguage": {
+        "typescript": "@sdkwork/drive-app-sdk",
+        "rust": "sdkwork-drive-app-sdk",
+        "java": "com.sdkwork:sdkwork-drive-app-sdk",
+        "python": "sdkwork-drive-app-sdk",
+        "go": "github.com/sdkwork/sdkwork-drive-app-sdk"
+      }
+    },
+    {
+      "workspace": "sdkwork-knowledgebase-app-sdk",
+      "role": "knowledgebase-context-composition-capability",
+      "required": false,
+      "dependencyMode": "consumer-sdk",
+      "apiPrefix": "/app/v3/api",
+      "apiAuthority": "sdkwork-knowledgebase.app",
+      "generatedTransportImportPolicy": "forbidden",
+      "packageByLanguage": {
+        "typescript": "@sdkwork/knowledgebase-app-sdk",
+        "rust": "sdkwork-knowledgebase-app-sdk",
+        "java": "com.sdkwork:sdkwork-knowledgebase-app-sdk",
+        "python": "sdkwork-knowledgebase-app-sdk",
+        "go": "github.com/sdkwork/sdkwork-knowledgebase-app-sdk"
+      }
+    },
+    {
+      "workspace": "sdkwork-iam-backend-sdk",
+      "role": "appbase-backend-management-capability",
+      "required": true,
+      "dependencyMode": "consumer-sdk",
+      "apiPrefix": "/backend/v3/api",
+      "apiAuthority": "sdkwork-iam-backend-api",
+      "generatedTransportImportPolicy": "forbidden",
+      "packageByLanguage": {
+        "typescript": "@sdkwork/iam-backend-sdk",
+        "rust": "sdkwork-iam-backend-sdk",
+        "java": "com.sdkwork:sdkwork-iam-backend-sdk",
+        "python": "sdkwork-iam-backend-sdk",
+        "go": "github.com/sdkwork/sdkwork-iam-backend-sdk"
+      }
+    },
+    {
+      "workspace": "sdkwork-drive-backend-sdk",
+      "role": "drive-backend-memory-export-and-retention-capability",
+      "required": true,
+      "dependencyMode": "consumer-sdk",
+      "apiPrefix": "/backend/v3/api",
+      "apiAuthority": "sdkwork-drive.backend",
+      "generatedTransportImportPolicy": "forbidden",
+      "packageByLanguage": {
+        "typescript": "@sdkwork/drive-backend-sdk",
+        "rust": "sdkwork-drive-backend-sdk",
+        "java": "com.sdkwork:sdkwork-drive-backend-sdk",
+        "python": "sdkwork-drive-backend-sdk",
+        "go": "github.com/sdkwork/sdkwork-drive-backend-sdk"
+      }
+    },
+    {
+      "workspace": "sdkwork-knowledgebase-backend-sdk",
+      "role": "knowledgebase-backend-index-and-eval-capability",
+      "required": false,
+      "dependencyMode": "consumer-sdk",
+      "apiPrefix": "/backend/v3/api",
+      "apiAuthority": "sdkwork-knowledgebase.backend",
+      "generatedTransportImportPolicy": "forbidden",
+      "packageByLanguage": {
+        "typescript": "@sdkwork/knowledgebase-backend-sdk",
+        "rust": "sdkwork-knowledgebase-backend-sdk",
+        "java": "com.sdkwork:sdkwork-knowledgebase-backend-sdk",
+        "python": "sdkwork-knowledgebase-backend-sdk",
+        "go": "github.com/sdkwork/sdkwork-knowledgebase-backend-sdk"
+      }
+    }
+  ],
   "metadata": {
     "standardOwner": "sdkwork-platform",
     "initializedAt": "2026-06-10T00:00:00Z",

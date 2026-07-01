@@ -54,6 +54,12 @@
       "tokenSecret": "SDKWORK_RELEASE_TOKEN"
     },
     {
+      "id": "sdkwork-drive",
+      "repository": "Sdkwork-Cloud/sdkwork-drive",
+      "refInput": "SDKWORK_DRIVE_REF",
+      "tokenSecret": "SDKWORK_RELEASE_TOKEN"
+    },
+    {
       "id": "sdkwork-app-topology",
       "repository": "Sdkwork-Cloud/sdkwork-app-topology",
       "refInput": "SDKWORK_APP_TOPOLOGY_REF",

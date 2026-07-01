@@ -11,6 +11,7 @@ use sdkwork_memory_plugin_native_sql::{
     InsertLearningJobCommand, NativeSqlLearningJobRow, NativeSqlMemoryStore,
 };
 use sdkwork_memory_spi::MemoryScopeContext;
+use sdkwork_utils_rust::is_blank;
 use serde_json::Value;
 
 use crate::open_api::OpenMemoryService;
@@ -36,10 +37,7 @@ pub fn spawn_background_workers(
 
 fn spawn_learning_job_worker(service: Arc<OpenMemoryService>, mut shutdown_rx: tokio::sync::watch::Receiver<bool>) {
     tokio::spawn(async move {
-        let poll_interval = std::env::var("SDKWORK_MEMORY_JOB_POLL_INTERVAL_SECS")
-            .ok()
-            .and_then(|value| value.parse().ok())
-            .unwrap_or(2);
+        let poll_interval = platform::read_env_u64("SDKWORK_MEMORY_JOB_POLL_INTERVAL_SECS", 2);
         loop {
             tokio::select! {
                 _ = shutdown_rx.changed() => {
@@ -60,10 +58,7 @@ fn spawn_learning_job_worker(service: Arc<OpenMemoryService>, mut shutdown_rx: t
 
 fn spawn_eval_run_worker(service: Arc<OpenMemoryService>, mut shutdown_rx: tokio::sync::watch::Receiver<bool>) {
     tokio::spawn(async move {
-        let poll_interval = std::env::var("SDKWORK_MEMORY_EVAL_POLL_INTERVAL_SECS")
-            .ok()
-            .and_then(|value| value.parse().ok())
-            .unwrap_or(5);
+        let poll_interval = platform::read_env_u64("SDKWORK_MEMORY_EVAL_POLL_INTERVAL_SECS", 5);
         loop {
             tokio::select! {
                 _ = shutdown_rx.changed() => {
@@ -84,10 +79,7 @@ fn spawn_eval_run_worker(service: Arc<OpenMemoryService>, mut shutdown_rx: tokio
 
 fn spawn_provider_health_probe(service: Arc<OpenMemoryService>, mut shutdown_rx: tokio::sync::watch::Receiver<bool>) {
     tokio::spawn(async move {
-        let poll_interval = std::env::var("SDKWORK_MEMORY_PROVIDER_HEALTH_PROBE_SECS")
-            .ok()
-            .and_then(|value| value.parse().ok())
-            .unwrap_or(60);
+        let poll_interval = platform::read_env_u64("SDKWORK_MEMORY_PROVIDER_HEALTH_PROBE_SECS", 60);
         loop {
             tokio::select! {
                 _ = shutdown_rx.changed() => {
@@ -423,7 +415,7 @@ fn is_link_local_ip(ip: &std::net::IpAddr) -> bool {
 }
 
 async fn probe_binding_endpoint(endpoint_ref: Option<&str>) -> String {
-    let Some(url) = endpoint_ref.filter(|value| !value.trim().is_empty()) else {
+    let Some(url) = endpoint_ref.filter(|value| !is_blank(Some(value))) else {
         return "healthy".to_string();
     };
 

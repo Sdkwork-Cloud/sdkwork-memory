@@ -10,7 +10,7 @@
     "domain": "intelligence",
     "capability": "memory",
     "surface": "app",
-    "status": "draft",
+    "status": "active",
     "languages": [
       "typescript"
     ],
@@ -78,7 +78,7 @@
       {
         "workspace": "sdkwork-drive-app-sdk",
         "role": "drive-memory-export-import-capability",
-        "required": false,
+        "required": true,
         "dependencyMode": "consumer-sdk",
         "apiPrefix": "/app/v3/api",
         "apiAuthority": "sdkwork-drive.app",

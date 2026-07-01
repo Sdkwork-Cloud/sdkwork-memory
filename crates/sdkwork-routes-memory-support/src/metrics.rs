@@ -1,5 +1,6 @@
 use std::sync::{Arc, OnceLock};
 
+use sdkwork_utils_rust::is_blank;
 use sdkwork_web_core::{HttpMetricsDimensions, HttpMetricsRegistry};
 
 static MEMORY_HTTP_METRICS: OnceLock<Arc<HttpMetricsRegistry>> = OnceLock::new();
@@ -22,7 +23,7 @@ fn metric_runtime_target() -> String {
 fn metric_runtime_profile() -> String {
     std::env::var("SDKWORK_MEMORY_RUNTIME_PROFILE")
         .ok()
-        .filter(|value| !value.trim().is_empty())
+        .filter(|value| !is_blank(Some(value.as_str())))
         .unwrap_or_else(|| {
             // Infer runtime profile from database engine when explicit override is absent.
             let engine = std::env::var("SDKWORK_MEMORY_DATABASE_ENGINE")

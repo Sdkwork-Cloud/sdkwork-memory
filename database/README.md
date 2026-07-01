@@ -7,13 +7,23 @@ Canonical lifecycle assets for `sdkwork-memory` per `DATABASE_FRAMEWORK_SPEC.md`
 - tablePrefix: `ai_`
 - engines: `postgres` (production), `sqlite` (local/dev standalone)
 
+## Initialization state
+
+This module is in **initialization state** for greenfield deployments:
+
+1. **Baseline** — `database/ddl/baseline/{engine}/0001_memory_baseline.sql` contains the full DDL snapshot.
+2. **Migrations** — `database/migrations/{engine}/` is reserved for post-GA incremental schema changes only. It is intentionally empty at initialization.
+3. **Drift** — run `pnpm db:drift:check` before release.
+
 ## Commands
 
 ```bash
-pnpm run db:materialize:contract
 pnpm run db:validate
+pnpm run db:materialize:contract
+pnpm run db:plan
+pnpm run db:init
+pnpm run db:migrate
+pnpm run db:seed
+pnpm run db:status
+pnpm run db:drift:check
 ```
-
-Legacy SQL: `plugins/sdkwork-memory-plugin-native-sql/migrations/postgres/V202606100001__memory_phase1.sql` → `database/ddl/baseline/postgres/0001_memory_legacy_baseline.sql`
-
-Runtime bootstrap: `sdkwork-memory-database-host` via `bootstrap_memory_database()` when postgres pool is configured; SQLite path continues to use `install_sqlite_schema()`.

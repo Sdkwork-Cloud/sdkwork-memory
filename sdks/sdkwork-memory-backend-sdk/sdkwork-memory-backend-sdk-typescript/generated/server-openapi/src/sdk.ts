@@ -4,7 +4,7 @@ import type { AuthTokenManager } from '@sdkwork/sdk-common';
 
 import { MemoryApi, createMemoryApi } from './api/memory';
 
-export class SdkworkBackendClient {
+export class SdkworkMemoryBackendClient {
   private httpClient: HttpClient;
 
   public readonly memory: MemoryApi;
@@ -33,8 +33,8 @@ export class SdkworkBackendClient {
   }
 }
 
-export function createClient(config: SdkworkBackendConfig): SdkworkBackendClient {
-  return new SdkworkBackendClient(config);
+export function createClient(config: SdkworkBackendConfig): SdkworkMemoryBackendClient {
+  return new SdkworkMemoryBackendClient(config);
 }
 
-export default SdkworkBackendClient;
+export default SdkworkMemoryBackendClient;

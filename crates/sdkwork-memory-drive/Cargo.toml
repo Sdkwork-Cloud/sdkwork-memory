@@ -1,0 +1,20 @@
+[package]
+name = "sdkwork-memory-drive"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+sdkwork-database-config.workspace = true
+sdkwork-database-sqlx.workspace = true
+sdkwork-drive-config = { path = "../../../sdkwork-drive/crates/sdkwork-drive-config" }
+sdkwork-drive-storage-contract = { path = "../../../sdkwork-drive/crates/sdkwork-drive-storage-contract" }
+sdkwork-drive-storage-local = { path = "../../../sdkwork-drive/crates/sdkwork-drive-storage-local" }
+sdkwork-drive-storage-s3 = { path = "../../../sdkwork-drive/crates/sdkwork-drive-storage-s3" }
+sdkwork-drive-uploader-service = { path = "../../../sdkwork-drive/crates/sdkwork-drive-uploader-service" }
+sdkwork-drive-workspace-service = { path = "../../../sdkwork-drive/crates/sdkwork-drive-workspace-service" }
+sdkwork-memory-spi.workspace = true
+sdkwork-utils-rust.workspace = true
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "postgres", "any"] }
+tracing.workspace = true

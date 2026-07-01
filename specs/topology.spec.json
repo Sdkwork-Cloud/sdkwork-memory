@@ -221,7 +221,7 @@
     ]
   },
   "metadata": {
-    "status": "draft",
+    "status": "active",
     "managedBy": "tools/check_sdkwork_memory_architecture_alignment.mjs"
   },
   "packaging": {

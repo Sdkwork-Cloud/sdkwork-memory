@@ -21,6 +21,11 @@ Primary standards for this component:
 
 Local design authority:
 
+- `docs/architecture/tech/TECH-2026-06-10-ai-memory-architecture-design.md`
+- `docs/architecture/tech/TECH-2026-06-10-memory-spi-plugin-architecture-design.md`
+
+Legacy redirect stubs (do not edit content here):
+
 - `docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md`
 - `docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md`
 
