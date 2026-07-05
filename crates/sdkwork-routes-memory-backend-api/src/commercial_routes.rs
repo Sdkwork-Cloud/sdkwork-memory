@@ -1,7 +1,7 @@
 //! Commercial management route handlers for the backend API.
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, Query},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -23,7 +23,7 @@ use serde::Deserialize;
 
 use crate::{auth::require_backend_context, paths, routes::BackendState, BackendApiProblem};
 
-pub fn commercial_routes() -> Router<BackendState> {
+pub fn commercial_routes() -> Router {
     Router::new()
         .route(paths::SUBJECTS, get(list_subjects).post(create_subject))
         .route(
@@ -104,7 +104,7 @@ fn parse_tenant_id(query_tenant_id: &str, context_tenant_id: u64) -> Result<u64,
 // --- Subject handlers ---
 
 async fn create_subject(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(cmd): Json<CreateSubjectCommand>,
 ) -> Response {
@@ -126,7 +126,7 @@ async fn create_subject(
 }
 
 async fn retrieve_subject(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(subject_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -150,7 +150,7 @@ async fn retrieve_subject(
 }
 
 async fn list_subjects(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListSubjectsQuery>,
 ) -> Response {
@@ -172,7 +172,7 @@ async fn list_subjects(
 }
 
 async fn update_subject(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(subject_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -197,7 +197,7 @@ async fn update_subject(
 }
 
 async fn delete_subject(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(subject_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -223,7 +223,7 @@ async fn delete_subject(
 // --- Binding handlers ---
 
 async fn create_binding(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(cmd): Json<CreateBindingCommand>,
 ) -> Response {
@@ -245,7 +245,7 @@ async fn create_binding(
 }
 
 async fn retrieve_binding(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(binding_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -269,7 +269,7 @@ async fn retrieve_binding(
 }
 
 async fn list_bindings(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListBindingsQuery>,
 ) -> Response {
@@ -291,7 +291,7 @@ async fn list_bindings(
 }
 
 async fn delete_binding(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(binding_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -317,7 +317,7 @@ async fn delete_binding(
 // --- Capability binding handlers ---
 
 async fn create_capability_binding(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(cmd): Json<CreateCapabilityBindingCommand>,
 ) -> Response {
@@ -339,7 +339,7 @@ async fn create_capability_binding(
 }
 
 async fn retrieve_capability_binding(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(cap_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -366,7 +366,7 @@ async fn retrieve_capability_binding(
 }
 
 async fn list_capability_bindings(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListCapabilityBindingsQuery>,
 ) -> Response {
@@ -388,7 +388,7 @@ async fn list_capability_bindings(
 }
 
 async fn delete_capability_binding(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(cap_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -427,7 +427,7 @@ pub struct ResolveCapabilitiesRequest {
 }
 
 async fn resolve_capabilities(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(req): Json<ResolveCapabilitiesRequest>,
 ) -> Response {
@@ -466,7 +466,7 @@ async fn resolve_capabilities(
 // --- Entity handlers ---
 
 async fn create_entity(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(cmd): Json<CreateEntityCommand>,
 ) -> Response {
@@ -488,7 +488,7 @@ async fn create_entity(
 }
 
 async fn retrieve_entity(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(entity_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -512,7 +512,7 @@ async fn retrieve_entity(
 }
 
 async fn list_entities(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListEntitiesQuery>,
 ) -> Response {
@@ -534,7 +534,7 @@ async fn list_entities(
 }
 
 async fn update_entity(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(entity_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -561,7 +561,7 @@ async fn update_entity(
 // --- Edge handlers ---
 
 async fn create_edge(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(cmd): Json<CreateEdgeCommand>,
 ) -> Response {
@@ -583,7 +583,7 @@ async fn create_edge(
 }
 
 async fn retrieve_edge(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(edge_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -607,7 +607,7 @@ async fn retrieve_edge(
 }
 
 async fn list_edges(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListEdgesQuery>,
 ) -> Response {
@@ -629,7 +629,7 @@ async fn list_edges(
 }
 
 async fn update_edge(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(edge_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -654,7 +654,7 @@ async fn update_edge(
 }
 
 async fn delete_edge(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(edge_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -680,7 +680,7 @@ async fn delete_edge(
 // --- Policy handlers ---
 
 async fn create_policy(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(cmd): Json<CreatePolicyCommand>,
 ) -> Response {
@@ -702,7 +702,7 @@ async fn create_policy(
 }
 
 async fn retrieve_policy(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(policy_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -726,7 +726,7 @@ async fn retrieve_policy(
 }
 
 async fn list_policies(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListPoliciesQuery>,
 ) -> Response {
@@ -748,7 +748,7 @@ async fn list_policies(
 }
 
 async fn update_policy(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(policy_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -773,7 +773,7 @@ async fn update_policy(
 }
 
 async fn delete_policy(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(policy_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -799,7 +799,7 @@ async fn delete_policy(
 // --- Policy assignment handlers ---
 
 async fn create_policy_assignment(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(cmd): Json<CreatePolicyAssignmentCommand>,
 ) -> Response {
@@ -821,7 +821,7 @@ async fn create_policy_assignment(
 }
 
 async fn retrieve_policy_assignment(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(assignment_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -848,7 +848,7 @@ async fn retrieve_policy_assignment(
 }
 
 async fn list_policy_assignments(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListPolicyAssignmentsQuery>,
 ) -> Response {
@@ -870,7 +870,7 @@ async fn list_policy_assignments(
 }
 
 async fn update_policy_assignment(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(assignment_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -898,7 +898,7 @@ async fn update_policy_assignment(
 }
 
 async fn delete_policy_assignment(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(assignment_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -927,7 +927,7 @@ async fn delete_policy_assignment(
 // --- Commercial readiness handlers ---
 
 async fn retrieve_commercial_readiness(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<TenantIdQuery>,
 ) -> Response {
@@ -950,7 +950,7 @@ async fn retrieve_commercial_readiness(
 }
 
 async fn rebuild_commercial_readiness(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(cmd): Json<RebuildCommercialReadinessCommand>,
 ) -> Response {

@@ -1,7 +1,7 @@
 //! Commercial entity and edge routes for the Open API.
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, Query},
     http::StatusCode,
     response::Response,
     routing::get,
@@ -17,7 +17,7 @@ use sdkwork_routes_memory_support::{
 
 use crate::{auth::require_context, paths, routes::OpenState, ApiProblem};
 
-pub fn commercial_routes() -> Router<OpenState> {
+pub fn commercial_routes() -> Router {
     Router::new()
         .route(paths::ENTITIES, get(list_entities).post(create_entity))
         .route(
@@ -38,7 +38,7 @@ fn forbidden(detail: &str) -> ApiProblem {
 }
 
 async fn create_entity(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Json(cmd): Json<CreateEntityCommand>,
 ) -> Result<Response, ApiProblem> {
@@ -51,7 +51,7 @@ async fn create_entity(
 }
 
 async fn retrieve_entity(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(entity_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -63,7 +63,7 @@ async fn retrieve_entity(
 }
 
 async fn list_entities(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Query(query): Query<ListEntitiesQuery>,
 ) -> Result<Response, ApiProblem> {
@@ -76,7 +76,7 @@ async fn list_entities(
 }
 
 async fn update_entity(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(entity_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -89,7 +89,7 @@ async fn update_entity(
 }
 
 async fn create_edge(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Json(cmd): Json<CreateEdgeCommand>,
 ) -> Result<Response, ApiProblem> {
@@ -102,7 +102,7 @@ async fn create_edge(
 }
 
 async fn retrieve_edge(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(edge_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -114,7 +114,7 @@ async fn retrieve_edge(
 }
 
 async fn list_edges(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Query(query): Query<ListEdgesQuery>,
 ) -> Result<Response, ApiProblem> {
@@ -127,7 +127,7 @@ async fn list_edges(
 }
 
 async fn update_edge(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(edge_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -140,7 +140,7 @@ async fn update_edge(
 }
 
 async fn delete_edge(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(edge_id): Path<String>,
     Query(query): Query<TenantIdQuery>,

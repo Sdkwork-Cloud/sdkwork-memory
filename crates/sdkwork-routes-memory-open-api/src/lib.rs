@@ -31,6 +31,6 @@ pub fn gateway_route_manifest() -> HttpRouteManifest {
     open_route_manifest()
 }
 
-pub fn gateway_mount(api: Arc<dyn MemoryOpenApi>) -> Router<routes::OpenState> {
+pub fn gateway_mount(api: Arc<dyn MemoryOpenApi>) -> Router {
     build_router_with_shared_open_api(api)
 }

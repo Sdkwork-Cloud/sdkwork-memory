@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, Query},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, patch, post},
@@ -23,7 +23,7 @@ use std::sync::Arc;
 use crate::{auth::require_backend_context, paths, BackendApiProblem};
 
 #[derive(Clone)]
-pub(crate) struct BackendState {
+pub struct BackendState {
     api: Arc<dyn MemoryBackendApi>,
     product: Option<Arc<OpenMemoryService>>,
 }
@@ -41,11 +41,11 @@ impl BackendState {
     }
 }
 
-pub fn build_router_with_backend_api(api: OpenMemoryService) -> Router<BackendState> {
+pub fn build_router_with_backend_api(api: OpenMemoryService) -> Router {
     build_router_with_open_memory_service(Arc::new(api))
 }
 
-pub fn build_router_with_open_memory_service(product: Arc<OpenMemoryService>) -> Router<BackendState> {
+pub fn build_router_with_open_memory_service(product: Arc<OpenMemoryService>) -> Router {
     let api: Arc<dyn MemoryBackendApi> = product.clone();
     build_backend_router(BackendState {
         api,
@@ -53,11 +53,11 @@ pub fn build_router_with_open_memory_service(product: Arc<OpenMemoryService>) ->
     })
 }
 
-pub fn build_router_with_shared_backend_api(api: Arc<dyn MemoryBackendApi>) -> Router<BackendState> {
+pub fn build_router_with_shared_backend_api(api: Arc<dyn MemoryBackendApi>) -> Router {
     build_backend_router(BackendState { api, product: None })
 }
 
-fn build_backend_router(state: BackendState) -> Router<BackendState> {
+fn build_backend_router(state: BackendState) -> Router {
     Router::new()
         .route(paths::SPACES, get(list_spaces))
         .route(paths::SPACE, get(retrieve_space).patch(update_space))
@@ -105,12 +105,12 @@ fn build_backend_router(state: BackendState) -> Router<BackendState> {
         .route(paths::RETENTION_JOBS, post(create_retention_job))
         .route(paths::MIGRATION_JOBS, post(create_migration_job))
         .route(paths::MIGRATION_JOB, get(retrieve_migration_job))
-        .with_state(state)
         .merge(crate::commercial_routes::commercial_routes())
+        .layer(Extension(state))
 }
 
 async fn list_spaces(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListSpacesQuery>,
 ) -> Result<Response, BackendApiProblem> {
@@ -119,7 +119,7 @@ async fn list_spaces(
 }
 
 async fn retrieve_space(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(space_id): Path<u64>,
 ) -> Result<Response, BackendApiProblem> {
@@ -128,7 +128,7 @@ async fn retrieve_space(
 }
 
 async fn update_space(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(space_id): Path<u64>,
     Json(request): Json<MemorySpaceRequest>,
@@ -138,7 +138,7 @@ async fn update_space(
 }
 
 async fn list_memories(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListMemoriesQuery>,
 ) -> Result<Response, BackendApiProblem> {
@@ -147,7 +147,7 @@ async fn list_memories(
 }
 
 async fn retrieve_memory(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(memory_id): Path<u64>,
     Query(scope): Query<MemorySpaceScopeQuery>,
@@ -162,7 +162,7 @@ async fn retrieve_memory(
 }
 
 async fn update_memory(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(memory_id): Path<u64>,
     Query(scope): Query<MemorySpaceScopeQuery>,
@@ -178,7 +178,7 @@ async fn update_memory(
 }
 
 async fn supersede_memory(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(memory_id): Path<u64>,
     Json(request): Json<MemoryRecordRequest>,
@@ -193,7 +193,7 @@ async fn supersede_memory(
 }
 
 async fn list_events(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListEventsQuery>,
 ) -> Result<Response, BackendApiProblem> {
@@ -202,7 +202,7 @@ async fn list_events(
 }
 
 async fn retrieve_event(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(event_id): Path<u64>,
     Query(scope): Query<MemorySpaceScopeQuery>,
@@ -217,7 +217,7 @@ async fn retrieve_event(
 }
 
 async fn list_candidates(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListCandidatesQuery>,
 ) -> Result<Response, BackendApiProblem> {
@@ -226,7 +226,7 @@ async fn list_candidates(
 }
 
 async fn approve_candidate(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(candidate_id): Path<u64>,
     Json(request): Json<MemoryReviewRequest>,
@@ -241,7 +241,7 @@ async fn approve_candidate(
 }
 
 async fn reject_candidate(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(candidate_id): Path<u64>,
     Json(request): Json<MemoryReviewRequest>,
@@ -256,7 +256,7 @@ async fn reject_candidate(
 }
 
 async fn create_extraction_job(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(request): Json<MemoryExtractionRequest>,
 ) -> Result<Response, BackendApiProblem> {
@@ -265,7 +265,7 @@ async fn create_extraction_job(
 }
 
 async fn retrieve_extraction_job(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(job_id): Path<u64>,
 ) -> Result<Response, BackendApiProblem> {
@@ -274,7 +274,7 @@ async fn retrieve_extraction_job(
 }
 
 async fn create_consolidation_job(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(request): Json<MemoryExtractionRequest>,
 ) -> Result<Response, BackendApiProblem> {
@@ -283,7 +283,7 @@ async fn create_consolidation_job(
 }
 
 async fn list_indexes(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListAdminResourcesQuery>,
 ) -> Result<Response, BackendApiProblem> {
@@ -292,7 +292,7 @@ async fn list_indexes(
 }
 
 async fn create_index(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(request): Json<MemoryIndexRequest>,
 ) -> Result<Response, BackendApiProblem> {
@@ -301,7 +301,7 @@ async fn create_index(
 }
 
 async fn retrieve_index(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(index_id): Path<u64>,
 ) -> Result<Response, BackendApiProblem> {
@@ -310,7 +310,7 @@ async fn retrieve_index(
 }
 
 async fn update_index(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(index_id): Path<u64>,
     Json(request): Json<MemoryIndexRequest>,
@@ -320,7 +320,7 @@ async fn update_index(
 }
 
 async fn rebuild_index(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(index_id): Path<u64>,
 ) -> Result<Response, BackendApiProblem> {
@@ -329,7 +329,7 @@ async fn rebuild_index(
 }
 
 async fn list_retrieval_profiles(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListAdminResourcesQuery>,
 ) -> Result<Response, BackendApiProblem> {
@@ -338,7 +338,7 @@ async fn list_retrieval_profiles(
 }
 
 async fn create_retrieval_profile(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(request): Json<MemoryRetrievalProfileRequest>,
 ) -> Result<Response, BackendApiProblem> {
@@ -347,7 +347,7 @@ async fn create_retrieval_profile(
 }
 
 async fn retrieve_retrieval_profile(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(profile_id): Path<u64>,
 ) -> Result<Response, BackendApiProblem> {
@@ -361,7 +361,7 @@ async fn retrieve_retrieval_profile(
 }
 
 async fn update_retrieval_profile(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(profile_id): Path<u64>,
     Json(request): Json<MemoryRetrievalProfileRequest>,
@@ -376,7 +376,7 @@ async fn update_retrieval_profile(
 }
 
 async fn list_implementation_profiles(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListAdminResourcesQuery>,
 ) -> Result<Response, BackendApiProblem> {
@@ -385,7 +385,7 @@ async fn list_implementation_profiles(
 }
 
 async fn create_implementation_profile(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(request): Json<MemoryImplementationProfileRequest>,
 ) -> Result<Response, BackendApiProblem> {
@@ -399,7 +399,7 @@ async fn create_implementation_profile(
 }
 
 async fn retrieve_implementation_profile(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(implementation_profile_id): Path<u64>,
 ) -> Result<Response, BackendApiProblem> {
@@ -413,7 +413,7 @@ async fn retrieve_implementation_profile(
 }
 
 async fn update_implementation_profile(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(implementation_profile_id): Path<u64>,
     Json(request): Json<MemoryImplementationProfileRequest>,
@@ -428,7 +428,7 @@ async fn update_implementation_profile(
 }
 
 async fn list_provider_bindings(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListAdminResourcesQuery>,
 ) -> Result<Response, BackendApiProblem> {
@@ -437,7 +437,7 @@ async fn list_provider_bindings(
 }
 
 async fn create_provider_binding(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(request): Json<MemoryProviderBindingRequest>,
 ) -> Result<Response, BackendApiProblem> {
@@ -446,7 +446,7 @@ async fn create_provider_binding(
 }
 
 async fn update_provider_binding(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(provider_binding_id): Path<u64>,
     Json(request): Json<MemoryProviderBindingRequest>,
@@ -461,7 +461,7 @@ async fn update_provider_binding(
 }
 
 async fn retrieve_provider_health(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
@@ -469,7 +469,7 @@ async fn retrieve_provider_health(
 }
 
 async fn list_eval_runs(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListAdminResourcesQuery>,
 ) -> Result<Response, BackendApiProblem> {
@@ -478,7 +478,7 @@ async fn list_eval_runs(
 }
 
 async fn create_eval_run(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(request): Json<MemoryEvalRunRequest>,
 ) -> Result<Response, BackendApiProblem> {
@@ -487,7 +487,7 @@ async fn create_eval_run(
 }
 
 async fn retrieve_eval_run(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(eval_run_id): Path<u64>,
 ) -> Result<Response, BackendApiProblem> {
@@ -496,7 +496,7 @@ async fn retrieve_eval_run(
 }
 
 async fn list_retrieval_traces(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListRetrievalTracesQuery>,
 ) -> Result<Response, BackendApiProblem> {
@@ -505,7 +505,7 @@ async fn list_retrieval_traces(
 }
 
 async fn retrieve_retrieval_trace(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(trace_id): Path<u64>,
 ) -> Result<Response, BackendApiProblem> {
@@ -514,7 +514,7 @@ async fn retrieve_retrieval_trace(
 }
 
 async fn list_audit_logs(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListAuditLogsQuery>,
 ) -> Result<Response, BackendApiProblem> {
@@ -523,7 +523,7 @@ async fn list_audit_logs(
 }
 
 async fn create_retention_job(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(request): Json<MemoryRetentionJobRequest>,
 ) -> Result<Response, BackendApiProblem> {
@@ -532,7 +532,7 @@ async fn create_retention_job(
 }
 
 async fn create_migration_job(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(request): Json<MemoryMigrationJobRequest>,
 ) -> Result<Response, BackendApiProblem> {
@@ -541,7 +541,7 @@ async fn create_migration_job(
 }
 
 async fn retrieve_migration_job(
-    State(state): State<BackendState>,
+    Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(migration_job_id): Path<u64>,
 ) -> Result<Response, BackendApiProblem> {

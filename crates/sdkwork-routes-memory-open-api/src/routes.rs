@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, Query},
     http::StatusCode,
     response::Response,
     routing::{get, post},
@@ -19,7 +19,7 @@ use std::sync::Arc;
 use crate::{auth::require_context, paths, ApiProblem};
 
 #[derive(Clone)]
-pub(crate) struct OpenState {
+pub struct OpenState {
     api: Arc<dyn MemoryOpenApi>,
     product: Option<Arc<OpenMemoryService>>,
 }
@@ -36,11 +36,11 @@ impl OpenState {
     }
 }
 
-pub fn build_router_with_open_api(api: OpenMemoryService) -> Router<OpenState> {
+pub fn build_router_with_open_api(api: OpenMemoryService) -> Router {
     build_router_with_open_memory_service(Arc::new(api))
 }
 
-pub fn build_router_with_open_memory_service(product: Arc<OpenMemoryService>) -> Router<OpenState> {
+pub fn build_router_with_open_memory_service(product: Arc<OpenMemoryService>) -> Router {
     let api: Arc<dyn MemoryOpenApi> = product.clone();
     build_open_router(OpenState {
         api,
@@ -48,11 +48,11 @@ pub fn build_router_with_open_memory_service(product: Arc<OpenMemoryService>) ->
     })
 }
 
-pub fn build_router_with_shared_open_api(api: Arc<dyn MemoryOpenApi>) -> Router<OpenState> {
+pub fn build_router_with_shared_open_api(api: Arc<dyn MemoryOpenApi>) -> Router {
     build_open_router(OpenState { api, product: None })
 }
 
-fn build_open_router(state: OpenState) -> Router<OpenState> {
+fn build_open_router(state: OpenState) -> Router {
     Router::new()
         .route(paths::CAPABILITIES, get(retrieve_capabilities))
         .route(paths::EVENTS, post(create_event))
@@ -73,12 +73,12 @@ fn build_open_router(state: OpenState) -> Router<OpenState> {
         .route(paths::CANDIDATES, get(list_candidates))
         .route(paths::CANDIDATE, get(retrieve_candidate))
         .route(paths::PROVIDER_HEALTH, get(retrieve_provider_health))
-        .with_state(state)
         .merge(crate::commercial_routes::commercial_routes())
+        .layer(Extension(state))
 }
 
 async fn retrieve_capabilities(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
 ) -> Result<Response, ApiProblem> {
     let context = require_context(context)?;
@@ -86,7 +86,7 @@ async fn retrieve_capabilities(
 }
 
 async fn create_event(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Json(request): Json<MemoryEventRequest>,
 ) -> Result<Response, ApiProblem> {
@@ -95,7 +95,7 @@ async fn create_event(
 }
 
 async fn retrieve_event(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(event_id): Path<u64>,
     Query(scope): Query<MemorySpaceScopeQuery>,
@@ -110,7 +110,7 @@ async fn retrieve_event(
 }
 
 async fn list_memories(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Query(query): Query<ListMemoriesQuery>,
 ) -> Result<Response, ApiProblem> {
@@ -119,7 +119,7 @@ async fn list_memories(
 }
 
 async fn create_memory(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Json(request): Json<MemoryRecordRequest>,
 ) -> Result<Response, ApiProblem> {
@@ -128,7 +128,7 @@ async fn create_memory(
 }
 
 async fn retrieve_memory(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(memory_id): Path<u64>,
     Query(scope): Query<MemorySpaceScopeQuery>,
@@ -143,7 +143,7 @@ async fn retrieve_memory(
 }
 
 async fn update_memory(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(memory_id): Path<u64>,
     Query(scope): Query<MemorySpaceScopeQuery>,
@@ -159,7 +159,7 @@ async fn update_memory(
 }
 
 async fn delete_memory(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(memory_id): Path<u64>,
     Query(scope): Query<MemorySpaceScopeQuery>,
@@ -174,7 +174,7 @@ async fn delete_memory(
 }
 
 async fn create_retrieval(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Json(request): Json<MemoryRetrievalRequest>,
 ) -> Result<Response, ApiProblem> {
@@ -183,7 +183,7 @@ async fn create_retrieval(
 }
 
 async fn retrieve_retrieval(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(retrieval_id): Path<u64>,
 ) -> Result<Response, ApiProblem> {
@@ -192,7 +192,7 @@ async fn retrieve_retrieval(
 }
 
 async fn create_context_pack(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Json(request): Json<MemoryContextPackRequest>,
 ) -> Result<Response, ApiProblem> {
@@ -201,7 +201,7 @@ async fn create_context_pack(
 }
 
 async fn retrieve_context_pack(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(context_pack_id): Path<u64>,
 ) -> Result<Response, ApiProblem> {
@@ -215,7 +215,7 @@ async fn retrieve_context_pack(
 }
 
 async fn create_feedback(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Json(request): Json<MemoryFeedbackRequest>,
 ) -> Result<Response, ApiProblem> {
@@ -224,7 +224,7 @@ async fn create_feedback(
 }
 
 async fn create_extraction(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Json(request): Json<MemoryExtractionRequest>,
 ) -> Result<Response, ApiProblem> {
@@ -233,7 +233,7 @@ async fn create_extraction(
 }
 
 async fn list_candidates(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Query(query): Query<ListCandidatesQuery>,
 ) -> Result<Response, ApiProblem> {
@@ -242,7 +242,7 @@ async fn list_candidates(
 }
 
 async fn retrieve_candidate(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(candidate_id): Path<u64>,
 ) -> Result<Response, ApiProblem> {
@@ -251,7 +251,7 @@ async fn retrieve_candidate(
 }
 
 async fn retrieve_provider_health(
-    State(state): State<OpenState>,
+    Extension(state): Extension<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
 ) -> Result<Response, ApiProblem> {
     let context = require_context(context)?;

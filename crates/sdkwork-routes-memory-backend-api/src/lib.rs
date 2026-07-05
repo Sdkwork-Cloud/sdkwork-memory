@@ -31,6 +31,6 @@ pub fn gateway_route_manifest() -> HttpRouteManifest {
     backend_route_manifest()
 }
 
-pub fn gateway_mount(api: Arc<dyn MemoryBackendApi>) -> Router<routes::BackendState> {
+pub fn gateway_mount(api: Arc<dyn MemoryBackendApi>) -> Router {
     build_router_with_shared_backend_api(api)
 }

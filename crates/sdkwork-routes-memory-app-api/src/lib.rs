@@ -31,6 +31,6 @@ pub fn gateway_route_manifest() -> HttpRouteManifest {
     app_route_manifest()
 }
 
-pub fn gateway_mount(api: Arc<dyn MemoryAppApi>) -> Router<routes::AppState> {
+pub fn gateway_mount(api: Arc<dyn MemoryAppApi>) -> Router {
     build_router_with_shared_app_api(api)
 }

@@ -1,7 +1,7 @@
 //! Commercial entity and policy assignment routes for the App API.
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, Query},
     http::StatusCode,
     response::Response,
     routing::{get, patch},
@@ -18,7 +18,7 @@ use sdkwork_routes_memory_support::{
 
 use crate::{auth::require_app_context, paths, routes::AppState, ApiProblem};
 
-pub fn commercial_routes() -> Router<AppState> {
+pub fn commercial_routes() -> Router {
     Router::new()
         .route(paths::ENTITIES, get(list_entities).post(create_entity))
         .route(
@@ -40,7 +40,7 @@ fn forbidden(detail: &str) -> ApiProblem {
 }
 
 async fn create_entity(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Json(cmd): Json<CreateEntityCommand>,
 ) -> Result<Response, ApiProblem> {
@@ -53,7 +53,7 @@ async fn create_entity(
 }
 
 async fn retrieve_entity(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(entity_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -65,7 +65,7 @@ async fn retrieve_entity(
 }
 
 async fn list_entities(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Query(query): Query<ListEntitiesQuery>,
 ) -> Result<Response, ApiProblem> {
@@ -78,7 +78,7 @@ async fn list_entities(
 }
 
 async fn update_entity(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(entity_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
@@ -91,7 +91,7 @@ async fn update_entity(
 }
 
 async fn create_policy_assignment(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Json(cmd): Json<CreatePolicyAssignmentCommand>,
 ) -> Result<Response, ApiProblem> {
@@ -104,7 +104,7 @@ async fn create_policy_assignment(
 }
 
 async fn list_policy_assignments(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Query(query): Query<ListPolicyAssignmentsQuery>,
 ) -> Result<Response, ApiProblem> {
@@ -117,7 +117,7 @@ async fn list_policy_assignments(
 }
 
 async fn update_policy_assignment(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(assignment_id): Path<String>,
     Query(query): Query<TenantIdQuery>,

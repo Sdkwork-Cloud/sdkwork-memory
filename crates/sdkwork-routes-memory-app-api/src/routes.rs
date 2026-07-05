@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, Query},
     http::StatusCode,
     response::Response,
     routing::{get, post},
@@ -21,7 +21,7 @@ use std::sync::Arc;
 use crate::{auth::require_app_context, paths, ApiProblem};
 
 #[derive(Clone)]
-pub(crate) struct AppState {
+pub struct AppState {
     api: Arc<dyn MemoryAppApi>,
     product: Option<Arc<OpenMemoryService>>,
 }
@@ -38,11 +38,11 @@ impl AppState {
     }
 }
 
-pub fn build_router_with_app_api(api: OpenMemoryService) -> Router<AppState> {
+pub fn build_router_with_app_api(api: OpenMemoryService) -> Router {
     build_router_with_open_memory_service(Arc::new(api))
 }
 
-pub fn build_router_with_open_memory_service(product: Arc<OpenMemoryService>) -> Router<AppState> {
+pub fn build_router_with_open_memory_service(product: Arc<OpenMemoryService>) -> Router {
     let api: Arc<dyn MemoryAppApi> = product.clone();
     build_app_router(AppState {
         api,
@@ -50,11 +50,11 @@ pub fn build_router_with_open_memory_service(product: Arc<OpenMemoryService>) ->
     })
 }
 
-pub fn build_router_with_shared_app_api(api: Arc<dyn MemoryAppApi>) -> Router<AppState> {
+pub fn build_router_with_shared_app_api(api: Arc<dyn MemoryAppApi>) -> Router {
     build_app_router(AppState { api, product: None })
 }
 
-fn build_app_router(state: AppState) -> Router<AppState> {
+fn build_app_router(state: AppState) -> Router {
     Router::new()
         .route(paths::SPACES, get(list_spaces).post(create_space))
         .route(paths::SPACE, get(retrieve_space).patch(update_space))
@@ -90,12 +90,12 @@ fn build_app_router(state: AppState) -> Router<AppState> {
             paths::LEARNING_SETTINGS,
             get(retrieve_learning_settings).patch(update_learning_settings),
         )
-        .with_state(state)
         .merge(crate::commercial_routes::commercial_routes())
+        .layer(Extension(state))
 }
 
 async fn list_spaces(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Query(query): Query<ListSpacesQuery>,
 ) -> Result<Response, ApiProblem> {
@@ -104,7 +104,7 @@ async fn list_spaces(
 }
 
 async fn create_space(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Json(request): Json<MemorySpaceRequest>,
 ) -> Result<Response, ApiProblem> {
@@ -113,7 +113,7 @@ async fn create_space(
 }
 
 async fn retrieve_space(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(space_id): Path<u64>,
 ) -> Result<Response, ApiProblem> {
@@ -122,7 +122,7 @@ async fn retrieve_space(
 }
 
 async fn update_space(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(space_id): Path<u64>,
     Json(request): Json<MemorySpaceRequest>,
@@ -132,7 +132,7 @@ async fn update_space(
 }
 
 async fn create_event(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Json(request): Json<MemoryEventRequest>,
 ) -> Result<Response, ApiProblem> {
@@ -141,7 +141,7 @@ async fn create_event(
 }
 
 async fn retrieve_event(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(event_id): Path<u64>,
     Query(scope): Query<MemorySpaceScopeQuery>,
@@ -156,7 +156,7 @@ async fn retrieve_event(
 }
 
 async fn list_memories(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Query(query): Query<ListMemoriesQuery>,
 ) -> Result<Response, ApiProblem> {
@@ -165,7 +165,7 @@ async fn list_memories(
 }
 
 async fn create_memory(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Json(request): Json<MemoryRecordRequest>,
 ) -> Result<Response, ApiProblem> {
@@ -174,7 +174,7 @@ async fn create_memory(
 }
 
 async fn retrieve_memory(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(memory_id): Path<u64>,
     Query(scope): Query<MemorySpaceScopeQuery>,
@@ -189,7 +189,7 @@ async fn retrieve_memory(
 }
 
 async fn update_memory(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(memory_id): Path<u64>,
     Query(scope): Query<MemorySpaceScopeQuery>,
@@ -205,7 +205,7 @@ async fn update_memory(
 }
 
 async fn delete_memory(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(memory_id): Path<u64>,
     Query(scope): Query<MemorySpaceScopeQuery>,
@@ -220,7 +220,7 @@ async fn delete_memory(
 }
 
 async fn list_memory_sources(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(memory_id): Path<u64>,
     Query(query): Query<ListMemorySourcesQuery>,
@@ -235,7 +235,7 @@ async fn list_memory_sources(
 }
 
 async fn create_forget_request(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Json(request): Json<MemoryForgetRequest>,
 ) -> Result<Response, ApiProblem> {
@@ -244,7 +244,7 @@ async fn create_forget_request(
 }
 
 async fn retrieve_forget_request(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(forget_request_id): Path<u64>,
 ) -> Result<Response, ApiProblem> {
@@ -258,7 +258,7 @@ async fn retrieve_forget_request(
 }
 
 async fn create_extraction(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Json(request): Json<MemoryExtractionRequest>,
 ) -> Result<Response, ApiProblem> {
@@ -267,7 +267,7 @@ async fn create_extraction(
 }
 
 async fn list_candidates(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Query(query): Query<ListCandidatesQuery>,
 ) -> Result<Response, ApiProblem> {
@@ -276,7 +276,7 @@ async fn list_candidates(
 }
 
 async fn retrieve_candidate(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(candidate_id): Path<u64>,
 ) -> Result<Response, ApiProblem> {
@@ -285,7 +285,7 @@ async fn retrieve_candidate(
 }
 
 async fn approve_candidate(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(candidate_id): Path<u64>,
     Json(request): Json<MemoryReviewRequest>,
@@ -300,7 +300,7 @@ async fn approve_candidate(
 }
 
 async fn reject_candidate(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(candidate_id): Path<u64>,
     Json(request): Json<MemoryReviewRequest>,
@@ -315,7 +315,7 @@ async fn reject_candidate(
 }
 
 async fn list_habits(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Query(query): Query<ListHabitsQuery>,
 ) -> Result<Response, ApiProblem> {
@@ -324,7 +324,7 @@ async fn list_habits(
 }
 
 async fn retrieve_habit(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(habit_id): Path<u64>,
 ) -> Result<Response, ApiProblem> {
@@ -333,7 +333,7 @@ async fn retrieve_habit(
 }
 
 async fn update_habit(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(habit_id): Path<u64>,
     Json(request): Json<MemoryHabitRequest>,
@@ -343,7 +343,7 @@ async fn update_habit(
 }
 
 async fn confirm_habit(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(habit_id): Path<u64>,
     Json(request): Json<MemoryReviewRequest>,
@@ -353,7 +353,7 @@ async fn confirm_habit(
 }
 
 async fn reject_habit(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(habit_id): Path<u64>,
     Json(request): Json<MemoryReviewRequest>,
@@ -363,7 +363,7 @@ async fn reject_habit(
 }
 
 async fn create_retrieval(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Json(request): Json<MemoryRetrievalRequest>,
 ) -> Result<Response, ApiProblem> {
@@ -372,7 +372,7 @@ async fn create_retrieval(
 }
 
 async fn retrieve_retrieval(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(retrieval_id): Path<u64>,
 ) -> Result<Response, ApiProblem> {
@@ -381,7 +381,7 @@ async fn retrieve_retrieval(
 }
 
 async fn create_context_pack(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Json(request): Json<MemoryContextPackRequest>,
 ) -> Result<Response, ApiProblem> {
@@ -390,7 +390,7 @@ async fn create_context_pack(
 }
 
 async fn retrieve_context_pack(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(context_pack_id): Path<u64>,
 ) -> Result<Response, ApiProblem> {
@@ -404,7 +404,7 @@ async fn retrieve_context_pack(
 }
 
 async fn create_feedback(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Json(request): Json<MemoryFeedbackRequest>,
 ) -> Result<Response, ApiProblem> {
@@ -413,7 +413,7 @@ async fn create_feedback(
 }
 
 async fn create_export_job(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Json(request): Json<MemoryExportRequest>,
 ) -> Result<Response, ApiProblem> {
@@ -422,7 +422,7 @@ async fn create_export_job(
 }
 
 async fn retrieve_export_job(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(export_job_id): Path<u64>,
 ) -> Result<Response, ApiProblem> {
@@ -431,7 +431,7 @@ async fn retrieve_export_job(
 }
 
 async fn retrieve_learning_settings(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
@@ -439,7 +439,7 @@ async fn retrieve_learning_settings(
 }
 
 async fn update_learning_settings(
-    State(state): State<AppState>,
+    Extension(state): Extension<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Json(patch): Json<MemoryLearningSettingsPatch>,
 ) -> Result<Response, ApiProblem> {
