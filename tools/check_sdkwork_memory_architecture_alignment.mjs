@@ -1026,9 +1026,15 @@ for (const relativePath of [
 
 assert(
   readText('crates/sdkwork-intelligence-memory-service/src/open_api.rs').includes(
-    'stopped_early_in_batch',
+    'sensitivity_read_scope',
   ),
-  'open-api memory list must over-fetch when sensitivity filtering reduces visible page rows',
+  'open-api memory list must apply SQL-backed sensitivity read scope before pagination',
+);
+assert(
+  readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs').includes(
+    'RECORD_SENSITIVITY_FILTER_SQL',
+  ),
+  'native SQL store must filter sensitivity tiers in list_record_details queries',
 );
 
 if (failures.length > 0) {

@@ -150,15 +150,30 @@ pub fn read_env_usize(key: &str, default: usize) -> usize {
         .unwrap_or(default)
 }
 
-/// Maximum allowed page size for list operations.
-pub const MAX_PAGE_SIZE: i32 = 100;
-/// Default page size for list operations.
-pub const DEFAULT_PAGE_SIZE: i32 = 20;
+pub use sdkwork_utils_rust::{
+    cursor_window_page_info, PageInfo, DEFAULT_LIST_PAGE_SIZE as DEFAULT_PAGE_SIZE,
+    MAX_LIST_PAGE_SIZE as MAX_PAGE_SIZE,
+};
 
-/// Clamps a page size to a safe range \[1, MAX_PAGE_SIZE\], defaulting to
+/// Clamps a page size to the platform range \[1, `MAX_PAGE_SIZE`\], defaulting to
 /// `DEFAULT_PAGE_SIZE` when `None`.
 pub fn clamp_page_size(page_size: Option<i32>) -> i32 {
-    page_size.unwrap_or(DEFAULT_PAGE_SIZE).clamp(1, MAX_PAGE_SIZE)
+    page_size
+        .unwrap_or(DEFAULT_PAGE_SIZE)
+        .clamp(1, MAX_PAGE_SIZE)
+}
+
+/// Standard cursor-mode pagination metadata for memory list responses.
+pub fn memory_cursor_page_info(
+    page_size: i32,
+    has_more: bool,
+    next_cursor: Option<String>,
+) -> PageInfo {
+    cursor_window_page_info(
+        Some(usize::try_from(page_size).unwrap_or(DEFAULT_PAGE_SIZE as usize)),
+        if has_more { next_cursor } else { None },
+        has_more,
+    )
 }
 
 #[cfg(test)]

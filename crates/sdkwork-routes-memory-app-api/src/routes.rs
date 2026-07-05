@@ -67,6 +67,7 @@ pub fn build_router_with_shared_app_api(api: Arc<dyn MemoryAppApi>) -> Router {
             get(retrieve_learning_settings).patch(update_learning_settings),
         )
         .with_state(AppState { api })
+        .merge(crate::commercial_routes::commercial_routes())
 }
 
 async fn list_spaces(

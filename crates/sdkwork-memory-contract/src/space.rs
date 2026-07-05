@@ -5,7 +5,7 @@ use crate::serde_int64::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::MemoryPageInfo;
+use crate::PageInfo;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -50,7 +50,7 @@ pub struct MemorySpace {
 #[serde(rename_all = "camelCase")]
 pub struct MemorySpaceList {
     pub items: Vec<MemorySpace>,
-    pub page_info: MemoryPageInfo,
+    pub page_info: PageInfo,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

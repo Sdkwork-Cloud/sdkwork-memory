@@ -42,3 +42,17 @@ pub const CAPABILITY_BINDINGS: &str = "/backend/v3/api/memory/capability_binding
 pub const CAPABILITY_BINDING: &str =
     "/backend/v3/api/memory/capability_bindings/{capabilityBindingId}";
 pub const CAPABILITIES_RESOLVE: &str = "/backend/v3/api/memory/capabilities/resolve";
+
+// Commercial graph and policy paths (Phase 2b).
+pub const ENTITIES: &str = "/backend/v3/api/memory/entities";
+pub const ENTITY: &str = "/backend/v3/api/memory/entities/{entityId}";
+pub const EDGES: &str = "/backend/v3/api/memory/edges";
+pub const EDGE: &str = "/backend/v3/api/memory/edges/{edgeId}";
+pub const POLICIES: &str = "/backend/v3/api/memory/policies";
+pub const POLICY: &str = "/backend/v3/api/memory/policies/{policyId}";
+pub const POLICY_ASSIGNMENTS: &str = "/backend/v3/api/memory/policy_assignments";
+pub const POLICY_ASSIGNMENT: &str =
+    "/backend/v3/api/memory/policy_assignments/{policyAssignmentId}";
+pub const COMMERCIAL_READINESS: &str = "/backend/v3/api/memory/commercial_readiness";
+pub const COMMERCIAL_READINESS_REBUILD: &str =
+    "/backend/v3/api/memory/commercial_readiness/rebuild";

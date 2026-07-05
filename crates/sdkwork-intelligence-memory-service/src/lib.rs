@@ -12,6 +12,7 @@ mod open_api;
 mod outbox_delivery;
 mod outbox_publisher;
 pub mod platform;
+mod retrieval_profile;
 mod sensitive_content;
 mod store_error;
 mod tenant_quota;

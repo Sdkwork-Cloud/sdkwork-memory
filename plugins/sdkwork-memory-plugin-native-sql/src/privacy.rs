@@ -103,7 +103,7 @@ impl NativeSqlMemoryStore {
 
         loop {
             let rows = self
-                .list_record_details(scope, None, 100, Some(&cursor))
+                .list_record_details(scope, None, sdkwork_utils_rust::MAX_LIST_PAGE_SIZE, Some(&cursor), crate::store::SENSITIVITY_READ_OWNER)
                 .await?;
             if rows.is_empty() {
                 break;
@@ -289,14 +289,16 @@ impl NativeSqlMemoryStore {
             let mut cursor = String::new();
             loop {
                 let rows = self
-                    .list_record_details(&scope, None, 100, Some(&cursor))
+                    .list_record_details(&scope, None, sdkwork_utils_rust::MAX_LIST_PAGE_SIZE, Some(&cursor), crate::store::SENSITIVITY_READ_OWNER)
                     .await?;
                 if rows.is_empty() {
                     break;
                 }
-                let has_more = rows.len() > 100;
+                let page_limit = i32::try_from(sdkwork_utils_rust::MAX_LIST_PAGE_SIZE)
+                    .unwrap_or(200) as usize;
+                let has_more = rows.len() > page_limit;
                 let batch = if has_more {
-                    &rows[..100]
+                    &rows[..page_limit]
                 } else {
                     &rows[..]
                 };

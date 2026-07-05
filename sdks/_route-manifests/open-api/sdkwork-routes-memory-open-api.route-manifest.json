@@ -396,6 +396,209 @@
       },
       "requestContext": "WebRequestContext",
       "apiSurface": "open-api"
+    },
+    {
+      "method": "GET",
+      "path": "/mem/v3/api/memory/entities",
+      "operationId": "entities.list",
+      "tags": [
+        "memory"
+      ],
+      "auth": {
+        "mode": "api-key",
+        "required": true
+      },
+      "handler": {
+        "module": "crate::routes",
+        "name": null
+      },
+      "ownership": {
+        "owner": "sdkwork-memory",
+        "apiAuthority": "sdkwork-memory-open-api"
+      },
+      "requestContext": "WebRequestContext",
+      "apiSurface": "open-api"
+    },
+    {
+      "method": "POST",
+      "path": "/mem/v3/api/memory/entities",
+      "operationId": "entities.create",
+      "tags": [
+        "memory"
+      ],
+      "auth": {
+        "mode": "api-key",
+        "required": true
+      },
+      "handler": {
+        "module": "crate::routes",
+        "name": null
+      },
+      "ownership": {
+        "owner": "sdkwork-memory",
+        "apiAuthority": "sdkwork-memory-open-api"
+      },
+      "requestContext": "WebRequestContext",
+      "apiSurface": "open-api",
+      "rateLimitTier": "openApiDefault"
+    },
+    {
+      "method": "GET",
+      "path": "/mem/v3/api/memory/entities/{entityId}",
+      "operationId": "entities.retrieve",
+      "tags": [
+        "memory"
+      ],
+      "auth": {
+        "mode": "api-key",
+        "required": true
+      },
+      "handler": {
+        "module": "crate::routes",
+        "name": null
+      },
+      "ownership": {
+        "owner": "sdkwork-memory",
+        "apiAuthority": "sdkwork-memory-open-api"
+      },
+      "requestContext": "WebRequestContext",
+      "apiSurface": "open-api"
+    },
+    {
+      "method": "PATCH",
+      "path": "/mem/v3/api/memory/entities/{entityId}",
+      "operationId": "entities.update",
+      "tags": [
+        "memory"
+      ],
+      "auth": {
+        "mode": "api-key",
+        "required": true
+      },
+      "handler": {
+        "module": "crate::routes",
+        "name": null
+      },
+      "ownership": {
+        "owner": "sdkwork-memory",
+        "apiAuthority": "sdkwork-memory-open-api"
+      },
+      "requestContext": "WebRequestContext",
+      "apiSurface": "open-api",
+      "rateLimitTier": "openApiDefault"
+    },
+    {
+      "method": "GET",
+      "path": "/mem/v3/api/memory/edges",
+      "operationId": "edges.list",
+      "tags": [
+        "memory"
+      ],
+      "auth": {
+        "mode": "api-key",
+        "required": true
+      },
+      "handler": {
+        "module": "crate::routes",
+        "name": null
+      },
+      "ownership": {
+        "owner": "sdkwork-memory",
+        "apiAuthority": "sdkwork-memory-open-api"
+      },
+      "requestContext": "WebRequestContext",
+      "apiSurface": "open-api"
+    },
+    {
+      "method": "POST",
+      "path": "/mem/v3/api/memory/edges",
+      "operationId": "edges.create",
+      "tags": [
+        "memory"
+      ],
+      "auth": {
+        "mode": "api-key",
+        "required": true
+      },
+      "handler": {
+        "module": "crate::routes",
+        "name": null
+      },
+      "ownership": {
+        "owner": "sdkwork-memory",
+        "apiAuthority": "sdkwork-memory-open-api"
+      },
+      "requestContext": "WebRequestContext",
+      "apiSurface": "open-api",
+      "rateLimitTier": "openApiDefault"
+    },
+    {
+      "method": "GET",
+      "path": "/mem/v3/api/memory/edges/{edgeId}",
+      "operationId": "edges.retrieve",
+      "tags": [
+        "memory"
+      ],
+      "auth": {
+        "mode": "api-key",
+        "required": true
+      },
+      "handler": {
+        "module": "crate::routes",
+        "name": null
+      },
+      "ownership": {
+        "owner": "sdkwork-memory",
+        "apiAuthority": "sdkwork-memory-open-api"
+      },
+      "requestContext": "WebRequestContext",
+      "apiSurface": "open-api"
+    },
+    {
+      "method": "PATCH",
+      "path": "/mem/v3/api/memory/edges/{edgeId}",
+      "operationId": "edges.update",
+      "tags": [
+        "memory"
+      ],
+      "auth": {
+        "mode": "api-key",
+        "required": true
+      },
+      "handler": {
+        "module": "crate::routes",
+        "name": null
+      },
+      "ownership": {
+        "owner": "sdkwork-memory",
+        "apiAuthority": "sdkwork-memory-open-api"
+      },
+      "requestContext": "WebRequestContext",
+      "apiSurface": "open-api",
+      "rateLimitTier": "openApiDefault"
+    },
+    {
+      "method": "DELETE",
+      "path": "/mem/v3/api/memory/edges/{edgeId}",
+      "operationId": "edges.delete",
+      "tags": [
+        "memory"
+      ],
+      "auth": {
+        "mode": "api-key",
+        "required": true
+      },
+      "handler": {
+        "module": "crate::routes",
+        "name": null
+      },
+      "ownership": {
+        "owner": "sdkwork-memory",
+        "apiAuthority": "sdkwork-memory-open-api"
+      },
+      "requestContext": "WebRequestContext",
+      "apiSurface": "open-api",
+      "rateLimitTier": "openApiDefault"
     }
   ]
 }

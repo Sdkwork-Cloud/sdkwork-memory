@@ -42,8 +42,9 @@ The current repository already has a strong Phase 1 base:
 - `ai_implementation_profile`, `ai_provider_binding`, and `ai_policy` model implementation and provider governance.
 - Open API exposes 17 operations.
 - App API exposes 33 operations.
-- Backend API exposes 41 operations.
-- Phase 1 contract verification passes.
+- Backend API exposes 55 operations (subjects, bindings, capability bindings, capabilities.resolve, plus Phase 1 admin routes).
+- List pagination uses platform `PageInfo` with `mode: "cursor"`, `page_size` default 20 and max 200 per `PAGINATION_SPEC.md`.
+- Memory list applies SQL-backed sensitivity read scopes; restricted records require actual space ownership even for elevated backend operators.
 
 The current gap is not the storage foundation. The gap is that memory relationships are mostly implicit:
 

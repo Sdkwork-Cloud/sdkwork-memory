@@ -159,7 +159,7 @@ impl NativeSqlMemoryStore {
         page_size: i32,
         cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlMemoryIndexRow>, NativeSqlStoreError> {
-        let page_size = page_size.clamp(1, 100) as i64;
+        let page_size = page_size.clamp(1, sdkwork_utils_rust::MAX_LIST_PAGE_SIZE) as i64;
         let cursor = cursor.unwrap_or("");
         let rows = sqlx::query(
             r#"
@@ -352,7 +352,7 @@ pub async fn insert_mem_retrieval_profile(
         page_size: i32,
         cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlRetrievalProfileRow>, NativeSqlStoreError> {
-        let page_size = page_size.clamp(1, 100) as i64;
+        let page_size = page_size.clamp(1, sdkwork_utils_rust::MAX_LIST_PAGE_SIZE) as i64;
         let cursor = cursor.unwrap_or("");
         let rows = sqlx::query(
             r#"
@@ -538,7 +538,7 @@ pub async fn insert_mem_implementation_profile(
         page_size: i32,
         cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlImplementationProfileRow>, NativeSqlStoreError> {
-        let page_size = page_size.clamp(1, 100) as i64;
+        let page_size = page_size.clamp(1, sdkwork_utils_rust::MAX_LIST_PAGE_SIZE) as i64;
         let cursor = cursor.unwrap_or("");
         let rows = sqlx::query(
             r#"
@@ -720,7 +720,7 @@ pub async fn insert_mem_provider_binding(
         page_size: i32,
         cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlProviderBindingRow>, NativeSqlStoreError> {
-        let page_size = page_size.clamp(1, 100) as i64;
+        let page_size = page_size.clamp(1, sdkwork_utils_rust::MAX_LIST_PAGE_SIZE) as i64;
         let cursor = cursor.unwrap_or("");
         let rows = sqlx::query(
             r#"
@@ -879,7 +879,7 @@ pub async fn update_mem_provider_binding_for_tenant(
         page_size: i32,
         cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlEvalRunRow>, NativeSqlStoreError> {
-        let page_size = page_size.clamp(1, 100) as i64;
+        let page_size = page_size.clamp(1, sdkwork_utils_rust::MAX_LIST_PAGE_SIZE) as i64;
         let cursor = cursor.unwrap_or("");
         let rows = sqlx::query(
             r#"

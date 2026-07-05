@@ -19,7 +19,7 @@ pub use admin_dto::{
 pub use app_ports::{MemoryAppApi, MemoryAppRequestContext};
 pub use backend_ports::{MemoryBackendApi, MemoryBackendRequestContext};
 pub use commercial::*;
-pub use dto::*;
+pub use dto::{PageInfo, *};
 pub use ports::{
     MemoryOpenApi, MemoryOpenApiRequestContext, MemoryServiceError, MemoryServiceErrorKind,
     MemoryServiceResult,

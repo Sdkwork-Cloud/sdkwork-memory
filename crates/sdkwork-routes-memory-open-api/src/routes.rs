@@ -50,6 +50,7 @@ pub fn build_router_with_shared_open_api(api: Arc<dyn MemoryOpenApi>) -> Router 
         .route(paths::CANDIDATE, get(retrieve_candidate))
         .route(paths::PROVIDER_HEALTH, get(retrieve_provider_health))
         .with_state(OpenState { api })
+        .merge(crate::commercial_routes::commercial_routes())
 }
 
 async fn retrieve_capabilities(

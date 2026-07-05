@@ -14,3 +14,7 @@ pub const EXTRACTIONS: &str = "/mem/v3/api/memory/extractions";
 pub const CANDIDATES: &str = "/mem/v3/api/memory/candidates";
 pub const CANDIDATE: &str = "/mem/v3/api/memory/candidates/{candidateId}";
 pub const PROVIDER_HEALTH: &str = "/mem/v3/api/memory/provider_health";
+pub const ENTITIES: &str = "/mem/v3/api/memory/entities";
+pub const ENTITY: &str = "/mem/v3/api/memory/entities/{entityId}";
+pub const EDGES: &str = "/mem/v3/api/memory/edges";
+pub const EDGE: &str = "/mem/v3/api/memory/edges/{edgeId}";

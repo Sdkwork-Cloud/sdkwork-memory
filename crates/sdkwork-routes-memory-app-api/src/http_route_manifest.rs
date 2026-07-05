@@ -201,6 +201,48 @@ const HTTP_ROUTES: &[HttpRoute] = &[
         "memory",
         "learningSettings.update",
     ).with_required_permission("memory.learningSettings.write"),
+    HttpRoute::dual_token(
+        HttpMethod::Get,
+        "/app/v3/api/memory/entities",
+        "memory",
+        "entities.list",
+    ).with_required_permission("memory.app.entities.read"),
+    HttpRoute::dual_token(
+        HttpMethod::Post,
+        "/app/v3/api/memory/entities",
+        "memory",
+        "entities.create",
+    ).with_required_permission("memory.app.entities.write").with_idempotent(true),
+    HttpRoute::dual_token(
+        HttpMethod::Get,
+        "/app/v3/api/memory/entities/{entityId}",
+        "memory",
+        "entities.retrieve",
+    ).with_required_permission("memory.app.entities.read"),
+    HttpRoute::dual_token(
+        HttpMethod::Patch,
+        "/app/v3/api/memory/entities/{entityId}",
+        "memory",
+        "entities.update",
+    ).with_required_permission("memory.app.entities.write"),
+    HttpRoute::dual_token(
+        HttpMethod::Get,
+        "/app/v3/api/memory/policy_assignments",
+        "memory",
+        "policyAssignments.list",
+    ).with_required_permission("memory.app.policies.write"),
+    HttpRoute::dual_token(
+        HttpMethod::Post,
+        "/app/v3/api/memory/policy_assignments",
+        "memory",
+        "policyAssignments.create",
+    ).with_required_permission("memory.app.policies.write").with_idempotent(true),
+    HttpRoute::dual_token(
+        HttpMethod::Patch,
+        "/app/v3/api/memory/policy_assignments/{policyAssignmentId}",
+        "memory",
+        "policyAssignments.update",
+    ).with_required_permission("memory.app.policies.write"),
 ];
 
 pub fn app_route_manifest() -> HttpRouteManifest {

@@ -203,7 +203,7 @@ async fn assert_actor_can_access_existing_space(
 pub fn actor_may_read_sensitivity(
     context: &MemoryOpenApiRequestContext,
     sensitivity_level: &str,
-    actor_is_space_owner: bool,
+    actual_actor_is_space_owner: bool,
 ) -> bool {
     match sensitivity_level {
         "public" | "internal" => true,
@@ -217,26 +217,10 @@ pub fn actor_may_read_sensitivity(
                 );
                 return true;
             }
-            actor_is_space_owner
+            actual_actor_is_space_owner
         }
-        // Restricted data always requires explicit space ownership, even for
-        // backend operators with elevated tenant access. This enforces the
-        // highest sensitivity tier per PRIVACY_SPEC §4.3 and prevents
-        // blanket access to compliance-critical data.
-        "restricted" => {
-            if context.elevated_tenant_access && !actor_is_space_owner {
-                tracing::warn!(
-                    tenant_id = context.tenant_id,
-                    sensitivity_level,
-                    actor_id = ?context.actor_id,
-                    "elevated_tenant_access denied for restricted memory: explicit ownership required"
-                );
-                return false;
-            }
-            actor_is_space_owner
-        }
-        // Unknown sensitivity levels default to the safest behavior.
-        _ => actor_is_space_owner,
+        "restricted" => actual_actor_is_space_owner,
+        _ => actual_actor_is_space_owner,
     }
 }
 
@@ -250,11 +234,47 @@ pub async fn assert_actor_may_read_record_sensitivity(
     space_id: u64,
     sensitivity_level: &str,
 ) -> MemoryServiceResult<()> {
-    let actor_is_owner = actor_is_space_owner(store, context, space_id).await?;
-    if actor_may_read_sensitivity(context, sensitivity_level, actor_is_owner) {
+    let actual_owner = actual_actor_is_space_owner(store, context, space_id).await?;
+    if actor_may_read_sensitivity(context, sensitivity_level, actual_owner) {
         Ok(())
     } else {
         Err(MemoryServiceError::not_found("memory not found"))
+    }
+}
+
+pub async fn actual_actor_is_space_owner(
+    store: &NativeSqlMemoryStore,
+    context: &MemoryOpenApiRequestContext,
+    space_id: u64,
+) -> MemoryServiceResult<bool> {
+    let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
+    let space_id_i64 = platform::space_id_i64(space_id)?;
+    let Some(space) = store
+        .retrieve_space_for_tenant(tenant_id, space_id_i64)
+        .await
+        .map_err(map_native_sql_store_error)?
+    else {
+        return Ok(false);
+    };
+    let Some(actor_id) = context.actor_id.as_ref() else {
+        return Ok(false);
+    };
+    Ok(space.owner_subject_id == actor_id.to_string())
+}
+
+pub fn sensitivity_read_scope(
+    context: &MemoryOpenApiRequestContext,
+    actual_actor_is_space_owner: bool,
+) -> i32 {
+    use sdkwork_memory_plugin_native_sql::{
+        SENSITIVITY_READ_ELEVATED, SENSITIVITY_READ_OWNER, SENSITIVITY_READ_PUBLIC,
+    };
+    if actual_actor_is_space_owner {
+        SENSITIVITY_READ_OWNER
+    } else if context.elevated_tenant_access {
+        SENSITIVITY_READ_ELEVATED
+    } else {
+        SENSITIVITY_READ_PUBLIC
     }
 }
 

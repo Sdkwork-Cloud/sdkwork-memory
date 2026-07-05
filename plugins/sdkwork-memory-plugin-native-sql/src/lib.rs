@@ -2,16 +2,22 @@
 
 pub mod admin_tables;
 pub mod commercial_store;
+pub mod graph_store;
 pub mod learning_jobs;
 pub mod manifest;
 pub mod native_sql_phase1_runtime;
+pub mod policy_store;
 pub mod pool_backend;
 pub mod privacy;
+pub mod readiness_store;
 pub mod search_index;
 pub mod store;
 
 pub use admin_tables::*;
 pub use commercial_store::*;
+pub use graph_store::*;
+pub use policy_store::*;
+pub use readiness_store::*;
 pub use manifest::{
     build_native_sql_audit_store, build_native_sql_candidate_store, build_native_sql_event_store,
     build_native_sql_habit_store, build_native_sql_outbox_store, build_native_sql_record_store,

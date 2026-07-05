@@ -105,6 +105,60 @@ const HTTP_ROUTES: &[HttpRoute] = &[
         "memory",
         "providerHealth.retrieve",
     ).with_required_permission("memory.open.providerHealth.read"),
+    HttpRoute::api_key(
+        HttpMethod::Get,
+        "/mem/v3/api/memory/entities",
+        "memory",
+        "entities.list",
+    ).with_required_permission("memory.open.entities.read"),
+    HttpRoute::api_key(
+        HttpMethod::Post,
+        "/mem/v3/api/memory/entities",
+        "memory",
+        "entities.create",
+    ).with_required_permission("memory.open.entities.write").with_idempotent(true).with_rate_limit_tier(RateLimitTier::OpenApiDefault),
+    HttpRoute::api_key(
+        HttpMethod::Get,
+        "/mem/v3/api/memory/entities/{entityId}",
+        "memory",
+        "entities.retrieve",
+    ).with_required_permission("memory.open.entities.read"),
+    HttpRoute::api_key(
+        HttpMethod::Patch,
+        "/mem/v3/api/memory/entities/{entityId}",
+        "memory",
+        "entities.update",
+    ).with_required_permission("memory.open.entities.write").with_rate_limit_tier(RateLimitTier::OpenApiDefault),
+    HttpRoute::api_key(
+        HttpMethod::Get,
+        "/mem/v3/api/memory/edges",
+        "memory",
+        "edges.list",
+    ).with_required_permission("memory.open.entities.read"),
+    HttpRoute::api_key(
+        HttpMethod::Post,
+        "/mem/v3/api/memory/edges",
+        "memory",
+        "edges.create",
+    ).with_required_permission("memory.open.entities.write").with_idempotent(true).with_rate_limit_tier(RateLimitTier::OpenApiDefault),
+    HttpRoute::api_key(
+        HttpMethod::Get,
+        "/mem/v3/api/memory/edges/{edgeId}",
+        "memory",
+        "edges.retrieve",
+    ).with_required_permission("memory.open.entities.read"),
+    HttpRoute::api_key(
+        HttpMethod::Patch,
+        "/mem/v3/api/memory/edges/{edgeId}",
+        "memory",
+        "edges.update",
+    ).with_required_permission("memory.open.entities.write").with_rate_limit_tier(RateLimitTier::OpenApiDefault),
+    HttpRoute::api_key(
+        HttpMethod::Delete,
+        "/mem/v3/api/memory/edges/{edgeId}",
+        "memory",
+        "edges.delete",
+    ).with_required_permission("memory.open.entities.write").with_rate_limit_tier(RateLimitTier::OpenApiDefault),
 ];
 
 pub fn open_route_manifest() -> HttpRouteManifest {

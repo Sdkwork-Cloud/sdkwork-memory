@@ -13,12 +13,20 @@ use sdkwork_memory_contract::{
     MemoryRetentionJobRequest, MemoryRetrievalProfileRequest, MemoryReviewRequest,
     MemorySpaceRequest, MemorySpaceScopeQuery,
 };
+use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_routes_memory_support::{
     created_resource_json, ok_page_json, ok_resource_json,
 };
 use std::sync::Arc;
 
 use crate::{auth::require_backend_context, paths, BackendApiProblem};
+
+fn attach_commercial_product(router: Router, api: Arc<dyn MemoryBackendApi>) -> Router {
+    match api.downcast::<OpenMemoryService>() {
+        Ok(product) => router.layer(Extension(product)),
+        Err(_) => router,
+    }
+}
 
 #[derive(Clone)]
 struct BackendState {
@@ -80,8 +88,10 @@ pub fn build_router_with_shared_backend_api(api: Arc<dyn MemoryBackendApi>) -> R
         .route(paths::RETENTION_JOBS, post(create_retention_job))
         .route(paths::MIGRATION_JOBS, post(create_migration_job))
         .route(paths::MIGRATION_JOB, get(retrieve_migration_job))
-        .with_state(BackendState { api })
-        .merge(crate::commercial_routes::commercial_routes())
+        .with_state(BackendState { api: api.clone() })
+        .merge(crate::commercial_routes::commercial_routes());
+
+    attach_commercial_product(router, api)
 }
 
 async fn list_spaces(

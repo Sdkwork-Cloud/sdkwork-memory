@@ -1,4 +1,4 @@
-use crate::dto::MemoryPageInfo;
+use crate::dto::PageInfo;
 use crate::serde_int64::{
     deserialize_option_u64_from_string_or_number, deserialize_option_vec_u64_from_string_or_number,
     deserialize_u64_from_string_or_number,
@@ -111,7 +111,7 @@ pub struct MemoryIndexRequest {
 #[serde(rename_all = "camelCase")]
 pub struct MemoryIndexList {
     pub items: Vec<MemoryIndex>,
-    pub page_info: MemoryPageInfo,
+    pub page_info: PageInfo,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -182,7 +182,7 @@ pub struct MemoryRetrievalProfileRequest {
 #[serde(rename_all = "camelCase")]
 pub struct MemoryRetrievalProfileList {
     pub items: Vec<MemoryRetrievalProfile>,
-    pub page_info: MemoryPageInfo,
+    pub page_info: PageInfo,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -237,7 +237,7 @@ pub struct MemoryImplementationProfileRequest {
 #[serde(rename_all = "camelCase")]
 pub struct MemoryImplementationProfileList {
     pub items: Vec<MemoryImplementationProfile>,
-    pub page_info: MemoryPageInfo,
+    pub page_info: PageInfo,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -270,7 +270,7 @@ pub struct MemoryProviderBindingRequest {
 #[serde(rename_all = "camelCase")]
 pub struct MemoryProviderBindingList {
     pub items: Vec<crate::dto::MemoryProviderBinding>,
-    pub page_info: MemoryPageInfo,
+    pub page_info: PageInfo,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -315,7 +315,7 @@ pub struct MemoryEvalRunRequest {
 #[serde(rename_all = "camelCase")]
 pub struct MemoryEvalRunList {
     pub items: Vec<MemoryEvalRun>,
-    pub page_info: MemoryPageInfo,
+    pub page_info: PageInfo,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -349,7 +349,7 @@ pub struct MemoryAuditLog {
 #[serde(rename_all = "camelCase")]
 pub struct MemoryAuditLogList {
     pub items: Vec<MemoryAuditLog>,
-    pub page_info: MemoryPageInfo,
+    pub page_info: PageInfo,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

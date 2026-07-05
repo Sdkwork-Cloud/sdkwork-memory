@@ -1,6 +1,8 @@
 use sdkwork_memory_contract::{MemoryCandidate, MemoryServiceError, MemoryServiceResult};
-use sdkwork_memory_plugin_native_sql::NativeSqlCandidateDetailRow;
-use sdkwork_memory_spi::{ApproveMemoryCandidateCommand, MemoryScopeContext};
+use sdkwork_memory_plugin_native_sql::{
+    NativeSqlCandidateDetailRow, PromoteApprovedCandidateCommand,
+};
+use sdkwork_memory_spi::{MemoryScopeContext};
 use sdkwork_utils_rust::is_blank;
 use serde_json::Value;
 
@@ -68,57 +70,51 @@ impl OpenMemoryService {
                 crate::tenant_quota::MemoryQuotaLimits::from_env(),
             )
             .await?;
-            self.store
-                .create_record_open_api(
-                    &scope,
-                    &memory_uuid,
-                    "user",
-                    &detail.memory_type,
-                    None,
-                    None,
-                    &detail.proposed_text,
-                    &detail.proposed_text,
-                    "internal",
-                )
-                .await
-                .map_err(OpenMemoryService::map_store_error)?;
 
-            for event_id in parse_evidence_event_ids(detail.evidence_json.as_deref()) {
-                let source_id = self.next_id()?.to_string();
-                let _ = self
-                    .store
-                    .append_record_source_for_tenant(
-                        tenant_id,
-                        &source_id,
-                        &memory_uuid,
-                        &event_id,
-                        "evidence",
-                        Some(detail.confidence),
-                    )
-                    .await;
+            let event_ids = parse_evidence_event_ids(detail.evidence_json.as_deref());
+            let mut evidence_links = Vec::with_capacity(event_ids.len());
+            for event_id in event_ids {
+                evidence_links.push((
+                    self.next_id()?.to_string(),
+                    event_id,
+                    Some(detail.confidence),
+                ));
             }
 
             self.store
-                .set_candidate_target_memory_for_tenant(
+                .promote_and_approve_candidate(PromoteApprovedCandidateCommand {
+                    scope: &scope,
                     tenant_id,
-                    &candidate_id.to_string(),
-                    &memory_uuid,
-                )
+                    candidate_id: &candidate_id.to_string(),
+                    memory_uuid: &memory_uuid,
+                    memory_type: &detail.memory_type,
+                    proposed_text: &detail.proposed_text,
+                    evidence_links: &evidence_links,
+                    decided_by: decided_by.map(|value| value as i64),
+                    create_record: true,
+                })
                 .await
                 .map_err(OpenMemoryService::map_store_error)?;
 
             memory_uuid
         };
 
-        self.store
-            .approve_candidate(&ApproveMemoryCandidateCommand {
-                scope,
-                candidate_id: candidate_id.to_string(),
-                decision_reason: None,
-                decided_by: decided_by.map(|value| value as i64),
-            })
-            .await
-            .map_err(OpenMemoryService::map_store_error)?;
+        if detail.target_memory_uuid.is_some() {
+            self.store
+                .promote_and_approve_candidate(PromoteApprovedCandidateCommand {
+                    scope: &scope,
+                    tenant_id,
+                    candidate_id: &candidate_id.to_string(),
+                    memory_uuid: &memory_uuid,
+                    memory_type: &detail.memory_type,
+                    proposed_text: &detail.proposed_text,
+                    evidence_links: &[],
+                    decided_by: decided_by.map(|value| value as i64),
+                    create_record: false,
+                })
+                .await
+                .map_err(OpenMemoryService::map_store_error)?;
+        }
 
         let refreshed = self
             .store

@@ -10,8 +10,11 @@ use axum::{
 use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_contract::{
     CapabilityTargetType, CreateBindingCommand, CreateCapabilityBindingCommand,
-    CreateSubjectCommand, ListBindingsQuery, ListCapabilityBindingsQuery, ListSubjectsQuery,
-    MemoryBackendRequestContext, UpdateSubjectCommand,
+    CreateEdgeCommand, CreateEntityCommand, CreatePolicyAssignmentCommand, CreatePolicyCommand,
+    CreateSubjectCommand, ListBindingsQuery, ListCapabilityBindingsQuery, ListEdgesQuery,
+    ListEntitiesQuery, ListPoliciesQuery, ListPolicyAssignmentsQuery, ListSubjectsQuery,
+    MemoryBackendRequestContext, RebuildCommercialReadinessCommand, UpdateEdgeCommand,
+    UpdateEntityCommand, UpdatePolicyAssignmentCommand, UpdatePolicyCommand, UpdateSubjectCommand,
 };
 use sdkwork_routes_memory_support::{
     parse_principal_u64, success_created_resource_response, success_no_content_response,
@@ -45,6 +48,43 @@ pub fn commercial_routes() -> Router {
             get(retrieve_capability_binding).delete(delete_capability_binding),
         )
         .route(paths::CAPABILITIES_RESOLVE, post(resolve_capabilities))
+        .route(paths::ENTITIES, get(list_entities).post(create_entity))
+        .route(
+            paths::ENTITY,
+            get(retrieve_entity).patch(update_entity),
+        )
+        .route(paths::EDGES, get(list_edges).post(create_edge))
+        .route(
+            paths::EDGE,
+            get(retrieve_edge)
+                .patch(update_edge)
+                .delete(delete_edge),
+        )
+        .route(paths::POLICIES, get(list_policies).post(create_policy))
+        .route(
+            paths::POLICY,
+            get(retrieve_policy)
+                .patch(update_policy)
+                .delete(delete_policy),
+        )
+        .route(
+            paths::POLICY_ASSIGNMENTS,
+            get(list_policy_assignments).post(create_policy_assignment),
+        )
+        .route(
+            paths::POLICY_ASSIGNMENT,
+            get(retrieve_policy_assignment)
+                .patch(update_policy_assignment)
+                .delete(delete_policy_assignment),
+        )
+        .route(
+            paths::COMMERCIAL_READINESS,
+            get(retrieve_commercial_readiness),
+        )
+        .route(
+            paths::COMMERCIAL_READINESS_REBUILD,
+            post(rebuild_commercial_readiness),
+        )
 }
 
 fn forbidden(detail: &str) -> Response {
@@ -365,6 +405,430 @@ async fn resolve_capabilities(
         .await
     {
         Ok(caps) => success_resource_response(caps),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+// --- Entity handlers ---
+
+async fn create_entity(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Json(cmd): Json<CreateEntityCommand>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    if context.tenant_id != cmd.tenant_id {
+        return forbidden("tenantId mismatch");
+    }
+    match product.create_entity(cmd).await {
+        Ok(entity) => success_created_resource_response(entity),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+async fn retrieve_entity(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Path(entity_id): Path<String>,
+    Query(query): Query<TenantIdQuery>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    let tenant_id = match parse_tenant_id(&query.tenant_id, context.tenant_id) {
+        Ok(id) => id,
+        Err(resp) => return resp,
+    };
+    match product.retrieve_entity(tenant_id, &entity_id).await {
+        Ok(entity) => success_resource_response(entity),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+async fn list_entities(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Query(query): Query<ListEntitiesQuery>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    if context.tenant_id != query.tenant_id {
+        return forbidden("tenantId mismatch");
+    }
+    match product.list_entities(query).await {
+        Ok(list) => success_page_response(list),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+async fn update_entity(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Path(entity_id): Path<String>,
+    Query(query): Query<TenantIdQuery>,
+    Json(cmd): Json<UpdateEntityCommand>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    let tenant_id = match parse_tenant_id(&query.tenant_id, context.tenant_id) {
+        Ok(id) => id,
+        Err(resp) => return resp,
+    };
+    match product.update_entity(tenant_id, &entity_id, cmd).await {
+        Ok(entity) => success_resource_response(entity),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+// --- Edge handlers ---
+
+async fn create_edge(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Json(cmd): Json<CreateEdgeCommand>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    if context.tenant_id != cmd.tenant_id {
+        return forbidden("tenantId mismatch");
+    }
+    match product.create_edge(cmd).await {
+        Ok(edge) => success_created_resource_response(edge),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+async fn retrieve_edge(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Path(edge_id): Path<String>,
+    Query(query): Query<TenantIdQuery>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    let tenant_id = match parse_tenant_id(&query.tenant_id, context.tenant_id) {
+        Ok(id) => id,
+        Err(resp) => return resp,
+    };
+    match product.retrieve_edge(tenant_id, &edge_id).await {
+        Ok(edge) => success_resource_response(edge),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+async fn list_edges(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Query(query): Query<ListEdgesQuery>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    if context.tenant_id != query.tenant_id {
+        return forbidden("tenantId mismatch");
+    }
+    match product.list_edges(query).await {
+        Ok(list) => success_page_response(list),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+async fn update_edge(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Path(edge_id): Path<String>,
+    Query(query): Query<TenantIdQuery>,
+    Json(cmd): Json<UpdateEdgeCommand>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    let tenant_id = match parse_tenant_id(&query.tenant_id, context.tenant_id) {
+        Ok(id) => id,
+        Err(resp) => return resp,
+    };
+    match product.update_edge(tenant_id, &edge_id, cmd).await {
+        Ok(edge) => success_resource_response(edge),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+async fn delete_edge(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Path(edge_id): Path<String>,
+    Query(query): Query<TenantIdQuery>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    let tenant_id = match parse_tenant_id(&query.tenant_id, context.tenant_id) {
+        Ok(id) => id,
+        Err(resp) => return resp,
+    };
+    match product.delete_edge(tenant_id, &edge_id).await {
+        Ok(()) => success_no_content_response(),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+// --- Policy handlers ---
+
+async fn create_policy(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Json(cmd): Json<CreatePolicyCommand>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    if context.tenant_id != cmd.tenant_id {
+        return forbidden("tenantId mismatch");
+    }
+    match product.create_policy(cmd).await {
+        Ok(policy) => success_created_resource_response(policy),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+async fn retrieve_policy(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Path(policy_id): Path<String>,
+    Query(query): Query<TenantIdQuery>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    let tenant_id = match parse_tenant_id(&query.tenant_id, context.tenant_id) {
+        Ok(id) => id,
+        Err(resp) => return resp,
+    };
+    match product.retrieve_policy(tenant_id, &policy_id).await {
+        Ok(policy) => success_resource_response(policy),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+async fn list_policies(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Query(query): Query<ListPoliciesQuery>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    if context.tenant_id != query.tenant_id {
+        return forbidden("tenantId mismatch");
+    }
+    match product.list_policies(query).await {
+        Ok(list) => success_page_response(list),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+async fn update_policy(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Path(policy_id): Path<String>,
+    Query(query): Query<TenantIdQuery>,
+    Json(cmd): Json<UpdatePolicyCommand>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    let tenant_id = match parse_tenant_id(&query.tenant_id, context.tenant_id) {
+        Ok(id) => id,
+        Err(resp) => return resp,
+    };
+    match product.update_policy(tenant_id, &policy_id, cmd).await {
+        Ok(policy) => success_resource_response(policy),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+async fn delete_policy(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Path(policy_id): Path<String>,
+    Query(query): Query<TenantIdQuery>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    let tenant_id = match parse_tenant_id(&query.tenant_id, context.tenant_id) {
+        Ok(id) => id,
+        Err(resp) => return resp,
+    };
+    match product.delete_policy(tenant_id, &policy_id).await {
+        Ok(()) => success_no_content_response(),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+// --- Policy assignment handlers ---
+
+async fn create_policy_assignment(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Json(cmd): Json<CreatePolicyAssignmentCommand>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    if context.tenant_id != cmd.tenant_id {
+        return forbidden("tenantId mismatch");
+    }
+    match product.create_policy_assignment(cmd).await {
+        Ok(assignment) => success_created_resource_response(assignment),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+async fn retrieve_policy_assignment(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Path(assignment_id): Path<String>,
+    Query(query): Query<TenantIdQuery>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    let tenant_id = match parse_tenant_id(&query.tenant_id, context.tenant_id) {
+        Ok(id) => id,
+        Err(resp) => return resp,
+    };
+    match product
+        .retrieve_policy_assignment(tenant_id, &assignment_id)
+        .await
+    {
+        Ok(assignment) => success_resource_response(assignment),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+async fn list_policy_assignments(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Query(query): Query<ListPolicyAssignmentsQuery>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    if context.tenant_id != query.tenant_id {
+        return forbidden("tenantId mismatch");
+    }
+    match product.list_policy_assignments(query).await {
+        Ok(list) => success_page_response(list),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+async fn update_policy_assignment(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Path(assignment_id): Path<String>,
+    Query(query): Query<TenantIdQuery>,
+    Json(cmd): Json<UpdatePolicyAssignmentCommand>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    let tenant_id = match parse_tenant_id(&query.tenant_id, context.tenant_id) {
+        Ok(id) => id,
+        Err(resp) => return resp,
+    };
+    match product
+        .update_policy_assignment(tenant_id, &assignment_id, cmd)
+        .await
+    {
+        Ok(assignment) => success_resource_response(assignment),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+async fn delete_policy_assignment(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Path(assignment_id): Path<String>,
+    Query(query): Query<TenantIdQuery>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    let tenant_id = match parse_tenant_id(&query.tenant_id, context.tenant_id) {
+        Ok(id) => id,
+        Err(resp) => return resp,
+    };
+    match product
+        .delete_policy_assignment(tenant_id, &assignment_id)
+        .await
+    {
+        Ok(()) => success_no_content_response(),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+// --- Commercial readiness handlers ---
+
+async fn retrieve_commercial_readiness(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Query(query): Query<TenantIdQuery>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    let tenant_id = match parse_tenant_id(&query.tenant_id, context.tenant_id) {
+        Ok(id) => id,
+        Err(resp) => return resp,
+    };
+    match product.retrieve_commercial_readiness(tenant_id).await {
+        Ok(readiness) => success_resource_response(readiness),
+        Err(error) => BackendApiProblem::from(error).into_response(),
+    }
+}
+
+async fn rebuild_commercial_readiness(
+    Extension(product): Extension<Arc<OpenMemoryService>>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Json(cmd): Json<RebuildCommercialReadinessCommand>,
+) -> Response {
+    let context = match require_backend_context(context) {
+        Ok(ctx) => ctx,
+        Err(problem) => return problem.into_response(),
+    };
+    if context.tenant_id != cmd.tenant_id {
+        return forbidden("tenantId mismatch");
+    }
+    match product.rebuild_commercial_readiness(cmd).await {
+        Ok(readiness) => success_resource_response(readiness),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
 }

@@ -6,7 +6,7 @@ use sdkwork_memory_contract::{
     MemoryCandidate, MemoryCandidateList, MemoryCapabilities, MemoryContextPack,
     MemoryContextPackRequest, MemoryEvent, MemoryEventRequest, MemoryExtractionRequest,
     MemoryFeedback, MemoryFeedbackRequest, MemoryImplementationKind, MemoryLearningJob,
-    MemoryOpenApi, MemoryOpenApiRequestContext, MemoryPageInfo, MemoryProviderHealth,
+    MemoryOpenApi, MemoryOpenApiRequestContext, MemoryProviderHealth,
     MemoryProviderHealthStatus, MemoryProviderInterface, MemoryRecord, MemoryRecordList,
     MemoryRecordPatch, MemoryRecordRequest, MemoryRetrievalHit, MemoryRetrievalRequest,
     MemoryRetrievalResult, MemoryRetrievalTrace, MemoryRetrieverKind, MemoryServiceError,
@@ -453,70 +453,33 @@ impl MemoryOpenApi for OpenMemoryService {
         let scope = Self::scope(&context, space_id)?;
         let page_size = platform::clamp_page_size(query.page_size);
         let page_size_usize = usize::try_from(page_size).unwrap_or(20);
-        let actor_is_owner =
-            access::actor_is_space_owner(&self.store, &context, space_id).await?;
+        let actual_owner =
+            access::actual_actor_is_space_owner(&self.store, &context, space_id).await?;
+        let sensitivity_scope = access::sensitivity_read_scope(&context, actual_owner);
 
-        let mut items = Vec::new();
-        let mut scan_cursor = query.cursor.clone();
-        let mut last_scanned_uuid: Option<String> = None;
-        let mut db_has_more = false;
+        let rows = self
+            .store
+            .list_record_details(
+                &scope,
+                query.q.as_deref(),
+                page_size,
+                query.cursor.as_deref(),
+                sensitivity_scope,
+            )
+            .await
+            .map_err(Self::map_store_error)?;
 
-        while items.len() < page_size_usize {
-            let rows = self
-                .store
-                .list_record_details(
-                    &scope,
-                    query.q.as_deref(),
-                    page_size,
-                    scan_cursor.as_deref(),
-                )
-                .await
-                .map_err(Self::map_store_error)?;
-
-            db_has_more = rows.len() > page_size_usize;
-            let page_rows: Vec<_> = rows.into_iter().take(page_size_usize).collect();
-            if page_rows.is_empty() {
-                db_has_more = false;
-                break;
-            }
-
-            let mut stopped_early_in_batch = false;
-            for row in page_rows {
-                last_scanned_uuid = Some(row.memory_id.clone());
-                let record = Self::map_record(row)?;
-                if access::actor_may_read_sensitivity(
-                    &context,
-                    &record.sensitivity_level,
-                    actor_is_owner,
-                ) {
-                    items.push(record);
-                    if items.len() >= page_size_usize {
-                        stopped_early_in_batch = true;
-                        break;
-                    }
-                }
-            }
-
-            if items.len() >= page_size_usize {
-                db_has_more = db_has_more || stopped_early_in_batch;
-                break;
-            }
-            if !db_has_more {
-                break;
-            }
-            scan_cursor = last_scanned_uuid.clone();
-        }
-
-        let next_cursor = last_scanned_uuid.clone();
-        let page_has_more = items.len() >= page_size_usize && db_has_more;
+        let has_more = rows.len() > page_size_usize;
+        let page_rows: Vec<_> = rows.into_iter().take(page_size_usize).collect();
+        let next_cursor = page_rows.last().map(|row| row.memory_id.clone());
+        let items = page_rows
+            .into_iter()
+            .map(Self::map_record)
+            .collect::<MemoryServiceResult<Vec<_>>>()?;
 
         Ok(MemoryRecordList {
             items,
-            page_info: MemoryPageInfo {
-                next_cursor: if page_has_more { next_cursor } else { None },
-                has_more: page_has_more,
-                page_size: Some(page_size),
-            },
+            page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),
         })
     }
 
@@ -841,6 +804,12 @@ impl MemoryOpenApi for OpenMemoryService {
         if request.space_ids.is_empty() {
             return Err(MemoryServiceError::validation("spaceIds must not be empty"));
         }
+        const MAX_RETRIEVAL_SPACE_IDS: usize = 32;
+        if request.space_ids.len() > MAX_RETRIEVAL_SPACE_IDS {
+            return Err(MemoryServiceError::validation(format!(
+                "spaceIds must not exceed {MAX_RETRIEVAL_SPACE_IDS} entries per retrieval request"
+            )));
+        }
 
         access::assert_actor_can_access_spaces(&self.store, &context, &request.space_ids).await?;
 
@@ -890,7 +859,8 @@ impl MemoryOpenApi for OpenMemoryService {
             let context = &context;
             async move {
                 let scope = Self::scope(context, *space_id)?;
-                let actor_is_owner = access::actor_is_space_owner(&self.store, context, *space_id).await?;
+                let actor_is_owner =
+                    access::actual_actor_is_space_owner(&self.store, context, *space_id).await?;
                 Ok::<_, MemoryServiceError>((*space_id, scope, actor_is_owner))
             }
         }).collect();
@@ -1499,11 +1469,7 @@ impl MemoryOpenApi for OpenMemoryService {
 
         Ok(MemoryCandidateList {
             items,
-            page_info: MemoryPageInfo {
-                next_cursor: if has_more { next_cursor } else { None },
-                has_more,
-                page_size: Some(page_size),
-            },
+            page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),
         })
     }
 

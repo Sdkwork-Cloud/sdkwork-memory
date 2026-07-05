@@ -22,6 +22,38 @@ use thiserror::Error;
 
 use crate::pool_backend::{connect_any_pool, MemorySqlDialect};
 use crate::privacy::like_pattern;
+use sdkwork_utils_rust::MAX_LIST_PAGE_SIZE;
+
+/// Minimum read scope: public and internal records only.
+pub const SENSITIVITY_READ_PUBLIC: i32 = 0;
+/// Elevated operator scope: includes private and sensitive, excludes restricted.
+pub const SENSITIVITY_READ_ELEVATED: i32 = 1;
+/// Space owner scope: all sensitivity tiers including restricted.
+pub const SENSITIVITY_READ_OWNER: i32 = 2;
+
+fn clamp_list_page_size(page_size: i32) -> i64 {
+    page_size.clamp(1, MAX_LIST_PAGE_SIZE) as i64
+}
+
+const RECORD_SENSITIVITY_FILTER_SQL: &str = r#"
+                  AND (
+                    ? >= 2
+                    OR (? >= 1 AND r.sensitivity_level IN ('public', 'internal', 'private', 'sensitive'))
+                    OR r.sensitivity_level IN ('public', 'internal')
+                  )
+"#;
+
+pub struct PromoteApprovedCandidateCommand<'a> {
+    pub scope: &'a MemoryScopeContext,
+    pub tenant_id: i64,
+    pub candidate_id: &'a str,
+    pub memory_uuid: &'a str,
+    pub memory_type: &'a str,
+    pub proposed_text: &'a str,
+    pub evidence_links: &'a [(String, String, Option<f64>)],
+    pub decided_by: Option<i64>,
+    pub create_record: bool,
+}
 
 #[derive(Debug, Clone)]
 pub struct NativeSqlMemoryStore {
@@ -108,7 +140,7 @@ impl NativeSqlMemoryStore {
         {
             Ok(Some(_)) => Ok(true),
             Ok(None) => Ok(false),
-            Err(_) => Ok(false), // Tracking table does not exist yet — fresh or legacy database.
+            Err(_) => Ok(false), // Tracking table does not exist yet ??fresh or legacy database.
         }
     }
 
@@ -577,13 +609,15 @@ event_type: row.get("event_type"),
         query: Option<&str>,
         page_size: i32,
         cursor: Option<&str>,
+        sensitivity_read_scope: i32,
     ) -> Result<Vec<NativeSqlMemoryRecordDetail>, NativeSqlStoreError> {
-        let page_size = page_size.clamp(1, 100) as i64;
+        let page_size = clamp_list_page_size(page_size);
+        let sensitivity_read_scope = sensitivity_read_scope.clamp(SENSITIVITY_READ_PUBLIC, SENSITIVITY_READ_OWNER);
         let cursor = cursor.unwrap_or("");
         let query = query.unwrap_or("").trim();
 
         let rows = if query.is_empty() {
-            sqlx::query(
+            sqlx::query(&format!(
                 r#"
                 SELECT
                   r.uuid,
@@ -611,19 +645,22 @@ event_type: row.get("event_type"),
                   AND r.space_id = ?
                   AND r.status <> 'deleted'
                   AND r.uuid > ?
+                {RECORD_SENSITIVITY_FILTER_SQL}
                 ORDER BY r.uuid ASC
                 LIMIT ?
-                "#,
-            )
+                "#
+            ))
             .bind(scope.tenant_id)
             .bind(scope.space_id)
             .bind(cursor)
+            .bind(sensitivity_read_scope)
+            .bind(sensitivity_read_scope)
             .bind(page_size + 1)
             .fetch_all(&self.pool)
             .await?
         } else {
             let pattern = crate::privacy::like_pattern(query);
-            sqlx::query(
+            sqlx::query(&format!(
                 r#"
                 SELECT
                   r.uuid,
@@ -654,16 +691,19 @@ event_type: row.get("event_type"),
                   AND (r.canonical_text LIKE ? ESCAPE '\'
                        OR r.object_text LIKE ? ESCAPE '\'
                        OR COALESCE(r.subject, '') LIKE ? ESCAPE '\')
+                {RECORD_SENSITIVITY_FILTER_SQL}
                 ORDER BY r.uuid ASC
                 LIMIT ?
-                "#,
-            )
+                "#
+            ))
             .bind(scope.tenant_id)
             .bind(scope.space_id)
             .bind(cursor)
             .bind(&pattern)
             .bind(&pattern)
             .bind(&pattern)
+            .bind(sensitivity_read_scope)
+            .bind(sensitivity_read_scope)
             .bind(page_size + 1)
             .fetch_all(&self.pool)
             .await?
@@ -1209,7 +1249,7 @@ event_type: row.get("event_type"),
     }
 
     // -----------------------------------------------------------------
-    // Transactional helpers — allow multi-step writes to be atomic.
+    // Transactional helpers ??allow multi-step writes to be atomic.
     // -----------------------------------------------------------------
 
     /// Begin a database transaction for atomic multi-step operations.
@@ -1392,6 +1432,176 @@ event_type: row.get("event_type"),
         Ok(affected > 0)
     }
 
+    pub async fn append_record_source_on_tx(
+        tx: &mut sqlx::Transaction<'_, sqlx::Any>,
+        tenant_id: i64,
+        source_id: &str,
+        memory_uuid: &str,
+        event_uuid: &str,
+        source_role: &str,
+        confidence_delta: Option<f64>,
+    ) -> Result<(), NativeSqlStoreError> {
+        let result = sqlx::query(
+            r#"
+            INSERT INTO ai_record_source (
+              uuid,
+              tenant_id,
+              memory_id,
+              event_id,
+              source_role,
+              confidence_delta,
+              created_at
+            )
+            SELECT
+              ?,
+              ?,
+              record.id,
+              event.id,
+              ?,
+              ?,
+              ?
+            FROM ai_record record
+            JOIN ai_event event
+              ON event.tenant_id = record.tenant_id
+             AND event.uuid = ?
+            WHERE record.tenant_id = ?
+              AND record.uuid = ?
+              AND record.status <> 'deleted'
+            "#,
+        )
+        .bind(source_id)
+        .bind(tenant_id)
+        .bind(source_role)
+        .bind(confidence_delta)
+        .bind(now_text())
+        .bind(event_uuid)
+        .bind(tenant_id)
+        .bind(memory_uuid)
+        .execute(&mut **tx)
+        .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(NativeSqlStoreError::InvariantViolation {
+                message: "memory or event not found for record source".to_string(),
+            });
+        }
+        Ok(())
+    }
+
+    pub async fn set_candidate_target_memory_on_tx(
+        tx: &mut sqlx::Transaction<'_, sqlx::Any>,
+        tenant_id: i64,
+        candidate_id: &str,
+        memory_uuid: &str,
+    ) -> Result<(), NativeSqlStoreError> {
+        let result = sqlx::query(
+            r#"
+            UPDATE ai_candidate
+            SET target_memory_id = (
+              SELECT id
+              FROM ai_record
+              WHERE tenant_id = ?
+                AND uuid = ?
+            ),
+            updated_at = ?
+            WHERE tenant_id = ?
+              AND uuid = ?
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(memory_uuid)
+        .bind(now_text())
+        .bind(tenant_id)
+        .bind(candidate_id)
+        .execute(&mut **tx)
+        .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(NativeSqlStoreError::InvariantViolation {
+                message: "candidate or promoted memory not found".to_string(),
+            });
+        }
+        Ok(())
+    }
+
+    pub async fn approve_candidate_on_tx(
+        tx: &mut sqlx::Transaction<'_, sqlx::Any>,
+        scope: &MemoryScopeContext,
+        candidate_id: &str,
+        decided_by: Option<i64>,
+    ) -> Result<(), NativeSqlStoreError> {
+        sqlx::query(
+            r#"
+            UPDATE ai_candidate
+            SET decision_state = 'approved',
+                decision_reason = NULL,
+                decided_by = ?,
+                decided_at = ?,
+                updated_at = ?,
+                version = version + 1
+            WHERE tenant_id = ? AND space_id = ? AND uuid = ?
+            "#,
+        )
+        .bind(decided_by)
+        .bind(now_text())
+        .bind(now_text())
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
+        .bind(candidate_id)
+        .execute(&mut **tx)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn promote_and_approve_candidate(
+        &self,
+        command: PromoteApprovedCandidateCommand<'_>,
+    ) -> Result<(), NativeSqlStoreError> {
+        let mut tx = self.begin_tx().await?;
+        if command.create_record {
+            Self::create_record_on_tx(
+                &mut tx,
+                command.scope,
+                command.memory_uuid,
+                "user",
+                command.memory_type,
+                None,
+                None,
+                command.proposed_text,
+                command.proposed_text,
+                "internal",
+            )
+            .await?;
+            for (source_id, event_id, confidence) in command.evidence_links {
+                Self::append_record_source_on_tx(
+                    &mut tx,
+                    command.tenant_id,
+                    source_id,
+                    command.memory_uuid,
+                    event_id,
+                    "evidence",
+                    *confidence,
+                )
+                .await?;
+            }
+            Self::set_candidate_target_memory_on_tx(
+                &mut tx,
+                command.tenant_id,
+                command.candidate_id,
+                command.memory_uuid,
+            )
+            .await?;
+        }
+        Self::approve_candidate_on_tx(
+            &mut tx,
+            command.scope,
+            command.candidate_id,
+            command.decided_by,
+        )
+        .await?;
+        tx.commit().await.map_err(Into::into)
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn append_audit_with_metadata(
         &self,
@@ -1564,7 +1774,7 @@ event_type: row.get("event_type"),
         )
         .bind(tenant_id)
         .bind(resource_type)
-        .bind(page_size.clamp(1, 100) as i64)
+        .bind(clamp_list_page_size(page_size))
         .fetch_all(&self.pool)
         .await?;
 
@@ -3046,7 +3256,7 @@ event_type: row.get("event_type"),
         page_size: i32,
         cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlRetrievalTraceSummaryRow>, NativeSqlStoreError> {
-        let page_size = page_size.clamp(1, 100) as i64;
+        let page_size = clamp_list_page_size(page_size);
         let cursor = cursor.unwrap_or("");
         let rows = if let Some(space_id) = space_id {
             sqlx::query(
@@ -3212,7 +3422,7 @@ event_type: row.get("event_type"),
         cursor_space_id: i64,
         actor_id: Option<&str>,
     ) -> Result<Vec<NativeSqlMemorySpaceRow>, NativeSqlStoreError> {
-        let page_size = page_size.clamp(1, 100) as i64;
+        let page_size = clamp_list_page_size(page_size);
         let rows = if let Some(actor_id) = actor_id {
             sqlx::query(
                 r#"
@@ -3349,7 +3559,7 @@ event_type: row.get("event_type"),
         page_size: i32,
         cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlOpenApiEventRow>, NativeSqlStoreError> {
-        let page_size = page_size.clamp(1, 100) as i64;
+        let page_size = clamp_list_page_size(page_size);
         let cursor = cursor.unwrap_or("");
         let rows = if let Some(space_id) = space_id {
             sqlx::query(
@@ -3413,7 +3623,7 @@ event_type: row.get("event_type"),
         page_size: i32,
         cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlCandidateRow>, NativeSqlStoreError> {
-        let page_size = page_size.clamp(1, 100) as i64;
+        let page_size = clamp_list_page_size(page_size);
         let cursor = cursor.unwrap_or("");
         let rows = if let Some(space_id) = space_id {
             sqlx::query(
@@ -3590,7 +3800,7 @@ event_type: row.get("event_type"),
         page_size: i32,
         cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlHabitRow>, NativeSqlStoreError> {
-        let page_size = page_size.clamp(1, 100) as i64;
+        let page_size = clamp_list_page_size(page_size);
         let cursor = cursor.unwrap_or("");
         let like_pattern = query_text.map(like_pattern);
         let rows = sqlx::query(
@@ -3755,7 +3965,7 @@ event_type: row.get("event_type"),
         cursor: Option<&str>,
         query_text: Option<&str>,
     ) -> Result<Vec<NativeSqlRecordSourceRow>, NativeSqlStoreError> {
-        let page_size = page_size.clamp(1, 100) as i64;
+        let page_size = clamp_list_page_size(page_size);
         let cursor = cursor.unwrap_or("");
         let like_pattern = query_text.map(like_pattern);
         let rows = sqlx::query(
@@ -3820,7 +4030,7 @@ event_type: row.get("event_type"),
         page_size: i32,
         cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlAuditLogRow>, NativeSqlStoreError> {
-        let page_size = page_size.clamp(1, 100) as i64;
+        let page_size = clamp_list_page_size(page_size);
         let cursor = cursor.unwrap_or("");
         let rows = sqlx::query(
             r#"

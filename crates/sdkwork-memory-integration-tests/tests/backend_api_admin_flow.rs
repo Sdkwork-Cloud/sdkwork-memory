@@ -193,7 +193,7 @@ async fn backend_api_admin_config_persists_in_sql_tables() {
             json!({
                 "name": "fusion-profile",
                 "strategy": "hybrid",
-                "retrievers": { "keyword": { "weight": 0.6 }, "vector": { "weight": 0.4 } },
+                "retrievers": { "keyword": { "weight": 0.6 }, "dictionary": { "weight": 0.4 } },
                 "fusionPolicy": { "mode": "rrf" },
                 "topK": 8,
                 "contextBudgetTokens": 4096

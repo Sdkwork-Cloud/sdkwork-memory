@@ -10,7 +10,7 @@ use sdkwork_memory_contract::{
     MemoryHabit, MemoryHabitList, MemoryHabitRequest, MemoryImplementationProfile,
     MemoryImplementationProfileList, MemoryImplementationProfileRequest, MemoryIndex,
     MemoryIndexList, MemoryIndexRequest, MemoryLearningJob, MemoryLearningSettings,
-    MemoryLearningSettingsPatch, MemoryMigrationJobRequest, MemoryOpenApi, MemoryPageInfo,
+    MemoryLearningSettingsPatch, MemoryMigrationJobRequest, MemoryOpenApi,
     MemoryProviderBinding, MemoryProviderBindingList, MemoryProviderBindingRequest,
     MemoryProviderHealth, MemoryRecordList, MemoryRecordRequest, MemoryRecordSource,
     MemoryRecordSourceList, MemoryRetentionJobRequest, MemoryRetrievalProfile,
@@ -275,8 +275,12 @@ impl OpenMemoryService {
             let actor_is_owner = if let Some(cached) = owner_cache.get(&space_id) {
                 *cached
             } else {
-                let is_owner =
-                    access::actor_is_space_owner(&self.store, &open_context, space_id).await?;
+                let is_owner = access::actual_actor_is_space_owner(
+                    &self.store,
+                    &open_context,
+                    space_id,
+                )
+                .await?;
                 owner_cache.insert(space_id, is_owner);
                 is_owner
             };
@@ -295,8 +299,12 @@ impl OpenMemoryService {
             let actor_is_owner = if let Some(cached) = owner_cache.get(&space_id) {
                 *cached
             } else {
-                let is_owner =
-                    access::actor_is_space_owner(&self.store, &open_context, space_id).await?;
+                let is_owner = access::actual_actor_is_space_owner(
+                    &self.store,
+                    &open_context,
+                    space_id,
+                )
+                .await?;
                 owner_cache.insert(space_id, is_owner);
                 is_owner
             };
@@ -395,11 +403,7 @@ impl MemoryAppApi for OpenMemoryService {
         let next_cursor = items.last().map(|space| space.space_id.to_string());
         Ok(MemorySpaceList {
             items,
-            page_info: MemoryPageInfo {
-                next_cursor: if has_more { next_cursor } else { None },
-                has_more,
-                page_size: Some(page_size),
-            },
+            page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),
         })
     }
 
@@ -627,11 +631,7 @@ impl MemoryAppApi for OpenMemoryService {
 
         Ok(MemoryRecordSourceList {
             items,
-            page_info: MemoryPageInfo {
-                next_cursor: if has_more { next_cursor } else { None },
-                has_more,
-                page_size: Some(page_size),
-            },
+            page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),
         })
     }
 
@@ -1038,11 +1038,7 @@ impl MemoryAppApi for OpenMemoryService {
             .map(|candidate| candidate.candidate_id.to_string());
         Ok(MemoryCandidateList {
             items,
-            page_info: MemoryPageInfo {
-                next_cursor: if has_more { next_cursor } else { None },
-                has_more,
-                page_size: Some(page_size),
-            },
+            page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),
         })
     }
 
@@ -1217,11 +1213,7 @@ impl MemoryAppApi for OpenMemoryService {
             .collect::<Result<Vec<_>, _>>()?;
         Ok(MemoryHabitList {
             items,
-            page_info: MemoryPageInfo {
-                next_cursor: if has_more { next_cursor } else { None },
-                has_more,
-                page_size: Some(page_size),
-            },
+            page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),
         })
     }
 
@@ -1422,11 +1414,7 @@ impl MemoryBackendApi for OpenMemoryService {
         let next_cursor = items.last().map(|space| space.space_id.to_string());
         Ok(MemorySpaceList {
             items,
-            page_info: MemoryPageInfo {
-                next_cursor: if has_more { next_cursor } else { None },
-                has_more,
-                page_size: Some(page_size),
-            },
+            page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),
         })
     }
 
@@ -1534,11 +1522,7 @@ impl MemoryBackendApi for OpenMemoryService {
             .collect::<Result<Vec<_>, _>>()?;
         Ok(MemoryEventList {
             items,
-            page_info: MemoryPageInfo {
-                next_cursor: if has_more { next_cursor } else { None },
-                has_more,
-                page_size: Some(page_size),
-            },
+            page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),
         })
     }
 
@@ -1585,11 +1569,7 @@ impl MemoryBackendApi for OpenMemoryService {
             .map(|candidate| candidate.candidate_id.to_string());
         Ok(MemoryCandidateList {
             items,
-            page_info: MemoryPageInfo {
-                next_cursor: if has_more { next_cursor } else { None },
-                has_more,
-                page_size: Some(page_size),
-            },
+            page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),
         })
     }
 
@@ -1690,11 +1670,7 @@ impl MemoryBackendApi for OpenMemoryService {
             .collect::<Result<Vec<_>, _>>()?;
         Ok(MemoryRetrievalTraceList {
             items,
-            page_info: MemoryPageInfo {
-                next_cursor: if has_more { next_cursor } else { None },
-                has_more,
-                page_size: Some(page_size),
-            },
+            page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),
         })
     }
 
@@ -1748,11 +1724,7 @@ impl MemoryBackendApi for OpenMemoryService {
                 .into_iter()
                 .map(map_audit_log)
                 .collect::<MemoryServiceResult<Vec<_>>>()?,
-            page_info: MemoryPageInfo {
-                next_cursor: if has_more { next_cursor } else { None },
-                has_more,
-                page_size: Some(page_size),
-            },
+            page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),
         })
     }
 

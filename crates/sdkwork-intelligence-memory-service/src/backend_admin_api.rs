@@ -3,7 +3,7 @@ use sdkwork_memory_contract::{
     MemoryEvalRun, MemoryEvalRunList, MemoryEvalRunRequest, MemoryExtractionRequest,
     MemoryImplementationProfile, MemoryImplementationProfileList,
     MemoryImplementationProfileRequest, MemoryIndex, MemoryIndexList, MemoryIndexRequest,
-    MemoryLearningJob, MemoryMigrationJobRequest, MemoryOpenApi, MemoryPageInfo,
+    MemoryLearningJob, MemoryMigrationJobRequest, MemoryOpenApi, PageInfo,
     MemoryProviderBinding, MemoryProviderBindingList, MemoryProviderBindingRequest,
     MemoryRecordRequest, MemoryRetentionJobRequest, MemoryRetrievalProfile,
     MemoryRetrievalProfileList, MemoryRetrievalProfileRequest, MemoryServiceError,
@@ -19,6 +19,7 @@ use serde_json::Value;
 
 use crate::open_api::OpenMemoryService;
 use crate::platform;
+use crate::retrieval_profile;
 
 const RT_EXTRACTION_JOB: &str = "extraction_job";
 const RT_CONSOLIDATION_JOB: &str = "consolidation_job";
@@ -26,12 +27,8 @@ const RT_RETENTION_JOB: &str = "retention_job";
 const RT_MIGRATION_JOB: &str = "migration_job";
 
 impl OpenMemoryService {
-    fn admin_page_info(page_size: i32, has_more: bool, next_cursor: Option<String>) -> MemoryPageInfo {
-        MemoryPageInfo {
-            next_cursor: if has_more { next_cursor } else { None },
-            has_more,
-            page_size: Some(page_size),
-        }
+    fn admin_page_info(page_size: i32, has_more: bool, next_cursor: Option<String>) -> PageInfo {
+        platform::memory_cursor_page_info(page_size, has_more, next_cursor)
     }
 
     fn page_size_from_query(query: &ListAdminResourcesQuery) -> i32 {
@@ -476,6 +473,7 @@ impl OpenMemoryService {
         request: MemoryRetrievalProfileRequest,
     ) -> MemoryServiceResult<MemoryRetrievalProfile> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
+        retrieval_profile::validate_retrieval_retrievers(&request.retrievers)?;
         let profile_id = self.next_id()?.to_string();
         let retrievers_json = serde_json::to_string(&request.retrievers).map_err(|error| {
             MemoryServiceError::storage(format!("retrievers encode failed: {error}"))
@@ -533,6 +531,7 @@ impl OpenMemoryService {
         request: MemoryRetrievalProfileRequest,
     ) -> MemoryServiceResult<MemoryRetrievalProfile> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
+        retrieval_profile::validate_retrieval_retrievers(&request.retrievers)?;
         let retrievers_json = serde_json::to_string(&request.retrievers).ok();
         let fusion_policy_json = Self::optional_json_patch(&request.fusion_policy);
         let rerank_policy_json = Self::optional_json_patch(&request.rerank_policy);

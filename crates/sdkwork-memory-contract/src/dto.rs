@@ -72,14 +72,7 @@ pub enum MemoryProviderHealthStatus {
     Unknown,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MemoryPageInfo {
-    pub next_cursor: Option<String>,
-    pub has_more: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub page_size: Option<i32>,
-}
+pub use sdkwork_utils_rust::PageInfo;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -279,7 +272,7 @@ pub struct MemoryRecord {
 #[serde(rename_all = "camelCase")]
 pub struct MemoryRecordList {
     pub items: Vec<MemoryRecord>,
-    pub page_info: MemoryPageInfo,
+    pub page_info: PageInfo,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -609,7 +602,7 @@ pub struct MemoryCandidate {
 #[serde(rename_all = "camelCase")]
 pub struct MemoryCandidateList {
     pub items: Vec<MemoryCandidate>,
-    pub page_info: MemoryPageInfo,
+    pub page_info: PageInfo,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -662,7 +655,7 @@ pub struct MemoryHabit {
 #[serde(rename_all = "camelCase")]
 pub struct MemoryHabitList {
     pub items: Vec<MemoryHabit>,
-    pub page_info: MemoryPageInfo,
+    pub page_info: PageInfo,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -734,7 +727,7 @@ pub struct ListCandidatesQuery {
 #[serde(rename_all = "camelCase")]
 pub struct MemoryEventList {
     pub items: Vec<MemoryEvent>,
-    pub page_info: MemoryPageInfo,
+    pub page_info: PageInfo,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -752,7 +745,7 @@ pub struct ListEventsQuery {
 #[serde(rename_all = "camelCase")]
 pub struct MemoryRetrievalTraceList {
     pub items: Vec<MemoryRetrievalTrace>,
-    pub page_info: MemoryPageInfo,
+    pub page_info: PageInfo,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -822,7 +815,7 @@ pub struct ListMemorySourcesQuery {
 #[serde(rename_all = "camelCase")]
 pub struct MemoryRecordSourceList {
     pub items: Vec<MemoryRecordSource>,
-    pub page_info: MemoryPageInfo,
+    pub page_info: PageInfo,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
