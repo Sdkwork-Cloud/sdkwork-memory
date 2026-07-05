@@ -1,6 +1,5 @@
 //! Tracing bootstrap for `sdkwork-memory-standalone-gateway` (`OBSERVABILITY_SPEC.md` §2, §4).
 
-use sdkwork_utils_rust::is_blank;
 
 pub fn init_tracing() {
     #[cfg(feature = "otel")]

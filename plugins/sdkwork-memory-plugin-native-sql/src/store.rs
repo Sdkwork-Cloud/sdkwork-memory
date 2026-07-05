@@ -1964,16 +1964,16 @@ event_type: row.get("event_type"),
         user_id: Option<i64>,
         preference_key: &str,
     ) -> Result<Option<String>, NativeSqlStoreError> {
-        let stored_user_id = preference_user_storage_key(user_id);
+        let bound_user_id = preference_scope_user_binding(user_id, self.dialect);
         let row = sqlx::query(
             r#"
             SELECT preference_json
             FROM ai_tenant_preference
-            WHERE tenant_id = ? AND user_id = ? AND preference_key = ?
+            WHERE tenant_id = ? AND user_id IS NOT DISTINCT FROM ? AND preference_key = ?
             "#,
         )
         .bind(tenant_id)
-        .bind(stored_user_id)
+        .bind(bound_user_id)
         .bind(preference_key)
         .fetch_optional(&self.pool)
         .await?;
@@ -1988,7 +1988,7 @@ event_type: row.get("event_type"),
         preference_key: &str,
         preference_json: &str,
     ) -> Result<(), NativeSqlStoreError> {
-        let stored_user_id = preference_user_storage_key(user_id);
+        let bound_user_id = preference_scope_user_binding(user_id, self.dialect);
         let timestamp = now_text();
         sqlx::query(
             r#"
@@ -2003,7 +2003,7 @@ event_type: row.get("event_type"),
             "#,
         )
         .bind(tenant_id)
-        .bind(stored_user_id)
+        .bind(bound_user_id)
         .bind(preference_key)
         .bind(preference_json)
         .bind(&timestamp)
@@ -4495,8 +4495,14 @@ impl NativeSqlOutboxIdempotencyState {
     }
 }
 
-fn preference_user_storage_key(user_id: Option<i64>) -> i64 {
-    user_id.unwrap_or(-1)
+/// PostgreSQL stores tenant-scoped rows with SQL NULL; SQLite uses -1 because
+/// `ON CONFLICT` requires a single non-partial unique index.
+fn preference_scope_user_binding(user_id: Option<i64>, dialect: MemorySqlDialect) -> Option<i64> {
+    match (user_id, dialect) {
+        (None, MemorySqlDialect::Postgres) => None,
+        (None, MemorySqlDialect::Sqlite) => Some(-1),
+        (Some(id), _) => Some(id),
+    }
 }
 
 fn into_spi_outbox_event(outbox: NativeSqlMemoryOutboxEvent) -> MemoryOutboxEvent {

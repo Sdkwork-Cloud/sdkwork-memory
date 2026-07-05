@@ -60,7 +60,9 @@ pub fn init_id_generator(generator: SnowflakeIdGenerator, lease: Option<NodeLeas
 /// in `0..1024` to avoid collisions between processes on the same host.
 fn resolve_snowflake_node_id() -> u16 {
     if let Ok(value) = std::env::var("SDKWORK_MEMORY_SNOWFLAKE_NODE_ID") {
-        if let Ok(parsed) = value.parse::<u16>() {
+        if let Some(parsed) = sdkwork_utils_rust::parse_int(&value)
+            .and_then(|parsed| u16::try_from(parsed).ok())
+        {
             return parsed;
         }
     }

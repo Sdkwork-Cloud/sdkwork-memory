@@ -35,7 +35,20 @@ impl OutboxDeliveryConfig {
             .unwrap_or(OutboxDeliveryMode::Log);
         let webhook_url = std::env::var("SDKWORK_MEMORY_OUTBOX_DELIVERY_URL")
             .ok()
-            .filter(|value| !is_blank(Some(value.as_str())));
+            .filter(|value| !is_blank(Some(value.as_str())))
+            .and_then(|value| {
+                match crate::endpoint_validation::validate_outbound_url(value.trim()) {
+                    Ok(()) => Some(value),
+                    Err(reason) => {
+                        tracing::error!(
+                            url = %value,
+                            reason = %reason,
+                            "outbox delivery URL rejected at startup"
+                        );
+                        None
+                    }
+                }
+            });
         let timeout_seconds = std::env::var("SDKWORK_MEMORY_OUTBOX_DELIVERY_TIMEOUT_SECS")
             .ok()
             .and_then(|value| sdkwork_utils_rust::parse_int(&value))
@@ -106,6 +119,9 @@ pub async fn deliver_outbox_event(
                     "SDKWORK_MEMORY_OUTBOX_DELIVERY_URL is required when delivery mode is http"
                         .to_string()
                 })?;
+            crate::endpoint_validation::validate_outbound_url(url).map_err(|reason| {
+                format!("outbox delivery URL rejected: {reason}")
+            })?;
             let response = config
                 .http_client
                 .post(url)

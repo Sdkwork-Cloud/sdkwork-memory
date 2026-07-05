@@ -39,8 +39,8 @@ impl OpenMemoryService {
     }
 
     fn parse_row_id(id: &str) -> MemoryServiceResult<u64> {
-        id.parse::<u64>().map_err(|error| {
-            MemoryServiceError::storage(format!("admin resource id must be numeric: {error}"))
+        platform::parse_numeric_id(id).ok_or_else(|| {
+            MemoryServiceError::storage("admin resource id must be numeric".to_string())
         })
     }
 

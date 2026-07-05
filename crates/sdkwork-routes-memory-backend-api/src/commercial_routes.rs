@@ -14,8 +14,8 @@ use sdkwork_memory_contract::{
     MemoryBackendRequestContext, UpdateSubjectCommand,
 };
 use sdkwork_routes_memory_support::{
-    success_created_resource_response, success_no_content_response, success_page_response,
-    success_resource_response,
+    parse_principal_u64, success_created_resource_response, success_no_content_response,
+    success_page_response, success_resource_response,
 };
 use serde::Deserialize;
 use std::sync::Arc;
@@ -32,35 +32,19 @@ pub fn commercial_routes() -> Router {
                 .delete(delete_subject),
         )
         .route(paths::BINDINGS, get(list_bindings).post(create_binding))
-        .route(paths::BINDING, get(retrieve_binding).patch(stub_not_implemented).delete(delete_binding))
+        .route(
+            paths::BINDING,
+            get(retrieve_binding).delete(delete_binding),
+        )
         .route(
             paths::CAPABILITY_BINDINGS,
             get(list_capability_bindings).post(create_capability_binding),
         )
         .route(
             paths::CAPABILITY_BINDING,
-            get(retrieve_capability_binding).patch(stub_not_implemented).delete(delete_capability_binding),
+            get(retrieve_capability_binding).delete(delete_capability_binding),
         )
         .route(paths::CAPABILITIES_RESOLVE, post(resolve_capabilities))
-        .route(paths::COMMERCIAL_READINESS, get(retrieve_commercial_readiness))
-        .route(paths::COMMERCIAL_READINESS_REBUILD, post(rebuild_commercial_readiness))
-        .route(paths::BINDINGS_BULK_DELETE, post(stub_not_implemented))
-        .route(paths::BINDINGS_BULK_UPSERT, post(stub_not_implemented))
-        .route(paths::BINDINGS_RESOLVE, post(stub_not_implemented))
-        .route(
-            paths::SUBJECT_EFFECTIVE_CAPABILITIES,
-            get(stub_not_implemented),
-        )
-        .route(paths::SUBJECT_EFFECTIVE_POLICIES, get(stub_not_implemented))
-        .route(paths::ENTITIES, get(stub_not_implemented).post(stub_not_implemented))
-        .route(paths::ENTITY, get(stub_not_implemented).patch(stub_not_implemented))
-        .route(paths::ENTITY_MERGE, post(stub_not_implemented))
-        .route(paths::EDGES, get(stub_not_implemented).post(stub_not_implemented))
-        .route(paths::EDGE, get(stub_not_implemented).patch(stub_not_implemented).delete(stub_not_implemented))
-        .route(paths::POLICY_ASSIGNMENTS, get(stub_not_implemented).post(stub_not_implemented))
-        .route(paths::POLICY_ASSIGNMENT, get(stub_not_implemented).patch(stub_not_implemented).delete(stub_not_implemented))
-        .route(paths::RELATION_REBUILD_JOBS, post(stub_not_implemented))
-        .route(paths::RELATION_REBUILD_JOB, get(stub_not_implemented))
 }
 
 fn forbidden(detail: &str) -> Response {
@@ -73,8 +57,8 @@ fn bad_request(detail: &str) -> Response {
 
 #[allow(clippy::result_large_err)]
 fn parse_tenant_id(query_tenant_id: &str, context_tenant_id: u64) -> Result<u64, Response> {
-    match query_tenant_id.parse::<u64>() {
-        Ok(id) if id == context_tenant_id => Ok(id),
+    match parse_principal_u64(query_tenant_id) {
+        Some(id) if id == context_tenant_id => Ok(id),
         _ => Err(bad_request("invalid or mismatched tenantId")),
     }
 }
@@ -372,9 +356,9 @@ async fn resolve_capabilities(
         "memory" => CapabilityTargetType::Memory,
         _ => return bad_request("invalid targetType"),
     };
-    let target_id = match req.target_id.parse::<u64>() {
-        Ok(id) => id,
-        _ => return bad_request("invalid targetId"),
+    let target_id = match parse_principal_u64(&req.target_id) {
+        Some(id) => id,
+        None => return bad_request("invalid targetId"),
     };
     match product
         .resolve_capabilities(tenant_id, target_type, target_id)
@@ -389,63 +373,4 @@ async fn resolve_capabilities(
 pub struct TenantIdQuery {
     #[serde(rename = "tenantId")]
     pub tenant_id: String,
-}
-
-// --- Commercial readiness (stub endpoints for API contract compliance) ---
-
-async fn retrieve_commercial_readiness(
-    Extension(_product): Extension<Arc<OpenMemoryService>>,
-    context: Option<Extension<MemoryBackendRequestContext>>,
-    Query(query): Query<TenantIdQuery>,
-) -> Response {
-    let context = match require_backend_context(context) {
-        Ok(ctx) => ctx,
-        Err(problem) => return problem.into_response(),
-    };
-    let _ = match parse_tenant_id(&query.tenant_id, context.tenant_id) {
-        Ok(id) => id,
-        Err(resp) => return resp,
-    };
-    // Commercial readiness snapshot retrieval is a planned feature.
-    // Return 501 Not Implemented to distinguish from 404 (route not mounted).
-    BackendApiProblem::new(
-        StatusCode::NOT_IMPLEMENTED,
-        "not_implemented",
-        "commercial readiness retrieval is not yet implemented",
-    )
-    .into_response()
-}
-
-async fn rebuild_commercial_readiness(
-    Extension(_product): Extension<Arc<OpenMemoryService>>,
-    context: Option<Extension<MemoryBackendRequestContext>>,
-    Query(query): Query<TenantIdQuery>,
-) -> Response {
-    let context = match require_backend_context(context) {
-        Ok(ctx) => ctx,
-        Err(problem) => return problem.into_response(),
-    };
-    let _ = match parse_tenant_id(&query.tenant_id, context.tenant_id) {
-        Ok(id) => id,
-        Err(resp) => return resp,
-    };
-    // Commercial readiness rebuild is a planned feature.
-    // Return 501 Not Implemented to distinguish from 404 (route not mounted).
-    BackendApiProblem::new(
-        StatusCode::NOT_IMPLEMENTED,
-        "not_implemented",
-        "commercial readiness rebuild is not yet implemented",
-    )
-    .into_response()
-}
-
-/// Generic stub handler for planned but not yet implemented endpoints.
-/// Returns 501 Not Implemented to distinguish from 404 (route not mounted).
-async fn stub_not_implemented() -> Response {
-    BackendApiProblem::new(
-        StatusCode::NOT_IMPLEMENTED,
-        "not_implemented",
-        "this endpoint is defined in the API contract but not yet implemented",
-    )
-    .into_response()
 }

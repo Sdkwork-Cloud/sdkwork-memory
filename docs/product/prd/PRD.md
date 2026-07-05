@@ -69,17 +69,17 @@ commercial multi-tenant deployment.
 - Learning: candidate extraction, habit signals, async learning job queue.
 - Governance: audit log, outbox events, tenant preferences, tenant quotas.
 - Provider binding: native SQL plugin, reference profiles plugin, SPI registry.
-- API: open (17 ops), app (33 ops), backend (41 ops) with generated TypeScript SDK.
+- API: open (17 ops), app (33 ops), backend (55 ops) with generated TypeScript SDK.
 - Deployment: Docker, Kubernetes (unified-process and split-services topologies).
 - Observability: Prometheus metrics, tracing, readiness/liveness probes, correlation IDs.
 - Privacy: soft delete, hard delete, forget requests, export jobs, sensitivity classification.
 
 ### Out of Scope (Phase 2 — Commercial Extension)
 
-- Commercial memory: subjects, memory bindings, capability bindings, policy assignments,
-  relation rebuild jobs, commercial readiness snapshots. (Subjects, bindings, capability
-  bindings, and capability resolution integrated into retrieval/write flows: implemented.
-  Policy assignments, relation rebuild jobs, commercial readiness snapshots: designed, pending.)
+- Commercial memory extensions beyond Phase 2a: policy assignments, entity/edge CRUD APIs,
+  relation rebuild jobs, and commercial readiness snapshots remain planned for a later release.
+  Phase 2a (subjects, bindings, capability bindings, capability resolution) is implemented
+  and exposed on the backend API with IAM route-manifest enforcement.
 - Plugin hot-loading and version negotiation.
 - Multi-region active-active deployment.
 - Embedding-backed semantic retrieval (provider contract defined, no reference implementation).

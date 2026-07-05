@@ -2,6 +2,7 @@
 
 pub mod correlation;
 pub mod metrics;
+pub mod principal;
 pub mod problem;
 pub mod readiness;
 pub mod response;
@@ -15,6 +16,7 @@ use sdkwork_web_core::{WebFrameworkError, WebRequestContextResolver, WebRequestP
 
 pub use correlation::{with_problem_correlation, MemoryProblemCorrelation};
 pub use metrics::{memory_http_metrics, memory_metric_environment_label, refresh_memory_http_metric_dimensions};
+pub use principal::{parse_principal_optional_u64, parse_principal_u64};
 pub use problem::{MemoryApiError, MemoryApiProblem, MemoryApiResult};
 pub use readiness::memory_dependency_ready_check;
 pub use response::{

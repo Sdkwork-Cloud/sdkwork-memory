@@ -96,6 +96,43 @@ spec:
                 secretKeyRef:
                   name: sdkwork-memory-iam-database
                   key: database-url
+            # Drive-backed export upload (optional; enable when privacy exports use driveTargetRef).
+            - name: SDKWORK_MEMORY_DRIVE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: sdkwork-memory-drive
+                  key: database-url
+                  optional: true
+            - name: SDKWORK_MEMORY_DRIVE_S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: sdkwork-memory-drive
+                  key: s3-endpoint
+                  optional: true
+            - name: SDKWORK_MEMORY_DRIVE_S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: sdkwork-memory-drive
+                  key: s3-region
+                  optional: true
+            - name: SDKWORK_MEMORY_DRIVE_S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: sdkwork-memory-drive
+                  key: s3-bucket
+                  optional: true
+            - name: SDKWORK_DRIVE_S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: sdkwork-memory-drive
+                  key: s3-access-key-id
+                  optional: true
+            - name: SDKWORK_DRIVE_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sdkwork-memory-drive
+                  key: s3-secret-access-key
+                  optional: true
           startupProbe:
             httpGet:
               path: /readyz

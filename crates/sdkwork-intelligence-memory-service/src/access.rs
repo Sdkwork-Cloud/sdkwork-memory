@@ -240,6 +240,24 @@ pub fn actor_may_read_sensitivity(
     }
 }
 
+/// Enforces read-path sensitivity policy for a single memory record.
+///
+/// Returns `not_found` when the actor lacks read access so existence of
+/// restricted records is not leaked to unauthorized callers.
+pub async fn assert_actor_may_read_record_sensitivity(
+    store: &NativeSqlMemoryStore,
+    context: &MemoryOpenApiRequestContext,
+    space_id: u64,
+    sensitivity_level: &str,
+) -> MemoryServiceResult<()> {
+    let actor_is_owner = actor_is_space_owner(store, context, space_id).await?;
+    if actor_may_read_sensitivity(context, sensitivity_level, actor_is_owner) {
+        Ok(())
+    } else {
+        Err(MemoryServiceError::not_found("memory not found"))
+    }
+}
+
 pub async fn actor_is_space_owner(
     store: &NativeSqlMemoryStore,
     context: &MemoryOpenApiRequestContext,

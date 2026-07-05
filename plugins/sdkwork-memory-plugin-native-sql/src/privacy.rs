@@ -320,8 +320,13 @@ impl NativeSqlMemoryStore {
             if include_events {
                 let mut event_cursor = String::new();
                 loop {
+                    let cursor = if event_cursor.is_empty() {
+                        None
+                    } else {
+                        Some(event_cursor.as_str())
+                    };
                     let event_rows = self
-                        .list_open_api_events_for_tenant(tenant_id, Some(*space_id), 100, None)
+                        .list_open_api_events_for_tenant(tenant_id, Some(*space_id), 100, cursor)
                         .await?;
                     if event_rows.is_empty() {
                         break;
@@ -339,7 +344,6 @@ impl NativeSqlMemoryStore {
                         break;
                     }
                     event_cursor.clone_from(&batch.last().expect("batch non-empty").event_id);
-                    let _ = event_cursor;
                 }
             }
         }

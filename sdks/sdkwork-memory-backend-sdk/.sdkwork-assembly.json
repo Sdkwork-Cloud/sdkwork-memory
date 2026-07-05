@@ -91,7 +91,7 @@
   "metadata": {
     "standardVersion": "2026-06-10",
     "ownerOnlyOperationCount": null,
-    "materializationState": "authority-draft",
+    "materializationState": "authority-active",
     "managedBy": "tools/materialize_phase1_contracts.mjs"
   }
 }

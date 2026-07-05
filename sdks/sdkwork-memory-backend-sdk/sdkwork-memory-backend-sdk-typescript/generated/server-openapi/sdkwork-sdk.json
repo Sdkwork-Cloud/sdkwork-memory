@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "language": "typescript",
   "sdkType": "backend",
-  "packageName": "@sdkwork/memory-backend-sdk",
+  "packageName": "sdkwork-memory-backend-sdk-generated-typescript",
+  "transportPackageName": "sdkwork-memory-backend-sdk-generated-typescript",
+  "consumerPackageName": "@sdkwork/memory-backend-sdk",
   "generator": "@sdkwork/sdk-generator",
   "capabilities": {
     "supportsGeneratedTests": true,

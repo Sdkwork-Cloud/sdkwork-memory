@@ -8,12 +8,12 @@ license.workspace = true
 async-trait.workspace = true
 sdkwork-database-config.workspace = true
 sdkwork-database-sqlx.workspace = true
-sdkwork-drive-config = { path = "../../../sdkwork-drive/crates/sdkwork-drive-config" }
-sdkwork-drive-storage-contract = { path = "../../../sdkwork-drive/crates/sdkwork-drive-storage-contract" }
-sdkwork-drive-storage-local = { path = "../../../sdkwork-drive/crates/sdkwork-drive-storage-local" }
-sdkwork-drive-storage-s3 = { path = "../../../sdkwork-drive/crates/sdkwork-drive-storage-s3" }
-sdkwork-drive-uploader-service = { path = "../../../sdkwork-drive/crates/sdkwork-drive-uploader-service" }
-sdkwork-drive-workspace-service = { path = "../../../sdkwork-drive/crates/sdkwork-drive-workspace-service" }
+sdkwork-drive-config = { workspace = true }
+sdkwork-drive-storage-contract = { workspace = true }
+sdkwork-drive-storage-local = { workspace = true }
+sdkwork-drive-storage-s3 = { workspace = true }
+sdkwork-drive-uploader-service = { workspace = true }
+sdkwork-drive-workspace-service = { workspace = true }
 sdkwork-memory-spi.workspace = true
 sdkwork-utils-rust.workspace = true
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "postgres", "any"] }

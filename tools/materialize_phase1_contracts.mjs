@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { migrateOpenApiDocument } from "../../sdkwork-specs/tools/lib/migrate-openapi-legacy-envelope.mjs";
 
 const root = process.cwd();
@@ -284,6 +285,7 @@ const rootCanonicalSpecs = [
   ["DATABASE_SPEC.md", "../sdkwork-specs/DATABASE_SPEC.md", "Schema registry, table contract, migration, and storage rules."],
   ["EVENT_SPEC.md", "../sdkwork-specs/EVENT_SPEC.md", "Domain event and outbox contract rules."],
   ["PRIVACY_SPEC.md", "../sdkwork-specs/PRIVACY_SPEC.md", "Memory privacy, sensitive data, retention, export, and deletion rules."],
+  ["DRIVE_SPEC.md", "../sdkwork-specs/DRIVE_SPEC.md", "Drive-backed export upload and object store integration rules."],
   ["OBSERVABILITY_SPEC.md", "../sdkwork-specs/OBSERVABILITY_SPEC.md", "Request, retrieval, provider, job, audit, and evaluation observability rules."],
   ["TEST_SPEC.md", "../sdkwork-specs/TEST_SPEC.md", "Verification, contract testing, and evidence-before-completion rules."]
 ].map(([file, specPath, purpose]) => ({ file, path: specPath, purpose }));
@@ -886,7 +888,7 @@ function sdkFamilyAssembly({ surface, prefix, title, authority, openapiFile, cli
     metadata: {
       standardVersion,
       ownerOnlyOperationCount: null,
-      materializationState: "authority-draft",
+      materializationState: "authority-active",
       managedBy: "tools/materialize_phase1_contracts.mjs"
     }
   };
@@ -1768,7 +1770,8 @@ function errorResponses() {
     "401": problem,
     "403": problem,
     "404": problem,
-    "409": problem
+    "409": problem,
+    "429": problem
   };
 }
 
@@ -1806,6 +1809,17 @@ function listParams(extra = []) {
     { name: "page_size", in: "query", required: false, schema: { type: "integer", format: "int32", minimum: 1, maximum: 100 } },
     ...extra
   ];
+}
+
+function tenantListParams(extra = []) {
+  return listParams([
+    { name: "tenantId", in: "query", required: true, schema: idSchema },
+    ...extra
+  ]);
+}
+
+function requiredTenantIdQueryParam() {
+  return { name: "tenantId", in: "query", required: true, schema: idSchema };
 }
 
 function idempotencyParam() {
@@ -2595,6 +2609,149 @@ function baseSchemas() {
         dryRun: { type: "boolean" },
         metadata: nullableJsonObject
       }
+    },
+    MemorySubject: {
+      type: "object",
+      required: ["subjectId", "tenantId", "subjectType", "subjectRef", "displayName", "status", "createdAt", "updatedAt", "version"],
+      properties: {
+        subjectId: idSchema,
+        tenantId: idSchema,
+        organizationId: nullableIdSchema,
+        subjectType: { type: "string", enum: ["tenant", "organization", "user", "application", "service"] },
+        subjectRef: { type: "string" },
+        displayName: { type: "string" },
+        defaultSpaceId: nullableIdSchema,
+        status: { type: "string" },
+        metadata: nullableJsonObject,
+        createdAt: instant,
+        updatedAt: instant,
+        version: idSchema
+      }
+    },
+    MemorySubjectRequest: {
+      type: "object",
+      required: ["tenantId", "subjectType", "subjectRef", "displayName"],
+      properties: {
+        tenantId: idSchema,
+        organizationId: nullableIdSchema,
+        subjectType: { type: "string", enum: ["tenant", "organization", "user", "application", "service"] },
+        subjectRef: { type: "string" },
+        displayName: { type: "string" },
+        defaultSpaceId: nullableIdSchema,
+        metadata: nullableJsonObject
+      }
+    },
+    MemorySubjectPatch: {
+      type: "object",
+      properties: {
+        displayName: { type: "string" },
+        defaultSpaceId: nullableIdSchema,
+        status: { type: "string" },
+        metadata: nullableJsonObject
+      }
+    },
+    MemorySubjectList: pageSchema("MemorySubject"),
+    MemoryBinding: {
+      type: "object",
+      required: ["bindingId", "tenantId", "bindingKind", "bindingRole", "status", "createdAt", "updatedAt", "version"],
+      properties: {
+        bindingId: idSchema,
+        tenantId: idSchema,
+        spaceId: nullableIdSchema,
+        bindingKind: { type: "string", enum: ["ownership", "access", "share", "reference", "provision"] },
+        bindingRole: { type: "string" },
+        sourceSubjectId: nullableIdSchema,
+        targetSubjectId: nullableIdSchema,
+        targetSpaceId: nullableIdSchema,
+        capabilityCodes: { anyOf: [{ type: "array", items: { type: "string" } }, { type: "null" }] },
+        status: { type: "string" },
+        validFrom: nullableInstant,
+        validTo: nullableInstant,
+        metadata: nullableJsonObject,
+        createdAt: instant,
+        updatedAt: instant,
+        version: idSchema
+      }
+    },
+    MemoryBindingRequest: {
+      type: "object",
+      required: ["tenantId", "bindingKind", "bindingRole"],
+      properties: {
+        tenantId: idSchema,
+        spaceId: nullableIdSchema,
+        bindingKind: { type: "string", enum: ["ownership", "access", "share", "reference", "provision"] },
+        bindingRole: { type: "string" },
+        sourceSubjectId: nullableIdSchema,
+        targetSubjectId: nullableIdSchema,
+        targetSpaceId: nullableIdSchema,
+        capabilityCodes: { anyOf: [{ type: "array", items: { type: "string" } }, { type: "null" }] },
+        validFrom: nullableInstant,
+        validTo: nullableInstant,
+        metadata: nullableJsonObject
+      }
+    },
+    MemoryBindingList: pageSchema("MemoryBinding"),
+    MemoryCapabilityBinding: {
+      type: "object",
+      required: ["capabilityBindingId", "tenantId", "capabilityCode", "targetType", "targetId", "mode", "priority", "status", "createdAt", "updatedAt", "version"],
+      properties: {
+        capabilityBindingId: idSchema,
+        tenantId: idSchema,
+        capabilityCode: { type: "string" },
+        targetType: { type: "string", enum: ["subject", "space", "binding", "memory"] },
+        targetId: idSchema,
+        mode: { type: "string", enum: ["allow", "deny", "conditional"] },
+        priority: { type: "integer", format: "int32" },
+        status: { type: "string" },
+        validFrom: nullableInstant,
+        validTo: nullableInstant,
+        metadata: nullableJsonObject,
+        createdAt: instant,
+        updatedAt: instant,
+        version: idSchema
+      }
+    },
+    MemoryCapabilityBindingRequest: {
+      type: "object",
+      required: ["tenantId", "capabilityCode", "targetType", "targetId", "mode"],
+      properties: {
+        tenantId: idSchema,
+        capabilityCode: { type: "string" },
+        targetType: { type: "string", enum: ["subject", "space", "binding", "memory"] },
+        targetId: idSchema,
+        mode: { type: "string", enum: ["allow", "deny", "conditional"] },
+        priority: { type: "integer", format: "int32" },
+        validFrom: nullableInstant,
+        validTo: nullableInstant,
+        metadata: nullableJsonObject
+      }
+    },
+    MemoryCapabilityBindingList: pageSchema("MemoryCapabilityBinding"),
+    MemoryResolvedCapability: {
+      type: "object",
+      required: ["capabilityCode", "mode", "priority", "source"],
+      properties: {
+        capabilityCode: { type: "string" },
+        mode: { type: "string", enum: ["allow", "deny", "conditional"] },
+        priority: { type: "integer", format: "int32" },
+        source: { type: "string" }
+      }
+    },
+    MemoryResolvedCapabilityList: {
+      type: "object",
+      required: ["items"],
+      properties: {
+        items: { type: "array", items: schemaRef("MemoryResolvedCapability") }
+      }
+    },
+    MemoryResolveCapabilitiesRequest: {
+      type: "object",
+      required: ["tenantId", "targetType", "targetId"],
+      properties: {
+        tenantId: idSchema,
+        targetType: { type: "string", enum: ["subject", "space", "binding", "memory"] },
+        targetId: idSchema
+      }
     }
   };
 }
@@ -2944,6 +3101,22 @@ function writeBackendOpenApi() {
   addPath(paths, `${P}/retention_jobs`, "post", operation({ method: "post", authority, operationId: "retentionJobs.create", permission: "memory.backend.retention.write", auditEvent: "memory.backend.retention_job.created", requestSchema: "MemoryRetentionJobRequest", responseSchema: "MemoryLearningJob", idempotent: true }));
   addPath(paths, `${P}/migration_jobs`, "post", operation({ method: "post", authority, operationId: "migrationJobs.create", permission: "memory.backend.migrations.write", auditEvent: "memory.backend.migration_job.created", requestSchema: "MemoryMigrationJobRequest", responseSchema: "MemoryLearningJob", idempotent: true }));
   addPath(paths, `${P}/migration_jobs/{migrationJobId}`, "get", operation({ method: "get", authority, operationId: "migrationJobs.retrieve", permission: "memory.backend.migrations.read", auditEvent: "memory.backend.migration_job.read", pathParams: [pathParam("migrationJobId")], responseSchema: "MemoryLearningJob" }));
+
+  // Commercial memory management (Phase 2a — implemented routes only).
+  addPath(paths, `${P}/subjects`, "get", operation({ method: "get", authority, operationId: "subjects.list", permission: "memory.backend.subjects.read", auditEvent: "memory.backend.subject.list", queryParams: tenantListParams([{ name: "subjectType", in: "query", required: false, schema: { type: "string" } }, { name: "status", in: "query", required: false, schema: { type: "string" } }]), responseSchema: "MemorySubjectList" }));
+  addPath(paths, `${P}/subjects`, "post", operation({ method: "post", authority, operationId: "subjects.create", permission: "memory.backend.subjects.write", auditEvent: "memory.backend.subject.created", requestSchema: "MemorySubjectRequest", responseSchema: "MemorySubject", idempotent: true }));
+  addPath(paths, `${P}/subjects/{subjectId}`, "get", operation({ method: "get", authority, operationId: "subjects.retrieve", permission: "memory.backend.subjects.read", auditEvent: "memory.backend.subject.read", pathParams: [pathParam("subjectId")], queryParams: [requiredTenantIdQueryParam()], responseSchema: "MemorySubject" }));
+  addPath(paths, `${P}/subjects/{subjectId}`, "patch", operation({ method: "patch", authority, operationId: "subjects.update", permission: "memory.backend.subjects.write", auditEvent: "memory.backend.subject.updated", pathParams: [pathParam("subjectId")], queryParams: [requiredTenantIdQueryParam()], requestSchema: "MemorySubjectPatch", responseSchema: "MemorySubject" }));
+  addPath(paths, `${P}/subjects/{subjectId}`, "delete", operation({ method: "delete", authority, operationId: "subjects.delete", permission: "memory.backend.subjects.write", auditEvent: "memory.backend.subject.deleted", pathParams: [pathParam("subjectId")], queryParams: [requiredTenantIdQueryParam()], responseSchema: "MemorySubject", status: "204" }));
+  addPath(paths, `${P}/bindings`, "get", operation({ method: "get", authority, operationId: "bindings.list", permission: "memory.backend.bindings.read", auditEvent: "memory.backend.binding.list", queryParams: tenantListParams(), responseSchema: "MemoryBindingList" }));
+  addPath(paths, `${P}/bindings`, "post", operation({ method: "post", authority, operationId: "bindings.create", permission: "memory.backend.bindings.write", auditEvent: "memory.backend.binding.created", requestSchema: "MemoryBindingRequest", responseSchema: "MemoryBinding", idempotent: true }));
+  addPath(paths, `${P}/bindings/{bindingId}`, "get", operation({ method: "get", authority, operationId: "bindings.retrieve", permission: "memory.backend.bindings.read", auditEvent: "memory.backend.binding.read", pathParams: [pathParam("bindingId")], queryParams: [requiredTenantIdQueryParam()], responseSchema: "MemoryBinding" }));
+  addPath(paths, `${P}/bindings/{bindingId}`, "delete", operation({ method: "delete", authority, operationId: "bindings.delete", permission: "memory.backend.bindings.write", auditEvent: "memory.backend.binding.deleted", pathParams: [pathParam("bindingId")], queryParams: [requiredTenantIdQueryParam()], responseSchema: "MemoryBinding", status: "204" }));
+  addPath(paths, `${P}/capability_bindings`, "get", operation({ method: "get", authority, operationId: "capabilityBindings.list", permission: "memory.backend.capabilityBindings.read", auditEvent: "memory.backend.capability_binding.list", queryParams: tenantListParams(), responseSchema: "MemoryCapabilityBindingList" }));
+  addPath(paths, `${P}/capability_bindings`, "post", operation({ method: "post", authority, operationId: "capabilityBindings.create", permission: "memory.backend.capabilityBindings.write", auditEvent: "memory.backend.capability_binding.created", requestSchema: "MemoryCapabilityBindingRequest", responseSchema: "MemoryCapabilityBinding", idempotent: true }));
+  addPath(paths, `${P}/capability_bindings/{capabilityBindingId}`, "get", operation({ method: "get", authority, operationId: "capabilityBindings.retrieve", permission: "memory.backend.capabilityBindings.read", auditEvent: "memory.backend.capability_binding.read", pathParams: [pathParam("capabilityBindingId")], queryParams: [requiredTenantIdQueryParam()], responseSchema: "MemoryCapabilityBinding" }));
+  addPath(paths, `${P}/capability_bindings/{capabilityBindingId}`, "delete", operation({ method: "delete", authority, operationId: "capabilityBindings.delete", permission: "memory.backend.capabilityBindings.write", auditEvent: "memory.backend.capability_binding.deleted", pathParams: [pathParam("capabilityBindingId")], queryParams: [requiredTenantIdQueryParam()], responseSchema: "MemoryCapabilityBinding", status: "204" }));
+  addPath(paths, `${P}/capabilities/resolve`, "post", operation({ method: "post", authority, operationId: "capabilities.resolve", permission: "memory.backend.capabilityBindings.read", auditEvent: "memory.backend.capabilities.resolved", requestSchema: "MemoryResolveCapabilitiesRequest", responseSchema: "MemoryResolvedCapabilityList", idempotent: true }));
 
   writeAlignedOpenApi("sdks/sdkwork-memory-backend-sdk/openapi/memory-backend-api.openapi.json", createOpenApi({
     title: "SDKWork Memory Backend API",
@@ -3608,4 +3781,13 @@ writeOpenApi();
 writeAppOpenApi();
 writeBackendOpenApi();
 writeRouteArtifacts();
+
+const migrationSync = spawnSync(process.execPath, ["tools/materialize_memory_migrations.mjs"], {
+  cwd: root,
+  stdio: "inherit"
+});
+if (migrationSync.status !== 0) {
+  process.exit(migrationSync.status ?? 1);
+}
+
 writeVerification();

@@ -40,7 +40,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "d4cc5da093db8945c92c9dda25af91ab9209966cd71538b667e577a97747aaf6"
+      "sha256": "9a035dbdc9ff71ee39048acaba28bed3135d918553c4bf08d998714153d5a552"
     },
     {
       "path": "README.md",
@@ -48,7 +48,7 @@
     },
     {
       "path": "sdkwork-sdk.json",
-      "sha256": "d3dd5945b3e491116993ecd9f863e18bb4a922d9531d4516a4110faf9b16f308"
+      "sha256": "d436d51693859b10520585a0d39342dfdcc7d8db853a6ad024ff7161a6de01e4"
     },
     {
       "path": "src/api/base.ts",
@@ -60,7 +60,7 @@
     },
     {
       "path": "src/api/memory.ts",
-      "sha256": "b6fc867a89cf7dfb8c67b482244c1ca240337fc672a54122bfb42d912cc03bc8"
+      "sha256": "4a08067c03b47fad367c38b2c4a09671f952fc6ceed2ec75a397c5d9f719af13"
     },
     {
       "path": "src/api/paths.ts",
@@ -91,6 +91,18 @@
       "sha256": "252d60b6ff9bf4e3172481c3fdf0b50651359ac5e7d243ab2cc6ab7ef30ac760"
     },
     {
+      "path": "src/types/bindings-create-response201.ts",
+      "sha256": "de666932659ec7a86c9c07ddef4fed8f6e966926a9c91b5bb4ed2f7281825b30"
+    },
+    {
+      "path": "src/types/bindings-list-response.ts",
+      "sha256": "4c023a4defcb8b5860fc555b9263058ef4ff3879a8599223e2b683b85d0c1abb"
+    },
+    {
+      "path": "src/types/bindings-retrieve-response.ts",
+      "sha256": "e0e6ec71466fb38458c65a052d0fe9a4e268d11b9f1b5e2fd84cfd6c53fba6d9"
+    },
+    {
       "path": "src/types/candidates-approve-response201.ts",
       "sha256": "32855e9e4d500b12efa385b347b6d72830e8bbdd63229e906f87cce68992e63d"
     },
@@ -101,6 +113,22 @@
     {
       "path": "src/types/candidates-reject-response201.ts",
       "sha256": "c81d18bb48c5fa7d0533788b56c98f83a72d066945864cc1195f2fdecbb5cd69"
+    },
+    {
+      "path": "src/types/capabilities-resolve-response201.ts",
+      "sha256": "f34ac8afc9e6c6aa470d5adcea11f43ef604a8074f65c5a33eb777ef2dda636a"
+    },
+    {
+      "path": "src/types/capability-bindings-create-response201.ts",
+      "sha256": "fc9f42b1ec4fb90155f0273fdd8c518e68f21194c1f876e7a229fdf7d5094e79"
+    },
+    {
+      "path": "src/types/capability-bindings-list-response.ts",
+      "sha256": "79215a7adc263687a126feb9b73c2c7490ffeabc9d48179fbf80a0e191e76878"
+    },
+    {
+      "path": "src/types/capability-bindings-retrieve-response.ts",
+      "sha256": "e4988ba86a6e03959d5497e2dfcbebb0e10c1920f1c62610a1e2ecc5ee2b267e"
     },
     {
       "path": "src/types/common.ts",
@@ -160,7 +188,7 @@
     },
     {
       "path": "src/types/index.ts",
-      "sha256": "db0ae4cd9f8f155e85f666c37f3da6037310fbc2f2e7d20fe34cfeabcbb2f248"
+      "sha256": "e0a65f9fd4e9fb77b0e8cda9a9f0cfc793cd7cdd3f2c207b856a02f19e935c1c"
     },
     {
       "path": "src/types/indexes-create-response201.ts",
@@ -207,6 +235,18 @@
       "sha256": "bb481bd07f97038f0d3fd318bb56b485e0f841079fd56b601c5cb1c42f45b935"
     },
     {
+      "path": "src/types/memory-binding-list.ts",
+      "sha256": "d6bcde7d2a6173311871df10f484db158afdf1f96a384d523f746bf96cc24838"
+    },
+    {
+      "path": "src/types/memory-binding-request.ts",
+      "sha256": "429c926185d783a55f1c6146a908e3c152eb2669427f9629ffc754811568b73c"
+    },
+    {
+      "path": "src/types/memory-binding.ts",
+      "sha256": "b2f3ba4573080adea17d1747fa6d8e6be922bf393b79692b10b0dcacbc291f61"
+    },
+    {
       "path": "src/types/memory-candidate-list.ts",
       "sha256": "730ed54fa84031f5f66bad9dfa9801ea4aef748a2be00ae24a1c037e0ac41c25"
     },
@@ -217,6 +257,18 @@
     {
       "path": "src/types/memory-capabilities.ts",
       "sha256": "f84aca0d3cc91258c99e1b71a2331e317df5ed0077526e88dd567344c40ee0c8"
+    },
+    {
+      "path": "src/types/memory-capability-binding-list.ts",
+      "sha256": "9cd5c0252eef98a8db007e444d70f3a30ef9bbc92e3df73f91b831c2fc098695"
+    },
+    {
+      "path": "src/types/memory-capability-binding-request.ts",
+      "sha256": "39371df8863a1cadb3b6be212ef2cb32417e002a047292751730c1dcfcf412fa"
+    },
+    {
+      "path": "src/types/memory-capability-binding.ts",
+      "sha256": "29c9965b76c56b89b2941af97738f0581b19ca5cf3aeb1ea947a3ac82d32b76f"
     },
     {
       "path": "src/types/memory-context-pack-request.ts",
@@ -371,6 +423,18 @@
       "sha256": "f578dcd65dcc18403e7f96d33fc2b199b62a67180e780328d6682a7bd284c65d"
     },
     {
+      "path": "src/types/memory-resolve-capabilities-request.ts",
+      "sha256": "b6a7a029c8ab7d6dcb4097be3966246ca558b7ad612384afb8c9e61bfd018c32"
+    },
+    {
+      "path": "src/types/memory-resolved-capability-list.ts",
+      "sha256": "9e24206e1a2b159a64086e8944b0ecd1a3880cd4646b72cee5b9af1b41bf2e2f"
+    },
+    {
+      "path": "src/types/memory-resolved-capability.ts",
+      "sha256": "5d91b513999a71265d6606be060a77de6c6c2700b02c8044f12ec54accc0081c"
+    },
+    {
       "path": "src/types/memory-retention-job-request.ts",
       "sha256": "f0a9952ea6232f689f374360686a49f0a95a47cd6b109b7093b57be96d8dacb8"
     },
@@ -421,6 +485,22 @@
     {
       "path": "src/types/memory-space.ts",
       "sha256": "8f7c6656be3ba9e8be0e2dc993b64dc28f9872469cb119ff9f37e974f8b890f6"
+    },
+    {
+      "path": "src/types/memory-subject-list.ts",
+      "sha256": "2ccd90a0aa0a00081333d858d4c986ddc28bb38b99743d101e2499d02052f507"
+    },
+    {
+      "path": "src/types/memory-subject-patch.ts",
+      "sha256": "0c7d6b7e79f3419f574f260cf1b0e970fa37dfc98683fff6e5238b63c47a6b7a"
+    },
+    {
+      "path": "src/types/memory-subject-request.ts",
+      "sha256": "980083851c7380417b472b8abd7e6628254aaaef482c2644ba626ecc2a2ff342"
+    },
+    {
+      "path": "src/types/memory-subject.ts",
+      "sha256": "ca607e0b51f2b11fb288cc01c6de6a58337bdf477bc01e6bc40935cc97c3c695"
     },
     {
       "path": "src/types/migration-jobs-create-response201.ts",
@@ -525,6 +605,22 @@
     {
       "path": "src/types/spaces-update-response.ts",
       "sha256": "01c2a1690986bde3c07989195c993a61b37c8c0b15e0597b1f13f3706f733298"
+    },
+    {
+      "path": "src/types/subjects-create-response201.ts",
+      "sha256": "583220aee4c7c1a39cf841ddacb53f9cc2106d113ef0ee5df2c5e6d82357abf3"
+    },
+    {
+      "path": "src/types/subjects-list-response.ts",
+      "sha256": "c34c2c0f9aace09d12c1c647759dc5cafcf551422a88f17d726465370368a027"
+    },
+    {
+      "path": "src/types/subjects-retrieve-response.ts",
+      "sha256": "350d34e9d4d0150f9a07d2fd45278264ee4675848955297fc24476a3a1e3e9a0"
+    },
+    {
+      "path": "src/types/subjects-update-response.ts",
+      "sha256": "ebfadf0eaef2cd24fd3a69468765205d853f1619ec7358cf8920db61eeae8682"
     },
     {
       "path": "tsconfig.json",

@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "language": "typescript",
   "sdkType": "app",
-  "packageName": "@sdkwork/memory-app-sdk",
+  "packageName": "sdkwork-memory-app-sdk-generated-typescript",
+  "transportPackageName": "sdkwork-memory-app-sdk-generated-typescript",
+  "consumerPackageName": "@sdkwork/memory-app-sdk",
   "generator": "@sdkwork/sdk-generator",
   "capabilities": {
     "supportsGeneratedTests": true,

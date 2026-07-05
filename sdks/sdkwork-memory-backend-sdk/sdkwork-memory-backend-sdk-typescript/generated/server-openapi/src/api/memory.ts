@@ -1,8 +1,232 @@
 import { backendApiPath } from './paths';
 import type { HttpClient } from '../http/client';
 
-import type { MemoryAuditLog, MemoryCandidate, MemoryEvalRun, MemoryEvalRunRequest, MemoryEvent, MemoryExtractionRequest, MemoryImplementationProfile, MemoryImplementationProfileRequest, MemoryIndex, MemoryIndexRequest, MemoryLearningJob, MemoryMigrationJobRequest, MemoryProviderBinding, MemoryProviderBindingRequest, MemoryProviderHealth, MemoryRecord, MemoryRecordRequest, MemoryRetentionJobRequest, MemoryRetrievalProfile, MemoryRetrievalProfileRequest, MemoryRetrievalTrace, MemoryReviewRequest, MemorySpace, MemorySpaceRequest, PageInfo } from '../types';
+import type { MemoryAuditLog, MemoryBinding, MemoryBindingRequest, MemoryCandidate, MemoryCapabilityBinding, MemoryCapabilityBindingRequest, MemoryEvalRun, MemoryEvalRunRequest, MemoryEvent, MemoryExtractionRequest, MemoryImplementationProfile, MemoryImplementationProfileRequest, MemoryIndex, MemoryIndexRequest, MemoryLearningJob, MemoryMigrationJobRequest, MemoryProviderBinding, MemoryProviderBindingRequest, MemoryProviderHealth, MemoryRecord, MemoryRecordRequest, MemoryResolveCapabilitiesRequest, MemoryResolvedCapability, MemoryRetentionJobRequest, MemoryRetrievalProfile, MemoryRetrievalProfileRequest, MemoryRetrievalTrace, MemoryReviewRequest, MemorySpace, MemorySpaceRequest, MemorySubject, MemorySubjectPatch, MemorySubjectRequest, PageInfo } from '../types';
 
+
+export interface MemoryCapabilitiesResolveParams {
+  idempotencyKey?: string;
+}
+
+export class MemoryCapabilitiesApi {
+  private client: HttpClient;
+
+  constructor(client: HttpClient) {
+    this.client = client;
+  }
+
+
+async resolve(body: MemoryResolveCapabilitiesRequest, params?: MemoryCapabilitiesResolveParams): Promise<Record<string, unknown>> {
+    const requestHeaders = buildRequestHeaders(
+      {
+        'Idempotency-Key': { value: params?.idempotencyKey, style: 'simple', explode: false },
+      },
+      {}
+    );
+    return this.client.post<Record<string, unknown>>(backendApiPath(`/memory/capabilities/resolve`), body, undefined, requestHeaders, 'application/json');
+  }
+}
+
+export interface MemoryCapabilityBindingsListParams {
+  q?: string;
+  cursor?: string;
+  pageSize?: number;
+  tenantId: string;
+}
+
+export interface MemoryCapabilityBindingsCreateParams {
+  idempotencyKey?: string;
+}
+
+export interface MemoryCapabilityBindingsRetrieveParams {
+  tenantId: string;
+}
+
+export interface MemoryCapabilityBindingsDeleteParams {
+  tenantId: string;
+}
+
+export class MemoryCapabilityBindingsApi {
+  private client: HttpClient;
+
+  constructor(client: HttpClient) {
+    this.client = client;
+  }
+
+
+async list(params: MemoryCapabilityBindingsListParams): Promise<Record<string, unknown>> {
+    const query = buildQueryString([
+      { name: 'q', value: params.q, style: 'form', explode: true, allowReserved: false },
+      { name: 'cursor', value: params.cursor, style: 'form', explode: true, allowReserved: false },
+      { name: 'page_size', value: params.pageSize, style: 'form', explode: true, allowReserved: false },
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<Record<string, unknown>>(appendQueryString(backendApiPath(`/memory/capability_bindings`), query));
+  }
+
+async create(body: MemoryCapabilityBindingRequest, params?: MemoryCapabilityBindingsCreateParams): Promise<MemoryCapabilityBinding> {
+    const requestHeaders = buildRequestHeaders(
+      {
+        'Idempotency-Key': { value: params?.idempotencyKey, style: 'simple', explode: false },
+      },
+      {}
+    );
+    return this.client.post<MemoryCapabilityBinding>(backendApiPath(`/memory/capability_bindings`), body, undefined, requestHeaders, 'application/json');
+  }
+
+async retrieve(capabilityBindingId: string, params: MemoryCapabilityBindingsRetrieveParams): Promise<MemoryCapabilityBinding> {
+    const query = buildQueryString([
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<MemoryCapabilityBinding>(appendQueryString(backendApiPath(`/memory/capability_bindings/${serializePathParameter(capabilityBindingId, { name: 'capabilityBindingId', style: 'simple', explode: false })}`), query));
+  }
+
+async delete(capabilityBindingId: string, params: MemoryCapabilityBindingsDeleteParams): Promise<void> {
+    const query = buildQueryString([
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.delete<void>(appendQueryString(backendApiPath(`/memory/capability_bindings/${serializePathParameter(capabilityBindingId, { name: 'capabilityBindingId', style: 'simple', explode: false })}`), query));
+  }
+}
+
+export interface MemoryBindingsListParams {
+  q?: string;
+  cursor?: string;
+  pageSize?: number;
+  tenantId: string;
+}
+
+export interface MemoryBindingsCreateParams {
+  idempotencyKey?: string;
+}
+
+export interface MemoryBindingsRetrieveParams {
+  tenantId: string;
+}
+
+export interface MemoryBindingsDeleteParams {
+  tenantId: string;
+}
+
+export class MemoryBindingsApi {
+  private client: HttpClient;
+
+  constructor(client: HttpClient) {
+    this.client = client;
+  }
+
+
+async list(params: MemoryBindingsListParams): Promise<Record<string, unknown>> {
+    const query = buildQueryString([
+      { name: 'q', value: params.q, style: 'form', explode: true, allowReserved: false },
+      { name: 'cursor', value: params.cursor, style: 'form', explode: true, allowReserved: false },
+      { name: 'page_size', value: params.pageSize, style: 'form', explode: true, allowReserved: false },
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<Record<string, unknown>>(appendQueryString(backendApiPath(`/memory/bindings`), query));
+  }
+
+async create(body: MemoryBindingRequest, params?: MemoryBindingsCreateParams): Promise<MemoryBinding> {
+    const requestHeaders = buildRequestHeaders(
+      {
+        'Idempotency-Key': { value: params?.idempotencyKey, style: 'simple', explode: false },
+      },
+      {}
+    );
+    return this.client.post<MemoryBinding>(backendApiPath(`/memory/bindings`), body, undefined, requestHeaders, 'application/json');
+  }
+
+async retrieve(bindingId: string, params: MemoryBindingsRetrieveParams): Promise<MemoryBinding> {
+    const query = buildQueryString([
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<MemoryBinding>(appendQueryString(backendApiPath(`/memory/bindings/${serializePathParameter(bindingId, { name: 'bindingId', style: 'simple', explode: false })}`), query));
+  }
+
+async delete(bindingId: string, params: MemoryBindingsDeleteParams): Promise<void> {
+    const query = buildQueryString([
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.delete<void>(appendQueryString(backendApiPath(`/memory/bindings/${serializePathParameter(bindingId, { name: 'bindingId', style: 'simple', explode: false })}`), query));
+  }
+}
+
+export interface MemorySubjectsListParams {
+  q?: string;
+  cursor?: string;
+  pageSize?: number;
+  tenantId: string;
+  subjectType?: string;
+  status?: string;
+}
+
+export interface MemorySubjectsCreateParams {
+  idempotencyKey?: string;
+}
+
+export interface MemorySubjectsRetrieveParams {
+  tenantId: string;
+}
+
+export interface MemorySubjectsUpdateParams {
+  tenantId: string;
+}
+
+export interface MemorySubjectsDeleteParams {
+  tenantId: string;
+}
+
+export class MemorySubjectsApi {
+  private client: HttpClient;
+
+  constructor(client: HttpClient) {
+    this.client = client;
+  }
+
+
+async list(params: MemorySubjectsListParams): Promise<Record<string, unknown>> {
+    const query = buildQueryString([
+      { name: 'q', value: params.q, style: 'form', explode: true, allowReserved: false },
+      { name: 'cursor', value: params.cursor, style: 'form', explode: true, allowReserved: false },
+      { name: 'page_size', value: params.pageSize, style: 'form', explode: true, allowReserved: false },
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+      { name: 'subjectType', value: params.subjectType, style: 'form', explode: true, allowReserved: false },
+      { name: 'status', value: params.status, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<Record<string, unknown>>(appendQueryString(backendApiPath(`/memory/subjects`), query));
+  }
+
+async create(body: MemorySubjectRequest, params?: MemorySubjectsCreateParams): Promise<MemorySubject> {
+    const requestHeaders = buildRequestHeaders(
+      {
+        'Idempotency-Key': { value: params?.idempotencyKey, style: 'simple', explode: false },
+      },
+      {}
+    );
+    return this.client.post<MemorySubject>(backendApiPath(`/memory/subjects`), body, undefined, requestHeaders, 'application/json');
+  }
+
+async retrieve(subjectId: string, params: MemorySubjectsRetrieveParams): Promise<MemorySubject> {
+    const query = buildQueryString([
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<MemorySubject>(appendQueryString(backendApiPath(`/memory/subjects/${serializePathParameter(subjectId, { name: 'subjectId', style: 'simple', explode: false })}`), query));
+  }
+
+async update(subjectId: string, body: MemorySubjectPatch, params: MemorySubjectsUpdateParams): Promise<MemorySubject> {
+    const query = buildQueryString([
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.patch<MemorySubject>(appendQueryString(backendApiPath(`/memory/subjects/${serializePathParameter(subjectId, { name: 'subjectId', style: 'simple', explode: false })}`), query), body, undefined, undefined, 'application/json');
+  }
+
+async delete(subjectId: string, params: MemorySubjectsDeleteParams): Promise<void> {
+    const query = buildQueryString([
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.delete<void>(appendQueryString(backendApiPath(`/memory/subjects/${serializePathParameter(subjectId, { name: 'subjectId', style: 'simple', explode: false })}`), query));
+  }
+}
 
 export interface MemoryMigrationJobsCreateParams {
   idempotencyKey?: string;
@@ -559,6 +783,10 @@ export class MemoryApi {
   public readonly auditLogs: MemoryAuditLogsApi;
   public readonly retentionJobs: MemoryRetentionJobsApi;
   public readonly migrationJobs: MemoryMigrationJobsApi;
+  public readonly subjects: MemorySubjectsApi;
+  public readonly bindings: MemoryBindingsApi;
+  public readonly capabilityBindings: MemoryCapabilityBindingsApi;
+  public readonly capabilities: MemoryCapabilitiesApi;
 
   constructor(client: HttpClient) {
     this.client = client;
@@ -577,6 +805,10 @@ export class MemoryApi {
     this.auditLogs = new MemoryAuditLogsApi(client);
     this.retentionJobs = new MemoryRetentionJobsApi(client);
     this.migrationJobs = new MemoryMigrationJobsApi(client);
+    this.subjects = new MemorySubjectsApi(client);
+    this.bindings = new MemoryBindingsApi(client);
+    this.capabilityBindings = new MemoryCapabilityBindingsApi(client);
+    this.capabilities = new MemoryCapabilitiesApi(client);
   }
 
 

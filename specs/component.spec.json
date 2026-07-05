@@ -92,6 +92,11 @@
       "purpose": "Memory privacy, sensitive data, retention, export, and deletion rules."
     },
     {
+      "file": "DRIVE_SPEC.md",
+      "path": "../sdkwork-specs/DRIVE_SPEC.md",
+      "purpose": "Drive-backed export upload and object store integration rules."
+    },
+    {
       "file": "OBSERVABILITY_SPEC.md",
       "path": "../sdkwork-specs/OBSERVABILITY_SPEC.md",
       "purpose": "Request, retrieval, provider, job, audit, and evaluation observability rules."

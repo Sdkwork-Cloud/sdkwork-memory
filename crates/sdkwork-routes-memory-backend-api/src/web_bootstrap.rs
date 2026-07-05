@@ -4,8 +4,8 @@ use axum::Router;
 use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
 use sdkwork_memory_contract::MemoryBackendRequestContext;
 use sdkwork_routes_memory_support::{
-    memory_http_metrics, memory_web_auth_mode_from_env, with_problem_correlation, MemoryWebAuthMode,
-    ProductionFailClosedResolver,
+    memory_http_metrics, memory_web_auth_mode_from_env, parse_principal_u64,
+    with_problem_correlation, MemoryWebAuthMode, ProductionFailClosedResolver,
 };
 use sdkwork_web_axum::{with_web_request_context, WebFrameworkLayer};
 use sdkwork_web_core::{
@@ -39,8 +39,8 @@ fn memory_backend_context_from_web_request(
     context: &WebRequestContext,
 ) -> Option<MemoryBackendRequestContext> {
     let principal = context.principal.as_ref()?;
-    let tenant_id = principal.tenant_id().parse().ok()?;
-    let operator_id = principal.user_id().parse().ok();
+    let tenant_id = parse_principal_u64(principal.tenant_id())?;
+    let operator_id = parse_principal_u64(principal.user_id());
     Some(MemoryBackendRequestContext {
         tenant_id,
         operator_id,

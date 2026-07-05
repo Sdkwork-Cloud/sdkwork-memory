@@ -1,4 +1,5 @@
 -- Tenant-level and user-level preference store (schema-registry 005-memory-governance.yaml).
+-- SQLite stores tenant-scoped rows with user_id = -1 (see preference_scope_user_binding).
 -- SQLite stores tenant-scoped rows with user_id = -1 (see preference_user_storage_key).
 
 CREATE TABLE IF NOT EXISTS ai_tenant_preference (

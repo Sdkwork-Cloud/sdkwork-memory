@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use serde_json::Value;
 
 use sdkwork_memory_contract::MemoryRecord;
+use sdkwork_utils_rust::is_blank;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RetrievalCandidate {
@@ -318,7 +319,7 @@ pub fn orchestrate_retrieval_candidates(
         let weight = retriever_weight(profile, "time").max(0.5);
         for record in records.iter().take(top_k.saturating_mul(2)) {
             let score = time_recency_score(&record.created_at);
-            if keyword_match_score(query, &record.canonical_text) > 0.0 || query.trim().is_empty() {
+            if keyword_match_score(query, &record.canonical_text) > 0.0 || is_blank(Some(query)) {
                 push_score(&mut weighted, record.clone(), "time", score, weight);
             }
         }

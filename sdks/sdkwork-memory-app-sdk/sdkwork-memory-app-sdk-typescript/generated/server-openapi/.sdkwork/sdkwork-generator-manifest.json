@@ -40,7 +40,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "ee4344c47c820292917e913631e8825e632de70ca27716b6f38965aff165dfa7"
+      "sha256": "b9c7a7b595e6b3c7f8a4d2ab21e98209430f8227b24a34bb9a48249fa85e2f3c"
     },
     {
       "path": "README.md",
@@ -48,7 +48,7 @@
     },
     {
       "path": "sdkwork-sdk.json",
-      "sha256": "1225518d8747d9d36402cef488889d0068a00c40432c3b19fcc3037cb53aaf5a"
+      "sha256": "4cb3f401f2b21f8044ddec4dda48506259685e71421b90609c1da5c03ae7d9ea"
     },
     {
       "path": "src/api/base.ts",
@@ -172,7 +172,7 @@
     },
     {
       "path": "src/types/index.ts",
-      "sha256": "49962f3d1d1f2ea89539f9f9e9a490faa6c707509ec5539541202ae5116a9b9e"
+      "sha256": "959367fe0fa5b79bfb7f930003efff06bcfbb12d43a7467b7c25379863f1c38f"
     },
     {
       "path": "src/types/learning-settings-retrieve-response.ts",
@@ -211,6 +211,18 @@
       "sha256": "bb481bd07f97038f0d3fd318bb56b485e0f841079fd56b601c5cb1c42f45b935"
     },
     {
+      "path": "src/types/memory-binding-list.ts",
+      "sha256": "d6bcde7d2a6173311871df10f484db158afdf1f96a384d523f746bf96cc24838"
+    },
+    {
+      "path": "src/types/memory-binding-request.ts",
+      "sha256": "429c926185d783a55f1c6146a908e3c152eb2669427f9629ffc754811568b73c"
+    },
+    {
+      "path": "src/types/memory-binding.ts",
+      "sha256": "b2f3ba4573080adea17d1747fa6d8e6be922bf393b79692b10b0dcacbc291f61"
+    },
+    {
       "path": "src/types/memory-candidate-list.ts",
       "sha256": "730ed54fa84031f5f66bad9dfa9801ea4aef748a2be00ae24a1c037e0ac41c25"
     },
@@ -221,6 +233,18 @@
     {
       "path": "src/types/memory-capabilities.ts",
       "sha256": "f84aca0d3cc91258c99e1b71a2331e317df5ed0077526e88dd567344c40ee0c8"
+    },
+    {
+      "path": "src/types/memory-capability-binding-list.ts",
+      "sha256": "9cd5c0252eef98a8db007e444d70f3a30ef9bbc92e3df73f91b831c2fc098695"
+    },
+    {
+      "path": "src/types/memory-capability-binding-request.ts",
+      "sha256": "39371df8863a1cadb3b6be212ef2cb32417e002a047292751730c1dcfcf412fa"
+    },
+    {
+      "path": "src/types/memory-capability-binding.ts",
+      "sha256": "29c9965b76c56b89b2941af97738f0581b19ca5cf3aeb1ea947a3ac82d32b76f"
     },
     {
       "path": "src/types/memory-context-pack-request.ts",
@@ -375,6 +399,18 @@
       "sha256": "f578dcd65dcc18403e7f96d33fc2b199b62a67180e780328d6682a7bd284c65d"
     },
     {
+      "path": "src/types/memory-resolve-capabilities-request.ts",
+      "sha256": "b6a7a029c8ab7d6dcb4097be3966246ca558b7ad612384afb8c9e61bfd018c32"
+    },
+    {
+      "path": "src/types/memory-resolved-capability-list.ts",
+      "sha256": "9e24206e1a2b159a64086e8944b0ecd1a3880cd4646b72cee5b9af1b41bf2e2f"
+    },
+    {
+      "path": "src/types/memory-resolved-capability.ts",
+      "sha256": "5d91b513999a71265d6606be060a77de6c6c2700b02c8044f12ec54accc0081c"
+    },
+    {
       "path": "src/types/memory-retention-job-request.ts",
       "sha256": "f0a9952ea6232f689f374360686a49f0a95a47cd6b109b7093b57be96d8dacb8"
     },
@@ -425,6 +461,22 @@
     {
       "path": "src/types/memory-space.ts",
       "sha256": "8f7c6656be3ba9e8be0e2dc993b64dc28f9872469cb119ff9f37e974f8b890f6"
+    },
+    {
+      "path": "src/types/memory-subject-list.ts",
+      "sha256": "2ccd90a0aa0a00081333d858d4c986ddc28bb38b99743d101e2499d02052f507"
+    },
+    {
+      "path": "src/types/memory-subject-patch.ts",
+      "sha256": "0c7d6b7e79f3419f574f260cf1b0e970fa37dfc98683fff6e5238b63c47a6b7a"
+    },
+    {
+      "path": "src/types/memory-subject-request.ts",
+      "sha256": "980083851c7380417b472b8abd7e6628254aaaef482c2644ba626ecc2a2ff342"
+    },
+    {
+      "path": "src/types/memory-subject.ts",
+      "sha256": "ca607e0b51f2b11fb288cc01c6de6a58337bdf477bc01e6bc40935cc97c3c695"
     },
     {
       "path": "src/types/page-info.ts",

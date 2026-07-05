@@ -743,12 +743,25 @@ assert(
   'deployments/deploy.yaml must exist per SDKWORK_DEPLOY_SPEC.md',
 );
 assert(
+  fs.existsSync(path.join(repoRoot, 'crates/sdkwork-memory-drive/src/object_store.rs')),
+  'crates/sdkwork-memory-drive/src/object_store.rs must resolve Drive object stores from provider metadata',
+);
+const memoryDriveToml = readText('crates/sdkwork-memory-drive/Cargo.toml');
+assert(
+  memoryDriveToml.includes('sdkwork-drive-storage-s3'),
+  'sdkwork-memory-drive must depend on sdkwork-drive-storage-s3 for production object store support',
+);
+assert(
+  readText('crates/sdkwork-routes-memory-support/src/principal.rs').includes('parse_int'),
+  'routes-memory-support must parse IAM principal ids via sdkwork-utils-rust',
+);
+assert(
   fs.existsSync(path.join(repoRoot, 'crates/sdkwork-memory-drive/Cargo.toml')),
   'crates/sdkwork-memory-drive must exist for Drive-backed export integration',
 );
 assert(
-  fs.existsSync(path.join(repoRoot, 'deployments/kubernetes/deployment.yaml')),
-  'deployments/kubernetes/deployment.yaml must exist per DEPLOYMENT_SPEC.md',
+  fs.existsSync(path.join(repoRoot, 'deployments/kubernetes/secret.example.yaml')),
+  'deployments/kubernetes/secret.example.yaml must document production secret keys',
 );
 assert(
   fs.existsSync(path.join(repoRoot, 'deployments/kubernetes/service.yaml')),
@@ -815,6 +828,7 @@ for (const specFile of [
   'WEB_BACKEND_SPEC.md',
   'DATABASE_SPEC.md',
   'DEPLOYMENT_SPEC.md',
+  'DRIVE_SPEC.md',
   'SDK_SPEC.md',
   'SDK_WORKSPACE_GENERATION_SPEC.md',
   'TEST_SPEC.md',
@@ -966,6 +980,48 @@ for (const relativePath of requiredSkeletonPaths) {
     `${relativePath} must exist per SDKWORK_WORKSPACE_SPEC.md skeleton`,
   );
 }
+
+for (const engine of ['postgres', 'sqlite']) {
+  const migrationDir = path.join(repoRoot, 'database/migrations', engine);
+  if (!fs.existsSync(migrationDir)) {
+    failures.push(`database/migrations/${engine}/ must exist`);
+    continue;
+  }
+  const migrationSqlFiles = fs
+    .readdirSync(migrationDir)
+    .filter((name) => name.endsWith('.sql'));
+  assert(
+    migrationSqlFiles.length === 0,
+    `database/migrations/${engine}/ must stay empty during initialization (found ${migrationSqlFiles.join(', ')})`,
+  );
+}
+
+const forbiddenDirectUploadPatterns = [
+  /std::fs::write/,
+  /tokio::fs::write/,
+  /aws_sdk_s3::/,
+  /put_object\(/,
+];
+for (const relativePath of [
+  'crates/sdkwork-intelligence-memory-service/src/app_backend_api.rs',
+  'crates/sdkwork-intelligence-memory-service/src/open_api.rs',
+  'crates/sdkwork-memory-drive/src/uploader.rs',
+]) {
+  const source = readText(relativePath);
+  for (const pattern of forbiddenDirectUploadPatterns) {
+    assert(
+      !pattern.test(source),
+      `${relativePath} must route file uploads through sdkwork-memory-drive, not direct storage APIs (${pattern})`,
+    );
+  }
+}
+
+assert(
+  readText('crates/sdkwork-intelligence-memory-service/src/open_api.rs').includes(
+    'stopped_early_in_batch',
+  ),
+  'open-api memory list must over-fetch when sensitivity filtering reduces visible page rows',
+);
 
 if (failures.length > 0) {
   process.stderr.write(

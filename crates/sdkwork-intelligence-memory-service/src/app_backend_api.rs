@@ -23,6 +23,7 @@ use sdkwork_memory_plugin_native_sql::{
     NativeSqlHabitRow, NativeSqlMemorySpaceRow, NativeSqlRecordSourceRow,
     NativeSqlRetrievalTraceSummaryRow,
 };
+use sdkwork_utils_rust::is_blank;
 use sdkwork_memory_spi::{
     DecayMemoryHabitCommand, MemoryDriveExportUploadRequest, MemoryScopeContext,
     PromoteMemoryHabitCommand, RejectMemoryCandidateCommand, UpsertMemoryHabitCommand,
@@ -121,7 +122,8 @@ impl OpenMemoryService {
             last_signal_at: row.last_signal_at,
             promoted_memory_id: row
                 .promoted_memory_uuid
-                .and_then(|value| value.parse().ok()),
+                .as_deref()
+                .and_then(platform::parse_numeric_id),
             decay_after: row.decay_after,
             metadata: row
                 .metadata_json
@@ -284,6 +286,26 @@ impl OpenMemoryService {
             }
         }
         payload.records = filtered_records;
+        let mut filtered_events = Vec::with_capacity(payload.events.len());
+        for event in payload.events {
+            let space_id = event
+                .get("spaceId")
+                .and_then(|value| value.as_i64())
+                .and_then(|value| u64::try_from(value).ok())
+                .unwrap_or(0);
+            let actor_is_owner = if let Some(cached) = owner_cache.get(&space_id) {
+                *cached
+            } else {
+                let is_owner =
+                    access::actor_is_space_owner(&self.store, &open_context, space_id).await?;
+                owner_cache.insert(space_id, is_owner);
+                is_owner
+            };
+            if actor_is_owner {
+                filtered_events.push(event);
+            }
+        }
+        payload.events = filtered_events;
         Ok(payload)
     }
 
@@ -726,7 +748,7 @@ impl MemoryAppApi for OpenMemoryService {
                 let query = request.query.as_deref().ok_or_else(|| {
                     MemoryServiceError::validation("query is required when scope is query")
                 })?;
-                if query.trim().is_empty() {
+                if is_blank(Some(query)) {
                     return Err(MemoryServiceError::validation(
                         "query must not be empty when scope is query",
                     ));

@@ -346,80 +346,12 @@ async fn probe_provider_bindings(service: &OpenMemoryService) -> Result<(), Stri
     Ok(())
 }
 
-/// Validates an endpoint URL to prevent SSRF attacks.
-///
-/// Rules:
-/// - Only `http` and `https` schemes are allowed.
-/// - `https` is required in production-like environments.
-/// - Hosts must not resolve to private, loopback, or link-local ranges.
-/// - Bare IP addresses in private ranges are rejected.
-fn validate_endpoint_url(url: &str) -> Result<(), String> {
-    let parsed = url::Url::parse(url).map_err(|e| format!("invalid URL: {e}"))?;
-
-    match parsed.scheme() {
-        "https" => {}
-        "http" => {
-            if platform::is_production_like_environment() {
-                return Err("HTTP scheme is not allowed in production; use HTTPS".to_string());
-            }
-        }
-        other => return Err(format!("unsupported URL scheme: {other}")),
-    }
-
-    let host = parsed.host_str().ok_or_else(|| "URL must have a host".to_string())?;
-
-    // Reject bare private/loopback/link-local IP literals.
-    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
-        if ip.is_loopback()
-            || ip.is_unspecified()
-            || is_private_ip(&ip)
-            || is_link_local_ip(&ip)
-        {
-            return Err(format!("private or loopback IP addresses are not allowed: {host}"));
-        }
-    }
-
-    // Reject common localhost hostnames.
-    let host_lower = host.to_ascii_lowercase();
-    if host_lower == "localhost" || host_lower.ends_with(".localhost") {
-        return Err(format!("localhost hostnames are not allowed: {host}"));
-    }
-
-    // Reject metadata service hostnames used by cloud providers.
-    if host_lower == "metadata.google.internal"
-        || host_lower == "169.254.169.254"
-        || host_lower == "metadata.aws.internal"
-    {
-        return Err(format!("cloud metadata endpoints are not allowed: {host}"));
-    }
-
-    Ok(())
-}
-
-fn is_private_ip(ip: &std::net::IpAddr) -> bool {
-    match ip {
-        std::net::IpAddr::V4(v4) => {
-            v4.is_private() || v4.is_link_local()
-        }
-        std::net::IpAddr::V6(v6) => {
-            v6.is_loopback() || v6.is_unspecified()
-        }
-    }
-}
-
-fn is_link_local_ip(ip: &std::net::IpAddr) -> bool {
-    match ip {
-        std::net::IpAddr::V4(v4) => v4.is_link_local(),
-        std::net::IpAddr::V6(_) => false,
-    }
-}
-
 async fn probe_binding_endpoint(endpoint_ref: Option<&str>) -> String {
     let Some(url) = endpoint_ref.filter(|value| !is_blank(Some(value))) else {
         return "healthy".to_string();
     };
 
-    if let Err(reason) = validate_endpoint_url(url) {
+    if let Err(reason) = crate::endpoint_validation::validate_outbound_url(url) {
         tracing::warn!(
             url = %url,
             reason = %reason,
@@ -472,8 +404,8 @@ pub async fn enqueue_learning_job(
 pub fn learning_job_from_row(row: &NativeSqlLearningJobRow) -> MemoryServiceResult<MemoryLearningJob> {
     use sdkwork_memory_contract::MemoryServiceError;
     type MemoryServiceResult<T> = Result<T, MemoryServiceError>;
-    let job_id = row.job_uuid.parse::<u64>().map_err(|error| {
-        MemoryServiceError::storage(format!("learning job id must be numeric: {error}"))
+    let job_id = crate::platform::parse_numeric_id(&row.job_uuid).ok_or_else(|| {
+        MemoryServiceError::storage("learning job id must be numeric".to_string())
     })?;
     Ok(MemoryLearningJob {
         job_id,

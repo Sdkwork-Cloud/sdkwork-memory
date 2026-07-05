@@ -4,8 +4,8 @@ use axum::Router;
 use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
 use sdkwork_memory_contract::MemoryOpenApiRequestContext;
 use sdkwork_routes_memory_support::{
-    memory_http_metrics, memory_web_auth_mode_from_env, with_problem_correlation, MemoryWebAuthMode,
-    ProductionFailClosedResolver,
+    memory_http_metrics, memory_web_auth_mode_from_env, parse_principal_u64,
+    with_problem_correlation, MemoryWebAuthMode, ProductionFailClosedResolver,
 };
 use sdkwork_web_axum::{with_web_request_context, WebFrameworkLayer};
 use sdkwork_web_core::{DefaultWebRequestContextResolver, WebRequestContextProfile};
@@ -36,8 +36,8 @@ fn memory_open_api_context_from_web_request(
     context: &sdkwork_web_core::WebRequestContext,
 ) -> Option<MemoryOpenApiRequestContext> {
     let principal = context.principal.as_ref()?;
-    let tenant_id = principal.tenant_id().parse().ok()?;
-    let actor_id = principal.user_id().parse().ok();
+    let tenant_id = parse_principal_u64(principal.tenant_id())?;
+    let actor_id = parse_principal_u64(principal.user_id());
     let credential_id = principal
         .api_key_id()
         .map(str::to_owned)
@@ -104,7 +104,7 @@ pub async fn wrap_router_with_web_framework_from_env(router: Router) -> Router {
         }
         MemoryWebAuthMode::ProductionFailClosed => with_web_request_context(
             with_problem_correlation(router),
-            WebFrameworkLayer::new(ProductionFailClosedResolver),
+            build_open_api_framework_layer(ProductionFailClosedResolver),
         ),
         MemoryWebAuthMode::IamDatabase(resolver) => {
             wrap_router_with_iam_database_web_framework(resolver, router)
