@@ -1,13 +1,12 @@
 //! Commercial management route handlers for the backend API.
 
 use axum::{
-    extract::{Path, Query},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, post},
     Extension, Json, Router,
 };
-use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_contract::{
     CapabilityTargetType, CreateBindingCommand, CreateCapabilityBindingCommand,
     CreateEdgeCommand, CreateEntityCommand, CreatePolicyAssignmentCommand, CreatePolicyCommand,
@@ -21,11 +20,10 @@ use sdkwork_routes_memory_support::{
     success_page_response, success_resource_response,
 };
 use serde::Deserialize;
-use std::sync::Arc;
 
-use crate::{auth::require_backend_context, paths, BackendApiProblem};
+use crate::{auth::require_backend_context, paths, routes::BackendState, BackendApiProblem};
 
-pub fn commercial_routes() -> Router {
+pub fn commercial_routes() -> Router<BackendState> {
     Router::new()
         .route(paths::SUBJECTS, get(list_subjects).post(create_subject))
         .route(
@@ -106,10 +104,14 @@ fn parse_tenant_id(query_tenant_id: &str, context_tenant_id: u64) -> Result<u64,
 // --- Subject handlers ---
 
 async fn create_subject(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(cmd): Json<CreateSubjectCommand>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -124,11 +126,15 @@ async fn create_subject(
 }
 
 async fn retrieve_subject(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(subject_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -144,10 +150,14 @@ async fn retrieve_subject(
 }
 
 async fn list_subjects(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListSubjectsQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -162,12 +172,16 @@ async fn list_subjects(
 }
 
 async fn update_subject(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(subject_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
     Json(cmd): Json<UpdateSubjectCommand>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -183,11 +197,15 @@ async fn update_subject(
 }
 
 async fn delete_subject(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(subject_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -205,10 +223,14 @@ async fn delete_subject(
 // --- Binding handlers ---
 
 async fn create_binding(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(cmd): Json<CreateBindingCommand>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -223,11 +245,15 @@ async fn create_binding(
 }
 
 async fn retrieve_binding(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(binding_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -243,10 +269,14 @@ async fn retrieve_binding(
 }
 
 async fn list_bindings(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListBindingsQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -261,11 +291,15 @@ async fn list_bindings(
 }
 
 async fn delete_binding(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(binding_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -283,10 +317,14 @@ async fn delete_binding(
 // --- Capability binding handlers ---
 
 async fn create_capability_binding(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(cmd): Json<CreateCapabilityBindingCommand>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -301,11 +339,15 @@ async fn create_capability_binding(
 }
 
 async fn retrieve_capability_binding(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(cap_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -324,10 +366,14 @@ async fn retrieve_capability_binding(
 }
 
 async fn list_capability_bindings(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListCapabilityBindingsQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -342,11 +388,15 @@ async fn list_capability_bindings(
 }
 
 async fn delete_capability_binding(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(cap_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -377,10 +427,14 @@ pub struct ResolveCapabilitiesRequest {
 }
 
 async fn resolve_capabilities(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(req): Json<ResolveCapabilitiesRequest>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -412,10 +466,14 @@ async fn resolve_capabilities(
 // --- Entity handlers ---
 
 async fn create_entity(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(cmd): Json<CreateEntityCommand>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -430,11 +488,15 @@ async fn create_entity(
 }
 
 async fn retrieve_entity(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(entity_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -450,10 +512,14 @@ async fn retrieve_entity(
 }
 
 async fn list_entities(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListEntitiesQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -468,12 +534,16 @@ async fn list_entities(
 }
 
 async fn update_entity(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(entity_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
     Json(cmd): Json<UpdateEntityCommand>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -491,10 +561,14 @@ async fn update_entity(
 // --- Edge handlers ---
 
 async fn create_edge(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(cmd): Json<CreateEdgeCommand>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -509,11 +583,15 @@ async fn create_edge(
 }
 
 async fn retrieve_edge(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(edge_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -529,10 +607,14 @@ async fn retrieve_edge(
 }
 
 async fn list_edges(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListEdgesQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -547,12 +629,16 @@ async fn list_edges(
 }
 
 async fn update_edge(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(edge_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
     Json(cmd): Json<UpdateEdgeCommand>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -568,11 +654,15 @@ async fn update_edge(
 }
 
 async fn delete_edge(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(edge_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -590,10 +680,14 @@ async fn delete_edge(
 // --- Policy handlers ---
 
 async fn create_policy(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(cmd): Json<CreatePolicyCommand>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -608,11 +702,15 @@ async fn create_policy(
 }
 
 async fn retrieve_policy(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(policy_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -628,10 +726,14 @@ async fn retrieve_policy(
 }
 
 async fn list_policies(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListPoliciesQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -646,12 +748,16 @@ async fn list_policies(
 }
 
 async fn update_policy(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(policy_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
     Json(cmd): Json<UpdatePolicyCommand>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -667,11 +773,15 @@ async fn update_policy(
 }
 
 async fn delete_policy(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(policy_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -689,10 +799,14 @@ async fn delete_policy(
 // --- Policy assignment handlers ---
 
 async fn create_policy_assignment(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(cmd): Json<CreatePolicyAssignmentCommand>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -707,11 +821,15 @@ async fn create_policy_assignment(
 }
 
 async fn retrieve_policy_assignment(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(assignment_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -730,10 +848,14 @@ async fn retrieve_policy_assignment(
 }
 
 async fn list_policy_assignments(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<ListPolicyAssignmentsQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -748,12 +870,16 @@ async fn list_policy_assignments(
 }
 
 async fn update_policy_assignment(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(assignment_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
     Json(cmd): Json<UpdatePolicyAssignmentCommand>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -772,11 +898,15 @@ async fn update_policy_assignment(
 }
 
 async fn delete_policy_assignment(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Path(assignment_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -797,10 +927,14 @@ async fn delete_policy_assignment(
 // --- Commercial readiness handlers ---
 
 async fn retrieve_commercial_readiness(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Query(query): Query<TenantIdQuery>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
@@ -816,10 +950,14 @@ async fn retrieve_commercial_readiness(
 }
 
 async fn rebuild_commercial_readiness(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
     Json(cmd): Json<RebuildCommercialReadinessCommand>,
 ) -> Response {
+    let product = match state.require_product() {
+        Ok(product) => product,
+        Err(resp) => return resp,
+    };
     let context = match require_backend_context(context) {
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),

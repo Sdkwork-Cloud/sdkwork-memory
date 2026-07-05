@@ -1,9 +1,11 @@
 use axum::{
     extract::{Path, Query, State},
+    http::StatusCode,
     response::Response,
     routing::{get, post},
     Extension, Json, Router,
 };
+use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_contract::{
     ListCandidatesQuery, ListHabitsQuery, ListMemoriesQuery, ListMemorySourcesQuery, ListSpacesQuery, MemoryAppApi,
     MemoryAppRequestContext, MemoryContextPackRequest, MemoryEventRequest, MemoryExportRequest,
@@ -19,18 +21,40 @@ use std::sync::Arc;
 use crate::{auth::require_app_context, paths, ApiProblem};
 
 #[derive(Clone)]
-struct AppState {
+pub(crate) struct AppState {
     api: Arc<dyn MemoryAppApi>,
+    product: Option<Arc<OpenMemoryService>>,
 }
 
-pub fn build_router_with_app_api<A>(api: A) -> Router
-where
-    A: MemoryAppApi,
-{
-    build_router_with_shared_app_api(Arc::new(api))
+impl AppState {
+    pub(crate) fn require_product(&self) -> Result<Arc<OpenMemoryService>, ApiProblem> {
+        self.product.clone().ok_or_else(|| {
+            ApiProblem::new(
+                StatusCode::NOT_IMPLEMENTED,
+                "not_implemented",
+                "commercial management requires OpenMemoryService",
+            )
+        })
+    }
 }
 
-pub fn build_router_with_shared_app_api(api: Arc<dyn MemoryAppApi>) -> Router {
+pub fn build_router_with_app_api(api: OpenMemoryService) -> Router<AppState> {
+    build_router_with_open_memory_service(Arc::new(api))
+}
+
+pub fn build_router_with_open_memory_service(product: Arc<OpenMemoryService>) -> Router<AppState> {
+    let api: Arc<dyn MemoryAppApi> = product.clone();
+    build_app_router(AppState {
+        api,
+        product: Some(product),
+    })
+}
+
+pub fn build_router_with_shared_app_api(api: Arc<dyn MemoryAppApi>) -> Router<AppState> {
+    build_app_router(AppState { api, product: None })
+}
+
+fn build_app_router(state: AppState) -> Router<AppState> {
     Router::new()
         .route(paths::SPACES, get(list_spaces).post(create_space))
         .route(paths::SPACE, get(retrieve_space).patch(update_space))
@@ -66,7 +90,7 @@ pub fn build_router_with_shared_app_api(api: Arc<dyn MemoryAppApi>) -> Router {
             paths::LEARNING_SETTINGS,
             get(retrieve_learning_settings).patch(update_learning_settings),
         )
-        .with_state(AppState { api })
+        .with_state(state)
         .merge(crate::commercial_routes::commercial_routes())
 }
 

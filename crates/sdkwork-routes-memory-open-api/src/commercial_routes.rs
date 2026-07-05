@@ -1,13 +1,12 @@
 //! Commercial entity and edge routes for the Open API.
 
 use axum::{
-    extract::{Path, Query},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::Response,
-    routing::{get, post, patch},
+    routing::get,
     Extension, Json, Router,
 };
-use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_contract::{
     CreateEdgeCommand, CreateEntityCommand, ListEdgesQuery, ListEntitiesQuery,
     MemoryOpenApiRequestContext, UpdateEdgeCommand, UpdateEntityCommand,
@@ -15,11 +14,10 @@ use sdkwork_memory_contract::{
 use sdkwork_routes_memory_support::{
     created_resource_json, no_content_json, ok_page_json, ok_resource_json,
 };
-use std::sync::Arc;
 
-use crate::{auth::require_context, paths, ApiProblem};
+use crate::{auth::require_context, paths, routes::OpenState, ApiProblem};
 
-pub fn commercial_routes() -> Router {
+pub fn commercial_routes() -> Router<OpenState> {
     Router::new()
         .route(paths::ENTITIES, get(list_entities).post(create_entity))
         .route(
@@ -40,10 +38,11 @@ fn forbidden(detail: &str) -> ApiProblem {
 }
 
 async fn create_entity(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Json(cmd): Json<CreateEntityCommand>,
 ) -> Result<Response, ApiProblem> {
+    let product = state.require_product()?;
     let context = require_context(context)?;
     if context.tenant_id != cmd.tenant_id {
         return Err(forbidden("tenantId mismatch"));
@@ -52,21 +51,23 @@ async fn create_entity(
 }
 
 async fn retrieve_entity(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(entity_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
 ) -> Result<Response, ApiProblem> {
+    let product = state.require_product()?;
     let context = require_context(context)?;
     let tenant_id = parse_tenant_id(&query.tenant_id, context.tenant_id)?;
     ok_resource_json(product.retrieve_entity(tenant_id, &entity_id).await)
 }
 
 async fn list_entities(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Query(query): Query<ListEntitiesQuery>,
 ) -> Result<Response, ApiProblem> {
+    let product = state.require_product()?;
     let context = require_context(context)?;
     if context.tenant_id != query.tenant_id {
         return Err(forbidden("tenantId mismatch"));
@@ -75,22 +76,24 @@ async fn list_entities(
 }
 
 async fn update_entity(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(entity_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
     Json(cmd): Json<UpdateEntityCommand>,
 ) -> Result<Response, ApiProblem> {
+    let product = state.require_product()?;
     let context = require_context(context)?;
     let tenant_id = parse_tenant_id(&query.tenant_id, context.tenant_id)?;
     ok_resource_json(product.update_entity(tenant_id, &entity_id, cmd).await)
 }
 
 async fn create_edge(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Json(cmd): Json<CreateEdgeCommand>,
 ) -> Result<Response, ApiProblem> {
+    let product = state.require_product()?;
     let context = require_context(context)?;
     if context.tenant_id != cmd.tenant_id {
         return Err(forbidden("tenantId mismatch"));
@@ -99,21 +102,23 @@ async fn create_edge(
 }
 
 async fn retrieve_edge(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(edge_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
 ) -> Result<Response, ApiProblem> {
+    let product = state.require_product()?;
     let context = require_context(context)?;
     let tenant_id = parse_tenant_id(&query.tenant_id, context.tenant_id)?;
     ok_resource_json(product.retrieve_edge(tenant_id, &edge_id).await)
 }
 
 async fn list_edges(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Query(query): Query<ListEdgesQuery>,
 ) -> Result<Response, ApiProblem> {
+    let product = state.require_product()?;
     let context = require_context(context)?;
     if context.tenant_id != query.tenant_id {
         return Err(forbidden("tenantId mismatch"));
@@ -122,23 +127,25 @@ async fn list_edges(
 }
 
 async fn update_edge(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(edge_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
     Json(cmd): Json<UpdateEdgeCommand>,
 ) -> Result<Response, ApiProblem> {
+    let product = state.require_product()?;
     let context = require_context(context)?;
     let tenant_id = parse_tenant_id(&query.tenant_id, context.tenant_id)?;
     ok_resource_json(product.update_edge(tenant_id, &edge_id, cmd).await)
 }
 
 async fn delete_edge(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<OpenState>,
     context: Option<Extension<MemoryOpenApiRequestContext>>,
     Path(edge_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
 ) -> Result<Response, ApiProblem> {
+    let product = state.require_product()?;
     let context = require_context(context)?;
     let tenant_id = parse_tenant_id(&query.tenant_id, context.tenant_id)?;
     no_content_json(product.delete_edge(tenant_id, &edge_id).await)

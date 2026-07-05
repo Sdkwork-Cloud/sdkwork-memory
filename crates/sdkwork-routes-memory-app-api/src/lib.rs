@@ -16,7 +16,10 @@ pub mod web_bootstrap;
 
 pub use error::{ApiError, ApiProblem};
 pub use http_route_manifest::app_route_manifest;
-pub use routes::{build_router_with_app_api, build_router_with_shared_app_api};
+pub use routes::{
+    build_router_with_app_api, build_router_with_open_memory_service,
+    build_router_with_shared_app_api,
+};
 pub use sdkwork_memory_contract::{MemoryAppApi, MemoryAppRequestContext};
 pub use web_bootstrap::{
     memory_app_api_prefixes, memory_app_api_public_path_prefixes,
@@ -28,6 +31,6 @@ pub fn gateway_route_manifest() -> HttpRouteManifest {
     app_route_manifest()
 }
 
-pub fn gateway_mount(api: Arc<dyn MemoryAppApi>) -> Router {
+pub fn gateway_mount(api: Arc<dyn MemoryAppApi>) -> Router<routes::AppState> {
     build_router_with_shared_app_api(api)
 }

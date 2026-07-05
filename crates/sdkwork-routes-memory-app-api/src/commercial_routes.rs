@@ -1,13 +1,12 @@
 //! Commercial entity and policy assignment routes for the App API.
 
 use axum::{
-    extract::{Path, Query},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::Response,
-    routing::{get, patch, post},
+    routing::{get, patch},
     Extension, Json, Router,
 };
-use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_contract::{
     CreateEntityCommand, CreatePolicyAssignmentCommand, ListEntitiesQuery,
     ListPolicyAssignmentsQuery, MemoryAppRequestContext, UpdateEntityCommand,
@@ -16,11 +15,10 @@ use sdkwork_memory_contract::{
 use sdkwork_routes_memory_support::{
     created_resource_json, ok_page_json, ok_resource_json,
 };
-use std::sync::Arc;
 
-use crate::{auth::require_app_context, paths, ApiProblem};
+use crate::{auth::require_app_context, paths, routes::AppState, ApiProblem};
 
-pub fn commercial_routes() -> Router {
+pub fn commercial_routes() -> Router<AppState> {
     Router::new()
         .route(paths::ENTITIES, get(list_entities).post(create_entity))
         .route(
@@ -42,10 +40,11 @@ fn forbidden(detail: &str) -> ApiProblem {
 }
 
 async fn create_entity(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Json(cmd): Json<CreateEntityCommand>,
 ) -> Result<Response, ApiProblem> {
+    let product = state.require_product()?;
     let context = require_app_context(context)?;
     if context.tenant_id != cmd.tenant_id {
         return Err(forbidden("tenantId mismatch"));
@@ -54,21 +53,23 @@ async fn create_entity(
 }
 
 async fn retrieve_entity(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(entity_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
 ) -> Result<Response, ApiProblem> {
+    let product = state.require_product()?;
     let context = require_app_context(context)?;
     let tenant_id = parse_tenant_id(&query.tenant_id, context.tenant_id)?;
     ok_resource_json(product.retrieve_entity(tenant_id, &entity_id).await)
 }
 
 async fn list_entities(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Query(query): Query<ListEntitiesQuery>,
 ) -> Result<Response, ApiProblem> {
+    let product = state.require_product()?;
     let context = require_app_context(context)?;
     if context.tenant_id != query.tenant_id {
         return Err(forbidden("tenantId mismatch"));
@@ -77,22 +78,24 @@ async fn list_entities(
 }
 
 async fn update_entity(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(entity_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
     Json(cmd): Json<UpdateEntityCommand>,
 ) -> Result<Response, ApiProblem> {
+    let product = state.require_product()?;
     let context = require_app_context(context)?;
     let tenant_id = parse_tenant_id(&query.tenant_id, context.tenant_id)?;
     ok_resource_json(product.update_entity(tenant_id, &entity_id, cmd).await)
 }
 
 async fn create_policy_assignment(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Json(cmd): Json<CreatePolicyAssignmentCommand>,
 ) -> Result<Response, ApiProblem> {
+    let product = state.require_product()?;
     let context = require_app_context(context)?;
     if context.tenant_id != cmd.tenant_id {
         return Err(forbidden("tenantId mismatch"));
@@ -101,10 +104,11 @@ async fn create_policy_assignment(
 }
 
 async fn list_policy_assignments(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Query(query): Query<ListPolicyAssignmentsQuery>,
 ) -> Result<Response, ApiProblem> {
+    let product = state.require_product()?;
     let context = require_app_context(context)?;
     if context.tenant_id != query.tenant_id {
         return Err(forbidden("tenantId mismatch"));
@@ -113,12 +117,13 @@ async fn list_policy_assignments(
 }
 
 async fn update_policy_assignment(
-    Extension(product): Extension<Arc<OpenMemoryService>>,
+    State(state): State<AppState>,
     context: Option<Extension<MemoryAppRequestContext>>,
     Path(assignment_id): Path<String>,
     Query(query): Query<TenantIdQuery>,
     Json(cmd): Json<UpdatePolicyAssignmentCommand>,
 ) -> Result<Response, ApiProblem> {
+    let product = state.require_product()?;
     let context = require_app_context(context)?;
     let tenant_id = parse_tenant_id(&query.tenant_id, context.tenant_id)?;
     ok_resource_json(

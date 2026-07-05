@@ -108,9 +108,11 @@ impl NativeSqlMemoryStore {
             if rows.is_empty() {
                 break;
             }
-            let has_more = rows.len() > 100;
+            let page_limit = i32::try_from(sdkwork_utils_rust::MAX_LIST_PAGE_SIZE)
+                .unwrap_or(200) as usize;
+            let has_more = rows.len() > page_limit;
             let batch = if has_more {
-                &rows[..100]
+                &rows[..page_limit]
             } else {
                 &rows[..]
             };
@@ -328,14 +330,21 @@ impl NativeSqlMemoryStore {
                         Some(event_cursor.as_str())
                     };
                     let event_rows = self
-                        .list_open_api_events_for_tenant(tenant_id, Some(*space_id), 100, cursor)
+                        .list_open_api_events_for_tenant(
+                            tenant_id,
+                            Some(*space_id),
+                            i32::try_from(sdkwork_utils_rust::MAX_LIST_PAGE_SIZE).unwrap_or(200),
+                            cursor,
+                        )
                         .await?;
                     if event_rows.is_empty() {
                         break;
                     }
-                    let has_more = event_rows.len() > 100;
+                    let page_limit = i32::try_from(sdkwork_utils_rust::MAX_LIST_PAGE_SIZE)
+                        .unwrap_or(200) as usize;
+                    let has_more = event_rows.len() > page_limit;
                     let batch = if has_more {
-                        &event_rows[..100]
+                        &event_rows[..page_limit]
                     } else {
                         &event_rows[..]
                     };

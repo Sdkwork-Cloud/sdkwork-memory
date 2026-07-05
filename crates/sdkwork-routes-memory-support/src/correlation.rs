@@ -82,6 +82,6 @@ pub async fn problem_correlation_middleware(request: Request, next: Next) -> Res
     .await
 }
 
-pub fn with_problem_correlation(router: axum::Router) -> axum::Router {
+pub fn with_problem_correlation<S>(router: axum::Router<S>) -> axum::Router<S> {
     router.layer(axum::middleware::from_fn(problem_correlation_middleware))
 }

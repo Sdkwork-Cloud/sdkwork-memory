@@ -47,20 +47,20 @@ fn memory_backend_context_from_web_request(
     })
 }
 
-pub fn wrap_router_with_web_framework(
+pub fn wrap_router_with_web_framework<S>(
     resolver: DefaultWebRequestContextResolver,
-    router: Router,
-) -> Router {
+    router: Router<S>,
+) -> Router<S> {
     with_web_request_context(
         with_problem_correlation(router),
         build_memory_backend_api_framework_layer(resolver),
     )
 }
 
-pub fn wrap_router_with_iam_database_web_framework(
+pub fn wrap_router_with_iam_database_web_framework<S>(
     resolver: IamWebRequestContextResolver,
-    router: Router,
-) -> Router {
+    router: Router<S>,
+) -> Router<S> {
     with_web_request_context(
         with_problem_correlation(router),
         build_memory_backend_api_framework_layer(resolver),
@@ -87,7 +87,7 @@ where
         .with_metrics(memory_http_metrics())
 }
 
-pub async fn wrap_router_with_web_framework_from_env(router: Router) -> Router {
+pub async fn wrap_router_with_web_framework_from_env<S>(router: Router<S>) -> Router<S> {
     match memory_web_auth_mode_from_env().await {
         MemoryWebAuthMode::DevInline => {
             wrap_router_with_web_framework(DefaultWebRequestContextResolver::default(), router)

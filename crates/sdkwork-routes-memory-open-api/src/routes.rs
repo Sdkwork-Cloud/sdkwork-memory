@@ -1,9 +1,11 @@
 use axum::{
     extract::{Path, Query, State},
+    http::StatusCode,
     response::Response,
     routing::{get, post},
     Extension, Json, Router,
 };
+use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_contract::{
     ListCandidatesQuery, ListMemoriesQuery, MemoryContextPackRequest, MemoryEventRequest,
     MemoryExtractionRequest, MemoryFeedbackRequest, MemoryOpenApi, MemoryOpenApiRequestContext,
@@ -17,18 +19,40 @@ use std::sync::Arc;
 use crate::{auth::require_context, paths, ApiProblem};
 
 #[derive(Clone)]
-struct OpenState {
+pub(crate) struct OpenState {
     api: Arc<dyn MemoryOpenApi>,
+    product: Option<Arc<OpenMemoryService>>,
 }
 
-pub fn build_router_with_open_api<A>(api: A) -> Router
-where
-    A: MemoryOpenApi,
-{
-    build_router_with_shared_open_api(Arc::new(api))
+impl OpenState {
+    pub(crate) fn require_product(&self) -> Result<Arc<OpenMemoryService>, ApiProblem> {
+        self.product.clone().ok_or_else(|| {
+            ApiProblem::new(
+                StatusCode::NOT_IMPLEMENTED,
+                "not_implemented",
+                "commercial management requires OpenMemoryService",
+            )
+        })
+    }
 }
 
-pub fn build_router_with_shared_open_api(api: Arc<dyn MemoryOpenApi>) -> Router {
+pub fn build_router_with_open_api(api: OpenMemoryService) -> Router<OpenState> {
+    build_router_with_open_memory_service(Arc::new(api))
+}
+
+pub fn build_router_with_open_memory_service(product: Arc<OpenMemoryService>) -> Router<OpenState> {
+    let api: Arc<dyn MemoryOpenApi> = product.clone();
+    build_open_router(OpenState {
+        api,
+        product: Some(product),
+    })
+}
+
+pub fn build_router_with_shared_open_api(api: Arc<dyn MemoryOpenApi>) -> Router<OpenState> {
+    build_open_router(OpenState { api, product: None })
+}
+
+fn build_open_router(state: OpenState) -> Router<OpenState> {
     Router::new()
         .route(paths::CAPABILITIES, get(retrieve_capabilities))
         .route(paths::EVENTS, post(create_event))
@@ -49,7 +73,7 @@ pub fn build_router_with_shared_open_api(api: Arc<dyn MemoryOpenApi>) -> Router 
         .route(paths::CANDIDATES, get(list_candidates))
         .route(paths::CANDIDATE, get(retrieve_candidate))
         .route(paths::PROVIDER_HEALTH, get(retrieve_provider_health))
-        .with_state(OpenState { api })
+        .with_state(state)
         .merge(crate::commercial_routes::commercial_routes())
 }
 

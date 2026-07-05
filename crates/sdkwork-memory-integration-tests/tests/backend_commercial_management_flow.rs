@@ -59,15 +59,8 @@ async fn backend_commercial_entity_edge_policy_and_readiness_flow() {
         ))
         .await
         .unwrap();
-    let entity_a_status = entity_a.status();
+    assert_eq!(entity_a.status(), StatusCode::CREATED);
     let entity_a_body = to_bytes(entity_a.into_body(), usize::MAX).await.unwrap();
-    if entity_a_status != StatusCode::CREATED {
-        eprintln!(
-            "create entity failed: status={entity_a_status} body={}",
-            String::from_utf8_lossy(&entity_a_body)
-        );
-    }
-    assert_eq!(entity_a_status, StatusCode::CREATED);
     let entity_a_json: serde_json::Value = serde_json::from_slice(&entity_a_body).unwrap();
     let entity_a_id = api_envelope::item(&entity_a_json)["entityId"]
         .as_str()

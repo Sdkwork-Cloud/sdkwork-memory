@@ -1,9 +1,11 @@
 use axum::{
     extract::{Path, Query, State},
-    response::Response,
+    http::StatusCode,
+    response::{IntoResponse, Response},
     routing::{get, patch, post},
     Extension, Json, Router,
 };
+use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_contract::{
     ListAdminResourcesQuery, ListAuditLogsQuery, ListCandidatesQuery, ListEventsQuery,
     ListMemoriesQuery, ListRetrievalTracesQuery, ListSpacesQuery, MemoryBackendApi,
@@ -13,7 +15,6 @@ use sdkwork_memory_contract::{
     MemoryRetentionJobRequest, MemoryRetrievalProfileRequest, MemoryReviewRequest,
     MemorySpaceRequest, MemorySpaceScopeQuery,
 };
-use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_routes_memory_support::{
     created_resource_json, ok_page_json, ok_resource_json,
 };
@@ -21,26 +22,42 @@ use std::sync::Arc;
 
 use crate::{auth::require_backend_context, paths, BackendApiProblem};
 
-fn attach_commercial_product(router: Router, api: Arc<dyn MemoryBackendApi>) -> Router {
-    match api.downcast::<OpenMemoryService>() {
-        Ok(product) => router.layer(Extension(product)),
-        Err(_) => router,
+#[derive(Clone)]
+pub(crate) struct BackendState {
+    api: Arc<dyn MemoryBackendApi>,
+    product: Option<Arc<OpenMemoryService>>,
+}
+
+impl BackendState {
+    pub(crate) fn require_product(&self) -> Result<Arc<OpenMemoryService>, Response> {
+        self.product.clone().ok_or_else(|| {
+            BackendApiProblem::new(
+                StatusCode::NOT_IMPLEMENTED,
+                "not_implemented",
+                "commercial management requires OpenMemoryService",
+            )
+            .into_response()
+        })
     }
 }
 
-#[derive(Clone)]
-struct BackendState {
-    api: Arc<dyn MemoryBackendApi>,
+pub fn build_router_with_backend_api(api: OpenMemoryService) -> Router<BackendState> {
+    build_router_with_open_memory_service(Arc::new(api))
 }
 
-pub fn build_router_with_backend_api<A>(api: A) -> Router
-where
-    A: MemoryBackendApi,
-{
-    build_router_with_shared_backend_api(Arc::new(api))
+pub fn build_router_with_open_memory_service(product: Arc<OpenMemoryService>) -> Router<BackendState> {
+    let api: Arc<dyn MemoryBackendApi> = product.clone();
+    build_backend_router(BackendState {
+        api,
+        product: Some(product),
+    })
 }
 
-pub fn build_router_with_shared_backend_api(api: Arc<dyn MemoryBackendApi>) -> Router {
+pub fn build_router_with_shared_backend_api(api: Arc<dyn MemoryBackendApi>) -> Router<BackendState> {
+    build_backend_router(BackendState { api, product: None })
+}
+
+fn build_backend_router(state: BackendState) -> Router<BackendState> {
     Router::new()
         .route(paths::SPACES, get(list_spaces))
         .route(paths::SPACE, get(retrieve_space).patch(update_space))
@@ -88,10 +105,8 @@ pub fn build_router_with_shared_backend_api(api: Arc<dyn MemoryBackendApi>) -> R
         .route(paths::RETENTION_JOBS, post(create_retention_job))
         .route(paths::MIGRATION_JOBS, post(create_migration_job))
         .route(paths::MIGRATION_JOB, get(retrieve_migration_job))
-        .with_state(BackendState { api: api.clone() })
-        .merge(crate::commercial_routes::commercial_routes());
-
-    attach_commercial_product(router, api)
+        .with_state(state)
+        .merge(crate::commercial_routes::commercial_routes())
 }
 
 async fn list_spaces(
