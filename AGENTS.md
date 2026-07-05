@@ -86,6 +86,41 @@ pnpm db:validate
 
 Do not rely on memory when a relevant SDKWork spec exists. Do not replace generated SDK calls with raw HTTP. Stop when the relative specs path, app identity, component spec, API authority, SDK family, table prefix, or provider ownership is ambiguous.
 
+## List And Search Pagination
+
+All L2+ list/search APIs and their backing services, repositories, SDK consumers, and interactive frontend lists `MUST` follow `PAGINATION_SPEC.md`:
+
+- **Input:** standard `SdkWorkListQuery` or query params (`page`/`page_size` or `cursor`/`page_size` per `API_SPEC.md` §14.1); default `page_size` `20`; max `200` unless a documented exception exists.
+- **Output:** `SdkWorkApiResponse.data.items` + `data.pageInfo` with `PageInfo.mode` (`offset` or `cursor`) per `API_SPEC.md` §16.
+- **Store-level pagination:** push filtering, sorting, and page selection to SQL `LIMIT`/keyset or incrementally maintained indexes — never unbounded collect then `skip`/`take`/`slice` in process memory (`PAGINATION_SPEC.md` §2).
+- **SDK and frontend:** interactive lists request one page at a time from the server; no default `listAll*` on P0/P1 paths; no client-side `slice` pagination over full downloads.
+
+Before completing list/search API, repository, SDK list helper, projection read model, or paginated UI work, run:
+
+```bash
+node <sdkwork-specs>/tools/check-pagination.mjs --workspace <workspace-root>
+```
+
+Authority: `PAGINATION_SPEC.md`, `API_SPEC.md` §14.1/§16, `DATABASE_SPEC.md` §20.5, `WEB_BACKEND_SPEC.md` §12, `SDK_SPEC.md` §4.2/§6, `FRONTEND_SPEC.md`, `APP_SDK_INTEGRATION_SPEC.md` §9.
+
+## App SDK Consumer Imports
+
+Application, feature, shell, and service packages `MUST` consume HTTP SDKs through scoped composed consumer packages, not generator transport package names.
+
+- App API clients: `@sdkwork/<application-code>-app-sdk`
+- Backend API clients (`backend-admin` only): `@sdkwork/<application-code>-backend-sdk`
+- Open/domain API clients: `@sdkwork/<domain>-sdk`
+
+Forbidden in application code: generator transport package names, deep imports into `generated/server-openapi/src/*` from consumers when a composed facade exists.
+
+Before completing SDK integration work, run:
+
+```bash
+node <sdkwork-specs>/tools/check-app-sdk-consumer-imports.mjs --workspace <workspace-root>
+```
+
+Authority: `APP_SDK_INTEGRATION_SPEC.md` section 9, `SDK_SPEC.md`, `SDK_WORKSPACE_GENERATION_SPEC.md`.
+
 ## Human Review Rules
 
 Human review is required for breaking public API changes, schema migrations, privacy/security exceptions, generated SDK ownership changes, provider lock-in decisions, and destructive filesystem or data operations.

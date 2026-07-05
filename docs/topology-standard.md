@@ -9,7 +9,15 @@ This repository adopts the shared SDKWork runtime topology framework.
 
 ## Archetype
 
-`application-http-gateway`: Memory exposes open, app, and backend HTTP surfaces through `sdkwork-routes-memory-*` route crates. Phase 1 runs all surfaces in a unified `sdkwork-memory-standalone-gateway` process.
+`application-http-gateway`: Memory exposes open, app, and backend HTTP surfaces through `sdkwork-routes-memory-*` route crates. The default production profile (`cloud.split-services.production`) runs `sdkwork-memory-standalone-gateway` as a unified ingress process; split-service profiles are available when surfaces must bind to separate hosts.
+
+## Production deployment
+
+- **Container image:** `registry.sdkwork.com/apps/sdkwork-memory` (see `deployments/docker/Dockerfile`)
+- **Kubernetes:** `deployments/kubernetes/` — migration Job, Deployment, HPA, PDB, Prometheus rules
+- **Database:** PostgreSQL required; apply migrations via `pnpm db:migrate` locally or the K8s migration Job in production
+- **Drive exports:** privacy export jobs upload through SDKWork Drive (`sdkwork-memory-drive`); configure `sdkwork-memory-drive` secrets per `deployments/kubernetes/secret.example.yaml`
+- **Verification:** `pnpm verify` before release
 
 ## Default Dev Profile
 
@@ -39,6 +47,6 @@ Client env keys:
 
 Profile values live in `configs/topology/*.env` only.
 
-## Phase 1 Notes
+## Cloud profiles
 
-Cloud split-services profiles and API gateway bundles are deferred until Memory moves to split-service deployment. Unified-process profiles bind all surfaces to the same host/port.
+`cloud.split-services.production` is the default production profile in `specs/topology.spec.json`. Use `pnpm gateway:validate:cloud` and `pnpm gateway:package:cloud` when packaging cloud gateway bundles.

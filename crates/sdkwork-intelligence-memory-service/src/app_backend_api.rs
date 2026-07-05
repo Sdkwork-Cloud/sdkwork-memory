@@ -48,10 +48,9 @@ fn default_learning_settings() -> MemoryLearningSettings {
 impl OpenMemoryService {
     pub(crate) fn map_space(row: NativeSqlMemorySpaceRow) -> MemoryServiceResult<MemorySpace> {
         Ok(MemorySpace {
-            space_id: u64::try_from(row.space_id.max(0))
-                .map_err(|_| MemoryServiceError::storage("space id must be non-negative"))?,
+            space_id: platform::non_negative_i64_as_u64(row.space_id, "spaceId")?,
             uuid: Some(row.uuid),
-            tenant_id: u64::try_from(row.tenant_id.max(0)).unwrap_or(0),
+            tenant_id: platform::non_negative_i64_as_u64(row.tenant_id, "tenantId")?,
             organization_id: None,
             owner_subject_type: row.owner_subject_type,
             owner_subject_id: row.owner_subject_id,
@@ -62,7 +61,7 @@ impl OpenMemoryService {
             metadata: None,
             created_at: row.created_at,
             updated_at: row.updated_at,
-            version: u64::try_from(row.version.max(0)).unwrap_or(0),
+            version: platform::non_negative_i64_as_u64(row.version, "version")?,
         })
     }
 
@@ -70,8 +69,8 @@ impl OpenMemoryService {
         row: NativeSqlCandidateRow,
     ) -> MemoryServiceResult<MemoryCandidate> {
         Ok(MemoryCandidate {
-            candidate_id: row.candidate_id.parse().unwrap_or(0),
-            space_id: u64::try_from(row.space_id.max(0)).unwrap_or(0),
+            candidate_id: platform::parse_required_numeric_id(&row.candidate_id, "candidateId")?,
+            space_id: platform::non_negative_i64_as_u64(row.space_id, "spaceId")?,
             candidate_type: row.candidate_type,
             memory_type: OpenMemoryService::memory_type_from_db(&row.memory_type),
             proposed_text: row.proposed_text,
@@ -86,8 +85,8 @@ impl OpenMemoryService {
         row: NativeSqlRetrievalTraceSummaryRow,
     ) -> MemoryServiceResult<MemoryRetrievalTrace> {
         Ok(MemoryRetrievalTrace {
-            trace_id: row.trace_id.parse().unwrap_or(0),
-            space_id: Some(u64::try_from(row.space_id.max(0)).unwrap_or(0)),
+            trace_id: platform::parse_required_numeric_id(&row.trace_id, "traceId")?,
+            space_id: Some(platform::non_negative_i64_as_u64(row.space_id, "spaceId")?),
             retrieval_profile_id: None,
             actor_id: None,
             query_text: row.query_text,
@@ -109,9 +108,9 @@ impl OpenMemoryService {
 
     fn map_habit(row: NativeSqlHabitRow) -> MemoryServiceResult<MemoryHabit> {
         Ok(MemoryHabit {
-            habit_id: row.habit_id.parse().unwrap_or(0),
-            space_id: u64::try_from(row.space_id.max(0)).unwrap_or(0),
-            user_id: u64::try_from(row.user_id.max(0)).unwrap_or(0),
+            habit_id: platform::parse_required_numeric_id(&row.habit_id, "habitId")?,
+            space_id: platform::non_negative_i64_as_u64(row.space_id, "spaceId")?,
+            user_id: platform::non_negative_i64_as_u64(row.user_id, "userId")?,
             habit_key: row.habit_key,
             habit_type: row.habit_type,
             description: row.description,
@@ -1745,7 +1744,10 @@ impl MemoryBackendApi for OpenMemoryService {
         let page_rows: Vec<_> = rows.into_iter().take(page_size as usize).collect();
         let next_cursor = page_rows.last().map(|row| row.audit_id.clone());
         Ok(MemoryAuditLogList {
-            items: page_rows.into_iter().map(map_audit_log).collect(),
+            items: page_rows
+                .into_iter()
+                .map(map_audit_log)
+                .collect::<MemoryServiceResult<Vec<_>>>()?,
             page_info: MemoryPageInfo {
                 next_cursor: if has_more { next_cursor } else { None },
                 has_more,
@@ -1979,9 +1981,9 @@ impl MemoryBackendApi for OpenMemoryService {
     }
 }
 
-fn map_audit_log(row: NativeSqlAuditLogRow) -> MemoryAuditLog {
-    MemoryAuditLog {
-        audit_log_id: row.audit_id.parse().unwrap_or(0),
+fn map_audit_log(row: NativeSqlAuditLogRow) -> MemoryServiceResult<MemoryAuditLog> {
+    Ok(MemoryAuditLog {
+        audit_log_id: platform::parse_required_numeric_id(&row.audit_id, "auditLogId")?,
         actor_type: row.actor_type,
         actor_id: row.actor_id,
         action: row.action,
@@ -1993,7 +1995,7 @@ fn map_audit_log(row: NativeSqlAuditLogRow) -> MemoryAuditLog {
         reason: None,
         metadata: None,
         created_at: row.created_at,
-    }
+    })
 }
 
 fn export_payload_bytes(payload: &serde_json::Value) -> MemoryServiceResult<Vec<u8>> {

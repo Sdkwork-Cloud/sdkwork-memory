@@ -1481,8 +1481,8 @@ impl MemoryOpenApi for OpenMemoryService {
             .take(page_size as usize)
             .map(|row| {
                 Ok(MemoryCandidate {
-                    candidate_id: row.candidate_id.parse().unwrap_or(0),
-                    space_id: u64::try_from(row.space_id.max(0)).unwrap_or(0),
+                    candidate_id: platform::parse_required_numeric_id(&row.candidate_id, "candidateId")?,
+                    space_id: platform::non_negative_i64_as_u64(row.space_id, "spaceId")?,
                     candidate_type: row.candidate_type,
                     memory_type: Self::memory_type_from_db(&row.memory_type),
                     proposed_text: row.proposed_text,

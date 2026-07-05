@@ -690,6 +690,14 @@ for (const workspace of [
 assert(!sdkDependencyIds.has('sdkwork-discovery'), 'component spec must not declare sdkwork-discovery until RPC exists');
 
 assert(fs.existsSync(path.join(repoRoot, '.env.example')), '.env.example must exist');
+assert(
+  readText('AGENTS.md').includes('## List And Search Pagination'),
+  'AGENTS.md must declare List And Search Pagination per PAGINATION_SPEC.md',
+);
+assert(
+  readText('AGENTS.md').includes('check-pagination.mjs'),
+  'AGENTS.md must reference check-pagination.mjs verification',
+);
 assert(fs.existsSync(path.join(repoRoot, '.sdkwork/.gitignore')), '.sdkwork/.gitignore must exist');
 assert(fs.existsSync(path.join(repoRoot, 'docs/topology-standard.md')), 'docs/topology-standard.md must exist');
 assert(

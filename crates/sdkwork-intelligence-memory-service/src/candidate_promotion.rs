@@ -5,6 +5,7 @@ use sdkwork_utils_rust::is_blank;
 use serde_json::Value;
 
 use crate::open_api::OpenMemoryService;
+use crate::platform;
 
 pub(crate) fn parse_evidence_event_ids(evidence_json: Option<&str>) -> Vec<String> {
     let Some(raw) = evidence_json.filter(|value| !is_blank(Some(value))) else {
@@ -139,8 +140,8 @@ impl OpenMemoryService {
         row: NativeSqlCandidateDetailRow,
     ) -> MemoryServiceResult<MemoryCandidate> {
         Ok(MemoryCandidate {
-            candidate_id: row.candidate_id.parse().unwrap_or(0),
-            space_id: u64::try_from(row.space_id.max(0)).unwrap_or(0),
+            candidate_id: platform::parse_required_numeric_id(&row.candidate_id, "candidateId")?,
+            space_id: platform::non_negative_i64_as_u64(row.space_id, "spaceId")?,
             candidate_type: row.candidate_type,
             memory_type: OpenMemoryService::memory_type_from_db(&row.memory_type),
             proposed_text: row.proposed_text,

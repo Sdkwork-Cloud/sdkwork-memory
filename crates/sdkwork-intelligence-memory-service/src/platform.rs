@@ -125,6 +125,17 @@ pub fn parse_numeric_id(value: &str) -> Option<u64> {
     sdkwork_utils_rust::parse_int(value).and_then(|parsed| u64::try_from(parsed).ok())
 }
 
+pub fn parse_required_numeric_id(value: &str, field: &str) -> MemoryServiceResult<u64> {
+    parse_numeric_id(value).ok_or_else(|| {
+        MemoryServiceError::storage(format!("{field} must be numeric"))
+    })
+}
+
+pub fn non_negative_i64_as_u64(value: i64, field: &str) -> MemoryServiceResult<u64> {
+    u64::try_from(value.max(0))
+        .map_err(|_| MemoryServiceError::storage(format!("{field} must be non-negative")))
+}
+
 pub fn read_env_u64(key: &str, default: u64) -> u64 {
     std::env::var(key)
         .ok()
@@ -148,4 +159,21 @@ pub const DEFAULT_PAGE_SIZE: i32 = 20;
 /// `DEFAULT_PAGE_SIZE` when `None`.
 pub fn clamp_page_size(page_size: Option<i32>) -> i32 {
     page_size.unwrap_or(DEFAULT_PAGE_SIZE).clamp(1, MAX_PAGE_SIZE)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_required_numeric_id_rejects_non_numeric_values() {
+        assert_eq!(parse_required_numeric_id("42", "id").unwrap(), 42);
+        assert!(parse_required_numeric_id("abc", "id").is_err());
+    }
+
+    #[test]
+    fn non_negative_i64_as_u64_rejects_negative_storage_values() {
+        assert_eq!(non_negative_i64_as_u64(7, "field").unwrap(), 7);
+        assert_eq!(non_negative_i64_as_u64(-3, "field").unwrap(), 0);
+    }
 }
