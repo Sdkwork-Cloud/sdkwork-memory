@@ -6,10 +6,10 @@ use sdkwork_routes_memory_app_api::{
     build_router_with_app_api, wrap_router_with_iam_database_web_framework,
 };
 use sdkwork_routes_memory_backend_api::{
-    build_router_with_open_memory_service,
+    build_router_with_open_memory_service as build_backend_router_with_product,
     wrap_router_with_iam_database_web_framework as wrap_backend_router,
 };
-use sdkwork_routes_memory_open_api::build_router_with_open_memory_service;
+use sdkwork_routes_memory_open_api::build_router_with_open_memory_service as build_open_router_with_product;
 use sdkwork_memory_test_support::api_envelope;
 use sdkwork_memory_test_support::web_auth::{
     lock_integration_test_env, memory_access_token, memory_auth_token_bearer,
@@ -234,10 +234,10 @@ async fn backend_api_lists_audit_logs_after_open_api_feedback() {
     let _env = lock_integration_test_env();
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let service = Arc::new(OpenMemoryService::new(store));
-    let open_app = build_router_with_open_memory_service(service.clone());
+    let open_app = build_open_router_with_product(service.clone());
     let backend_app = wrap_backend_router(
         IamWebRequestContextResolver::new(None),
-        build_router_with_open_memory_service(service.clone()),
+        build_backend_router_with_product(service.clone()),
     );
 
     let create_memory = open_app

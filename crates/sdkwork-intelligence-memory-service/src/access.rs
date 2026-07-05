@@ -278,34 +278,6 @@ pub fn sensitivity_read_scope(
     }
 }
 
-pub async fn actor_is_space_owner(
-    store: &NativeSqlMemoryStore,
-    context: &MemoryOpenApiRequestContext,
-    space_id: u64,
-) -> MemoryServiceResult<bool> {
-    if context.elevated_tenant_access {
-        tracing::warn!(
-            tenant_id = context.tenant_id,
-            space_id,
-            "elevated_tenant_access bypass: treated as space owner"
-        );
-        return Ok(true);
-    }
-    let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-    let space_id_i64 = platform::space_id_i64(space_id)?;
-    let Some(space) = store
-        .retrieve_space_for_tenant(tenant_id, space_id_i64)
-        .await
-        .map_err(map_native_sql_store_error)?
-    else {
-        return Ok(false);
-    };
-    let Some(actor_id) = context.actor_id else {
-        return Ok(false);
-    };
-    Ok(space.owner_subject_id == actor_id.to_string())
-}
-
 pub async fn assert_actor_can_access_spaces(
     store: &NativeSqlMemoryStore,
     context: &MemoryOpenApiRequestContext,
