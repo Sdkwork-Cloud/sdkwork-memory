@@ -71,31 +71,43 @@ fn resolve_snowflake_node_id() -> u16 {
     rand::thread_rng().gen::<u16>() % max_snowflake_node_id()
 }
 
-fn id_generator() -> &'static SnowflakeIdGenerator {
+fn id_generator() -> MemoryServiceResult<&'static SnowflakeIdGenerator> {
+    if is_production_like_environment() && ID_GENERATOR.get().is_none() {
+        return Err(MemoryServiceError::storage(
+            "snowflake ID generator is not initialized; database bootstrap must allocate a node_id in production-like environments",
+        ));
+    }
+
     let holder = ID_GENERATOR.get_or_init(|| {
         let node_id = resolve_snowflake_node_id();
         tracing::warn!(
             node_id,
-            "memory snowflake generator using fallback (env/hostname hash) — \
+            "memory snowflake generator using dev fallback (env/random node_id) — \
              database-backed allocation was not initialized"
         );
+        let generator = SnowflakeIdGenerator::new(node_id).unwrap_or_else(|error| {
+            tracing::error!(%error, node_id, "memory snowflake generator init failed");
+            // Last-resort dev-only fallback with a fixed node to avoid panic.
+            SnowflakeIdGenerator::new(0).expect("snowflake node_id 0 must initialize")
+        });
         IdGeneratorHolder {
-            generator: SnowflakeIdGenerator::new(node_id)
-                .unwrap_or_else(|error| {
-                    panic!("memory snowflake generator must initialize: {error}")
-                }),
+            generator,
             _lease: None,
         }
     });
-    &holder.generator
+    Ok(&holder.generator)
 }
 
 pub fn next_numeric_id() -> MemoryServiceResult<u64> {
-    let id = id_generator()
+    let id = id_generator()?
         .generate()
         .map_err(|error| MemoryServiceError::storage(format!("id generation failed: {error}")))?;
     u64::try_from(id)
         .map_err(|_| MemoryServiceError::storage(format!("id out of u64 range: {id}")))
+}
+
+pub fn snowflake_initialized() -> bool {
+    ID_GENERATOR.get().is_some()
 }
 
 pub fn current_timestamp() -> String {
@@ -105,6 +117,14 @@ pub fn current_timestamp() -> String {
 /// Returns true when the runtime is configured for a production-like environment.
 pub fn is_production_like_environment() -> bool {
     sdkwork_memory_contract::memory_is_production_like_environment()
+}
+
+pub fn deployment_environment_label() -> &'static str {
+    if is_production_like_environment() {
+        "production"
+    } else {
+        "development"
+    }
 }
 
 pub fn elapsed_millis_i64(started: std::time::Instant) -> i64 {
@@ -161,6 +181,43 @@ pub fn clamp_page_size(page_size: Option<i32>) -> i32 {
     page_size
         .unwrap_or(DEFAULT_PAGE_SIZE)
         .clamp(1, MAX_PAGE_SIZE)
+}
+
+/// OpenAPI `topK` maximum for retrieval requests.
+pub const MAX_RETRIEVAL_TOP_K: i32 = 100;
+
+/// Maximum space ids per retrieval or export request.
+pub const MAX_SCOPE_SPACE_IDS: usize = 32;
+
+/// Default maximum input events per extraction request.
+pub const DEFAULT_MAX_EXTRACTION_INPUT_EVENTS: usize = 1_000;
+
+/// Default maximum events exported per job.
+pub const DEFAULT_MAX_EXPORT_EVENTS: usize = 100_000;
+
+/// Default maximum provider bindings materialized for health aggregation.
+pub const DEFAULT_MAX_PROVIDER_HEALTH_BINDINGS: usize = 500;
+
+pub fn max_extraction_input_events() -> usize {
+    read_env_usize(
+        "SDKWORK_MEMORY_EXTRACTION_MAX_EVENTS",
+        DEFAULT_MAX_EXTRACTION_INPUT_EVENTS,
+    )
+}
+
+pub fn max_export_events() -> usize {
+    read_env_usize("SDKWORK_MEMORY_EXPORT_MAX_EVENTS", DEFAULT_MAX_EXPORT_EVENTS)
+}
+
+pub fn max_provider_health_bindings() -> usize {
+    read_env_usize(
+        "SDKWORK_MEMORY_PROVIDER_HEALTH_MAX_BINDINGS",
+        DEFAULT_MAX_PROVIDER_HEALTH_BINDINGS,
+    )
+}
+
+pub fn clamp_retrieval_top_k(top_k: i32) -> i32 {
+    top_k.clamp(1, MAX_RETRIEVAL_TOP_K)
 }
 
 /// Standard cursor-mode pagination metadata for memory list responses.

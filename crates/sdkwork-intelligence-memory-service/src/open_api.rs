@@ -116,7 +116,7 @@ impl OpenMemoryService {
         crate::job_worker::spawn_background_workers(service.clone())
     }
 
-    pub(crate) fn to_open_context(app: &MemoryAppRequestContext) -> MemoryOpenApiRequestContext {
+    pub fn to_open_context(app: &MemoryAppRequestContext) -> MemoryOpenApiRequestContext {
         MemoryOpenApiRequestContext {
             api_key_id: app
                 .session_id
@@ -128,7 +128,7 @@ impl OpenMemoryService {
         }
     }
 
-    pub(crate) fn to_open_context_backend(
+    pub fn to_open_context_backend(
         backend: &MemoryBackendRequestContext,
     ) -> MemoryOpenApiRequestContext {
         MemoryOpenApiRequestContext::for_backend_surface(backend.tenant_id, backend.operator_id)
@@ -190,6 +190,7 @@ impl OpenMemoryService {
         memory_id: u64,
     ) -> MemoryServiceResult<MemoryRecord> {
         access::assert_actor_can_access_space(&self.store, context, space_id).await?;
+        access::assert_retrieval_capability_allowed(&self.store, context, space_id).await?;
         let scope = Self::scope(context, space_id)?;
         match self
             .store
@@ -348,6 +349,127 @@ impl OpenMemoryService {
             "sql": { "weight": 0.75 }
         }))
     }
+
+    async fn sync_record_fts_with_retry(
+        &self,
+        scope: &MemoryScopeContext,
+        memory_id: &str,
+        canonical_text: &str,
+        object_text: &str,
+        subject: Option<&str>,
+        predicate: Option<&str>,
+    ) -> MemoryServiceResult<()> {
+        const MAX_ATTEMPTS: u32 = 3;
+        let mut last_error = None;
+        for attempt in 1..=MAX_ATTEMPTS {
+            match self
+                .store
+                .sync_record_fts_entry(
+                    scope,
+                    memory_id,
+                    canonical_text,
+                    object_text,
+                    subject,
+                    predicate,
+                )
+                .await
+            {
+                Ok(()) => return Ok(()),
+                Err(error) => {
+                    tracing::warn!(
+                        memory_id,
+                        attempt,
+                        error = %error,
+                        "record FTS sync failed; retrying"
+                    );
+                    last_error = Some(Self::map_store_error(error));
+                    if attempt < MAX_ATTEMPTS {
+                        tokio::time::sleep(std::time::Duration::from_millis(50 * u64::from(attempt)))
+                            .await;
+                    }
+                }
+            }
+        }
+        Err(last_error.unwrap_or_else(|| {
+            MemoryServiceError::storage("record FTS sync failed after retries")
+        }))
+    }
+
+    pub(crate) async fn execute_extraction_work(
+        &self,
+        context: MemoryOpenApiRequestContext,
+        request: MemoryExtractionRequest,
+    ) -> MemoryServiceResult<serde_json::Value> {
+        access::assert_actor_can_access_space_for_write(&self.store, &context, request.space_id)
+            .await?;
+        let max_events = platform::max_extraction_input_events();
+        if request.input_events.is_empty() {
+            return Err(MemoryServiceError::validation(
+                "inputEvents must not be empty",
+            ));
+        }
+        if request.input_events.len() > max_events {
+            return Err(MemoryServiceError::validation(format!(
+                "inputEvents must not exceed {max_events} entries per extraction request"
+            )));
+        }
+
+        let scope = Self::scope(&context, request.space_id)?;
+        let mut created_candidates = 0_u32;
+        let mut missing_events = 0_u32;
+
+        for event_id in &request.input_events {
+            if let Some(payload) = self
+                .store
+                .retrieve_event_payload(&scope, &event_id.to_string())
+                .await
+                .map_err(Self::map_store_error)?
+            {
+                let proposed = payload
+                    .get("content")
+                    .and_then(|value| value.as_str())
+                    .filter(|value| !value.trim().is_empty())
+                    .ok_or_else(|| {
+                        MemoryServiceError::validation(format!(
+                            "event {event_id} payload must contain non-empty 'content' for extraction"
+                        ))
+                    })?
+                    .to_string();
+                assert_memory_text_is_safe(&[("proposedText", &proposed)])?;
+                let candidate_id = self.next_id()?.to_string();
+                self.store
+                    .create_candidate(&CreateMemoryCandidateCommand {
+                        scope: scope.clone(),
+                        candidate_id,
+                        candidate_type: "extraction".to_string(),
+                        memory_type: "semantic".to_string(),
+                        proposed_text: proposed,
+                        proposed_payload_json: Some(payload.to_string()),
+                        evidence_json: Some(format!(r#"["event:{event_id}"]"#)),
+                        confidence: 0.7,
+                    })
+                    .await
+                    .map_err(Self::map_store_error)?;
+                created_candidates += 1;
+            } else {
+                missing_events += 1;
+            }
+        }
+
+        if created_candidates == 0 {
+            return Err(MemoryServiceError::validation(
+                "extraction did not produce any candidates from the provided input events",
+            ));
+        }
+
+        Ok(serde_json::json!({
+            "candidateCount": created_candidates,
+            "missingEventCount": missing_events,
+            "extractionMode": request
+                .extraction_mode
+                .unwrap_or_else(|| "deterministic".to_string()),
+        }))
+    }
 }
 
 #[async_trait]
@@ -450,6 +572,7 @@ impl MemoryOpenApi for OpenMemoryService {
     ) -> MemoryServiceResult<MemoryRecordList> {
         let space_id = access::require_list_space_id(query.space_id)?;
         access::assert_actor_can_access_space(&self.store, &context, space_id).await?;
+        access::assert_retrieval_capability_allowed(&self.store, &context, space_id).await?;
         let scope = Self::scope(&context, space_id)?;
         let page_size = platform::clamp_page_size(query.page_size);
         let page_size_usize = usize::try_from(page_size).unwrap_or(20);
@@ -580,6 +703,16 @@ impl MemoryOpenApi for OpenMemoryService {
 
         tx.commit().await.map_err(|e| Self::map_store_error(e.into()))?;
 
+        self.sync_record_fts_with_retry(
+            &scope,
+            &memory_id,
+            &request.canonical_text,
+            &object_text,
+            request.subject.as_deref(),
+            request.predicate.as_deref(),
+        )
+        .await?;
+
         let record = self
             .store
             .retrieve_record_detail(&scope, &memory_id)
@@ -703,6 +836,16 @@ impl MemoryOpenApi for OpenMemoryService {
                 MemoryServiceError::storage("updated memory could not be loaded")
             })?;
 
+        self.sync_record_fts_with_retry(
+            &scope,
+            &memory_id.to_string(),
+            &record.canonical_text,
+            record.object_text.as_deref().unwrap_or(&record.canonical_text),
+            record.subject.as_deref(),
+            record.predicate.as_deref(),
+        )
+        .await?;
+
         Ok(record)
     }
 
@@ -784,6 +927,12 @@ impl MemoryOpenApi for OpenMemoryService {
         .map_err(Self::map_store_error)?;
 
         tx.commit().await.map_err(|e| Self::map_store_error(e.into()))?;
+
+        self.store
+            .remove_record_fts_entry(&scope, &memory_id.to_string())
+            .await
+            .map_err(Self::map_store_error)?;
+
         Ok(())
     }
 
@@ -804,10 +953,10 @@ impl MemoryOpenApi for OpenMemoryService {
         if request.space_ids.is_empty() {
             return Err(MemoryServiceError::validation("spaceIds must not be empty"));
         }
-        const MAX_RETRIEVAL_SPACE_IDS: usize = 32;
-        if request.space_ids.len() > MAX_RETRIEVAL_SPACE_IDS {
+        if request.space_ids.len() > platform::MAX_SCOPE_SPACE_IDS {
             return Err(MemoryServiceError::validation(format!(
-                "spaceIds must not exceed {MAX_RETRIEVAL_SPACE_IDS} entries per retrieval request"
+                "spaceIds must not exceed {} entries per retrieval request",
+                platform::MAX_SCOPE_SPACE_IDS
             )));
         }
 
@@ -837,12 +986,24 @@ impl MemoryOpenApi for OpenMemoryService {
                     .map_err(Self::map_store_error)?
                 {
                     let retrievers = serde_json::from_str(&row.retrievers_json).ok();
-                    (row.top_k.min(request.top_k), Some(profile_id), retrievers)
+                    (
+                        platform::clamp_retrieval_top_k(row.top_k.min(request.top_k)),
+                        Some(profile_id),
+                        retrievers,
+                    )
                 } else {
-                    (request.top_k, None, Self::default_retriever_profile())
+                    (
+                        platform::clamp_retrieval_top_k(request.top_k),
+                        None,
+                        Self::default_retriever_profile(),
+                    )
                 }
             } else {
-                (request.top_k, None, Self::default_retriever_profile())
+                (
+                    platform::clamp_retrieval_top_k(request.top_k),
+                    None,
+                    Self::default_retriever_profile(),
+                )
             };
 
         let memory_type_filter = request.memory_types.as_ref().map(|types| {
@@ -1077,12 +1238,24 @@ impl MemoryOpenApi for OpenMemoryService {
         let mut hits = Vec::new();
         for (index, hit) in trace.hits.iter().enumerate() {
             let memory = if let Some(memory_id) = hit.memory_id.as_deref() {
-                self.store
+                match self
+                    .store
                     .retrieve_record_detail(&scope, memory_id)
                     .await
                     .map_err(Self::map_store_error)?
-                    .map(Self::map_record)
-                    .transpose()?
+                {
+                    Some(row) => {
+                        access::assert_actor_may_read_record_sensitivity(
+                            &self.store,
+                            &context,
+                            trace_space_id,
+                            &row.sensitivity_level,
+                        )
+                        .await?;
+                        Some(Self::map_record(row)?)
+                    }
+                    None => None,
+                }
             } else {
                 None
             };
@@ -1131,15 +1304,34 @@ impl MemoryOpenApi for OpenMemoryService {
         context: MemoryOpenApiRequestContext,
     ) -> MemoryServiceResult<MemoryProviderHealth> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let rows = self
-            .store
-            .list_mem_provider_bindings_for_tenant(tenant_id, 100, None)
-            .await
-            .map_err(Self::map_store_error)?;
-        let providers = rows
-            .iter()
-            .map(Self::map_provider_binding_public)
-            .collect::<Result<Vec<_>, _>>()?;
+        let max_bindings = platform::max_provider_health_bindings();
+        let mut cursor = None;
+        let mut providers = Vec::new();
+        loop {
+            let rows = self
+                .store
+                .list_mem_provider_bindings_for_tenant(
+                    tenant_id,
+                    sdkwork_utils_rust::MAX_LIST_PAGE_SIZE,
+                    cursor.as_deref(),
+                )
+                .await
+                .map_err(Self::map_store_error)?;
+            let page_size = usize::try_from(sdkwork_utils_rust::MAX_LIST_PAGE_SIZE).unwrap_or(200);
+            let has_more = rows.len() > page_size;
+            for row in rows.iter().take(page_size) {
+                if providers.len() >= max_bindings {
+                    return Err(MemoryServiceError::validation(format!(
+                        "provider binding count exceeds health aggregation limit ({max_bindings})"
+                    )));
+                }
+                providers.push(Self::map_provider_binding_public(row)?);
+            }
+            if !has_more {
+                break;
+            }
+            cursor = rows.get(page_size.saturating_sub(1)).map(|row| row.binding_uuid.clone());
+        }
         let status = if providers.is_empty()
             || providers
                 .iter()
@@ -1368,62 +1560,55 @@ impl MemoryOpenApi for OpenMemoryService {
         request: MemoryExtractionRequest,
     ) -> MemoryServiceResult<MemoryLearningJob> {
         access::assert_actor_can_access_space_for_write(&self.store, &context, request.space_id).await?;
-        let job_id = self.next_id()?;
-        let scope = Self::scope(&context, request.space_id)?;
-        let mut created_candidates = 0_u32;
-
-        for event_id in &request.input_events {
-            if let Some(payload) = self
-                .store
-                .retrieve_event_payload(&scope, &event_id.to_string())
-                .await
-                .map_err(Self::map_store_error)?
-            {
-                let proposed = payload
-                    .get("content")
-                    .and_then(|value| value.as_str())
-                    .unwrap_or("extracted memory candidate")
-                    .to_string();
-                assert_memory_text_is_safe(&[("proposedText", &proposed)])?;
-                let candidate_id = self.next_id()?.to_string();
-                self.store
-                    .create_candidate(&CreateMemoryCandidateCommand {
-                        scope: scope.clone(),
-                        candidate_id,
-                        candidate_type: "extraction".to_string(),
-                        memory_type: "semantic".to_string(),
-                        proposed_text: proposed,
-                        proposed_payload_json: Some(payload.to_string()),
-                        evidence_json: Some(format!(r#"["event:{event_id}"]"#)),
-                        confidence: 0.7,
-                    })
-                    .await
-                    .map_err(Self::map_store_error)?;
-                created_candidates += 1;
-            }
+        let max_events = platform::max_extraction_input_events();
+        if request.input_events.is_empty() {
+            return Err(MemoryServiceError::validation(
+                "inputEvents must not be empty",
+            ));
         }
+        if request.input_events.len() > max_events {
+            return Err(MemoryServiceError::validation(format!(
+                "inputEvents must not exceed {max_events} entries per extraction request"
+            )));
+        }
+        let actor_id = context.actor_id.ok_or_else(|| {
+            MemoryServiceError::validation("actorId is required to enqueue extraction jobs")
+        })?;
 
-        Ok(MemoryLearningJob {
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
+        let job_id = self.next_id()?;
+        let mut input = serde_json::to_value(&request).map_err(|error| {
+            MemoryServiceError::storage(format!("extraction input encode failed: {error}"))
+        })?;
+        if let Some(object) = input.as_object_mut() {
+            object.insert("actorId".to_string(), serde_json::json!(actor_id));
+        }
+        let input_json = serde_json::to_string(&input).map_err(|error| {
+            MemoryServiceError::storage(format!("extraction input encode failed: {error}"))
+        })?;
+
+        crate::job_worker::enqueue_learning_job(
+            &self.store,
+            tenant_id,
             job_id,
-            space_id: Some(request.space_id),
-            job_type: "extraction".to_string(),
-            state: if created_candidates > 0 {
-                "completed".to_string()
-            } else {
-                "failed".to_string()
-            },
-            priority: 0,
-            result: Some(serde_json::json!({
-                "candidateCount": created_candidates,
-                "extractionMode": request.extraction_mode.unwrap_or_else(|| "deterministic".to_string()),
-            })),
-            error: None,
-            started_at: None,
-            finished_at: None,
-            created_at: platform::current_timestamp(),
-            updated_at: platform::current_timestamp(),
-            version: None,
-        })
+            "extraction",
+            Some(request.space_id),
+            &input_json,
+            0,
+        )
+        .await
+        .map_err(Self::map_store_error)?;
+
+        let row = self
+            .store
+            .retrieve_learning_job_for_tenant(tenant_id, &job_id.to_string())
+            .await
+            .map_err(Self::map_store_error)?
+            .ok_or_else(|| {
+                MemoryServiceError::storage("queued extraction job could not be loaded")
+            })?;
+
+        crate::job_worker::learning_job_from_row(&row)
     }
 
     async fn list_candidates(
@@ -1446,6 +1631,12 @@ impl MemoryOpenApi for OpenMemoryService {
             .await
             .map_err(Self::map_store_error)?;
         let has_more = rows.len() > page_size as usize;
+        let next_cursor = if has_more {
+            rows.get(page_size as usize - 1)
+                .map(|row| row.candidate_id.clone())
+        } else {
+            None
+        };
         let items = rows
             .into_iter()
             .take(page_size as usize)
@@ -1463,9 +1654,6 @@ impl MemoryOpenApi for OpenMemoryService {
                 })
             })
             .collect::<MemoryServiceResult<Vec<_>>>()?;
-        let next_cursor = items
-            .last()
-            .map(|candidate| candidate.candidate_id.to_string());
 
         Ok(MemoryCandidateList {
             items,

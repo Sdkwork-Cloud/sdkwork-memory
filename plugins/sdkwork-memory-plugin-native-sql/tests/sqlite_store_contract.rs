@@ -1609,3 +1609,181 @@ async fn sqlite_store_lists_record_sources_with_cursor_pagination() {
     assert_eq!(second_page.len(), 1);
     assert_eq!(second_page[0].source_uuid, "8101");
 }
+
+#[tokio::test]
+async fn sqlite_rebuild_search_index_is_scoped_to_space() {
+    let store = new_contract_store().await;
+    let scope_a = MemoryScopeContext::for_test(1, 10);
+    let scope_b = MemoryScopeContext::for_test(1, 20);
+    store
+        .create_space_record(
+            1,
+            10,
+            &NativeSqlCreateSpaceCommand {
+                organization_id: None,
+                owner_subject_type: "user".to_string(),
+                owner_subject_id: "user-10".to_string(),
+                space_type: "personal".to_string(),
+                display_name: "Space 10".to_string(),
+                default_scope: "user".to_string(),
+            },
+        )
+        .await
+        .unwrap();
+    store
+        .create_space_record(
+            1,
+            20,
+            &NativeSqlCreateSpaceCommand {
+                organization_id: None,
+                owner_subject_type: "user".to_string(),
+                owner_subject_id: "user-20".to_string(),
+                space_type: "personal".to_string(),
+                display_name: "Space 20".to_string(),
+                default_scope: "user".to_string(),
+            },
+        )
+        .await
+        .unwrap();
+    store
+        .create_record_open_api(
+            &scope_a,
+            "mem-a",
+            "user",
+            "semantic",
+            Some("topic"),
+            Some("located_in"),
+            "alpha city",
+            "alpha city",
+            "internal",
+        )
+        .await
+        .unwrap();
+    store
+        .create_record_open_api(
+            &scope_b,
+            "mem-b",
+            "user",
+            "semantic",
+            Some("topic"),
+            Some("located_in"),
+            "beta city",
+            "beta city",
+            "internal",
+        )
+        .await
+        .unwrap();
+
+    store
+        .rebuild_record_search_indexes_for_space(1, 10)
+        .await
+        .unwrap();
+
+    let hits_a = store
+        .search_record_details_fulltext(&scope_a, "alpha", 5)
+        .await
+        .unwrap();
+    let hits_b = store
+        .search_record_details_fulltext(&scope_b, "beta", 5)
+        .await
+        .unwrap();
+    assert_eq!(hits_a.len(), 1);
+    assert_eq!(hits_b.len(), 1);
+}
+
+#[tokio::test]
+async fn sqlite_rebuild_search_index_tenant_scope_preserves_other_tenants() {
+    let store = new_contract_store().await;
+    let scope_t1 = MemoryScopeContext::for_test(1, 10);
+    let scope_t2 = MemoryScopeContext::for_test(2, 20);
+    for (tenant_id, space_id, owner) in [(1_i64, 10_i64, "user-t1"), (2, 20, "user-t2")] {
+        store
+            .create_space_record(
+                tenant_id,
+                space_id,
+                &NativeSqlCreateSpaceCommand {
+                    organization_id: None,
+                    owner_subject_type: "user".to_string(),
+                    owner_subject_id: owner.to_string(),
+                    space_type: "personal".to_string(),
+                    display_name: format!("Space {space_id}"),
+                    default_scope: "user".to_string(),
+                },
+            )
+            .await
+            .unwrap();
+    }
+    store
+        .create_record_open_api(
+            &scope_t1,
+            "mem-t1",
+            "user",
+            "semantic",
+            Some("topic"),
+            Some("located_in"),
+            "tenant-one landmark",
+            "tenant-one landmark",
+            "internal",
+        )
+        .await
+        .unwrap();
+    store
+        .create_record_open_api(
+            &scope_t2,
+            "mem-t2",
+            "user",
+            "semantic",
+            Some("topic"),
+            Some("located_in"),
+            "tenant-two landmark",
+            "tenant-two landmark",
+            "internal",
+        )
+        .await
+        .unwrap();
+
+    store
+        .rebuild_all_record_search_indexes(1)
+        .await
+        .unwrap();
+
+    let hits_t1 = store
+        .search_record_details_fulltext(&scope_t1, "tenant-one", 5)
+        .await
+        .unwrap();
+    let hits_t2 = store
+        .search_record_details_fulltext(&scope_t2, "tenant-two", 5)
+        .await
+        .unwrap();
+    assert_eq!(hits_t1.len(), 1);
+    assert_eq!(hits_t2.len(), 1);
+}
+
+#[tokio::test]
+async fn sqlite_fts_matches_predicate_field() {
+    let store = new_contract_store().await;
+    let scope = MemoryScopeContext::for_test(1, 1);
+    store
+        .create_record_open_api(
+            &scope,
+            "pred-mem",
+            "user",
+            "semantic",
+            Some("Earth"),
+            Some("orbits"),
+            "Sun",
+            "Earth orbits the Sun",
+            "internal",
+        )
+        .await
+        .unwrap();
+
+    let hits = store
+        .search_record_details_fulltext(&scope, "orbits", 5)
+        .await
+        .unwrap();
+    assert!(
+        hits.iter().any(|row| row.memory_id == "pred-mem"),
+        "FTS must match predicate column"
+    );
+}

@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
+use crate::pool_backend::MemorySqlDialect;
 use crate::store::{now_text, NativeSqlMemoryStore, NativeSqlStoreError};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -70,7 +71,83 @@ impl NativeSqlMemoryStore {
         Ok(())
     }
 
+    pub async fn requeue_stale_running_learning_jobs(
+        &self,
+        stale_after_seconds: u64,
+    ) -> Result<u64, NativeSqlStoreError> {
+        let stale_seconds = stale_after_seconds.max(60) as i64;
+        let cutoff_ms =
+            sdkwork_utils_rust::to_unix_millis(sdkwork_utils_rust::now()) - stale_seconds * 1_000;
+        let cutoff = sdkwork_utils_rust::format_datetime(
+            sdkwork_utils_rust::from_unix_millis(cutoff_ms)
+                .unwrap_or_else(sdkwork_utils_rust::now),
+            None,
+        );
+        let result = sqlx::query(
+            r#"
+            UPDATE ai_learning_job
+            SET state = 'queued',
+                started_at = NULL,
+                updated_at = ?
+            WHERE state = 'running'
+              AND updated_at <= ?
+            "#,
+        )
+        .bind(now_text())
+        .bind(&cutoff)
+        .execute(self.pool())
+        .await?;
+        Ok(result.rows_affected())
+    }
+
     pub async fn claim_queued_learning_jobs(
+        &self,
+        limit: i32,
+    ) -> Result<Vec<NativeSqlLearningJobRow>, NativeSqlStoreError> {
+        match self.dialect() {
+            MemorySqlDialect::Postgres => self.claim_queued_learning_jobs_postgres(limit).await,
+            MemorySqlDialect::Sqlite => self.claim_queued_learning_jobs_sqlite(limit).await,
+        }
+    }
+
+    async fn claim_queued_learning_jobs_postgres(
+        &self,
+        limit: i32,
+    ) -> Result<Vec<NativeSqlLearningJobRow>, NativeSqlStoreError> {
+        let row_limit = i64::from(limit.max(1));
+        let timestamp = now_text();
+        let rows = sqlx::query(
+            r#"
+            UPDATE ai_learning_job AS j
+            SET state = 'running',
+                started_at = ?,
+                updated_at = ?,
+                version = j.version + 1
+            FROM (
+                SELECT uuid, tenant_id
+                FROM ai_learning_job
+                WHERE state = 'queued'
+                ORDER BY priority DESC, created_at ASC
+                LIMIT ?
+                FOR UPDATE SKIP LOCKED
+            ) AS picked
+            WHERE j.tenant_id = picked.tenant_id
+              AND j.uuid = picked.uuid
+              AND j.state = 'queued'
+            RETURNING j.uuid, j.tenant_id, j.space_id, j.job_type, j.state, j.priority,
+                      j.input_json, j.result_json, j.error_json,
+                      j.started_at, j.finished_at, j.created_at, j.updated_at, j.version
+            "#,
+        )
+        .bind(&timestamp)
+        .bind(&timestamp)
+        .bind(row_limit)
+        .fetch_all(self.pool())
+        .await?;
+        Ok(rows.into_iter().map(map_learning_job_row).collect())
+    }
+
+    async fn claim_queued_learning_jobs_sqlite(
         &self,
         limit: i32,
     ) -> Result<Vec<NativeSqlLearningJobRow>, NativeSqlStoreError> {
@@ -175,6 +252,34 @@ impl NativeSqlMemoryStore {
             .await
     }
 
+    pub async fn requeue_stale_running_eval_runs(
+        &self,
+        stale_after_seconds: u64,
+    ) -> Result<u64, NativeSqlStoreError> {
+        let stale_seconds = stale_after_seconds.max(60) as i64;
+        let cutoff_ms =
+            sdkwork_utils_rust::to_unix_millis(sdkwork_utils_rust::now()) - stale_seconds * 1_000;
+        let cutoff = sdkwork_utils_rust::format_datetime(
+            sdkwork_utils_rust::from_unix_millis(cutoff_ms)
+                .unwrap_or_else(sdkwork_utils_rust::now),
+            None,
+        );
+        let result = sqlx::query(
+            r#"
+            UPDATE ai_eval_run
+            SET state = 'queued',
+                updated_at = ?
+            WHERE state = 'running'
+              AND updated_at <= ?
+            "#,
+        )
+        .bind(now_text())
+        .bind(&cutoff)
+        .execute(self.pool())
+        .await?;
+        Ok(result.rows_affected())
+    }
+
     pub async fn update_eval_run_state(
         &self,
         tenant_id: i64,
@@ -205,20 +310,43 @@ impl NativeSqlMemoryStore {
         Ok(())
     }
 
-    pub async fn list_queued_eval_runs(
+    pub async fn claim_queued_eval_runs(
         &self,
         limit: i32,
     ) -> Result<Vec<(i64, String, String)>, NativeSqlStoreError> {
+        match self.dialect() {
+            MemorySqlDialect::Postgres => self.claim_queued_eval_runs_postgres(limit).await,
+            MemorySqlDialect::Sqlite => self.claim_queued_eval_runs_sqlite(limit).await,
+        }
+    }
+
+    async fn claim_queued_eval_runs_postgres(
+        &self,
+        limit: i32,
+    ) -> Result<Vec<(i64, String, String)>, NativeSqlStoreError> {
+        let row_limit = i64::from(limit.max(1));
+        let timestamp = now_text();
         let rows = sqlx::query(
             r#"
-            SELECT tenant_id, uuid, eval_type
-            FROM ai_eval_run
-            WHERE state IN ('accepted', 'queued')
-            ORDER BY created_at ASC
-            LIMIT ?
+            UPDATE ai_eval_run AS e
+            SET state = 'running',
+                updated_at = ?
+            FROM (
+                SELECT tenant_id, uuid, eval_type
+                FROM ai_eval_run
+                WHERE state IN ('accepted', 'queued')
+                ORDER BY created_at ASC
+                LIMIT ?
+                FOR UPDATE SKIP LOCKED
+            ) AS picked
+            WHERE e.tenant_id = picked.tenant_id
+              AND e.uuid = picked.uuid
+              AND e.state IN ('accepted', 'queued')
+            RETURNING e.tenant_id, e.uuid, e.eval_type
             "#,
         )
-        .bind(limit.max(1) as i64)
+        .bind(&timestamp)
+        .bind(row_limit)
         .fetch_all(self.pool())
         .await?;
         Ok(rows
@@ -231,6 +359,49 @@ impl NativeSqlMemoryStore {
                 )
             })
             .collect())
+    }
+
+    async fn claim_queued_eval_runs_sqlite(
+        &self,
+        limit: i32,
+    ) -> Result<Vec<(i64, String, String)>, NativeSqlStoreError> {
+        let mut connection = self.pool().acquire().await?;
+        let mut claimed = Vec::new();
+        let rows = sqlx::query(
+            r#"
+            SELECT tenant_id, uuid, eval_type
+            FROM ai_eval_run
+            WHERE state IN ('accepted', 'queued')
+            ORDER BY created_at ASC
+            LIMIT ?
+            "#,
+        )
+        .bind(limit.max(1) as i64)
+        .fetch_all(&mut *connection)
+        .await?;
+
+        for row in rows {
+            let tenant_id: i64 = row.get("tenant_id");
+            let eval_uuid: String = row.get("uuid");
+            let eval_type: String = row.get("eval_type");
+            let updated = sqlx::query(
+                r#"
+                UPDATE ai_eval_run
+                SET state = 'running', updated_at = ?
+                WHERE tenant_id = ? AND uuid = ? AND state IN ('accepted', 'queued')
+                "#,
+            )
+            .bind(now_text())
+            .bind(tenant_id)
+            .bind(&eval_uuid)
+            .execute(&mut *connection)
+            .await?;
+            if updated.rows_affected() == 0 {
+                continue;
+            }
+            claimed.push((tenant_id, eval_uuid, eval_type));
+        }
+        Ok(claimed)
     }
 }
 

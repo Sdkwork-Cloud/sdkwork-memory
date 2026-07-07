@@ -12,6 +12,7 @@ use sdkwork_memory_contract::{
     ListPolicyAssignmentsQuery, MemoryAppRequestContext, UpdateEntityCommand,
     UpdatePolicyAssignmentCommand,
 };
+use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_routes_memory_support::{
     created_resource_json, ok_page_json, ok_resource_json,
 };
@@ -49,7 +50,11 @@ async fn create_entity(
     if context.tenant_id != cmd.tenant_id {
         return Err(forbidden("tenantId mismatch"));
     }
-    created_resource_json(product.create_entity(cmd).await)
+    created_resource_json(
+        product
+            .create_entity(OpenMemoryService::to_open_context(&context), cmd)
+            .await,
+    )
 }
 
 async fn retrieve_entity(
@@ -61,7 +66,15 @@ async fn retrieve_entity(
     let product = state.require_product()?;
     let context = require_app_context(context)?;
     let tenant_id = parse_tenant_id(&query.tenant_id, context.tenant_id)?;
-    ok_resource_json(product.retrieve_entity(tenant_id, &entity_id).await)
+    ok_resource_json(
+        product
+            .retrieve_entity(
+                OpenMemoryService::to_open_context(&context),
+                tenant_id,
+                &entity_id,
+            )
+            .await,
+    )
 }
 
 async fn list_entities(
@@ -74,7 +87,11 @@ async fn list_entities(
     if context.tenant_id != query.tenant_id {
         return Err(forbidden("tenantId mismatch"));
     }
-    ok_page_json(product.list_entities(query).await)
+    ok_page_json(
+        product
+            .list_entities(OpenMemoryService::to_open_context(&context), query)
+            .await,
+    )
 }
 
 async fn update_entity(
@@ -87,7 +104,16 @@ async fn update_entity(
     let product = state.require_product()?;
     let context = require_app_context(context)?;
     let tenant_id = parse_tenant_id(&query.tenant_id, context.tenant_id)?;
-    ok_resource_json(product.update_entity(tenant_id, &entity_id, cmd).await)
+    ok_resource_json(
+        product
+            .update_entity(
+                OpenMemoryService::to_open_context(&context),
+                tenant_id,
+                &entity_id,
+                cmd,
+            )
+            .await,
+    )
 }
 
 async fn create_policy_assignment(

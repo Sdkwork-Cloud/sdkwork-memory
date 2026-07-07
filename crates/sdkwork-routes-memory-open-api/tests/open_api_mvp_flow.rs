@@ -1,10 +1,12 @@
 use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
-use sdkwork_intelligence_memory_service::OpenMemoryService;
+use sdkwork_intelligence_memory_service::{spawn_background_workers, OpenMemoryService};
 use sdkwork_memory_contract::MemoryOpenApiRequestContext;
 use sdkwork_memory_test_support::api_envelope;
-use sdkwork_routes_memory_open_api::build_router_with_open_api;
+use sdkwork_routes_memory_open_api::{build_router_with_open_api, build_router_with_open_memory_service};
 use serde_json::json;
+use std::sync::Arc;
+use std::time::Duration;
 use tower::util::ServiceExt;
 
 fn open_context() -> MemoryOpenApiRequestContext {
@@ -103,7 +105,9 @@ async fn open_api_mvp_flow_memory_retrieval_and_context_pack_without_embeddings(
 #[tokio::test]
 async fn open_api_mvp_flow_event_extraction_candidates_and_feedback() {
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
-    let app = build_router_with_open_api(OpenMemoryService::new(store));
+    let service = Arc::new(OpenMemoryService::new(store));
+    let _shutdown = spawn_background_workers(service.clone());
+    let app = build_router_with_open_memory_service(service);
 
     let create_event = app
         .clone()
@@ -158,27 +162,38 @@ async fn open_api_mvp_flow_event_extraction_candidates_and_feedback() {
     let extraction_json: serde_json::Value = serde_json::from_slice(&extraction_body).unwrap();
     let extraction_item = api_envelope::item(&extraction_json);
     assert_eq!(extraction_item["jobType"], "extraction");
-    assert_eq!(extraction_item["state"], "completed");
+    assert_eq!(extraction_item["state"], "queued");
 
-    let candidates = app
-        .clone()
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri("/mem/v3/api/memory/candidates?spaceId=2")
-                .extension(open_context())
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(candidates.status(), StatusCode::OK);
-    let candidates_body = to_bytes(candidates.into_body(), usize::MAX).await.unwrap();
-    let candidates_json: serde_json::Value = serde_json::from_slice(&candidates_body).unwrap();
-    let candidate_id = api_envelope::items(&candidates_json)[0]["candidateId"]
-        .as_str()
-        .unwrap()
-        .to_string();
+    let mut candidate_id = String::new();
+    for _ in 0..30 {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let candidates = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/mem/v3/api/memory/candidates?spaceId=2")
+                    .extension(open_context())
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(candidates.status(), StatusCode::OK);
+        let candidates_body = to_bytes(candidates.into_body(), usize::MAX).await.unwrap();
+        let candidates_json: serde_json::Value = serde_json::from_slice(&candidates_body).unwrap();
+        let items = api_envelope::items(&candidates_json)
+            .as_array()
+            .expect("candidates list must return items array");
+        if !items.is_empty() {
+            candidate_id = items[0]["candidateId"].as_str().unwrap().to_string();
+            break;
+        }
+    }
+    assert!(
+        !candidate_id.is_empty(),
+        "extraction worker must produce at least one candidate"
+    );
 
     let candidate = app
         .clone()

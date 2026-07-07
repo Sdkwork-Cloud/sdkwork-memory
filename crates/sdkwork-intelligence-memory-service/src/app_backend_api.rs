@@ -65,6 +65,24 @@ impl OpenMemoryService {
         })
     }
 
+    async fn resolve_space_list_cursor(
+        &self,
+        tenant_id: i64,
+        cursor: Option<&str>,
+    ) -> MemoryServiceResult<i64> {
+        let Some(cursor) = cursor.map(str::trim).filter(|value| !value.is_empty()) else {
+            return Ok(0);
+        };
+        if let Ok(space_id) = cursor.parse::<i64>() {
+            return Ok(space_id);
+        }
+        self.store
+            .resolve_space_internal_id_by_uuid(tenant_id, cursor)
+            .await
+            .map_err(Self::map_store_error)?
+            .ok_or_else(|| MemoryServiceError::validation("cursor is not a valid space cursor"))
+    }
+
     pub(crate) fn map_candidate(
         row: NativeSqlCandidateRow,
     ) -> MemoryServiceResult<MemoryCandidate> {
@@ -378,11 +396,9 @@ impl MemoryAppApi for OpenMemoryService {
     ) -> MemoryServiceResult<MemorySpaceList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let page_size = crate::platform::clamp_page_size(query.page_size);
-        let cursor_space_id = query
-            .cursor
-            .as_deref()
-            .and_then(|value| value.parse::<i64>().ok())
-            .unwrap_or(0);
+        let cursor_space_id = self
+            .resolve_space_list_cursor(tenant_id, query.cursor.as_deref())
+            .await?;
         let actor_scope = context.actor_id.map(|value| value.to_string());
         let rows = self
             .store
@@ -400,7 +416,9 @@ impl MemoryAppApi for OpenMemoryService {
             .take(page_size as usize)
             .map(Self::map_space)
             .collect::<Result<Vec<_>, _>>()?;
-        let next_cursor = items.last().map(|space| space.space_id.to_string());
+        let next_cursor = items
+            .last()
+            .and_then(|space| space.uuid.clone());
         Ok(MemorySpaceList {
             items,
             page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),
@@ -831,6 +849,12 @@ impl MemoryAppApi for OpenMemoryService {
         if request.space_ids.is_empty() {
             return Err(MemoryServiceError::validation("spaceIds must not be empty"));
         }
+        if request.space_ids.len() > platform::MAX_SCOPE_SPACE_IDS {
+            return Err(MemoryServiceError::validation(format!(
+                "spaceIds must not exceed {} entries per export request",
+                platform::MAX_SCOPE_SPACE_IDS
+            )));
+        }
         access::assert_actor_can_access_spaces(&self.store, &Self::to_open_context(&context), &request.space_ids)
         .await?;
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
@@ -841,12 +865,22 @@ impl MemoryAppApi for OpenMemoryService {
             .iter()
             .map(|space_id| platform::space_id_i64(*space_id))
             .collect::<Result<Vec<_>, _>>()?;
+        let open_context = Self::to_open_context(&context);
+        let mut all_owner = true;
+        for space_id in &request.space_ids {
+            if !access::actual_actor_is_space_owner(&self.store, &open_context, *space_id).await? {
+                all_owner = false;
+                break;
+            }
+        }
+        let sensitivity_scope = access::sensitivity_read_scope(&open_context, all_owner);
         let payload = self
             .store
             .collect_export_payload_for_spaces(
                 tenant_id,
                 &space_ids,
                 request.include_events.unwrap_or(false),
+                sensitivity_scope,
             )
             .await
             .map_err(OpenMemoryService::map_store_error)?;
@@ -1028,14 +1062,17 @@ impl MemoryAppApi for OpenMemoryService {
             .await
             .map_err(OpenMemoryService::map_store_error)?;
         let has_more = rows.len() > page_size as usize;
+        let next_cursor = if has_more {
+            rows.get(page_size as usize - 1)
+                .map(|row| row.candidate_id.clone())
+        } else {
+            None
+        };
         let items = rows
             .into_iter()
             .take(page_size as usize)
             .map(Self::map_candidate)
             .collect::<Result<Vec<_>, _>>()?;
-        let next_cursor = items
-            .last()
-            .map(|candidate| candidate.candidate_id.to_string());
         Ok(MemoryCandidateList {
             items,
             page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),
@@ -1395,11 +1432,9 @@ impl MemoryBackendApi for OpenMemoryService {
     ) -> MemoryServiceResult<MemorySpaceList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let page_size = crate::platform::clamp_page_size(query.page_size);
-        let cursor_space_id = query
-            .cursor
-            .as_deref()
-            .and_then(|value| value.parse::<i64>().ok())
-            .unwrap_or(0);
+        let cursor_space_id = self
+            .resolve_space_list_cursor(tenant_id, query.cursor.as_deref())
+            .await?;
         let rows = self
             .store
             .list_spaces_for_tenant(tenant_id, page_size, cursor_space_id, None)
@@ -1411,7 +1446,9 @@ impl MemoryBackendApi for OpenMemoryService {
             .take(page_size as usize)
             .map(Self::map_space)
             .collect::<Result<Vec<_>, _>>()?;
-        let next_cursor = items.last().map(|space| space.space_id.to_string());
+        let next_cursor = items
+            .last()
+            .and_then(|space| space.uuid.clone());
         Ok(MemorySpaceList {
             items,
             page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),
@@ -1559,14 +1596,17 @@ impl MemoryBackendApi for OpenMemoryService {
             .await
             .map_err(OpenMemoryService::map_store_error)?;
         let has_more = rows.len() > page_size as usize;
+        let next_cursor = if has_more {
+            rows.get(page_size as usize - 1)
+                .map(|row| row.candidate_id.clone())
+        } else {
+            None
+        };
         let items = rows
             .into_iter()
             .take(page_size as usize)
             .map(Self::map_candidate)
             .collect::<Result<Vec<_>, _>>()?;
-        let next_cursor = items
-            .last()
-            .map(|candidate| candidate.candidate_id.to_string());
         Ok(MemoryCandidateList {
             items,
             page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),

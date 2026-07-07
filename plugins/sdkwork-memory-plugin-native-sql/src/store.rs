@@ -43,6 +43,19 @@ const RECORD_SENSITIVITY_FILTER_SQL: &str = r#"
                   )
 "#;
 
+/// SQL fragment filtering rows by actor read scope. `table_alias` must be a trusted identifier.
+pub fn sensitivity_level_filter_sql(table_alias: &str) -> String {
+    format!(
+        r#"
+                  AND (
+                    ? >= 2
+                    OR (? >= 1 AND {table_alias}.sensitivity_level IN ('public', 'internal', 'private', 'sensitive'))
+                    OR {table_alias}.sensitivity_level IN ('public', 'internal')
+                  )
+"#
+    )
+}
+
 pub struct PromoteApprovedCandidateCommand<'a> {
     pub scope: &'a MemoryScopeContext,
     pub tenant_id: i64,
@@ -129,18 +142,20 @@ impl NativeSqlMemoryStore {
     }
 
     async fn schema_is_initialized(&self) -> Result<bool, NativeSqlStoreError> {
-        // Check the migration tracking table for the latest expected migration version.
-        // This correctly handles partial upgrades: if any migration is missing,
-        // the check returns false so apply_embedded_sql_migrations can fill the gap.
+        let latest_version = match self.dialect() {
+            MemorySqlDialect::Sqlite => "0008",
+            MemorySqlDialect::Postgres => "0007",
+        };
         match sqlx::query_scalar::<_, i32>(
-            "SELECT 1 FROM ops_memory_schema_version WHERE version = '0007' LIMIT 1",
+            "SELECT 1 FROM ops_memory_schema_version WHERE version = ? LIMIT 1",
         )
+        .bind(latest_version)
         .fetch_optional(&self.pool)
         .await
         {
             Ok(Some(_)) => Ok(true),
             Ok(None) => Ok(false),
-            Err(_) => Ok(false), // Tracking table does not exist yet ??fresh or legacy database.
+            Err(_) => Ok(false),
         }
     }
 
@@ -472,6 +487,16 @@ event_type: row.get("event_type"),
         .execute(&self.pool)
         .await?;
 
+        self.sync_record_fts_entry(
+            scope,
+            memory_id,
+            canonical_text,
+            object_text,
+            subject,
+            predicate,
+        )
+        .await?;
+
         Ok(())
     }
 
@@ -793,7 +818,20 @@ event_type: row.get("event_type"),
         .execute(&self.pool)
         .await?;
 
-        self.retrieve_record_detail(scope, memory_id).await
+        let updated = self.retrieve_record_detail(scope, memory_id).await?;
+        if let Some(ref detail) = updated {
+            self.sync_record_fts_entry(
+                scope,
+                memory_id,
+                &detail.canonical_text,
+                &detail.object_text,
+                detail.subject.as_deref(),
+                detail.predicate.as_deref(),
+            )
+            .await?;
+        }
+
+        Ok(updated)
     }
 
     pub async fn search_record_details_keyword(
@@ -841,13 +879,15 @@ event_type: row.get("event_type"),
               AND r.status <> 'deleted'
               AND (r.canonical_text LIKE ? ESCAPE '\'
                    OR r.object_text LIKE ? ESCAPE '\'
-                   OR COALESCE(r.subject, '') LIKE ? ESCAPE '\')
+                   OR COALESCE(r.subject, '') LIKE ? ESCAPE '\'
+                   OR COALESCE(r.predicate, '') LIKE ? ESCAPE '\')
             ORDER BY r.updated_at DESC
             LIMIT ?
             "#,
         )
         .bind(scope.tenant_id)
         .bind(scope.space_id)
+        .bind(&pattern)
         .bind(&pattern)
         .bind(&pattern)
         .bind(&pattern)
@@ -1061,6 +1101,9 @@ event_type: row.get("event_type"),
         .execute(&self.pool)
         .await?;
 
+        self.sync_record_fts_entry(scope, memory_id, content, content, Some(subject), Some("is"))
+            .await?;
+
         Ok(())
     }
 
@@ -1158,6 +1201,7 @@ event_type: row.get("event_type"),
         scope: &MemoryScopeContext,
         memory_id: &str,
     ) -> Result<bool, NativeSqlStoreError> {
+        let _ = self.remove_record_fts_entry(scope, memory_id).await;
         let deleted = sqlx::query(
             r#"
             DELETE FROM ai_record
@@ -1599,7 +1643,19 @@ event_type: row.get("event_type"),
             command.decided_by,
         )
         .await?;
-        tx.commit().await.map_err(Into::into)
+        tx.commit().await.map_err(NativeSqlStoreError::from)?;
+        if command.create_record {
+            self.sync_record_fts_entry(
+                command.scope,
+                command.memory_uuid,
+                command.proposed_text,
+                command.proposed_text,
+                None,
+                None,
+            )
+            .await?;
+        }
+        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2227,50 +2283,60 @@ event_type: row.get("event_type"),
         &self,
         scope: &MemoryScopeContext,
     ) -> Result<u32, NativeSqlStoreError> {
-        let rows = sqlx::query(
-            r#"
-            SELECT uuid, canonical_text
-            FROM ai_record
-            WHERE tenant_id = ? AND space_id = ? AND status <> 'deleted'
-            ORDER BY canonical_text ASC, updated_at DESC, id DESC
-            "#,
-        )
-        .bind(scope.tenant_id)
-        .bind(scope.space_id)
-        .fetch_all(&self.pool)
-        .await?;
-
-        let mut seen = std::collections::HashSet::new();
-        let mut duplicate_ids = Vec::new();
-        for row in rows {
-            let canonical_text: String = row.get("canonical_text");
-            if !seen.insert(canonical_text) {
-                duplicate_ids.push(row.get::<String, _>("uuid"));
-            }
-        }
-
+        const BATCH_LIMIT: i64 = 500;
         let mut merged = 0u32;
         let timestamp = now_text();
-        for memory_uuid in duplicate_ids {
-            let result = sqlx::query(
+        loop {
+            let rows = sqlx::query(
                 r#"
-                UPDATE ai_record
-                SET status = 'deleted',
-                    deleted_at = ?,
-                    updated_at = ?,
-                    version = version + 1
-                WHERE tenant_id = ? AND space_id = ? AND uuid = ? AND status <> 'deleted'
+                SELECT uuid
+                FROM (
+                  SELECT uuid,
+                         ROW_NUMBER() OVER (
+                           PARTITION BY canonical_text
+                           ORDER BY updated_at DESC, id DESC
+                         ) AS row_num
+                  FROM ai_record
+                  WHERE tenant_id = ? AND space_id = ? AND status <> 'deleted'
+                ) ranked
+                WHERE row_num > 1
+                LIMIT ?
                 "#,
             )
-            .bind(&timestamp)
-            .bind(&timestamp)
             .bind(scope.tenant_id)
             .bind(scope.space_id)
-            .bind(&memory_uuid)
-            .execute(&self.pool)
+            .bind(BATCH_LIMIT)
+            .fetch_all(&self.pool)
             .await?;
-            if result.rows_affected() > 0 {
-                merged += 1;
+            if rows.is_empty() {
+                break;
+            }
+            let batch_len = rows.len();
+            for row in rows {
+                let memory_uuid: String = row.get("uuid");
+                let result = sqlx::query(
+                    r#"
+                    UPDATE ai_record
+                    SET status = 'deleted',
+                        deleted_at = ?,
+                        updated_at = ?,
+                        version = version + 1
+                    WHERE tenant_id = ? AND space_id = ? AND uuid = ? AND status <> 'deleted'
+                    "#,
+                )
+                .bind(&timestamp)
+                .bind(&timestamp)
+                .bind(scope.tenant_id)
+                .bind(scope.space_id)
+                .bind(&memory_uuid)
+                .execute(&self.pool)
+                .await?;
+                if result.rows_affected() > 0 {
+                    merged += 1;
+                }
+            }
+            if batch_len < BATCH_LIMIT as usize {
+                break;
             }
         }
         Ok(merged)
@@ -2751,7 +2817,7 @@ event_type: row.get("event_type"),
         .bind(&command.retrievers_json)
         .bind(command.latency_ms)
         .bind(command.hits.len() as i64)
-        .bind(bool_to_sqlite_int(command.degraded))
+        .bind(command.degraded)
         .bind(&command.metadata_json)
         .bind(now_text())
         .execute(&self.pool)
@@ -2826,7 +2892,7 @@ event_type: row.get("event_type"),
             .bind(&command.query_text)
             .bind(&context_pack.pack_json)
             .bind(context_pack.estimated_tokens)
-            .bind(bool_to_sqlite_int(context_pack.truncated))
+            .bind(context_pack.truncated)
             .bind(now_text())
             .execute(&self.pool)
             .await?;
@@ -2964,6 +3030,7 @@ event_type: row.get("event_type"),
             ("0005", include_str!("../migrations/sqlite/V202606240002__ai_record_fulltext_search.sql")),
             ("0006", include_str!("../migrations/sqlite/V202606250001__ai_eval_run_extend.sql")),
             ("0007", include_str!("../migrations/sqlite/V202606250002__memory_commercial_management.sql")),
+            ("0008", include_str!("../migrations/sqlite/V202606250003__sqlite_fts_predicate_column.sql")),
         ];
         self.apply_embedded_sql_migrations(MIGRATIONS).await
     }
@@ -3168,7 +3235,7 @@ event_type: row.get("event_type"),
             retrievers_json: row.get("retrievers_json"),
             latency_ms: row.get("latency_ms"),
             result_count: row.get("result_count"),
-            degraded: sqlite_int_to_bool(row.get("degraded")),
+            degraded: self.decode_bool(&row, "degraded"),
             metadata_json: row.get("metadata_json"),
             hits,
             context_pack,
@@ -3199,6 +3266,7 @@ event_type: row.get("event_type"),
             WHERE hit.tenant_id = ?
               AND hit.retrieval_trace_id = ?
             ORDER BY hit.result_rank ASC, hit.id ASC
+            LIMIT 1000
             "#,
         )
         .bind(scope.space_id)
@@ -3245,7 +3313,7 @@ event_type: row.get("event_type"),
             context_pack_id: row.get("uuid"),
             pack_json: row.get("pack_json"),
             estimated_tokens: row.get("estimated_tokens"),
-            truncated: sqlite_int_to_bool(row.get("truncated")),
+            truncated: self.decode_bool(&row, "truncated"),
         }))
     }
 
@@ -3310,7 +3378,7 @@ event_type: row.get("event_type"),
                 query_text: row.get("query_text"),
                 query_hash: row.get("query_hash"),
                 result_count: row.get("result_count"),
-                degraded: sqlite_int_to_bool(row.get("degraded")),
+                degraded: self.decode_bool(&row, "degraded"),
                 created_at: row.get("created_at"),
             })
             .collect())
@@ -3359,7 +3427,7 @@ event_type: row.get("event_type"),
         .bind(query_text)
         .bind(pack_json)
         .bind(estimated_tokens)
-        .bind(bool_to_sqlite_int(truncated))
+        .bind(truncated)
         .bind(now_text())
         .execute(&self.pool)
         .await?;
@@ -3393,7 +3461,7 @@ event_type: row.get("event_type"),
             query_text: row.get("query_text"),
             pack_json: row.get("pack_json"),
             estimated_tokens: row.get("estimated_tokens"),
-            truncated: sqlite_int_to_bool(row.get("truncated")),
+            truncated: self.decode_bool(&row, "truncated"),
             created_at: row.get("created_at"),
             retrieval_trace_id: row.get("retrieval_trace_id"),
             space_id: row.get("space_id"),
@@ -3412,6 +3480,25 @@ event_type: row.get("event_type"),
                 .fetch_optional(&self.pool)
                 .await?;
 
+        Ok(row.map(|row| row.get("id")))
+    }
+
+    pub async fn resolve_space_internal_id_by_uuid(
+        &self,
+        tenant_id: i64,
+        space_uuid: &str,
+    ) -> Result<Option<i64>, NativeSqlStoreError> {
+        let row = sqlx::query(
+            r#"
+            SELECT id
+            FROM ai_space
+            WHERE tenant_id = ? AND uuid = ?
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(space_uuid)
+        .fetch_optional(self.pool())
+        .await?;
         Ok(row.map(|row| row.get("id")))
     }
 
@@ -4066,6 +4153,26 @@ event_type: row.get("event_type"),
             .collect())
     }
 
+    pub async fn count_audit_logs_for_tenant(&self, tenant_id: i64) -> Result<i64, NativeSqlStoreError> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM ai_audit_log WHERE tenant_id = ?",
+        )
+        .bind(tenant_id)
+        .fetch_one(self.pool())
+        .await?;
+        Ok(count)
+    }
+
+    pub async fn count_eval_runs_for_tenant(&self, tenant_id: i64) -> Result<i64, NativeSqlStoreError> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM ai_eval_run WHERE tenant_id = ?",
+        )
+        .bind(tenant_id)
+        .fetch_one(self.pool())
+        .await?;
+        Ok(count)
+    }
+
     async fn ensure_space(&self, scope: &MemoryScopeContext) -> Result<(), NativeSqlStoreError> {
         if self
             .retrieve_space_for_tenant(scope.tenant_id, scope.space_id)
@@ -4707,7 +4814,7 @@ impl NativeSqlOutboxIdempotencyState {
 
 /// PostgreSQL stores tenant-scoped rows with SQL NULL; SQLite uses -1 because
 /// `ON CONFLICT` requires a single non-partial unique index.
-fn preference_scope_user_binding(user_id: Option<i64>, dialect: MemorySqlDialect) -> Option<i64> {
+pub(crate) fn preference_scope_user_binding(user_id: Option<i64>, dialect: MemorySqlDialect) -> Option<i64> {
     match (user_id, dialect) {
         (None, MemorySqlDialect::Postgres) => None,
         (None, MemorySqlDialect::Sqlite) => Some(-1),
@@ -4803,11 +4910,15 @@ fn retrieval_trace_select_sql() -> &'static str {
     "#
 }
 
-fn bool_to_sqlite_int(value: bool) -> i64 {
-    if value {
-        1
-    } else {
-        0
+impl NativeSqlMemoryStore {
+    fn decode_bool(&self, row: &sqlx::any::AnyRow, column: &str) -> bool {
+        match self.dialect {
+            MemorySqlDialect::Sqlite => sqlite_int_to_bool(row.get(column)),
+            MemorySqlDialect::Postgres => row
+                .try_get::<bool, _>(column)
+                .or_else(|_| row.try_get::<i64, _>(column).map(sqlite_int_to_bool))
+                .unwrap_or(false),
+        }
     }
 }
 

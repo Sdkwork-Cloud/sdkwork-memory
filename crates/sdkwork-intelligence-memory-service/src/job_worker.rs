@@ -4,8 +4,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use sdkwork_memory_contract::{
-    MemoryExtractionRequest, MemoryLearningJob, MemoryMigrationJobRequest,
-    MemoryOpenApi, MemoryOpenApiRequestContext, MemoryRetentionJobRequest,
+    MemoryExtractionRequest, MemoryLearningJob, MemoryMigrationJobRequest, MemoryServiceError,
+    MemoryOpenApiRequestContext, MemoryRetentionJobRequest,
 };
 use sdkwork_memory_plugin_native_sql::{
     InsertLearningJobCommand, NativeSqlLearningJobRow, NativeSqlMemoryStore,
@@ -99,6 +99,12 @@ fn spawn_provider_health_probe(service: Arc<OpenMemoryService>, mut shutdown_rx:
 }
 
 async fn process_learning_job_batch(service: &OpenMemoryService) -> Result<(), String> {
+    let stale_secs = platform::read_env_u64("SDKWORK_MEMORY_JOB_STALE_SECS", 900);
+    let _ = service
+        .store
+        .requeue_stale_running_learning_jobs(stale_secs)
+        .await
+        .map_err(|error| error.to_string())?;
     let jobs = service
         .store
         .claim_queued_learning_jobs(16)
@@ -128,6 +134,40 @@ async fn process_learning_job_batch(service: &OpenMemoryService) -> Result<(), S
     Ok(())
 }
 
+fn assert_learning_job_space_id(
+    job: &NativeSqlLearningJobRow,
+    space_id: i64,
+) -> Result<(), String> {
+    match job.space_id {
+        Some(job_space_id) if job_space_id != space_id => Err(format!(
+            "learning job space_id {job_space_id} does not match input space_id {space_id}"
+        )),
+        None => Err(format!(
+            "learning job {job_uuid} missing space_id; scope mutations require an explicit space",
+            job_uuid = job.job_uuid
+        )),
+        Some(_) => Ok(()),
+    }
+}
+
+fn parse_background_job_actor_id(input_json: &str) -> Option<u64> {
+    serde_json::from_str::<serde_json::Value>(input_json)
+        .ok()
+        .and_then(|value| {
+            value
+                .get("actorId")
+                .or_else(|| value.get("actor_id"))
+                .and_then(|id| id.as_u64().or_else(|| id.as_i64().and_then(|v| u64::try_from(v.max(0)).ok())))
+        })
+}
+
+fn background_job_context(job: &NativeSqlLearningJobRow, input_json: &str) -> MemoryOpenApiRequestContext {
+    MemoryOpenApiRequestContext::for_background_job(
+        u64::try_from(job.tenant_id.max(0)).unwrap_or(0),
+        parse_background_job_actor_id(input_json),
+    )
+}
+
 async fn execute_learning_job(
     service: &OpenMemoryService,
     job: &NativeSqlLearningJobRow,
@@ -136,26 +176,31 @@ async fn execute_learning_job(
         .input_json
         .as_deref()
         .ok_or_else(|| "learning job input_json is missing".to_string())?;
-    let open_context = MemoryOpenApiRequestContext::for_backend_surface(
-        u64::try_from(job.tenant_id.max(0)).unwrap_or(0),
-        None,
-    );
+    let open_context = background_job_context(job, input);
     let result = match job.job_type.as_str() {
         "extract" | "extraction" => {
             let request: MemoryExtractionRequest = serde_json::from_str(input)
                 .map_err(|error| format!("extraction input decode failed: {error}"))?;
-            let learning_job =
-                MemoryOpenApi::create_extraction(service, open_context, request)
-                    .await
-                    .map_err(|error| error.detail)?;
-            serde_json::to_string(&learning_job)
-                .map_err(|error| format!("extraction result encode failed: {error}"))?
+            let space_id =
+                platform::space_id_i64(request.space_id).map_err(|error| error.detail)?;
+            assert_learning_job_space_id(job, space_id)?;
+            if open_context.actor_id.is_none() {
+                return Err(
+                    "extraction background job requires actorId in input_json for authorization"
+                        .to_string(),
+                );
+            }
+            OpenMemoryService::execute_extraction_work(service, open_context, request)
+                .await
+                .map_err(|error| error.detail)?
+                .to_string()
         }
         "consolidation" => {
             let request: MemoryExtractionRequest = serde_json::from_str(input)
                 .map_err(|error| format!("consolidation input decode failed: {error}"))?;
             let tenant_id = job.tenant_id;
             let space_id = platform::space_id_i64(request.space_id).map_err(|error| error.detail)?;
+            assert_learning_job_space_id(job, space_id)?;
             let scope = MemoryScopeContext {
                 tenant_id,
                 space_id,
@@ -178,7 +223,8 @@ async fn execute_learning_job(
                 .map(platform::space_id_i64)
                 .transpose()
                 .map_err(|error| error.detail)?
-                .unwrap_or(1);
+                .ok_or_else(|| "retention input missing spaceId".to_string())?;
+            assert_learning_job_space_id(job, space_id)?;
             let scope = MemoryScopeContext {
                 tenant_id,
                 space_id,
@@ -200,11 +246,25 @@ async fn execute_learning_job(
                 .get("indexId")
                 .and_then(Value::as_u64)
                 .ok_or_else(|| "index rebuild input missing indexId".to_string())?;
-            let rebuilt = service
+            let index_row = service
                 .store
-                .rebuild_all_record_search_indexes(job.tenant_id)
+                .retrieve_mem_index_for_tenant(job.tenant_id, &index_id.to_string())
                 .await
-                .map_err(|error| error.to_string())?;
+                .map_err(|error| error.to_string())?
+                .ok_or_else(|| format!("memory index {index_id} not found for tenant"))?;
+            let rebuilt = if let Some(space_id) = index_row.space_id {
+                service
+                    .store
+                    .rebuild_record_search_indexes_for_space(job.tenant_id, space_id)
+                    .await
+                    .map_err(|error| error.to_string())?
+            } else {
+                service
+                    .store
+                    .rebuild_all_record_search_indexes(job.tenant_id)
+                    .await
+                    .map_err(|error| error.to_string())?
+            };
             let _ = service
                 .store
                 .update_mem_index_for_tenant(
@@ -217,28 +277,25 @@ async fn execute_learning_job(
                     None,
                 )
                 .await;
-            serde_json::json!({ "indexId": index_id, "rebuiltRecords": rebuilt }).to_string()
+            serde_json::json!({
+                "indexId": index_id,
+                "spaceId": index_row.space_id,
+                "rebuiltRecords": rebuilt
+            })
+            .to_string()
         }
         "migration" => {
             let request: MemoryMigrationJobRequest = serde_json::from_str(input)
                 .map_err(|error| format!("migration input decode failed: {error}"))?;
-            service.store.ping().await.map_err(|error| error.to_string())?;
-            let profile_id = request.target_implementation_profile_id;
-            let row = service
-                .store
-                .retrieve_mem_implementation_profile_for_tenant(
-                    job.tenant_id,
-                    &profile_id.to_string(),
-                )
-                .await
-                .map_err(|error| error.to_string())?
-                .ok_or_else(|| format!("implementation profile {profile_id} not found"))?;
-            serde_json::json!({
-                "targetImplementationProfileId": profile_id,
-                "implementationKind": row.implementation_kind,
-                "verified": true,
-            })
-            .to_string()
+            let result = crate::implementation_migration::execute_implementation_profile_migration(
+                &service.store,
+                job.tenant_id,
+                &request,
+            )
+            .await
+            .map_err(|error| error.detail)?;
+            serde_json::to_string(&result)
+                .map_err(|error| format!("migration result encode failed: {error}"))?
         }
         other => return Err(format!("unsupported learning job type: {other}")),
     };
@@ -251,27 +308,39 @@ async fn execute_learning_job(
 }
 
 async fn process_eval_run_batch(service: &OpenMemoryService) -> Result<(), String> {
+    let stale_secs = platform::read_env_u64("SDKWORK_MEMORY_EVAL_STALE_SECS", 900);
+    let _ = service
+        .store
+        .requeue_stale_running_eval_runs(stale_secs)
+        .await
+        .map_err(|error| error.to_string())?;
     let runs = service
         .store
-        .list_queued_eval_runs(8)
+        .claim_queued_eval_runs(8)
         .await
         .map_err(|error| error.to_string())?;
     for (tenant_id, eval_uuid, eval_type) in runs {
-        service
-            .store
-            .update_eval_run_state(tenant_id, &eval_uuid, "running", None, None)
-            .await
-            .map_err(|error| error.to_string())?;
-        let metrics = match eval_type.as_str() {
-            "retrieval_quality" => run_retrieval_quality_eval(service, tenant_id).await?,
-            _ => serde_json::json!({ "evalType": eval_type, "status": "skipped" }).to_string(),
+        let (state, metrics) = match eval_type.as_str() {
+            "retrieval_quality" => {
+                let metrics = run_retrieval_quality_eval(service, tenant_id).await?;
+                ("succeeded", metrics)
+            }
+            other => {
+                let metrics = serde_json::json!({
+                    "evalType": other,
+                    "status": "skipped",
+                    "reason": "eval type is not implemented"
+                })
+                .to_string();
+                ("skipped", metrics)
+            }
         };
         service
             .store
             .update_eval_run_state(
                 tenant_id,
                 &eval_uuid,
-                "succeeded",
+                state,
                 Some(&metrics),
                 Some(&metrics),
             )
@@ -289,10 +358,24 @@ async fn run_retrieval_quality_eval(
         .store
         .ensure_default_retrieval_profile_for_tenant(tenant_id)
         .await;
+    let spaces = service
+        .store
+        .list_spaces_for_tenant(
+            tenant_id,
+            sdkwork_utils_rust::MAX_LIST_PAGE_SIZE,
+            0,
+            None,
+        )
+        .await
+        .map_err(|error| error.to_string())?;
+    let space_id = spaces
+        .first()
+        .map(|space| space.space_id)
+        .unwrap_or(1);
     let sample_query = "memory";
     let scope = MemoryScopeContext {
         tenant_id,
-        space_id: 1,
+        space_id,
         organization_id: None,
         user_id: None,
     };
@@ -304,8 +387,9 @@ async fn run_retrieval_quality_eval(
     Ok(serde_json::json!({
         "evalType": "retrieval_quality",
         "sampleQuery": sample_query,
+        "spaceId": space_id,
         "hitCount": hits.len(),
-        "passed": true,
+        "passed": !hits.is_empty(),
     })
     .to_string())
 }
@@ -317,30 +401,45 @@ async fn probe_provider_bindings(service: &OpenMemoryService) -> Result<(), Stri
         .await
         .map_err(|error| error.to_string())?;
     for tenant_id in tenants {
-        let rows = service
-            .store
-            .list_mem_provider_bindings_for_tenant(tenant_id, 100, None)
-            .await
-            .map_err(|error| error.to_string())?;
-        for row in rows {
-            let health = probe_binding_endpoint(row.endpoint_ref.as_deref()).await;
-            let now = platform::current_timestamp();
-            let _ = service
+        let mut cursor = None;
+        loop {
+            let rows = service
                 .store
-                .update_mem_provider_binding_for_tenant(
+                .list_mem_provider_bindings_for_tenant(
                     tenant_id,
-                    &row.binding_uuid,
-                    None,
-                    None,
-                    Some(health.as_str()),
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    Some(Some(now.as_str())),
+                    sdkwork_utils_rust::MAX_LIST_PAGE_SIZE,
+                    cursor.as_deref(),
                 )
-                .await;
+                .await
+                .map_err(|error| error.to_string())?;
+            let page_size = usize::try_from(sdkwork_utils_rust::MAX_LIST_PAGE_SIZE).unwrap_or(200);
+            let has_more = rows.len() > page_size;
+            for row in rows.iter().take(page_size) {
+                let health = probe_binding_endpoint(row.endpoint_ref.as_deref()).await;
+                let now = platform::current_timestamp();
+                let _ = service
+                    .store
+                    .update_mem_provider_binding_for_tenant(
+                        tenant_id,
+                        &row.binding_uuid,
+                        None,
+                        None,
+                        Some(health.as_str()),
+                        None,
+                        None,
+                        None,
+                        None,
+                        None,
+                        Some(Some(now.as_str())),
+                    )
+                    .await;
+            }
+            if !has_more {
+                break;
+            }
+            cursor = rows
+                .get(page_size.saturating_sub(1))
+                .map(|row| row.binding_uuid.clone());
         }
     }
     Ok(())
@@ -376,7 +475,6 @@ async fn probe_binding_endpoint(endpoint_ref: Option<&str>) -> String {
     }
 }
 
-#[allow(dead_code)]
 pub async fn enqueue_learning_job(
     store: &NativeSqlMemoryStore,
     tenant_id: i64,
@@ -400,10 +498,7 @@ pub async fn enqueue_learning_job(
         .await
 }
 
-#[allow(dead_code)]
 pub fn learning_job_from_row(row: &NativeSqlLearningJobRow) -> MemoryServiceResult<MemoryLearningJob> {
-    use sdkwork_memory_contract::MemoryServiceError;
-    type MemoryServiceResult<T> = Result<T, MemoryServiceError>;
     let job_id = crate::platform::parse_numeric_id(&row.job_uuid).ok_or_else(|| {
         MemoryServiceError::storage("learning job id must be numeric".to_string())
     })?;

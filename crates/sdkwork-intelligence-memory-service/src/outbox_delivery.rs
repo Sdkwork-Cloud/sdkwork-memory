@@ -71,6 +71,18 @@ impl OutboxDeliveryConfig {
             http_client,
         }
     }
+
+    pub fn production_ready(&self) -> bool {
+        matches!(self.mode, OutboxDeliveryMode::Http) && self.webhook_url.is_some()
+    }
+}
+
+/// Returns true when outbox HTTP delivery is configured for production-like environments.
+pub fn production_outbox_delivery_ready() -> bool {
+    if !crate::platform::is_production_like_environment() {
+        return true;
+    }
+    OutboxDeliveryConfig::from_env().production_ready()
 }
 
 pub fn build_cloud_event_envelope(row: &NativeSqlScopedOutboxEvent) -> serde_json::Value {

@@ -15,15 +15,14 @@ pub const CAPABILITY_MEMORY_RETRIEVE: &str = "memory.retrieve";
 pub const CAPABILITY_MEMORY_WRITE: &str = "memory.write";
 
 /// Check whether a capability binding is currently within its validity period.
-/// ISO 8601 timestamps support lexicographic comparison.
 fn is_capability_valid(valid_from: &Option<String>, valid_to: &Option<String>, now: &str) -> bool {
     if let Some(from) = valid_from {
-        if now < from.as_str() {
+        if !sdkwork_utils_rust::is_blank(Some(from.as_str())) && now < from.as_str() {
             return false;
         }
     }
     if let Some(to) = valid_to {
-        if now > to.as_str() {
+        if !sdkwork_utils_rust::is_blank(Some(to.as_str())) && now > to.as_str() {
             return false;
         }
     }
@@ -45,19 +44,36 @@ async fn is_capability_denied(
 
     let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
     let space_id_i64 = platform::space_id_i64(space_id)?;
-    let capabilities = store
-        .resolve_capabilities_for_target(tenant_id, "space", space_id_i64)
-        .await
-        .map_err(map_native_sql_store_error)?;
+    let mut cursor = None;
+    loop {
+        let capabilities = store
+            .resolve_capabilities_for_target(
+                tenant_id,
+                "space",
+                space_id_i64,
+                sdkwork_utils_rust::MAX_LIST_PAGE_SIZE,
+                cursor.as_deref(),
+            )
+            .await
+            .map_err(map_native_sql_store_error)?;
 
-    let now = platform::current_timestamp();
-    for cap in &capabilities {
-        if cap.capability_code == capability_code
-            && cap.mode == "deny"
-            && is_capability_valid(&cap.valid_from, &cap.valid_to, &now)
-        {
-            return Ok(true);
+        let page_size = usize::try_from(sdkwork_utils_rust::MAX_LIST_PAGE_SIZE).unwrap_or(200);
+        let has_more = capabilities.len() > page_size;
+        let now = platform::current_timestamp();
+        for cap in capabilities.iter().take(page_size) {
+            if cap.capability_code == capability_code
+                && cap.mode == "deny"
+                && is_capability_valid(&cap.valid_from, &cap.valid_to, &now)
+            {
+                return Ok(true);
+            }
         }
+        if !has_more {
+            break;
+        }
+        cursor = capabilities
+            .get(page_size.saturating_sub(1))
+            .map(|cap| cap.uuid.clone());
     }
     Ok(false)
 }
@@ -112,7 +128,7 @@ pub async fn assert_actor_can_access_space(
     context: &MemoryOpenApiRequestContext,
     space_id: u64,
 ) -> MemoryServiceResult<()> {
-    assert_actor_can_access_existing_space(store, context, space_id).await
+    assert_actor_can_access_existing_space(store, context, space_id, false).await
 }
 
 pub async fn assert_actor_can_access_space_for_write(
@@ -142,7 +158,7 @@ pub async fn assert_actor_can_access_space_for_write(
         );
     }
 
-    assert_actor_can_access_existing_space(store, context, space_id).await?;
+    assert_actor_can_access_existing_space(store, context, space_id, true).await?;
 
     // Commercial capability check: deny write if explicitly denied for this space.
     assert_write_capability_allowed(store, context, space_id).await
@@ -152,6 +168,7 @@ async fn assert_actor_can_access_existing_space(
     store: &NativeSqlMemoryStore,
     context: &MemoryOpenApiRequestContext,
     space_id: u64,
+    require_write: bool,
 ) -> MemoryServiceResult<()> {
     let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
     let space_id_i64 = platform::space_id_i64(space_id)?;
@@ -186,14 +203,25 @@ async fn assert_actor_can_access_existing_space(
         if space.owner_subject_id == actor {
             return Ok(());
         }
+        if store
+            .actor_has_active_space_binding(tenant_id, space_id_i64, &actor, require_write)
+            .await
+            .map_err(map_native_sql_store_error)?
+        {
+            return Ok(());
+        }
         return forbidden("actor is not authorized for this memory space");
     }
 
-    if space.owner_subject_type == "tenant" && space.owner_subject_id == tenant_id.to_string() {
+    if space.owner_subject_type == "agent" && space.owner_subject_id == actor {
         return Ok(());
     }
 
-    if space.owner_subject_id == actor {
+    if store
+        .actor_has_active_space_binding(tenant_id, space_id_i64, &actor, require_write)
+        .await
+        .map_err(map_native_sql_store_error)?
+    {
         return Ok(());
     }
 
@@ -295,6 +323,29 @@ pub fn require_list_space_id(space_id: Option<u64>) -> MemoryServiceResult<u64> 
     })
 }
 
+pub fn require_commercial_list_space_id(
+    context: &MemoryOpenApiRequestContext,
+    space_id: Option<u64>,
+) -> MemoryServiceResult<Option<u64>> {
+    if context.elevated_tenant_access {
+        Ok(space_id)
+    } else {
+        Ok(Some(require_list_space_id(space_id)?))
+    }
+}
+
+pub async fn assert_actor_may_read_entity_sensitivity(
+    context: &MemoryOpenApiRequestContext,
+    sensitivity_level: &str,
+    actual_actor_is_space_owner: bool,
+) -> MemoryServiceResult<()> {
+    if actor_may_read_sensitivity(context, sensitivity_level, actual_actor_is_space_owner) {
+        Ok(())
+    } else {
+        Err(MemoryServiceError::not_found("entity not found"))
+    }
+}
+
 pub async fn assert_actor_can_access_space_i64(
     store: &NativeSqlMemoryStore,
     context: &MemoryOpenApiRequestContext,
@@ -327,12 +378,9 @@ pub fn validate_user_space_owner(
         return Ok(());
     }
     if owner_subject_type != "user" {
-        if !context.elevated_tenant_access {
-            return forbidden(
-                "only backend operators may create non-user-owned memory spaces",
-            );
-        }
-        return Ok(());
+        return forbidden(
+            "only backend operators may create non-user-owned memory spaces",
+        );
     }
     let Some(actor_id) = context.actor_id else {
         return forbidden(
@@ -425,6 +473,98 @@ mod tests {
         assert_actor_can_access_space(&store, &context, 2)
             .await
             .expect("backend operator should have tenant-wide access");
+    }
+
+    #[tokio::test]
+    async fn actor_can_access_space_via_active_binding() {
+        use sdkwork_memory_plugin_native_sql::InsertSubjectCommand;
+
+        let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+        seed_user_space(&store, 100_001, 2, "3002").await;
+        store
+            .insert_subject(InsertSubjectCommand {
+                id: 501,
+                uuid: "501",
+                tenant_id: 100_001,
+                organization_id: None,
+                subject_type: "user",
+                subject_ref: "2001",
+                display_name: "bound actor",
+                default_space_id: None,
+                metadata_json: None,
+            })
+            .await
+            .unwrap();
+        store
+            .insert_binding(
+                601,
+                "601",
+                100_001,
+                None,
+                "access",
+                "viewer",
+                Some(501),
+                None,
+                Some(2),
+                None,
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        let context = MemoryOpenApiRequestContext::for_open_surface("key-1", 100_001, Some(2001));
+        assert_actor_can_access_space(&store, &context, 2)
+            .await
+            .expect("binding grant should allow read access");
+    }
+
+    #[tokio::test]
+    async fn viewer_binding_allows_read_but_denies_write() {
+        use sdkwork_memory_plugin_native_sql::InsertSubjectCommand;
+
+        let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+        seed_user_space(&store, 100_001, 2, "3002").await;
+        store
+            .insert_subject(InsertSubjectCommand {
+                id: 502,
+                uuid: "502",
+                tenant_id: 100_001,
+                organization_id: None,
+                subject_type: "user",
+                subject_ref: "2001",
+                display_name: "viewer actor",
+                default_space_id: None,
+                metadata_json: None,
+            })
+            .await
+            .unwrap();
+        store
+            .insert_binding(
+                602,
+                "602",
+                100_001,
+                None,
+                "access",
+                "viewer",
+                Some(502),
+                None,
+                Some(2),
+                None,
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        let context = MemoryOpenApiRequestContext::for_open_surface("key-1", 100_001, Some(2001));
+        assert_actor_can_access_space(&store, &context, 2)
+            .await
+            .expect("viewer binding should allow read");
+        let error = assert_actor_can_access_space_for_write(&store, &context, 2)
+            .await
+            .expect_err("viewer binding must not allow write");
+        assert_eq!(error.code, "forbidden");
     }
 
     #[test]

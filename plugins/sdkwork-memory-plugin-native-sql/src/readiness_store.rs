@@ -47,6 +47,63 @@ pub struct InsertCommercialReadinessCommand<'a> {
 }
 
 impl NativeSqlMemoryStore {
+    pub async fn replace_commercial_readiness_snapshot(
+        &self,
+        cmd: InsertCommercialReadinessCommand<'_>,
+    ) -> Result<(), NativeSqlStoreError> {
+        let mut tx = self.begin_tx().await?;
+        sqlx::query(
+            r#"
+            DELETE FROM ai_commercial_readiness_snapshot
+            WHERE tenant_id = ?
+              AND (
+                (? IS NULL AND implementation_profile_id IS NULL)
+                OR implementation_profile_id = ?
+              )
+            "#,
+        )
+        .bind(cmd.tenant_id)
+        .bind(cmd.implementation_profile_id)
+        .bind(cmd.implementation_profile_id)
+        .execute(&mut *tx)
+        .await?;
+        let now = now_text();
+        sqlx::query(
+            r#"
+            INSERT INTO ai_commercial_readiness_snapshot (
+              id, uuid, tenant_id, implementation_profile_id, score, state,
+              contract_coverage_json, management_coverage_json, runtime_conformance_json,
+              privacy_coverage_json, audit_coverage_json, sdk_coverage_json,
+              evaluation_coverage_json, observability_coverage_json, migration_coverage_json,
+              blocking_findings_json, warning_findings_json, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(cmd.id)
+        .bind(cmd.uuid)
+        .bind(cmd.tenant_id)
+        .bind(cmd.implementation_profile_id)
+        .bind(cmd.score)
+        .bind(cmd.state)
+        .bind(cmd.contract_coverage_json)
+        .bind(cmd.management_coverage_json)
+        .bind(cmd.runtime_conformance_json)
+        .bind(cmd.privacy_coverage_json)
+        .bind(cmd.audit_coverage_json)
+        .bind(cmd.sdk_coverage_json)
+        .bind(cmd.evaluation_coverage_json)
+        .bind(cmd.observability_coverage_json)
+        .bind(cmd.migration_coverage_json)
+        .bind(cmd.blocking_findings_json)
+        .bind(cmd.warning_findings_json)
+        .bind(&now)
+        .execute(&mut *tx)
+        .await?;
+        tx.commit().await.map_err(NativeSqlStoreError::from)?;
+        Ok(())
+    }
+
     pub async fn insert_commercial_readiness_snapshot(
         &self,
         cmd: InsertCommercialReadinessCommand<'_>,

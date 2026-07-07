@@ -12,8 +12,25 @@ SDKWork Memory service and SDK families for embedding-optional AI memory, self-l
 ## Verification
 
 ```powershell
+pnpm verify
+```
+
+Canonical checks (also run individually):
+
+```powershell
+cargo test --workspace
+pnpm check:pagination
+pnpm check:api-envelope
+pnpm db:validate
+pnpm topology:validate
 node tools/materialize_phase1_contracts.mjs
-powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1
+```
+
+Postgres contract tests (optional, requires `SDKWORK_MEMORY_POSTGRES_TEST_URL`):
+
+```powershell
+$env:SDKWORK_MEMORY_POSTGRES_TEST_URL = "postgres://..."
+cargo test -p sdkwork-memory-plugin-native-sql postgres_store_contract -- --nocapture
 ```
 
 ## Documentation Canon

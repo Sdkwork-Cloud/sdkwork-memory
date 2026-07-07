@@ -1,6 +1,19 @@
 > Migrated from `docs/superpowers/plans/2026-06-10-memory-spi-plugin-runtime-implementation-plan.md` on 2026-06-24.
 > Owner: SDKWork maintainers
 
+## Implementation Status (2026-07-06)
+
+**Complete for 0.1.x baseline.** Static plugin registration, native SQL plugin, profile resolver, and conformance harness are implemented.
+
+**Current architecture and production guidance:**
+
+- `docs/architecture/tech/TECH_ARCHITECTURE.md`
+- `docs/architecture/tech/TECH-2026-06-10-memory-spi-plugin-architecture-design.md` §2
+
+The task checklist below is retained as an historical implementation record only. Do not treat unchecked boxes as open work.
+
+---
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:test-driven-development for every runtime/code step. This repository run is explicitly main-agent inline execution per user instruction; do not dispatch subagents for this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the first executable SDKWork Memory SPI/plugin runtime layer so implementation profiles can compose provider-neutral ports without changing public Open API, App API, or Backend API contracts.

@@ -1,6 +1,19 @@
 > Migrated from `docs/superpowers/plans/2026-06-10-memory-open-api-and-no-embedding-mvp.md` on 2026-06-24.
 > Owner: SDKWork maintainers
 
+## Implementation Status (2026-07-06)
+
+**Complete.** The no-embedding MVP described in this plan is implemented and verified (`cargo test --workspace`, `pnpm verify`).
+
+**Current architecture and production guidance:**
+
+- `docs/architecture/tech/TECH_ARCHITECTURE.md`
+- `docs/architecture/tech/TECH-2026-06-10-commercial-memory-management-design.md` §2
+
+The task checklist below is retained as an historical implementation record only. Do not treat unchecked boxes as open work.
+
+---
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the first runnable SDKWork Memory backend that supports the generated Open API, App API, and Backend API contracts while proving memory retrieval works without embeddings.

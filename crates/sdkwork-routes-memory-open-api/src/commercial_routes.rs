@@ -47,7 +47,11 @@ async fn create_entity(
     if context.tenant_id != cmd.tenant_id {
         return Err(forbidden("tenantId mismatch"));
     }
-    created_resource_json(product.create_entity(cmd).await)
+    created_resource_json(
+        product
+            .create_entity(context.clone(), cmd)
+            .await,
+    )
 }
 
 async fn retrieve_entity(
@@ -59,7 +63,11 @@ async fn retrieve_entity(
     let product = state.require_product()?;
     let context = require_context(context)?;
     let tenant_id = parse_tenant_id(&query.tenant_id, context.tenant_id)?;
-    ok_resource_json(product.retrieve_entity(tenant_id, &entity_id).await)
+    ok_resource_json(
+        product
+            .retrieve_entity(context.clone(), tenant_id, &entity_id)
+            .await,
+    )
 }
 
 async fn list_entities(
@@ -72,7 +80,7 @@ async fn list_entities(
     if context.tenant_id != query.tenant_id {
         return Err(forbidden("tenantId mismatch"));
     }
-    ok_page_json(product.list_entities(query).await)
+    ok_page_json(product.list_entities(context.clone(), query).await)
 }
 
 async fn update_entity(
@@ -85,7 +93,11 @@ async fn update_entity(
     let product = state.require_product()?;
     let context = require_context(context)?;
     let tenant_id = parse_tenant_id(&query.tenant_id, context.tenant_id)?;
-    ok_resource_json(product.update_entity(tenant_id, &entity_id, cmd).await)
+    ok_resource_json(
+        product
+            .update_entity(context.clone(), tenant_id, &entity_id, cmd)
+            .await,
+    )
 }
 
 async fn create_edge(
@@ -98,7 +110,9 @@ async fn create_edge(
     if context.tenant_id != cmd.tenant_id {
         return Err(forbidden("tenantId mismatch"));
     }
-    created_resource_json(product.create_edge(cmd).await)
+    created_resource_json(
+        product.create_edge(context.clone(), cmd).await,
+    )
 }
 
 async fn retrieve_edge(
@@ -110,7 +124,11 @@ async fn retrieve_edge(
     let product = state.require_product()?;
     let context = require_context(context)?;
     let tenant_id = parse_tenant_id(&query.tenant_id, context.tenant_id)?;
-    ok_resource_json(product.retrieve_edge(tenant_id, &edge_id).await)
+    ok_resource_json(
+        product
+            .retrieve_edge(context.clone(), tenant_id, &edge_id)
+            .await,
+    )
 }
 
 async fn list_edges(
@@ -123,7 +141,7 @@ async fn list_edges(
     if context.tenant_id != query.tenant_id {
         return Err(forbidden("tenantId mismatch"));
     }
-    ok_page_json(product.list_edges(query).await)
+    ok_page_json(product.list_edges(context.clone(), query).await)
 }
 
 async fn update_edge(
@@ -136,7 +154,11 @@ async fn update_edge(
     let product = state.require_product()?;
     let context = require_context(context)?;
     let tenant_id = parse_tenant_id(&query.tenant_id, context.tenant_id)?;
-    ok_resource_json(product.update_edge(tenant_id, &edge_id, cmd).await)
+    ok_resource_json(
+        product
+            .update_edge(context.clone(), tenant_id, &edge_id, cmd)
+            .await,
+    )
 }
 
 async fn delete_edge(
@@ -148,7 +170,11 @@ async fn delete_edge(
     let product = state.require_product()?;
     let context = require_context(context)?;
     let tenant_id = parse_tenant_id(&query.tenant_id, context.tenant_id)?;
-    no_content_json(product.delete_edge(tenant_id, &edge_id).await)
+    no_content_json(
+        product
+            .delete_edge(context.clone(), tenant_id, &edge_id)
+            .await,
+    )
 }
 
 fn parse_tenant_id(query_tenant_id: &str, context_tenant_id: u64) -> Result<u64, ApiProblem> {

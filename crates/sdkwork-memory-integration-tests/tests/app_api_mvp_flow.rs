@@ -1,13 +1,16 @@
 use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
 use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
-use sdkwork_intelligence_memory_service::OpenMemoryService;
+use sdkwork_intelligence_memory_service::{spawn_background_workers, OpenMemoryService};
 use sdkwork_memory_plugin_native_sql::{MemorySqlDialect, NativeSqlMemoryStore};
 use sdkwork_memory_spi::{MemoryHabitStorePort, MemoryScopeContext, UpsertMemoryHabitCommand};
 use sdkwork_routes_memory_app_api::{
-    build_router_with_app_api, wrap_router_with_iam_database_web_framework,
+    build_router_with_app_api, build_router_with_open_memory_service,
+    wrap_router_with_iam_database_web_framework,
 };
 use serde_json::json;
+use std::sync::Arc;
+use std::time::Duration;
 use tower::util::ServiceExt;
 
 use sdkwork_memory_test_support::api_envelope;
@@ -210,9 +213,11 @@ async fn app_api_candidate_approve_promotes_memory_and_links_event_sources() {
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let pool = store.pool().clone();
     let space_id = "2";
+    let service = Arc::new(OpenMemoryService::new(store));
+    let _shutdown = spawn_background_workers(service.clone());
     let app = wrap_router_with_iam_database_web_framework(
         IamWebRequestContextResolver::new(None),
-        build_router_with_app_api(OpenMemoryService::new(store)),
+        build_router_with_open_memory_service(service),
     );
 
     let seed_store = NativeSqlMemoryStore::from_any_pool(pool, MemorySqlDialect::Sqlite).await;
@@ -245,19 +250,31 @@ async fn app_api_candidate_approve_promotes_memory_and_links_event_sources() {
         .unwrap();
     assert_eq!(extraction.status(), StatusCode::CREATED);
 
-    let candidates = app
-        .clone()
-        .oneshot(authed_get_request(&format!(
-            "/app/v3/api/memory/candidates?spaceId={space_id}"
-        )))
-        .await
-        .unwrap();
-    assert_eq!(candidates.status(), StatusCode::OK);
-    let candidates_body = to_bytes(candidates.into_body(), usize::MAX).await.unwrap();
-    let candidates_json: serde_json::Value = serde_json::from_slice(&candidates_body).unwrap();
-    let candidate_id = api_envelope::items(&candidates_json)[0]["candidateId"]
-        .as_str()
-        .expect("candidate id");
+    let mut candidate_id = String::new();
+    for _ in 0..30 {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        let candidates = app
+            .clone()
+            .oneshot(authed_get_request(&format!(
+                "/app/v3/api/memory/candidates?spaceId={space_id}"
+            )))
+            .await
+            .unwrap();
+        assert_eq!(candidates.status(), StatusCode::OK);
+        let candidates_body = to_bytes(candidates.into_body(), usize::MAX).await.unwrap();
+        let candidates_json: serde_json::Value = serde_json::from_slice(&candidates_body).unwrap();
+        let items = api_envelope::items(&candidates_json)
+            .as_array()
+            .expect("candidates list must return items array");
+        if !items.is_empty() {
+            candidate_id = items[0]["candidateId"].as_str().expect("candidate id").to_string();
+            break;
+        }
+    }
+    assert!(
+        !candidate_id.is_empty(),
+        "extraction worker must produce at least one candidate"
+    );
 
     let approve = app
         .clone()

@@ -7,6 +7,7 @@ mod candidate_promotion;
 mod commercial_api;
 mod domain_metrics;
 mod endpoint_validation;
+mod implementation_migration;
 mod job_worker;
 mod open_api;
 mod outbox_delivery;

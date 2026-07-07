@@ -2,8 +2,10 @@
 
 Status: active
 Owner: SDKWork maintainers
-Updated: 2026-06-26
+Updated: 2026-07-06
 Specs: ARCHITECTURE_DECISION_SPEC.md, DOCUMENTATION_SPEC.md
+
+**Production readiness:** see `TECH-2026-06-10-commercial-memory-management-design.md` §2 for the authoritative current-state checklist (auth, pagination, FTS, jobs, deployment bootstrap).
 
 ## Document Map
 

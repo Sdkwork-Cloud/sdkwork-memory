@@ -22,7 +22,8 @@ pub use readiness::memory_dependency_ready_check;
 pub use response::{
     created_resource_json, finish_created_resource_response, finish_no_content_response,
     finish_page_response, finish_resource_response, no_content_json, ok_page_json,
-    ok_resource_json, resolved_trace_id, success_created_resource_response,
+    ok_resource_json, resolved_trace_id, success_created_page_response,
+    success_created_resource_response,
     success_no_content_response, success_page_response, success_resource_response,
 };
 

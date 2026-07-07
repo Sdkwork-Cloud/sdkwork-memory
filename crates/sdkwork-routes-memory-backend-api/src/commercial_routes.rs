@@ -8,17 +8,19 @@ use axum::{
     Extension, Json, Router,
 };
 use sdkwork_memory_contract::{
-    CapabilityTargetType, CreateBindingCommand, CreateCapabilityBindingCommand,
+    CreateBindingCommand, CreateCapabilityBindingCommand,
     CreateEdgeCommand, CreateEntityCommand, CreatePolicyAssignmentCommand, CreatePolicyCommand,
     CreateSubjectCommand, ListBindingsQuery, ListCapabilityBindingsQuery, ListEdgesQuery,
     ListEntitiesQuery, ListPoliciesQuery, ListPolicyAssignmentsQuery, ListSubjectsQuery,
-    MemoryBackendRequestContext, RebuildCommercialReadinessCommand, UpdateEdgeCommand,
+    MemoryBackendRequestContext, RebuildCommercialReadinessCommand, ResolveCapabilitiesQuery,
+    UpdateEdgeCommand,
     UpdateEntityCommand, UpdatePolicyAssignmentCommand, UpdatePolicyCommand, UpdateSubjectCommand,
 };
 use sdkwork_routes_memory_support::{
-    parse_principal_u64, success_created_resource_response, success_no_content_response,
-    success_page_response, success_resource_response,
+    parse_principal_u64, success_created_page_response, success_created_resource_response,
+    success_no_content_response, success_page_response, success_resource_response,
 };
+use sdkwork_intelligence_memory_service::OpenMemoryService;
 use serde::Deserialize;
 
 use crate::{auth::require_backend_context, paths, routes::BackendState, BackendApiProblem};
@@ -416,20 +418,10 @@ async fn delete_capability_binding(
 
 // --- Capability resolution ---
 
-#[derive(Deserialize)]
-pub struct ResolveCapabilitiesRequest {
-    #[serde(rename = "tenantId")]
-    pub tenant_id: String,
-    #[serde(rename = "targetType")]
-    pub target_type: String,
-    #[serde(rename = "targetId")]
-    pub target_id: String,
-}
-
 async fn resolve_capabilities(
     Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
-    Json(req): Json<ResolveCapabilitiesRequest>,
+    Json(req): Json<ResolveCapabilitiesQuery>,
 ) -> Response {
     let product = match state.require_product() {
         Ok(product) => product,
@@ -439,26 +431,11 @@ async fn resolve_capabilities(
         Ok(ctx) => ctx,
         Err(problem) => return problem.into_response(),
     };
-    let tenant_id = match parse_tenant_id(&req.tenant_id, context.tenant_id) {
-        Ok(id) => id,
-        Err(resp) => return resp,
-    };
-    let target_type = match req.target_type.as_str() {
-        "subject" => CapabilityTargetType::Subject,
-        "space" => CapabilityTargetType::Space,
-        "binding" => CapabilityTargetType::Binding,
-        "memory" => CapabilityTargetType::Memory,
-        _ => return bad_request("invalid targetType"),
-    };
-    let target_id = match parse_principal_u64(&req.target_id) {
-        Some(id) => id,
-        None => return bad_request("invalid targetId"),
-    };
-    match product
-        .resolve_capabilities(tenant_id, target_type, target_id)
-        .await
-    {
-        Ok(caps) => success_resource_response(caps),
+    if context.tenant_id != req.tenant_id {
+        return forbidden("tenantId mismatch");
+    }
+    match product.resolve_capabilities(req).await {
+        Ok(page) => success_created_page_response(page),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
 }
@@ -481,7 +458,9 @@ async fn create_entity(
     if context.tenant_id != cmd.tenant_id {
         return forbidden("tenantId mismatch");
     }
-    match product.create_entity(cmd).await {
+    match product
+        .create_entity(OpenMemoryService::to_open_context_backend(&context), cmd)
+        .await {
         Ok(entity) => success_created_resource_response(entity),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
@@ -505,7 +484,14 @@ async fn retrieve_entity(
         Ok(id) => id,
         Err(resp) => return resp,
     };
-    match product.retrieve_entity(tenant_id, &entity_id).await {
+    match product
+        .retrieve_entity(
+            OpenMemoryService::to_open_context_backend(&context),
+            tenant_id,
+            &entity_id,
+        )
+        .await
+    {
         Ok(entity) => success_resource_response(entity),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
@@ -527,7 +513,10 @@ async fn list_entities(
     if context.tenant_id != query.tenant_id {
         return forbidden("tenantId mismatch");
     }
-    match product.list_entities(query).await {
+    match product
+        .list_entities(OpenMemoryService::to_open_context_backend(&context), query)
+        .await
+    {
         Ok(list) => success_page_response(list),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
@@ -552,7 +541,14 @@ async fn update_entity(
         Ok(id) => id,
         Err(resp) => return resp,
     };
-    match product.update_entity(tenant_id, &entity_id, cmd).await {
+    match product
+        .update_entity(
+            OpenMemoryService::to_open_context_backend(&context),
+            tenant_id,
+            &entity_id,
+            cmd,
+        )
+        .await {
         Ok(entity) => success_resource_response(entity),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
@@ -576,7 +572,9 @@ async fn create_edge(
     if context.tenant_id != cmd.tenant_id {
         return forbidden("tenantId mismatch");
     }
-    match product.create_edge(cmd).await {
+    match product
+        .create_edge(OpenMemoryService::to_open_context_backend(&context), cmd)
+        .await {
         Ok(edge) => success_created_resource_response(edge),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
@@ -600,7 +598,14 @@ async fn retrieve_edge(
         Ok(id) => id,
         Err(resp) => return resp,
     };
-    match product.retrieve_edge(tenant_id, &edge_id).await {
+    match product
+        .retrieve_edge(
+            OpenMemoryService::to_open_context_backend(&context),
+            tenant_id,
+            &edge_id,
+        )
+        .await
+    {
         Ok(edge) => success_resource_response(edge),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
@@ -622,7 +627,10 @@ async fn list_edges(
     if context.tenant_id != query.tenant_id {
         return forbidden("tenantId mismatch");
     }
-    match product.list_edges(query).await {
+    match product
+        .list_edges(OpenMemoryService::to_open_context_backend(&context), query)
+        .await
+    {
         Ok(list) => success_page_response(list),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
@@ -647,7 +655,14 @@ async fn update_edge(
         Ok(id) => id,
         Err(resp) => return resp,
     };
-    match product.update_edge(tenant_id, &edge_id, cmd).await {
+    match product
+        .update_edge(
+            OpenMemoryService::to_open_context_backend(&context),
+            tenant_id,
+            &edge_id,
+            cmd,
+        )
+        .await {
         Ok(edge) => success_resource_response(edge),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
@@ -671,7 +686,14 @@ async fn delete_edge(
         Ok(id) => id,
         Err(resp) => return resp,
     };
-    match product.delete_edge(tenant_id, &edge_id).await {
+    match product
+        .delete_edge(
+            OpenMemoryService::to_open_context_backend(&context),
+            tenant_id,
+            &edge_id,
+        )
+        .await
+    {
         Ok(()) => success_no_content_response(),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
@@ -966,7 +988,7 @@ async fn rebuild_commercial_readiness(
         return forbidden("tenantId mismatch");
     }
     match product.rebuild_commercial_readiness(cmd).await {
-        Ok(readiness) => success_resource_response(readiness),
+        Ok(readiness) => success_created_resource_response(readiness),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
 }

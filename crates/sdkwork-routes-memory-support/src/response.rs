@@ -150,6 +150,10 @@ where
     }
 }
 
+pub fn success_created_page_response<T: Serialize>(value: T) -> Response {
+    success_response(StatusCode::CREATED, value)
+}
+
 pub fn finish_no_content_response<E>(result: Result<(), E>) -> Response
 where
     E: Into<MemoryApiProblem>,

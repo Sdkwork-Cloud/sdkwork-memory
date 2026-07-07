@@ -865,3 +865,28 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_commercial_readiness_uuid
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_commercial_readiness_tenant
   ON ai_commercial_readiness_snapshot (tenant_id, implementation_profile_id);
+
+-- source: plugins/sdkwork-memory-plugin-native-sql/migrations/sqlite/V202606250003__sqlite_fts_predicate_column.sql
+-- Rebuild SQLite FTS5 index to include predicate for parity with PostgreSQL tsvector.
+
+DROP TABLE IF EXISTS ai_record_fts;
+
+CREATE VIRTUAL TABLE ai_record_fts USING fts5(
+  memory_uuid UNINDEXED,
+  tenant_id UNINDEXED,
+  space_id UNINDEXED,
+  canonical_text,
+  object_text,
+  subject,
+  predicate,
+  tokenize = 'unicode61 remove_diacritics 1'
+);
+
+INSERT INTO ai_record_fts(
+  rowid, memory_uuid, tenant_id, space_id, canonical_text, object_text, subject, predicate
+)
+SELECT id, uuid, tenant_id, space_id,
+       coalesce(canonical_text, ''), coalesce(object_text, ''), coalesce(subject, ''),
+       coalesce(predicate, '')
+FROM ai_record
+WHERE status <> 'deleted';

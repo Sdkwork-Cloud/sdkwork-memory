@@ -9,28 +9,36 @@ The design separates stable Memory behavior from variable implementation choices
 
 The goal is a memory system that supports a practical no-embedding native SQL baseline while still allowing advanced industry patterns such as selective memory extraction, temporal knowledge graph retrieval, archival agent memory, vector store abstractions, GraphRAG-style graph indexes, and external memory providers.
 
-## 2. Current Repository Review
+## 2. Current Repository State
 
-The current repository is a contract and standards skeleton. It has no runtime `src/`, Rust workspace, service crates, route crates, or generated language SDK output. The authoritative artifacts are:
+Status: Active — aligned with implementation as of 2026-07-06.
 
-- `sdkwork.app.config.json`
-- `specs/component.spec.json`
-- `docs/architecture/tech/TECH-2026-06-10-ai-memory-architecture-design.md`
-- `docs/schema-registry/tables/*.yaml`
-- `sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json`
-- `sdks/sdkwork-memory-app-sdk/openapi/memory-app-api.openapi.json`
-- `sdks/sdkwork-memory-backend-sdk/openapi/memory-backend-api.openapi.json`
-- `tools/materialize_phase1_contracts.mjs`
-- `tools/verify_phase1.ps1`
+The repository is a runnable Rust workspace with native SQL storage, commercial management APIs, and generated SDK families:
 
-The current contract already contains the right raw materials:
+- **Runtime:** `sdkwork-memory-standalone-gateway` bootstraps `OpenMemoryService` via `assemble_application_business_router` (production path). Trait-only `gateway_mount` remains for contract tests only.
+- **Storage:** `sdkwork-memory-plugin-native-sql` implements SPI ports with symmetric PostgreSQL/SQLite migrations, FTS (`predicate` column on SQLite), scoped index rebuild, and store-level cursor pagination.
+- **Service:** `sdkwork-intelligence-memory-service` owns access control, commercial APIs, retrieval orchestration, background jobs, and implementation profile migration.
+- **APIs:** Open, App, and Backend route crates expose typed handlers with `SdkWorkApiResponse` envelopes and `PAGINATION_SPEC.md` compliance.
+- **Verification:** `pnpm verify`, `cargo test --workspace`, `pnpm check:pagination`, `pnpm check:api-envelope`.
+
+Authoritative current-state summary for commercial landing: `docs/architecture/tech/TECH-2026-06-10-commercial-memory-management-design.md` §2.
+
+Remaining SPI roadmap (not blocking L2+ landing):
+
+- Vector/embedding retriever plugin port (embedding-optional product stance).
+- Runnable reference implementation profiles beyond catalog metadata.
+- Dynamic plugin loading and backend plugin-list APIs (static registration is production baseline for 0.1.x).
+
+## 2.1 Original Pre-Implementation Review (Historical)
+
+The pre-implementation contract skeleton contained the right raw materials:
 
 - `ai_record` and `ai_event` are canonical source-of-truth tables.
 - `ai_index`, `ai_index_entry`, `ai_retrieval_profile`, `ai_retrieval_trace`, and `ai_context_pack` represent derived retrieval and context state.
 - `ai_implementation_profile`, `ai_provider_binding`, and `ai_policy` represent runtime selection and governance.
 - Backend API exposes implementation profiles, provider bindings, indexes, retrieval profiles, provider health, migrations, eval runs, and audit logs.
 
-The missing layer is an executable SPI and plugin contract that makes these profiles enforceable in runtime code and testable across implementations.
+The missing layer at design time was an executable SPI and plugin contract. That layer is now implemented in `sdkwork-memory-spi`, `sdkwork-memory-plugin-native-sql`, and `sdkwork-memory-profile-resolver`.
 
 ## 3. Industry Pattern Review
 

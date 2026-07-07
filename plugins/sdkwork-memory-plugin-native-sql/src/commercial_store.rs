@@ -357,6 +357,55 @@ pub async fn list_bindings(
         Ok(rows.into_iter().map(map_binding_row).collect())
     }
 
+    /// Returns true when the actor's subject has an active memory binding granting
+    /// access to the target space (`access`, `share`, or `ownership` kinds).
+    pub async fn actor_has_active_space_binding(
+        &self,
+        tenant_id: i64,
+        space_id: i64,
+        actor_ref: &str,
+        require_write: bool,
+    ) -> Result<bool, NativeSqlStoreError> {
+        let now = now_text();
+        let row = sqlx::query(
+            r#"
+            SELECT 1 AS granted
+            FROM ai_memory_binding b
+            INNER JOIN ai_subject s
+              ON s.tenant_id = b.tenant_id
+             AND s.id = b.source_subject_id
+             AND s.deleted_at IS NULL
+             AND s.status = 'active'
+            WHERE b.tenant_id = ?
+              AND b.deleted_at IS NULL
+              AND b.status = 'active'
+              AND b.binding_kind IN ('access', 'share', 'ownership')
+              AND s.subject_ref = ?
+              AND (
+                b.target_space_id = ?
+                OR (b.target_space_id IS NULL AND b.space_id = ?)
+              )
+              AND (b.valid_from IS NULL OR b.valid_from <= ?)
+              AND (b.valid_to IS NULL OR b.valid_to >= ?)
+              AND (
+                ? = 0
+                OR b.binding_role IN ('owner', 'learner')
+              )
+            LIMIT 1
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(actor_ref)
+        .bind(space_id)
+        .bind(space_id)
+        .bind(&now)
+        .bind(&now)
+        .bind(i32::from(require_write))
+        .fetch_optional(self.pool())
+        .await?;
+        Ok(row.is_some())
+    }
+
     pub async fn delete_binding(
         &self,
         tenant_id: i64,
@@ -525,7 +574,11 @@ pub async fn list_capability_bindings(
         tenant_id: i64,
         target_type: &str,
         target_id: i64,
+        page_size: i32,
+        cursor: Option<&str>,
     ) -> Result<Vec<NativeSqlCapabilityBindingRow>, NativeSqlStoreError> {
+        let page_size = page_size.clamp(1, sdkwork_utils_rust::MAX_LIST_PAGE_SIZE) as i64;
+        let cursor = cursor.unwrap_or("");
         let rows = sqlx::query(
             r#"
             SELECT id, uuid, tenant_id, capability_code, target_type, target_id,
@@ -537,12 +590,16 @@ pub async fn list_capability_bindings(
               AND target_id = ?
               AND status = 'active'
               AND deleted_at IS NULL
-            ORDER BY priority DESC, created_at ASC
+              AND uuid > ?
+            ORDER BY uuid ASC
+            LIMIT ?
             "#,
         )
         .bind(tenant_id)
         .bind(target_type)
         .bind(target_id)
+        .bind(cursor)
+        .bind(page_size + 1)
         .fetch_all(self.pool())
         .await?;
         Ok(rows.into_iter().map(map_capability_binding_row).collect())

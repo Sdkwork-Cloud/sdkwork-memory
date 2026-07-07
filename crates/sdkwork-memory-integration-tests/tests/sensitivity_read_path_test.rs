@@ -3,37 +3,19 @@
 use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
 use sdkwork_intelligence_memory_service::OpenMemoryService;
-use sdkwork_memory_plugin_native_sql::NativeSqlCreateSpaceCommand;
+use sdkwork_memory_test_support::space_fixtures::seed_user_space;
 use sdkwork_routes_memory_open_api::build_router_with_shared_open_api;
 use sdkwork_memory_test_support::api_envelope;
 use serde_json::json;
 use std::sync::Arc;
 use tower::util::ServiceExt;
 
-async fn seed_tenant_space(store: &sdkwork_memory_plugin_native_sql::NativeSqlMemoryStore, space_id: i64) {
-    store
-        .create_space_record(
-            100_001,
-            space_id,
-            &NativeSqlCreateSpaceCommand {
-                organization_id: None,
-                owner_subject_type: "tenant".to_string(),
-                owner_subject_id: "100001".to_string(),
-                space_type: "shared".to_string(),
-                display_name: "Tenant shared space".to_string(),
-                default_scope: "tenant".to_string(),
-            },
-        )
-        .await
-        .expect("tenant space seed must succeed");
-}
-
 #[tokio::test]
 async fn list_and_retrieve_hide_private_memories_from_non_owner_tenant_actors() {
     let store = sdkwork_memory_plugin_native_sql::NativeSqlMemoryStore::new_in_memory_sqlite()
         .await
         .expect("sqlite store must initialize");
-    seed_tenant_space(&store, 10).await;
+    seed_user_space(&store, 100_001, 10, "2001").await;
     let service = Arc::new(OpenMemoryService::new(store));
     let app = build_router_with_shared_open_api(service);
 
@@ -53,7 +35,7 @@ async fn list_and_retrieve_hide_private_memories_from_non_owner_tenant_actors() 
                 .body(Body::from(
                     json!({
                         "spaceId": "10",
-                        "scope": "tenant",
+                        "scope": "user",
                         "memoryType": "semantic",
                         "canonicalText": "owner private note",
                         "sensitivityLevel": "private"
@@ -81,17 +63,10 @@ async fn list_and_retrieve_hide_private_memories_from_non_owner_tenant_actors() 
         )
         .await
         .unwrap();
-    assert_eq!(list.status(), StatusCode::OK);
-    let list_body = to_bytes(list.into_body(), usize::MAX).await.unwrap();
-    let list_json: serde_json::Value = serde_json::from_slice(&list_body).unwrap();
-    let items = api_envelope::items(&list_json)
-        .as_array()
-        .expect("list response must contain data.items array");
-    assert!(
-        items
-            .iter()
-            .all(|item| item["memoryId"].as_str() != Some(memory_id)),
-        "peer actor must not see private memories in list results"
+    assert_eq!(
+        list.status(),
+        StatusCode::FORBIDDEN,
+        "peer actor must not access a foreign user-owned space"
     );
 
     let retrieve = app
@@ -107,7 +82,7 @@ async fn list_and_retrieve_hide_private_memories_from_non_owner_tenant_actors() 
         .unwrap();
     assert_eq!(
         retrieve.status(),
-        StatusCode::NOT_FOUND,
-        "peer actor retrieve must fail closed as not found"
+        StatusCode::FORBIDDEN,
+        "peer actor retrieve must fail closed on foreign user-owned space"
     );
 }

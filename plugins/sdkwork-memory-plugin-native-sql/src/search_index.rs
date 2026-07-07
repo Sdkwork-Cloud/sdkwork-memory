@@ -15,6 +15,7 @@ impl NativeSqlMemoryStore {
         canonical_text: &str,
         object_text: &str,
         subject: Option<&str>,
+        predicate: Option<&str>,
     ) -> Result<(), NativeSqlStoreError> {
         if !matches!(self.dialect(), MemorySqlDialect::Sqlite) {
             return Ok(());
@@ -32,9 +33,9 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_record_fts(
-              rowid, memory_uuid, tenant_id, space_id, canonical_text, object_text, subject
+              rowid, memory_uuid, tenant_id, space_id, canonical_text, object_text, subject, predicate
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
         .bind(row_id)
@@ -44,6 +45,7 @@ impl NativeSqlMemoryStore {
         .bind(canonical_text)
         .bind(object_text)
         .bind(subject.unwrap_or(""))
+        .bind(predicate.unwrap_or(""))
         .execute(self.pool())
         .await?;
         Ok(())
@@ -70,50 +72,123 @@ impl NativeSqlMemoryStore {
         &self,
         tenant_id: i64,
     ) -> Result<u32, NativeSqlStoreError> {
+        self.rebuild_record_search_indexes(tenant_id, None).await
+    }
+
+    pub async fn rebuild_record_search_indexes_for_space(
+        &self,
+        tenant_id: i64,
+        space_id: i64,
+    ) -> Result<u32, NativeSqlStoreError> {
+        self.rebuild_record_search_indexes(tenant_id, Some(space_id))
+            .await
+    }
+
+    pub async fn rebuild_record_search_indexes(
+        &self,
+        tenant_id: i64,
+        space_id: Option<i64>,
+    ) -> Result<u32, NativeSqlStoreError> {
         match self.dialect() {
             MemorySqlDialect::Postgres => {
-                let updated = sqlx::query(
-                    r#"
-                    UPDATE ai_record
-                    SET search_document = to_tsvector(
-                      'simple',
-                      coalesce(canonical_text, '') || ' ' ||
-                      coalesce(object_text, '') || ' ' ||
-                      coalesce(subject, '') || ' ' ||
-                      coalesce(predicate, '')
-                    ),
-                    updated_at = updated_at
-                    WHERE tenant_id = ?
-                      AND status <> 'deleted'
-                    "#,
-                )
-                .bind(tenant_id)
-                .execute(self.pool())
-                .await?
-                .rows_affected();
+                let updated = if let Some(space_id) = space_id {
+                    sqlx::query(
+                        r#"
+                        UPDATE ai_record
+                        SET search_document = to_tsvector(
+                          'simple',
+                          coalesce(canonical_text, '') || ' ' ||
+                          coalesce(object_text, '') || ' ' ||
+                          coalesce(subject, '') || ' ' ||
+                          coalesce(predicate, '')
+                        ),
+                        updated_at = updated_at
+                        WHERE tenant_id = ?
+                          AND space_id = ?
+                          AND status <> 'deleted'
+                        "#,
+                    )
+                    .bind(tenant_id)
+                    .bind(space_id)
+                    .execute(self.pool())
+                    .await?
+                    .rows_affected()
+                } else {
+                    sqlx::query(
+                        r#"
+                        UPDATE ai_record
+                        SET search_document = to_tsvector(
+                          'simple',
+                          coalesce(canonical_text, '') || ' ' ||
+                          coalesce(object_text, '') || ' ' ||
+                          coalesce(subject, '') || ' ' ||
+                          coalesce(predicate, '')
+                        ),
+                        updated_at = updated_at
+                        WHERE tenant_id = ?
+                          AND status <> 'deleted'
+                        "#,
+                    )
+                    .bind(tenant_id)
+                    .execute(self.pool())
+                    .await?
+                    .rows_affected()
+                };
                 Ok(updated as u32)
             }
             MemorySqlDialect::Sqlite => {
-                sqlx::query("DELETE FROM ai_record_fts")
+                if let Some(space_id) = space_id {
+                    sqlx::query(
+                        "DELETE FROM ai_record_fts WHERE tenant_id = ? AND space_id = ?",
+                    )
+                    .bind(tenant_id)
+                    .bind(space_id)
                     .execute(self.pool())
                     .await?;
-                let inserted = sqlx::query(
-                    r#"
-                    INSERT INTO ai_record_fts(
-                      rowid, memory_uuid, tenant_id, space_id, canonical_text, object_text, subject
+                    let inserted = sqlx::query(
+                        r#"
+                        INSERT INTO ai_record_fts(
+                          rowid, memory_uuid, tenant_id, space_id, canonical_text, object_text, subject, predicate
+                        )
+                        SELECT id, uuid, tenant_id, space_id,
+                               coalesce(canonical_text, ''), coalesce(object_text, ''), coalesce(subject, ''),
+                               coalesce(predicate, '')
+                        FROM ai_record
+                        WHERE tenant_id = ?
+                          AND space_id = ?
+                          AND status <> 'deleted'
+                        "#,
                     )
-                    SELECT id, uuid, tenant_id, space_id,
-                           coalesce(canonical_text, ''), coalesce(object_text, ''), coalesce(subject, '')
-                    FROM ai_record
-                    WHERE tenant_id = ?
-                      AND status <> 'deleted'
-                    "#,
-                )
-                .bind(tenant_id)
-                .execute(self.pool())
-                .await?
-                .rows_affected();
-                Ok(inserted as u32)
+                    .bind(tenant_id)
+                    .bind(space_id)
+                    .execute(self.pool())
+                    .await?
+                    .rows_affected();
+                    Ok(inserted as u32)
+                } else {
+                    sqlx::query("DELETE FROM ai_record_fts WHERE tenant_id = ?")
+                        .bind(tenant_id)
+                        .execute(self.pool())
+                        .await?;
+                    let inserted = sqlx::query(
+                        r#"
+                        INSERT INTO ai_record_fts(
+                          rowid, memory_uuid, tenant_id, space_id, canonical_text, object_text, subject, predicate
+                        )
+                        SELECT id, uuid, tenant_id, space_id,
+                               coalesce(canonical_text, ''), coalesce(object_text, ''), coalesce(subject, ''),
+                               coalesce(predicate, '')
+                        FROM ai_record
+                        WHERE tenant_id = ?
+                          AND status <> 'deleted'
+                        "#,
+                    )
+                    .bind(tenant_id)
+                    .execute(self.pool())
+                    .await?
+                    .rows_affected();
+                    Ok(inserted as u32)
+                }
             }
         }
     }
@@ -198,13 +273,13 @@ impl NativeSqlMemoryStore {
                       r.version,
                       sup.uuid AS supersedes_uuid,
                       sub.uuid AS superseded_by_uuid
-                    FROM ai_record_fts fts
-                    JOIN ai_record r ON r.id = fts.rowid
+                    FROM ai_record_fts
+                    JOIN ai_record r ON r.id = ai_record_fts.rowid
                     LEFT JOIN ai_record sup
                       ON sup.id = r.supersedes_memory_id AND sup.tenant_id = r.tenant_id
                     LEFT JOIN ai_record sub
                       ON sub.id = r.superseded_by_memory_id AND sub.tenant_id = r.tenant_id
-                    WHERE fts MATCH ?
+                    WHERE ai_record_fts MATCH ?
                       AND r.tenant_id = ?
                       AND r.space_id = ?
                       AND r.status <> 'deleted'

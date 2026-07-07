@@ -235,38 +235,48 @@ impl NativeSqlMemoryStore {
         query: &str,
     ) -> Result<ForgetScopeStats, NativeSqlStoreError> {
         let pattern = like_pattern(query);
-        let rows = sqlx::query(
-            r#"
-            SELECT uuid
-            FROM ai_record
-            WHERE tenant_id = ?
-              AND space_id = ?
-              AND status <> 'deleted'
-              AND (
-                canonical_text LIKE ? ESCAPE '\'
-                OR object_text LIKE ? ESCAPE '\'
-                OR COALESCE(subject, '') LIKE ? ESCAPE '\'
-              )
-            "#,
-        )
-        .bind(scope.tenant_id)
-        .bind(scope.space_id)
-        .bind(&pattern)
-        .bind(&pattern)
-        .bind(&pattern)
-        .fetch_all(self.pool())
-        .await?;
-
+        let batch_size = i64::from(sdkwork_utils_rust::MAX_LIST_PAGE_SIZE);
         let mut stats = ForgetScopeStats::default();
-        for row in rows {
-            let memory_id: String = row.get("uuid");
-            if self.hard_delete_record(scope, &memory_id).await? {
-                stats.deleted_records += 1;
+
+        loop {
+            let rows = sqlx::query(
+                r#"
+                SELECT uuid
+                FROM ai_record
+                WHERE tenant_id = ?
+                  AND space_id = ?
+                  AND status <> 'deleted'
+                  AND (
+                    canonical_text LIKE ? ESCAPE '\'
+                    OR object_text LIKE ? ESCAPE '\'
+                    OR COALESCE(subject, '') LIKE ? ESCAPE '\'
+                  )
+                LIMIT ?
+                "#,
+            )
+            .bind(scope.tenant_id)
+            .bind(scope.space_id)
+            .bind(&pattern)
+            .bind(&pattern)
+            .bind(&pattern)
+            .bind(batch_size)
+            .fetch_all(self.pool())
+            .await?;
+
+            if rows.is_empty() {
+                break;
             }
-            let (rejected, _) = self
-                .purge_derivatives_for_memory(scope.tenant_id, &memory_id)
-                .await?;
-            stats.rejected_candidates += rejected;
+
+            for row in rows {
+                let memory_id: String = row.get("uuid");
+                if self.hard_delete_record(scope, &memory_id).await? {
+                    stats.deleted_records += 1;
+                }
+                let (rejected, _) = self
+                    .purge_derivatives_for_memory(scope.tenant_id, &memory_id)
+                    .await?;
+                stats.rejected_candidates += rejected;
+            }
         }
 
         Ok(stats)
@@ -277,9 +287,21 @@ impl NativeSqlMemoryStore {
         tenant_id: i64,
         space_ids: &[i64],
         include_events: bool,
+        sensitivity_scope: i32,
     ) -> Result<ExportCollectedPayload, NativeSqlStoreError> {
         let mut records = Vec::new();
         let mut events = Vec::new();
+
+        let max_export_records = std::env::var("SDKWORK_MEMORY_EXPORT_MAX_RECORDS")
+            .ok()
+            .and_then(|value| sdkwork_utils_rust::parse_int(&value))
+            .and_then(|value| usize::try_from(value).ok())
+            .unwrap_or(100_000);
+        let max_export_events = std::env::var("SDKWORK_MEMORY_EXPORT_MAX_EVENTS")
+            .ok()
+            .and_then(|value| sdkwork_utils_rust::parse_int(&value))
+            .and_then(|value| usize::try_from(value).ok())
+            .unwrap_or(100_000);
 
         for space_id in space_ids {
             let scope = MemoryScopeContext {
@@ -291,7 +313,7 @@ impl NativeSqlMemoryStore {
             let mut cursor = String::new();
             loop {
                 let rows = self
-                    .list_record_details(&scope, None, sdkwork_utils_rust::MAX_LIST_PAGE_SIZE, Some(&cursor), crate::store::SENSITIVITY_READ_OWNER)
+                    .list_record_details(&scope, None, sdkwork_utils_rust::MAX_LIST_PAGE_SIZE, Some(&cursor), sensitivity_scope)
                     .await?;
                 if rows.is_empty() {
                     break;
@@ -305,6 +327,13 @@ impl NativeSqlMemoryStore {
                     &rows[..]
                 };
                 for row in batch {
+                    if records.len() >= max_export_records {
+                        return Err(NativeSqlStoreError::InvariantViolation {
+                            message: format!(
+                                "export record limit exceeded (max {max_export_records} records per job)"
+                            ),
+                        });
+                    }
                     records.push(json!({
                         "memoryId": row.memory_id,
                         "spaceId": row.space_id,
@@ -349,6 +378,13 @@ impl NativeSqlMemoryStore {
                         &event_rows[..]
                     };
                     for row in batch {
+                        if events.len() >= max_export_events {
+                            return Err(NativeSqlStoreError::InvariantViolation {
+                                message: format!(
+                                    "export event limit exceeded (max {max_export_events} events per job)"
+                                ),
+                            });
+                        }
                         events.push(Self::map_export_event(row));
                     }
                     if !has_more {

@@ -95,20 +95,21 @@ pub async fn bootstrap_memory_data_plane_from_env() -> Result<MemoryDataPlane, S
 
     // Allocate a Snowflake node_id from the database before creating the
     // store. This prevents ID collisions in multi-instance deployments.
-    allocate_and_init_snowflake_node(&pool).await;
+    allocate_and_init_snowflake_node(&pool).await?;
 
-    // Create the phase-1 runtime from the shared pool or via NativeSqlPhase1Runtime::connect.
+    // Create the phase-1 runtime from the shared pool to avoid duplicate connections.
     let (phase1, host_pool) = if config.engine == DatabaseEngine::Postgres {
         if auto_migrate {
             bootstrap_memory_database(pool.clone())
                 .await
                 .map_err(|error| format!("memory database migrate failed: {error}"))?;
         }
-        let phase1 = NativeSqlPhase1Runtime::connect_without_migration(&config)
+        let store = open_native_sql_store_from_pool(&pool)
             .await
             .map_err(|error| error.to_string())?;
+        let phase1 = NativeSqlPhase1Runtime::from_store(store);
         (phase1, Some(pool))
-    } else if auto_migrate && !config.url.contains(":memory:") {
+    } else if auto_migrate {
         let phase1 = NativeSqlPhase1Runtime::connect(&config)
             .await
             .map_err(|error| error.to_string())?;
@@ -133,7 +134,7 @@ pub async fn bootstrap_memory_data_plane_from_env() -> Result<MemoryDataPlane, S
 ///
 /// Falls back to env/hostname hash if database allocation fails (e.g.
 /// in dev/test environments without a persistent database).
-async fn allocate_and_init_snowflake_node(pool: &MemoryDatabasePool) {
+async fn allocate_and_init_snowflake_node(pool: &MemoryDatabasePool) -> Result<(), String> {
     let config = NodeAllocatorConfig::from_service_name("memory-service");
     match SnowflakeNodeAllocator::allocate_generator(pool, &config).await {
         Ok((generator, lease)) => {
@@ -146,13 +147,21 @@ async fn allocate_and_init_snowflake_node(pool: &MemoryDatabasePool) {
                 generator,
                 Some(lease),
             );
+            Ok(())
         }
         Err(error) => {
-            tracing::warn!(
-                %error,
-                "memory snowflake database node_id allocation failed; \
-                 falling back to env/hostname hash"
-            );
+            if sdkwork_memory_contract::memory_is_production_like_environment() {
+                Err(format!(
+                    "memory snowflake database node_id allocation failed in production-like environment: {error}"
+                ))
+            } else {
+                tracing::warn!(
+                    %error,
+                    "memory snowflake database node_id allocation failed; \
+                     dev fallback will be used on first ID generation"
+                );
+                Ok(())
+            }
         }
     }
 }

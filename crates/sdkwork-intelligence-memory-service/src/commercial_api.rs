@@ -12,10 +12,11 @@ use sdkwork_memory_contract::{
     ListPoliciesQuery, ListPolicyAssignmentsQuery, ListSubjectsQuery, MemoryBinding,
     MemoryBindingList, MemoryCapabilityBinding, MemoryCapabilityBindingList,
     MemoryCommercialReadiness, MemoryEdge, MemoryEdgeList, MemoryEntity, MemoryEntityList,
-    MemoryPolicy, MemoryPolicyAssignment, MemoryPolicyAssignmentList, MemoryPolicyList,
-    MemoryServiceError, MemoryServiceResult, MemorySubject, MemorySubjectList,
-    PolicyAssignmentTargetType, PolicyInheritanceMode, RebuildCommercialReadinessCommand,
-    ResolvedCapability, SubjectType, UpdateEdgeCommand, UpdateEntityCommand,
+    MemoryOpenApiRequestContext, MemoryPolicy, MemoryPolicyAssignment, MemoryPolicyAssignmentList,
+    MemoryPolicyList, MemoryServiceError, MemoryServiceResult, MemorySubject, MemorySubjectList,
+    MemoryResolvedCapabilityList, PolicyAssignmentTargetType, PolicyInheritanceMode,
+    RebuildCommercialReadinessCommand, ResolveCapabilitiesQuery, ResolvedCapability,
+    SubjectType, UpdateEdgeCommand, UpdateEntityCommand,
     UpdatePolicyAssignmentCommand, UpdatePolicyCommand, UpdateSubjectCommand,
 };
 use sdkwork_memory_plugin_native_sql::{
@@ -31,7 +32,9 @@ use sdkwork_memory_plugin_native_sql::{
     UpdateSubjectCommand as StoreUpdateSubjectCommand,
 };
 
+use crate::access;
 use crate::platform;
+use crate::sensitive_content::assert_memory_text_is_safe;
 
 impl super::open_api::OpenMemoryService {
     // -----------------------------------------------------------------------
@@ -445,27 +448,44 @@ impl super::open_api::OpenMemoryService {
 
     pub async fn resolve_capabilities(
         &self,
-        tenant_id: u64,
-        target_type: CapabilityTargetType,
-        target_id: u64,
-    ) -> MemoryServiceResult<Vec<ResolvedCapability>> {
-        let tenant_id_i64 = platform::tenant_id_i64(tenant_id)?;
-        let target_type_str = target_type_str(target_type);
+        query: ResolveCapabilitiesQuery,
+    ) -> MemoryServiceResult<MemoryResolvedCapabilityList> {
+        let tenant_id_i64 = platform::tenant_id_i64(query.tenant_id)?;
+        let target_type_str = target_type_str(parse_target_type(&query.target_type)?);
+        let page_size = platform::clamp_page_size(query.page_size);
         let rows = self
             .store
-            .resolve_capabilities_for_target(tenant_id_i64, target_type_str, target_id as i64)
+            .resolve_capabilities_for_target(
+                tenant_id_i64,
+                target_type_str,
+                query.target_id as i64,
+                page_size,
+                query.cursor.as_deref(),
+            )
             .await
             .map_err(Self::map_store_error)?;
 
-        Ok(rows
+        let has_more = rows.len() > page_size as usize;
+        let items = rows
             .into_iter()
+            .take(page_size as usize)
             .map(|row| ResolvedCapability {
                 capability_code: row.capability_code,
                 mode: parse_mode(&row.mode),
                 priority: row.priority,
                 source: row.uuid,
             })
-            .collect())
+            .collect::<Vec<_>>();
+        let next_cursor = if has_more {
+            items.last().map(|item| item.source.clone())
+        } else {
+            None
+        };
+
+        Ok(MemoryResolvedCapabilityList {
+            items,
+            page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),
+        })
     }
 
     // -----------------------------------------------------------------------
@@ -474,12 +494,26 @@ impl super::open_api::OpenMemoryService {
 
     pub async fn create_entity(
         &self,
+        context: MemoryOpenApiRequestContext,
         cmd: CreateEntityCommand,
     ) -> MemoryServiceResult<MemoryEntity> {
+        access::assert_actor_can_access_space_for_write(&self.store, &context, cmd.space_id).await?;
         let tenant_id = platform::tenant_id_i64(cmd.tenant_id)?;
-        let space_id = platform::tenant_id_i64(cmd.space_id)?;
+        let space_id = platform::space_id_i64(cmd.space_id)?;
         if cmd.entity_type.trim().is_empty() || cmd.canonical_name.trim().is_empty() {
             return Err(MemoryServiceError::validation("entityType and canonicalName are required"));
+        }
+        assert_memory_text_is_safe(&[("canonicalName", &cmd.canonical_name)])?;
+        if let Some(ref aliases) = cmd.aliases {
+            for alias in aliases {
+                assert_memory_text_is_safe(&[("alias", alias.as_str())])?;
+            }
+        }
+        if let Some(ref attributes) = cmd.attributes {
+            let attributes_text = serde_json::to_string(attributes).map_err(|error| {
+                MemoryServiceError::storage(format!("attributes serialization failed: {error}"))
+            })?;
+            assert_memory_text_is_safe(&[("attributes", &attributes_text)])?;
         }
         let id = platform::next_numeric_id()?;
         let uuid = id.to_string();
@@ -501,11 +535,12 @@ impl super::open_api::OpenMemoryService {
             .await
             .map_err(Self::map_store_error)?;
 
-        self.retrieve_entity(tenant_id as u64, &uuid).await
+        self.retrieve_entity(context, tenant_id as u64, &uuid).await
     }
 
     pub async fn retrieve_entity(
         &self,
+        context: MemoryOpenApiRequestContext,
         tenant_id: u64,
         entity_id: &str,
     ) -> MemoryServiceResult<MemoryEntity> {
@@ -516,24 +551,55 @@ impl super::open_api::OpenMemoryService {
             .await
             .map_err(Self::map_store_error)?
             .ok_or_else(|| MemoryServiceError::not_found("entity not found"))?;
+        let space_id = u64::try_from(row.space_id.max(0))
+            .map_err(|_| MemoryServiceError::storage("space id must be non-negative"))?;
+        access::assert_actor_can_access_space(&self.store, &context, space_id).await?;
+        let actual_owner =
+            access::actual_actor_is_space_owner(&self.store, &context, space_id).await?;
+        access::assert_actor_may_read_entity_sensitivity(
+            &context,
+            &row.sensitivity_level,
+            actual_owner,
+        )
+        .await?;
         Ok(map_entity_row_to_dto(row))
     }
 
     pub async fn list_entities(
         &self,
+        context: MemoryOpenApiRequestContext,
         query: ListEntitiesQuery,
     ) -> MemoryServiceResult<MemoryEntityList> {
         let tenant_id = platform::tenant_id_i64(query.tenant_id)?;
+        let space_filter = access::require_commercial_list_space_id(&context, query.space_id)?;
+        if let Some(space_id) = space_filter {
+            access::assert_actor_can_access_space(&self.store, &context, space_id).await?;
+        }
         let page_size = platform::clamp_page_size(query.page_size);
+        let sensitivity_scope = if let Some(space_id) = space_filter {
+            let actual_owner =
+                access::actual_actor_is_space_owner(&self.store, &context, space_id).await?;
+            access::sensitivity_read_scope(&context, actual_owner)
+        } else {
+            use sdkwork_memory_plugin_native_sql::{
+                SENSITIVITY_READ_ELEVATED, SENSITIVITY_READ_PUBLIC,
+            };
+            if context.elevated_tenant_access {
+                SENSITIVITY_READ_ELEVATED
+            } else {
+                SENSITIVITY_READ_PUBLIC
+            }
+        };
         let rows = self
             .store
             .list_entities(
                 tenant_id,
-                query.space_id.map(|value| value as i64),
+                space_filter.map(|value| value as i64),
                 query.entity_type.as_deref(),
                 query.status.as_deref(),
                 query.cursor.as_deref(),
                 page_size,
+                sensitivity_scope,
             )
             .await
             .map_err(Self::map_store_error)?;
@@ -558,11 +624,31 @@ impl super::open_api::OpenMemoryService {
 
     pub async fn update_entity(
         &self,
+        context: MemoryOpenApiRequestContext,
         tenant_id: u64,
         entity_id: &str,
         cmd: UpdateEntityCommand,
     ) -> MemoryServiceResult<MemoryEntity> {
+        let existing = self
+            .retrieve_entity(context.clone(), tenant_id, entity_id)
+            .await?;
+        access::assert_actor_can_access_space_for_write(&self.store, &context, existing.space_id)
+            .await?;
         let tenant_id_i64 = platform::tenant_id_i64(tenant_id)?;
+        if let Some(ref name) = cmd.canonical_name {
+            assert_memory_text_is_safe(&[("canonicalName", name)])?;
+        }
+        if let Some(ref aliases) = cmd.aliases {
+            for alias in aliases {
+                assert_memory_text_is_safe(&[("alias", alias.as_str())])?;
+            }
+        }
+        if let Some(ref attributes) = cmd.attributes {
+            let attributes_text = serde_json::to_string(attributes).map_err(|error| {
+                MemoryServiceError::storage(format!("attributes serialization failed: {error}"))
+            })?;
+            assert_memory_text_is_safe(&[("attributes", &attributes_text)])?;
+        }
         let aliases_json = optional_json_array(cmd.aliases)?;
         let attributes_json = optional_json_value(cmd.attributes)?;
 
@@ -586,7 +672,7 @@ impl super::open_api::OpenMemoryService {
             return Err(MemoryServiceError::not_found("entity not found"));
         }
 
-        self.retrieve_entity(tenant_id, entity_id).await
+        self.retrieve_entity(context, tenant_id, entity_id).await
     }
 
     // -----------------------------------------------------------------------
@@ -595,22 +681,24 @@ impl super::open_api::OpenMemoryService {
 
     pub async fn create_edge(
         &self,
+        context: MemoryOpenApiRequestContext,
         cmd: CreateEdgeCommand,
     ) -> MemoryServiceResult<MemoryEdge> {
+        access::assert_actor_can_access_space_for_write(&self.store, &context, cmd.space_id).await?;
         let tenant_id = platform::tenant_id_i64(cmd.tenant_id)?;
-        let space_id = platform::tenant_id_i64(cmd.space_id)?;
+        let space_id = platform::space_id_i64(cmd.space_id)?;
         if cmd.relation_type.trim().is_empty() {
             return Err(MemoryServiceError::validation("relationType is required"));
         }
 
         let source_entity_id = self
             .store
-            .resolve_entity_internal_id(tenant_id, &cmd.source_entity_id)
+            .resolve_entity_internal_id_in_space(tenant_id, &cmd.source_entity_id, Some(space_id))
             .await
             .map_err(Self::map_store_error)?;
         let target_entity_id = self
             .store
-            .resolve_entity_internal_id(tenant_id, &cmd.target_entity_id)
+            .resolve_entity_internal_id_in_space(tenant_id, &cmd.target_entity_id, Some(space_id))
             .await
             .map_err(Self::map_store_error)?;
 
@@ -635,11 +723,12 @@ impl super::open_api::OpenMemoryService {
             .await
             .map_err(Self::map_store_error)?;
 
-        self.retrieve_edge(tenant_id as u64, &uuid).await
+        self.retrieve_edge(context, tenant_id as u64, &uuid).await
     }
 
     pub async fn retrieve_edge(
         &self,
+        context: MemoryOpenApiRequestContext,
         tenant_id: u64,
         edge_id: &str,
     ) -> MemoryServiceResult<MemoryEdge> {
@@ -650,20 +739,28 @@ impl super::open_api::OpenMemoryService {
             .await
             .map_err(Self::map_store_error)?
             .ok_or_else(|| MemoryServiceError::not_found("edge not found"))?;
+        let space_id = u64::try_from(row.space_id.max(0))
+            .map_err(|_| MemoryServiceError::storage("space id must be non-negative"))?;
+        access::assert_actor_can_access_space(&self.store, &context, space_id).await?;
         Ok(map_edge_row_to_dto(row))
     }
 
     pub async fn list_edges(
         &self,
+        context: MemoryOpenApiRequestContext,
         query: ListEdgesQuery,
     ) -> MemoryServiceResult<MemoryEdgeList> {
         let tenant_id = platform::tenant_id_i64(query.tenant_id)?;
+        let space_filter = access::require_commercial_list_space_id(&context, query.space_id)?;
+        if let Some(space_id) = space_filter {
+            access::assert_actor_can_access_space(&self.store, &context, space_id).await?;
+        }
         let page_size = platform::clamp_page_size(query.page_size);
         let rows = self
             .store
             .list_edges(
                 tenant_id,
-                query.space_id.map(|value| value as i64),
+                space_filter.map(|value| value as i64),
                 query.relation_type.as_deref(),
                 query.source_entity_id.as_deref(),
                 query.cursor.as_deref(),
@@ -692,10 +789,14 @@ impl super::open_api::OpenMemoryService {
 
     pub async fn update_edge(
         &self,
+        context: MemoryOpenApiRequestContext,
         tenant_id: u64,
         edge_id: &str,
         cmd: UpdateEdgeCommand,
     ) -> MemoryServiceResult<MemoryEdge> {
+        let existing = self.retrieve_edge(context.clone(), tenant_id, edge_id).await?;
+        access::assert_actor_can_access_space_for_write(&self.store, &context, existing.space_id)
+            .await?;
         let tenant_id_i64 = platform::tenant_id_i64(tenant_id)?;
         let metadata_json = optional_json_value(cmd.metadata)?;
 
@@ -720,10 +821,18 @@ impl super::open_api::OpenMemoryService {
             return Err(MemoryServiceError::not_found("edge not found"));
         }
 
-        self.retrieve_edge(tenant_id, edge_id).await
+        self.retrieve_edge(context, tenant_id, edge_id).await
     }
 
-    pub async fn delete_edge(&self, tenant_id: u64, edge_id: &str) -> MemoryServiceResult<()> {
+    pub async fn delete_edge(
+        &self,
+        context: MemoryOpenApiRequestContext,
+        tenant_id: u64,
+        edge_id: &str,
+    ) -> MemoryServiceResult<()> {
+        let existing = self.retrieve_edge(context.clone(), tenant_id, edge_id).await?;
+        access::assert_actor_can_access_space_for_write(&self.store, &context, existing.space_id)
+            .await?;
         let tenant_id_i64 = platform::tenant_id_i64(tenant_id)?;
         let deleted = self
             .store
@@ -1077,15 +1186,39 @@ impl super::open_api::OpenMemoryService {
             "policies": policy_count,
             "policyAssignments": assignment_count,
         });
-        let contract_coverage = serde_json::json!({
-            "subjects": true,
-            "bindings": true,
-            "entities": true,
-            "edges": true,
-            "policies": true,
-            "policyAssignments": true,
-            "commercialReadiness": true,
-        });
+        let profile_count = self
+            .store
+            .count_implementation_profiles_for_tenant(tenant_id)
+            .await
+            .map_err(Self::map_store_error)?;
+        let audit_count = self
+            .store
+            .count_audit_logs_for_tenant(tenant_id)
+            .await
+            .map_err(Self::map_store_error)?;
+        let eval_count = self
+            .store
+            .count_eval_runs_for_tenant(tenant_id)
+            .await
+            .map_err(Self::map_store_error)?;
+        let has_active_profile = self
+            .store
+            .retrieve_tenant_preference_json(
+                tenant_id,
+                None,
+                crate::implementation_migration::ACTIVE_IMPLEMENTATION_PROFILE_KEY,
+            )
+            .await
+            .map_err(Self::map_store_error)?
+            .is_some();
+
+        let export_disabled = std::env::var("SDKWORK_MEMORY_EXPORT_DISABLED")
+            .map(|value| value == "true" || value == "1")
+            .unwrap_or(false);
+        let export_supported = !export_disabled;
+        let forget_supported = true;
+        let snowflake_initialized = crate::platform::snowflake_initialized();
+        let outbox_delivery_ready = crate::outbox_delivery::production_outbox_delivery_ready();
 
         let mut blocking_findings = Vec::new();
         let mut warning_findings = Vec::new();
@@ -1095,14 +1228,54 @@ impl super::open_api::OpenMemoryService {
         if binding_count == 0 {
             warning_findings.push("no_bindings".to_owned());
         }
+        if entity_count == 0 {
+            warning_findings.push("no_entities".to_owned());
+        }
+        if audit_count == 0 {
+            warning_findings.push("no_audit_logs".to_owned());
+        }
+        if eval_count == 0 {
+            warning_findings.push("no_eval_runs".to_owned());
+        }
+        if profile_count < 2 && !has_active_profile {
+            warning_findings.push("migration_not_verified".to_owned());
+        }
+        if platform::is_production_like_environment() && !snowflake_initialized {
+            blocking_findings.push("snowflake_not_initialized".to_owned());
+        }
+        if platform::is_production_like_environment() && !outbox_delivery_ready {
+            blocking_findings.push("outbox_delivery_not_configured".to_owned());
+        }
+        if !export_supported {
+            warning_findings.push("export_disabled".to_owned());
+        }
 
+        let contract_checks = [
+            subject_count > 0,
+            binding_count > 0,
+            entity_count > 0,
+            edge_count > 0,
+            policy_count > 0,
+            assignment_count > 0,
+        ];
+        let contract_score =
+            contract_checks.iter().filter(|&&value| value).count() as f64 / contract_checks.len() as f64;
         let populated_layers = [subject_count, binding_count, entity_count, edge_count]
             .iter()
             .filter(|&&count| count > 0)
             .count() as f64;
         let data_score = populated_layers / 4.0;
-        let contract_score = 1.0;
-        let score = ((contract_score * 0.6) + (data_score * 0.4)).min(1.0);
+        let mut runtime_score: f64 = if platform::is_production_like_environment() { 1.0 } else { 0.8 };
+        if platform::is_production_like_environment() {
+            if !snowflake_initialized {
+                runtime_score -= 0.5;
+            }
+            if !outbox_delivery_ready {
+                runtime_score -= 0.3;
+            }
+        }
+        runtime_score = runtime_score.clamp(0.0, 1.0);
+        let score = ((contract_score * 0.4) + (data_score * 0.3) + (runtime_score * 0.3)).min(1.0);
         let state = if !blocking_findings.is_empty() {
             "blocked"
         } else if score >= 0.75 {
@@ -1110,6 +1283,52 @@ impl super::open_api::OpenMemoryService {
         } else {
             "warning"
         };
+
+        let contract_coverage = serde_json::json!({
+            "subjects": subject_count > 0,
+            "bindings": binding_count > 0,
+            "entities": entity_count > 0,
+            "edges": edge_count > 0,
+            "policies": policy_count > 0,
+            "policyAssignments": assignment_count > 0,
+            "commercialReadiness": state == "ready",
+        });
+        let runtime_conformance = serde_json::json!({
+            "productionSqliteRejected": platform::is_production_like_environment(),
+            "snowflakeInitialized": snowflake_initialized,
+            "outboxDeliveryReady": outbox_delivery_ready,
+        });
+        let privacy_coverage = serde_json::json!({
+            "exportSupported": export_supported,
+            "forgetSupported": forget_supported,
+        });
+        let audit_coverage = serde_json::json!({
+            "auditLogCount": audit_count,
+            "auditEnabled": audit_count > 0,
+        });
+        let sdk_coverage = serde_json::json!({
+            "openapiAuthorities": ["open-api", "app-api", "backend-api"],
+        });
+        let evaluation_coverage = serde_json::json!({
+            "evalRunCount": eval_count,
+            "evalEnabled": eval_count > 0,
+        });
+        let observability_coverage = serde_json::json!({
+            "prometheusMetrics": !crate::domain_metrics::render_memory_domain_prometheus(
+                "sdkwork-memory",
+                platform::deployment_environment_label(),
+                "api",
+                "rust",
+                "service",
+            )
+            .is_empty(),
+            "domainMetrics": true,
+        });
+        let migration_coverage = serde_json::json!({
+            "implementationProfileCount": profile_count,
+            "activeProfileRecorded": has_active_profile,
+            "migrationReady": profile_count >= 2 || has_active_profile,
+        });
 
         let blocking_json = if blocking_findings.is_empty() {
             None
@@ -1131,18 +1350,32 @@ impl super::open_api::OpenMemoryService {
         let contract_json = serde_json::to_string(&contract_coverage).map_err(|error| {
             MemoryServiceError::storage(format!("contract coverage serialization failed: {error}"))
         })?;
+        let runtime_json = serde_json::to_string(&runtime_conformance).map_err(|error| {
+            MemoryServiceError::storage(format!("runtime conformance serialization failed: {error}"))
+        })?;
+        let privacy_json = serde_json::to_string(&privacy_coverage).map_err(|error| {
+            MemoryServiceError::storage(format!("privacy coverage serialization failed: {error}"))
+        })?;
+        let audit_json = serde_json::to_string(&audit_coverage).map_err(|error| {
+            MemoryServiceError::storage(format!("audit coverage serialization failed: {error}"))
+        })?;
+        let sdk_json = serde_json::to_string(&sdk_coverage).map_err(|error| {
+            MemoryServiceError::storage(format!("sdk coverage serialization failed: {error}"))
+        })?;
+        let evaluation_json = serde_json::to_string(&evaluation_coverage).map_err(|error| {
+            MemoryServiceError::storage(format!("evaluation coverage serialization failed: {error}"))
+        })?;
+        let observability_json = serde_json::to_string(&observability_coverage).map_err(|error| {
+            MemoryServiceError::storage(format!("observability coverage serialization failed: {error}"))
+        })?;
+        let migration_json = serde_json::to_string(&migration_coverage).map_err(|error| {
+            MemoryServiceError::storage(format!("migration coverage serialization failed: {error}"))
+        })?;
 
         let id = platform::next_numeric_id()?;
         let uuid = id.to_string();
         self.store
-            .delete_commercial_readiness_for_profile(
-                tenant_id,
-                cmd.implementation_profile_id.map(|value| value as i64),
-            )
-            .await
-            .map_err(Self::map_store_error)?;
-        self.store
-            .insert_commercial_readiness_snapshot(InsertCommercialReadinessCommand {
+            .replace_commercial_readiness_snapshot(InsertCommercialReadinessCommand {
                 id: id as i64,
                 uuid: &uuid,
                 tenant_id,
@@ -1151,13 +1384,13 @@ impl super::open_api::OpenMemoryService {
                 state,
                 contract_coverage_json: Some(&contract_json),
                 management_coverage_json: Some(&management_json),
-                runtime_conformance_json: None,
-                privacy_coverage_json: None,
-                audit_coverage_json: None,
-                sdk_coverage_json: None,
-                evaluation_coverage_json: None,
-                observability_coverage_json: None,
-                migration_coverage_json: None,
+                runtime_conformance_json: Some(&runtime_json),
+                privacy_coverage_json: Some(&privacy_json),
+                audit_coverage_json: Some(&audit_json),
+                sdk_coverage_json: Some(&sdk_json),
+                evaluation_coverage_json: Some(&evaluation_json),
+                observability_coverage_json: Some(&observability_json),
+                migration_coverage_json: Some(&migration_json),
                 blocking_findings_json: blocking_json.as_deref(),
                 warning_findings_json: warning_json.as_deref(),
             })
@@ -1224,7 +1457,7 @@ fn map_capability_binding_row_to_dto(row: NativeSqlCapabilityBindingRow) -> Memo
         capability_binding_id: row.uuid,
         tenant_id: row.tenant_id as u64,
         capability_code: row.capability_code,
-        target_type: parse_target_type(&row.target_type),
+        target_type: parse_capability_target_type(&row.target_type),
         target_id: row.target_id as u64,
         mode: parse_mode(&row.mode),
         priority: row.priority,
@@ -1445,13 +1678,23 @@ fn target_type_str(t: CapabilityTargetType) -> &'static str {
     }
 }
 
-fn parse_target_type(s: &str) -> CapabilityTargetType {
+fn parse_capability_target_type(s: &str) -> CapabilityTargetType {
     match s {
         "subject" => CapabilityTargetType::Subject,
         "space" => CapabilityTargetType::Space,
         "binding" => CapabilityTargetType::Binding,
         "memory" => CapabilityTargetType::Memory,
         _ => CapabilityTargetType::Subject,
+    }
+}
+
+fn parse_target_type(s: &str) -> MemoryServiceResult<CapabilityTargetType> {
+    match s {
+        "subject" => Ok(CapabilityTargetType::Subject),
+        "space" => Ok(CapabilityTargetType::Space),
+        "binding" => Ok(CapabilityTargetType::Binding),
+        "memory" => Ok(CapabilityTargetType::Memory),
+        _ => Err(MemoryServiceError::validation("invalid targetType")),
     }
 }
 

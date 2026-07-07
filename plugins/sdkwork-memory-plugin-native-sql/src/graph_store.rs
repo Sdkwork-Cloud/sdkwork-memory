@@ -92,9 +92,19 @@ impl NativeSqlMemoryStore {
         tenant_id: i64,
         entity_uuid: &str,
     ) -> Result<i64, NativeSqlStoreError> {
+        self.resolve_entity_internal_id_in_space(tenant_id, entity_uuid, None)
+            .await
+    }
+
+    pub async fn resolve_entity_internal_id_in_space(
+        &self,
+        tenant_id: i64,
+        entity_uuid: &str,
+        expected_space_id: Option<i64>,
+    ) -> Result<i64, NativeSqlStoreError> {
         let row = sqlx::query(
             r#"
-            SELECT id
+            SELECT id, space_id
             FROM ai_entity
             WHERE tenant_id = ? AND uuid = ? AND status <> 'deleted'
             "#,
@@ -104,10 +114,22 @@ impl NativeSqlMemoryStore {
         .fetch_optional(self.pool())
         .await?;
 
-        row.map(|value| value.get("id"))
-            .ok_or_else(|| NativeSqlStoreError::InvariantViolation {
+        let Some(row) = row else {
+            return Err(NativeSqlStoreError::InvariantViolation {
                 message: format!("entity {entity_uuid} not found"),
-            })
+            });
+        };
+        let entity_space_id: i64 = row.get("space_id");
+        if let Some(expected) = expected_space_id {
+            if entity_space_id != expected {
+                return Err(NativeSqlStoreError::InvariantViolation {
+                    message: format!(
+                        "entity {entity_uuid} does not belong to space {expected}"
+                    ),
+                });
+            }
+        }
+        Ok(row.get("id"))
     }
 
     pub async fn insert_entity(
@@ -170,37 +192,47 @@ impl NativeSqlMemoryStore {
         status: Option<&str>,
         cursor: Option<&str>,
         page_size: i32,
+        sensitivity_read_scope: i32,
     ) -> Result<Vec<NativeSqlEntityRow>, NativeSqlStoreError> {
         let limit = page_size.clamp(1, MAX_LIST_PAGE_SIZE) + 1;
         let cursor = cursor.unwrap_or("");
         let status_filter = status.unwrap_or("active");
-        let rows = sqlx::query(
+        let sensitivity_read_scope = sensitivity_read_scope.clamp(
+            crate::store::SENSITIVITY_READ_PUBLIC,
+            crate::store::SENSITIVITY_READ_OWNER,
+        );
+        let sensitivity_sql = crate::store::sensitivity_level_filter_sql("e");
+        let sql = format!(
             r#"
             SELECT id, uuid, tenant_id, space_id, entity_type, canonical_name,
                    aliases_json, attributes_json, sensitivity_level, status,
                    created_at, updated_at, version
-            FROM ai_entity
+            FROM ai_entity e
             WHERE tenant_id = ?
               AND status <> 'deleted'
               AND (? IS NULL OR space_id = ?)
               AND (? IS NULL OR entity_type = ?)
               AND (? = 'all' OR status = ?)
               AND uuid > ?
+              {sensitivity_sql}
             ORDER BY uuid ASC
             LIMIT ?
-            "#,
-        )
-        .bind(tenant_id)
-        .bind(space_id)
-        .bind(space_id)
-        .bind(entity_type)
-        .bind(entity_type)
-        .bind(status_filter)
-        .bind(status_filter)
-        .bind(cursor)
-        .bind(limit)
-        .fetch_all(self.pool())
-        .await?;
+            "#
+        );
+        let rows = sqlx::query(&sql)
+            .bind(tenant_id)
+            .bind(space_id)
+            .bind(space_id)
+            .bind(entity_type)
+            .bind(entity_type)
+            .bind(status_filter)
+            .bind(status_filter)
+            .bind(cursor)
+            .bind(sensitivity_read_scope)
+            .bind(sensitivity_read_scope)
+            .bind(limit)
+            .fetch_all(self.pool())
+            .await?;
         Ok(rows.into_iter().map(map_entity_row).collect())
     }
 

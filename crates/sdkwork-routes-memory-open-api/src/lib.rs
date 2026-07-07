@@ -31,6 +31,11 @@ pub fn gateway_route_manifest() -> HttpRouteManifest {
     open_route_manifest()
 }
 
+/// Mounts routes with a shared trait implementation.
+///
+/// **Production:** use [`build_router_with_open_memory_service`] with a concrete
+/// `OpenMemoryService` so commercial routes are fully wired. Trait-only mounts return `501` for
+/// commercial management endpoints.
 pub fn gateway_mount(api: Arc<dyn MemoryOpenApi>) -> Router {
     build_router_with_shared_open_api(api)
 }

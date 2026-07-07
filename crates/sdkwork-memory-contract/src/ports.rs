@@ -39,6 +39,16 @@ impl MemoryOpenApiRequestContext {
             elevated_tenant_access: true,
         }
     }
+
+    /// Non-elevated context for background workers acting on behalf of a tenant actor.
+    pub fn for_background_job(tenant_id: u64, actor_id: Option<u64>) -> Self {
+        Self {
+            api_key_id: "background-job".to_string(),
+            tenant_id,
+            actor_id,
+            elevated_tenant_access: false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

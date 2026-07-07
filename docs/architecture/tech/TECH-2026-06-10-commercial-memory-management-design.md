@@ -2,7 +2,7 @@
 > Owner: SDKWork maintainers
 
 Date: 2026-06-10
-Status: Draft for review
+Status: Active — aligned with implementation as of 2026-07-07 (production hardening)
 
 ## 1. Purpose
 
@@ -33,29 +33,35 @@ Root SDKWork standards remain authoritative. This document narrows them for SDKW
 
 ## 2. Current State
 
-The current repository already has a strong Phase 1 base:
+The repository implements commercial memory management on top of the Phase 1 base:
 
-- `ai_space` models memory namespaces with `owner_subject_type` and `owner_subject_id`.
-- `ai_record` models canonical memory facts and supports scope, user, subject, predicate, object, status, and supersession.
-- `ai_entity` and `ai_edge` model graph-compatible entities and relationships.
-- `ai_retrieval_profile`, `ai_retrieval_trace`, `ai_retrieval_hit`, and `ai_context_pack` model retrieval and context assembly.
-- `ai_implementation_profile`, `ai_provider_binding`, and `ai_policy` model implementation and provider governance.
-- Open API exposes 17 operations.
-- App API exposes 33 operations.
-- Backend API exposes 55 operations (subjects, bindings, capability bindings, capabilities.resolve, plus Phase 1 admin routes).
-- List pagination uses platform `PageInfo` with `mode: "cursor"`, `page_size` default 20 and max 200 per `PAGINATION_SPEC.md`.
-- Memory list applies SQL-backed sensitivity read scopes; restricted records require actual space ownership even for elevated backend operators.
+- `ai_subject`, `ai_memory_binding`, `ai_capability_binding`, `ai_entity`, `ai_edge`, `ai_policy`, `ai_policy_assignment`, and `ai_commercial_readiness_snapshot` are first-class SQL tables with symmetric SQLite/PostgreSQL migrations (SQLite FTS includes `predicate` via `V202606250003`).
+- **Backend API** exposes the full commercial control-plane surface (subjects, bindings, capability bindings, entities, edges, policies, policy assignments, `capabilities.resolve`, `commercialReadiness`).
+- **App API** currently exposes `entities.*` and `policyAssignments.list/create/update` only; subjects, bindings, edges, policies, and readiness remain backend-only until App §6.2 routes land.
+- **Open API** currently exposes `entities.*` and `edges.*` only; subjects, bindings, and `capabilities.resolve` remain backend-only until Open §6.1 routes land.
+- **Authorization:** `access.rs` enforces user/agent space ownership, active `ai_memory_binding` grants with **read vs write role separation** (`viewer` read-only; `owner`/`learner` write), capability deny on memory read/list/retrieve/write paths, and entity sensitivity filtering pushed to SQL on list paths. Tenant-owned spaces no longer grant implicit access to all tenant actors.
+- Entity/edge read/list/delete enforce space access on all surfaces; `list_entities` applies store-level sensitivity predicates (no in-memory post-filter pagination). `create_edge` validates endpoint entities belong to the target space.
+- `capabilities.resolve` returns `201` with `data.items` + `data.pageInfo` (cursor pagination, store-level `LIMIT`).
+- `commercialReadiness.rebuild` computes coverage from live tenant counts, runtime probes (`snowflakeInitialized`, `outboxDeliveryReady`, export disable flag), and blocking/warning findings; `commercialReadiness` is true only when readiness `state == "ready"`.
+- Extraction requests enqueue durable `ai_learning_job` rows (`state = queued`) and execute asynchronously via the learning-job worker; event payloads must contain non-empty `content`.
+- Production-like environments require database-backed Snowflake allocation, PostgreSQL (SQLite rejected), and HTTP outbox delivery (`SDKWORK_MEMORY_OUTBOX_DELIVERY_MODE=http` + `SDKWORK_MEMORY_OUTBOX_DELIVERY_URL`).
+- Implementation profile migration jobs validate profiles, support `dryRun`, **`shadow`** (non-mutating validation), **`promote`/`switch`** (transactional primary demote/promote + preference upsert, then index rebuild), and record `implementation_profile.active` tenant preference.
+- SQLite FTS is synced on SPI `create_record`, candidate promotion, and Open API write paths; PostgreSQL uses trigger-backed `search_document`. SQLite baseline includes predicate FTS via `V202606250003`.
+- Export jobs use actor-scoped sensitivity SQL filters, `SDKWORK_MEMORY_EXPORT_MAX_RECORDS`, and `SDKWORK_MEMORY_EXPORT_MAX_EVENTS` (default 100k). Extraction caps `SDKWORK_MEMORY_EXTRACTION_MAX_EVENTS` (default 1000). Export/retrieval cap `spaceIds` at 32.
+- Background workers use non-elevated `for_background_job` context; extraction jobs require `actorId` in input and mandatory `job.space_id` for scope mutations.
+- List pagination uses `PageInfo.mode = "cursor"`, `page_size` default 20 and max 200 per `PAGINATION_SPEC.md` (OpenAPI documents default). Space list `nextCursor` returns opaque `space.uuid` (legacy numeric internal cursors remain accepted).
+- Eval runs and learning jobs use Postgres **`FOR UPDATE SKIP LOCKED`** claims with stale `running` requeue; SQLite uses optimistic claim (single-writer).
+- Index rebuild jobs respect index `spaceId` scope via `rebuild_record_search_indexes_for_space`.
+- Keyword search LIKE fallback includes `predicate` when FTS/fulltext is unavailable.
 
-The current gap is not the storage foundation. The gap is that memory relationships are mostly implicit:
+Remaining commercial gaps before full L3 landing:
 
-- `MemorySpace.ownerSubjectType/ownerSubjectId` can identify an owner but does not express all attachment roles.
-- `MemoryRecord.scope/userId/subject/predicate/objectText` can model facts but is not a first-class binding contract.
-- `MemoryRetrievalRequest.filters` can pass flexible constraints but is not an auditable relationship contract.
-- `ai_entity` and `ai_edge` exist in schema registry but are not first-class API resources.
-- There is no dedicated API resource for attaching memory capabilities to a user, agent, entity, space, or business object.
-- There is no backend readiness endpoint that proves commercial management coverage.
-
-Commercial Memory must make these relationships explicit and governable.
+- App/Open commercial routes in §6.1–§6.2 (subjects, bindings, resolve helpers) are not yet implemented.
+- Backend §6.3 deferred operations: `subjects.effectiveCapabilities/effectivePolicies`, `entities.merge`, binding bulk/update/resolve, `capabilityBindings.update`, `relationRebuildJobs.*`.
+- Vector/embedding retriever remains unsupported; capabilities must not advertise it until implemented.
+- Reference implementation profiles remain catalog metadata until runnable plugin wiring lands.
+- Production deployments must use PostgreSQL 15+ and `build_router_with_open_memory_service` (not trait-only `gateway_mount`) for commercial routes.
+- Postgres store contract tests cover core SPI, FTS predicate search, eval claims, and retrieval-trace boolean roundtrip; expand parity with SQLite suite over time.
 
 ## 3. Commercial Landing Standard
 
@@ -444,7 +450,9 @@ All new operations must follow `../sdkwork-specs/API_SPEC.md`:
 
 Open API serves external integrations, API-key clients, and server-to-server Memory SDK consumers. It must not expose backend-only operations.
 
-Additive operations:
+**Implemented today:** `entities.*`, `edges.*`.
+
+**Planned (not yet routed):**
 
 ```text
 GET    /mem/v3/api/memory/subjects                    subjects.list
@@ -483,7 +491,9 @@ Open API capability:
 
 App API serves user-facing clients, desktop, mobile, H5, and agent-facing app workflows.
 
-Additive operations:
+**Implemented today:** `entities.*`, `policyAssignments.list/create/update`.
+
+**Planned (not yet routed):**
 
 ```text
 GET    /app/v3/api/memory/subjects                    subjects.list
@@ -524,7 +534,9 @@ App API capability:
 
 Backend API is the operator, tenant-admin, control-plane, support, and automation surface.
 
-Additive operations:
+**Implemented today:** subjects/entities/edges CRUD (subjects include delete), bindings/capabilityBindings CRUD (no update), policies/policyAssignments CRUD, `capabilities.resolve`, `commercialReadiness.retrieve/rebuild`.
+
+**Planned (not yet routed):**
 
 ```text
 GET    /backend/v3/api/memory/subjects                subjects.list
@@ -1148,16 +1160,20 @@ They must not block the contract-first commercial memory management layer.
 
 ## 15. Acceptance Checklist
 
-- [ ] Subject, entity, edge, binding, capability binding, policy assignment, relation rebuild, and readiness resources are defined. (Subject, binding, capability binding: done. Entity, edge, policy assignment, relation rebuild, readiness: pending.)
-- [ ] Open API additions are API-key protected and avoid backend-only operations.
-- [ ] App API additions support user and agent memory management without backend SDK leakage.
-- [x] Backend API additions support full tenant/admin governance.
+- [x] Commercial SQL schema and symmetric SQLite/PostgreSQL migrations for subjects, bindings, entities, edges, policies, policy assignments, and readiness snapshots.
+- [x] Backend API exposes the full implemented commercial control-plane surface (see §6.3 **Implemented today**).
+- [ ] App API §6.2 subjects/bindings/resolve routes.
+- [ ] Open API §6.1 subjects/bindings/resolve routes.
+- [x] Open API entity and edge additions are API-key protected and avoid backend-only operations.
+- [ ] App API policy/edge coverage matches §6.2 target (entities + policy assignments only today).
+- [x] Backend API additions support tenant/admin governance for implemented resources.
 - [x] Schema additions avoid generic EAV for high-frequency access paths.
 - [x] Permissions and audit events are stable and dotted.
-- [x] Binding resolver and capability resolver are explicit service boundaries.
+- [x] Binding resolver and capability resolver are explicit service boundaries (backend `capabilities.resolve` only).
 - [x] Retrieval rechecks canonical record, binding, policy, and capability state after derived index hits. (Capability check is integrated pre-retrieval; post-hit recheck is pending.)
-- [ ] Deletion and forget flows suppress bindings and indexes.
-- [ ] SDK resource method shape remains resource-oriented.
-- [ ] Verification commands and runtime tests prove commercial readiness before release.
+- [x] Deletion and forget flows suppress bindings and indexes (FTS removal errors propagate; forget/export store paths exist).
+- [ ] SDK resource method shape remains resource-oriented across all three surfaces.
+- [ ] Verification commands and runtime tests prove commercial readiness before release. (`pnpm verify`, pagination/envelope checks, SQLite contract suite, backend commercial flow, and opt-in Postgres contract tests pass; App/Open commercial integration tests and relation-rebuild worker remain.)
+- [ ] `relation_rebuild_jobs` route/worker surface (DDL exists).
 
 

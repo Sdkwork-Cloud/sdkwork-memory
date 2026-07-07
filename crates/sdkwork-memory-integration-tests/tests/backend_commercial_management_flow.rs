@@ -8,8 +8,9 @@ use sdkwork_routes_memory_backend_api::{
 use sdkwork_memory_test_support::api_envelope;
 use sdkwork_memory_test_support::web_auth::{
     lock_integration_test_env, memory_access_token, memory_auth_token_bearer,
-    MEMORY_TEST_IDEMPOTENCY_KEY,
+    memory_content_sha256, memory_idempotency_key,
 };
+use sdkwork_web_core::CONTENT_SHA256_HEADER;
 use serde_json::json;
 use tower::util::ServiceExt;
 
@@ -24,15 +25,16 @@ fn authed_get(uri: &str) -> Request<Body> {
 }
 
 fn authed_json(method: &str, uri: &str, body: serde_json::Value) -> Request<Body> {
-    let idempotency_key = format!("{MEMORY_TEST_IDEMPOTENCY_KEY}:{method}:{uri}");
+    let body_text = body.to_string();
     Request::builder()
         .method(method)
         .uri(uri)
         .header("content-type", "application/json")
         .header("Authorization", memory_auth_token_bearer("9001"))
         .header("Access-Token", memory_access_token("9001"))
-        .header("Idempotency-Key", idempotency_key)
-        .body(Body::from(body.to_string()))
+        .header("Idempotency-Key", memory_idempotency_key(method, uri, &body_text))
+        .header(CONTENT_SHA256_HEADER, memory_content_sha256(&body_text))
+        .body(Body::from(body_text))
         .unwrap()
 }
 
@@ -86,6 +88,7 @@ async fn backend_commercial_entity_edge_policy_and_readiness_flow() {
     let entity_b_id = api_envelope::item(&entity_b_json)["entityId"]
         .as_str()
         .expect("entityId");
+    assert_ne!(entity_a_id, entity_b_id);
 
     let edge = app
         .clone()
@@ -151,7 +154,7 @@ async fn backend_commercial_entity_edge_policy_and_readiness_flow() {
         ))
         .await
         .unwrap();
-    assert_eq!(rebuild.status(), StatusCode::OK);
+    assert_eq!(rebuild.status(), StatusCode::CREATED);
     let rebuild_body = to_bytes(rebuild.into_body(), usize::MAX).await.unwrap();
     let rebuild_json: serde_json::Value = serde_json::from_slice(&rebuild_body).unwrap();
     let readiness_item = api_envelope::item(&rebuild_json);

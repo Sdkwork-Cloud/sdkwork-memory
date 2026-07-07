@@ -411,6 +411,17 @@ impl OpenMemoryService {
             .ensure_default_keyword_index_for_tenant(tenant_id)
             .await
             .map_err(OpenMemoryService::map_store_error)?;
+        let rebuilt_records = if let Some(space_id) = row.space_id {
+            self.store
+                .rebuild_record_search_indexes_for_space(tenant_id, space_id)
+                .await
+                .map_err(OpenMemoryService::map_store_error)?
+        } else {
+            self.store
+                .rebuild_all_record_search_indexes(tenant_id)
+                .await
+                .map_err(OpenMemoryService::map_store_error)?
+        };
         let job_id = self.next_id()?;
         let finished_at = platform::current_timestamp();
         let mut job = Self::new_learning_job(job_id, "index_rebuild", "succeeded", index.space_id, &index)?;
@@ -418,6 +429,7 @@ impl OpenMemoryService {
             "indexId": index_id,
             "lastRebuiltAt": row.last_rebuilt_at,
             "status": row.status,
+            "rebuiltRecords": rebuilt_records,
         }));
         job.finished_at = Some(finished_at.clone());
         job.updated_at = finished_at;
@@ -873,6 +885,14 @@ impl OpenMemoryService {
         job_id: u64,
     ) -> MemoryServiceResult<MemoryLearningJob> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
+        if let Some(row) = self
+            .store
+            .retrieve_learning_job_for_tenant(tenant_id, &job_id.to_string())
+            .await
+            .map_err(OpenMemoryService::map_store_error)?
+        {
+            return crate::job_worker::learning_job_from_row(&row);
+        }
         self.load_governance_entity(tenant_id, RT_EXTRACTION_JOB, &job_id.to_string())
             .await
     }
@@ -932,7 +952,9 @@ impl OpenMemoryService {
             .space_id
             .map(platform::space_id_i64)
             .transpose()?
-            .unwrap_or(1);
+            .ok_or_else(|| {
+                MemoryServiceError::validation("spaceId is required for retention jobs")
+            })?;
         let scope = MemoryScopeContext {
             tenant_id,
             space_id,
@@ -979,17 +1001,16 @@ impl OpenMemoryService {
         request: MemoryMigrationJobRequest,
     ) -> MemoryServiceResult<MemoryLearningJob> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        self.store
-            .ping()
-            .await
-            .map_err(OpenMemoryService::map_store_error)?;
+        let migration_result = crate::implementation_migration::execute_implementation_profile_migration(
+            &self.store,
+            tenant_id,
+            &request,
+        )
+        .await?;
         let job_id = self.next_id()?;
         let finished_at = platform::current_timestamp();
         let mut job = Self::new_learning_job(job_id, "migration", "succeeded", None, &request)?;
-        job.result = Some(serde_json::json!({
-            "targetImplementationProfileId": request.target_implementation_profile_id,
-            "verified": true,
-        }));
+        job.result = Some(migration_result);
         job.finished_at = Some(finished_at.clone());
         job.updated_at = finished_at;
         self.persist_governance_job(

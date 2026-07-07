@@ -532,6 +532,23 @@ pub async fn insert_mem_implementation_profile(
         Ok(())
     }
 
+    pub async fn count_implementation_profiles_for_tenant(
+        &self,
+        tenant_id: i64,
+    ) -> Result<i64, NativeSqlStoreError> {
+        let row = sqlx::query(
+            r#"
+            SELECT COUNT(*) AS total
+            FROM ai_implementation_profile
+            WHERE tenant_id = ?
+            "#,
+        )
+        .bind(tenant_id)
+        .fetch_one(self.pool())
+        .await?;
+        Ok(row.get("total"))
+    }
+
     pub async fn list_mem_implementation_profiles_for_tenant(
         &self,
         tenant_id: i64,
@@ -647,6 +664,90 @@ pub async fn update_mem_implementation_profile_for_tenant(
 
         self.retrieve_mem_implementation_profile_for_tenant(tenant_id, profile_uuid)
             .await
+    }
+
+    pub async fn apply_implementation_profile_switch(
+        &self,
+        tenant_id: i64,
+        source_id: &str,
+        target_id: &str,
+        demote_source_primary: bool,
+        target_implementation_kind: &str,
+        target_implementation_profile_id: u64,
+    ) -> Result<(), NativeSqlStoreError> {
+        use crate::store::now_text;
+        const ACTIVE_IMPLEMENTATION_PROFILE_KEY: &str = "implementation_profile.active";
+        let mut tx = self.begin_tx().await?;
+        let now = now_text();
+
+        if demote_source_primary {
+            sqlx::query(
+                r#"
+                UPDATE ai_implementation_profile
+                SET role = 'standby',
+                    status = 'active',
+                    updated_at = ?,
+                    version = version + 1
+                WHERE tenant_id = ? AND uuid = ? AND role = 'primary'
+                "#,
+            )
+            .bind(&now)
+            .bind(tenant_id)
+            .bind(source_id)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        sqlx::query(
+            r#"
+            UPDATE ai_implementation_profile
+            SET role = 'primary',
+                status = 'active',
+                updated_at = ?,
+                version = version + 1
+            WHERE tenant_id = ? AND uuid = ?
+            "#,
+        )
+        .bind(&now)
+        .bind(tenant_id)
+        .bind(target_id)
+        .execute(&mut *tx)
+        .await?;
+
+        let active_profile_json = serde_json::json!({
+            "implementationProfileId": target_implementation_profile_id,
+            "implementationKind": target_implementation_kind,
+            "migratedAt": now,
+        });
+        let preference_json = serde_json::to_string(&active_profile_json).map_err(|error| {
+            NativeSqlStoreError::InvariantViolation {
+                message: format!("active profile preference encode failed: {error}"),
+            }
+        })?;
+        let bound_user_id = crate::store::preference_scope_user_binding(None, self.dialect());
+        sqlx::query(
+            r#"
+            INSERT INTO ai_tenant_preference (
+              tenant_id, user_id, preference_key, preference_json, created_at, updated_at, version
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 0)
+            ON CONFLICT(tenant_id, user_id, preference_key) DO UPDATE SET
+              preference_json = excluded.preference_json,
+              updated_at = excluded.updated_at,
+              version = ai_tenant_preference.version + 1
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(bound_user_id)
+        .bind(ACTIVE_IMPLEMENTATION_PROFILE_KEY)
+        .bind(&preference_json)
+        .bind(&now)
+        .bind(&now)
+        .execute(&mut *tx)
+        .await?;
+
+        tx.commit().await?;
+        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
