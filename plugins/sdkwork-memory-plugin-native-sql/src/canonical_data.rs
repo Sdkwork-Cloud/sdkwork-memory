@@ -4,7 +4,9 @@ use sdkwork_memory_spi::{
     CreateCanonicalMemoryCommand, DeleteCanonicalMemoryCommand, MemoryCanonicalRecord,
     MemoryDeletionReceipt, MemoryMutationJournal, UpdateCanonicalMemoryCommand,
 };
+use sqlx::Row;
 
+use crate::pool_backend::MemorySqlDialect;
 use crate::store::{NativeSqlMemoryRecordDetail, NativeSqlMemoryStore, NativeSqlStoreError};
 
 impl NativeSqlMemoryStore {
@@ -29,9 +31,9 @@ impl NativeSqlMemoryStore {
         )
         .await?;
         append_journal_on_tx(&mut tx, &command.scope, &command.journal).await?;
-        tx.commit().await.map_err(NativeSqlStoreError::from)?;
-
-        self.sync_record_fts_entry(
+        sync_record_fts_on_tx(
+            self.dialect(),
+            &mut tx,
             &command.scope,
             &command.memory_id,
             &command.canonical_text,
@@ -40,6 +42,7 @@ impl NativeSqlMemoryStore {
             command.predicate.as_deref(),
         )
         .await?;
+        tx.commit().await.map_err(NativeSqlStoreError::from)?;
         self.load_canonical_record(&command.scope, &command.memory_id)
             .await
     }
@@ -63,20 +66,40 @@ impl NativeSqlMemoryStore {
             return Ok(None);
         }
         append_journal_on_tx(&mut tx, &command.scope, &command.journal).await?;
+        if matches!(self.dialect(), MemorySqlDialect::Sqlite) {
+            let row = sqlx::query(
+                r#"
+                SELECT canonical_text, object_text, subject, predicate
+                FROM ai_record
+                WHERE tenant_id = ? AND space_id = ? AND uuid = ? AND status <> 'deleted'
+                "#,
+            )
+            .bind(command.scope.tenant_id)
+            .bind(command.scope.space_id)
+            .bind(&command.memory_id)
+            .fetch_one(&mut *tx)
+            .await?;
+            let canonical_text: String = row.get("canonical_text");
+            let object_text: String = row.get("object_text");
+            let subject: Option<String> = row.get("subject");
+            let predicate: Option<String> = row.get("predicate");
+            sync_record_fts_on_tx(
+                self.dialect(),
+                &mut tx,
+                &command.scope,
+                &command.memory_id,
+                &canonical_text,
+                &object_text,
+                subject.as_deref(),
+                predicate.as_deref(),
+            )
+            .await?;
+        }
         tx.commit().await.map_err(NativeSqlStoreError::from)?;
 
         let record = self
             .load_canonical_record(&command.scope, &command.memory_id)
             .await?;
-        self.sync_record_fts_entry(
-            &command.scope,
-            &command.memory_id,
-            &record.canonical_text,
-            &record.object_text,
-            record.subject.as_deref(),
-            record.predicate.as_deref(),
-        )
-        .await?;
         Ok(Some(record))
     }
 
@@ -101,9 +124,14 @@ impl NativeSqlMemoryStore {
             });
         }
         append_journal_on_tx(&mut tx, &command.scope, &command.journal).await?;
+        remove_record_fts_on_tx(
+            self.dialect(),
+            &mut tx,
+            &command.scope,
+            &command.memory_id,
+        )
+        .await?;
         tx.commit().await.map_err(NativeSqlStoreError::from)?;
-        self.remove_record_fts_entry(&command.scope, &command.memory_id)
-            .await?;
         Ok(MemoryDeletionReceipt {
             memory_id: command.memory_id.clone(),
             deleted: true,
@@ -132,6 +160,72 @@ impl NativeSqlMemoryStore {
                 message: format!("canonical memory {memory_id} was not readable after mutation"),
             })
     }
+}
+
+async fn sync_record_fts_on_tx(
+    dialect: MemorySqlDialect,
+    tx: &mut sqlx::Transaction<'_, sqlx::Any>,
+    scope: &sdkwork_memory_spi::MemoryScopeContext,
+    memory_uuid: &str,
+    canonical_text: &str,
+    object_text: &str,
+    subject: Option<&str>,
+    predicate: Option<&str>,
+) -> Result<(), NativeSqlStoreError> {
+    if !matches!(dialect, MemorySqlDialect::Sqlite) {
+        return Ok(());
+    }
+    let row_id: i64 = sqlx::query(
+        "SELECT id FROM ai_record WHERE tenant_id = ? AND space_id = ? AND uuid = ?",
+    )
+    .bind(scope.tenant_id)
+    .bind(scope.space_id)
+    .bind(memory_uuid)
+    .fetch_one(&mut **tx)
+    .await?
+    .get("id");
+    sqlx::query("DELETE FROM ai_record_fts WHERE rowid = ?")
+        .bind(row_id)
+        .execute(&mut **tx)
+        .await?;
+    sqlx::query(
+        r#"
+        INSERT INTO ai_record_fts(
+          rowid, memory_uuid, tenant_id, space_id, canonical_text, object_text, subject, predicate
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        "#,
+    )
+    .bind(row_id)
+    .bind(memory_uuid)
+    .bind(scope.tenant_id)
+    .bind(scope.space_id)
+    .bind(canonical_text)
+    .bind(object_text)
+    .bind(subject.unwrap_or(""))
+    .bind(predicate.unwrap_or(""))
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+async fn remove_record_fts_on_tx(
+    dialect: MemorySqlDialect,
+    tx: &mut sqlx::Transaction<'_, sqlx::Any>,
+    scope: &sdkwork_memory_spi::MemoryScopeContext,
+    memory_uuid: &str,
+) -> Result<(), NativeSqlStoreError> {
+    if !matches!(dialect, MemorySqlDialect::Sqlite) {
+        return Ok(());
+    }
+    sqlx::query(
+        "DELETE FROM ai_record_fts WHERE tenant_id = ? AND space_id = ? AND memory_uuid = ?",
+    )
+    .bind(scope.tenant_id)
+    .bind(scope.space_id)
+    .bind(memory_uuid)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
 }
 
 async fn append_journal_on_tx(

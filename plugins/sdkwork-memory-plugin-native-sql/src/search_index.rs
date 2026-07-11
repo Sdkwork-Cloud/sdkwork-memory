@@ -414,4 +414,5 @@ mod tests {
     fn fts5_escape_handles_empty_input() {
         let result = escape_fts5_query("   ");
         assert_eq!(result, "");
- 
+    }
+}
