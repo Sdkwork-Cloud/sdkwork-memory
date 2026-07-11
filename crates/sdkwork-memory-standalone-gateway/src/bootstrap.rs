@@ -67,17 +67,16 @@ pub async fn build_router() -> Result<MemoryApplication, String> {
     refresh_memory_http_metric_dimensions();
     let runtime = bootstrap_memory_runtime_from_env().await?;
     info!(
-        profile_id = %runtime.profile_id,
-        primary_plugin_id = %runtime.primary_plugin_id,
+        profile_id = %runtime.core_runtime.profile().profile_id,
+        primary_plugin_id = %runtime.core_runtime.profile().primary_plugin_id,
         dialect = ?runtime.data_plane.store().dialect(),
         postgres_host_pool = runtime.data_plane.host_pool.is_some(),
         "memory runtime ready"
     );
-    let mut product = OpenMemoryService::from_phase1_runtime(
+    let mut product = OpenMemoryService::try_from_core_runtime(
         runtime.data_plane.phase1,
-        runtime.profile_id,
-        runtime.primary_plugin_id,
-    );
+        runtime.core_runtime,
+    )?;
     if let Some(uploader) =
         sdkwork_memory_drive::bootstrap_memory_drive_export_uploader_from_env().await?
     {

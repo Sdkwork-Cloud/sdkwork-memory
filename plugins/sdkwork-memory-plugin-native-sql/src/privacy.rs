@@ -108,8 +108,7 @@ impl NativeSqlMemoryStore {
             if rows.is_empty() {
                 break;
             }
-            let page_limit = i32::try_from(sdkwork_utils_rust::MAX_LIST_PAGE_SIZE)
-                .unwrap_or(200) as usize;
+            let page_limit = sdkwork_utils_rust::MAX_LIST_PAGE_SIZE as usize;
             let has_more = rows.len() > page_limit;
             let batch = if has_more {
                 &rows[..page_limit]
@@ -318,8 +317,7 @@ impl NativeSqlMemoryStore {
                 if rows.is_empty() {
                     break;
                 }
-                let page_limit = i32::try_from(sdkwork_utils_rust::MAX_LIST_PAGE_SIZE)
-                    .unwrap_or(200) as usize;
+                let page_limit = sdkwork_utils_rust::MAX_LIST_PAGE_SIZE as usize;
                 let has_more = rows.len() > page_limit;
                 let batch = if has_more {
                     &rows[..page_limit]
@@ -362,15 +360,14 @@ impl NativeSqlMemoryStore {
                         .list_open_api_events_for_tenant(
                             tenant_id,
                             Some(*space_id),
-                            i32::try_from(sdkwork_utils_rust::MAX_LIST_PAGE_SIZE).unwrap_or(200),
+                            sdkwork_utils_rust::MAX_LIST_PAGE_SIZE,
                             cursor,
                         )
                         .await?;
                     if event_rows.is_empty() {
                         break;
                     }
-                    let page_limit = i32::try_from(sdkwork_utils_rust::MAX_LIST_PAGE_SIZE)
-                        .unwrap_or(200) as usize;
+                    let page_limit = sdkwork_utils_rust::MAX_LIST_PAGE_SIZE as usize;
                     let has_more = event_rows.len() > page_limit;
                     let batch = if has_more {
                         &event_rows[..page_limit]

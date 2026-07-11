@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use crate::MemorySpiResult;
+use crate::{MemoryRetrieverKind, MemorySpiError, MemorySpiResult};
 
 pub trait MemoryRuntimePlugin: Send + Sync {}
 
@@ -23,6 +23,13 @@ impl MemoryScopeContext {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemorySensitivityReadScope {
+    Public,
+    Elevated,
+    Owner,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CreateMemoryRecordCommand {
     pub scope: MemoryScopeContext,
@@ -34,6 +41,80 @@ pub struct CreateMemoryRecordCommand {
 pub struct MemoryRecord {
     pub memory_id: String,
     pub content: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MemoryCanonicalRecord {
+    pub memory_id: String,
+    pub space_id: i64,
+    pub user_id: Option<i64>,
+    pub scope_label: String,
+    pub memory_type: String,
+    pub subject: Option<String>,
+    pub predicate: Option<String>,
+    pub object_text: String,
+    pub canonical_text: String,
+    pub confidence: f64,
+    pub evidence_count: i32,
+    pub contradiction_count: i32,
+    pub status: String,
+    pub sensitivity_level: String,
+    pub supersedes_memory_id: Option<String>,
+    pub superseded_by_memory_id: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+    pub version: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryMutationJournal {
+    pub outbox_id: String,
+    pub aggregate_type: String,
+    pub aggregate_id: String,
+    pub event_type: String,
+    pub event_version: String,
+    pub payload_json: String,
+    pub audit_id: String,
+    pub audit_action: String,
+    pub audit_resource_type: String,
+    pub audit_resource_id: String,
+    pub audit_result: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateCanonicalMemoryCommand {
+    pub scope: MemoryScopeContext,
+    pub memory_id: String,
+    pub scope_label: String,
+    pub memory_type: String,
+    pub subject: Option<String>,
+    pub predicate: Option<String>,
+    pub object_text: String,
+    pub canonical_text: String,
+    pub sensitivity_level: String,
+    pub journal: MemoryMutationJournal,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetrieveCanonicalMemoryQuery {
+    pub scope: MemoryScopeContext,
+    pub memory_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UpdateCanonicalMemoryCommand {
+    pub scope: MemoryScopeContext,
+    pub memory_id: String,
+    pub canonical_text: Option<String>,
+    pub subject: Option<String>,
+    pub journal: MemoryMutationJournal,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeleteCanonicalMemoryCommand {
+    pub scope: MemoryScopeContext,
+    pub memory_id: String,
+    pub journal: MemoryMutationJournal,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -255,6 +336,7 @@ pub struct MemoryHabit {
 pub struct MemoryRetrievalHitDraft {
     pub hit_id: String,
     pub memory_id: Option<String>,
+    pub space_id: Option<i64>,
     pub retriever_name: String,
     pub result_rank: i64,
     pub raw_score: Option<f64>,
@@ -326,6 +408,51 @@ pub struct RetrieveMemoryCandidatesCommand {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemoryRetrieverResult {
     pub memory_ids: Vec<String>,
+}
+
+pub const MAX_MEMORY_RETRIEVAL_CANDIDATES: u32 = 200;
+
+/// Bounded, scope-aware retrieval input used by the application retrieval pipeline.
+///
+/// The plugin receives only the search scope and the enabled retriever kinds. It must never
+/// infer tenant or space context from ambient state, and it must honor the limit at the
+/// authoritative index/store boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SearchMemoryCandidatesQuery {
+    pub scope: MemoryScopeContext,
+    pub query: String,
+    pub limit: u32,
+    pub retriever_kinds: Vec<MemoryRetrieverKind>,
+    pub memory_types: Vec<String>,
+    pub read_scope: MemorySensitivityReadScope,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryRetrievalRecordCandidate {
+    pub memory_id: String,
+    pub subject: Option<String>,
+    pub predicate: Option<String>,
+    pub object_text: String,
+    pub canonical_text: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryRetrievalEventCandidate {
+    pub memory_id: String,
+    pub event_id: String,
+    pub payload_text: String,
+    pub created_at: String,
+}
+
+/// Candidate projections are not canonical truth. The service must rehydrate every candidate
+/// through `MemoryRecordStorePort` before returning it or assembling context.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryRetrieverSearchResult {
+    pub records: Vec<MemoryRetrievalRecordCandidate>,
+    pub events: Vec<MemoryRetrievalEventCandidate>,
+    pub degraded: bool,
+    pub unavailable_retriever_kinds: Vec<MemoryRetrieverKind>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -408,6 +535,10 @@ pub struct MemoryEvalRunResult {
 
 #[async_trait]
 pub trait MemoryRecordStorePort: Send + Sync {
+    fn supports_canonical_atomic(&self) -> bool {
+        false
+    }
+
     async fn create(&self, command: CreateMemoryRecordCommand) -> MemorySpiResult<MemoryRecord>;
 
     async fn retrieve(
@@ -419,6 +550,34 @@ pub trait MemoryRecordStorePort: Send + Sync {
         &self,
         command: DeleteMemoryRecordCommand,
     ) -> MemorySpiResult<MemoryDeletionReceipt>;
+
+    async fn create_canonical_atomic(
+        &self,
+        _command: CreateCanonicalMemoryCommand,
+    ) -> MemorySpiResult<MemoryCanonicalRecord> {
+        Err(atomic_record_operation_required("create_canonical_atomic"))
+    }
+
+    async fn retrieve_canonical(
+        &self,
+        _query: RetrieveCanonicalMemoryQuery,
+    ) -> MemorySpiResult<Option<MemoryCanonicalRecord>> {
+        Err(atomic_record_operation_required("retrieve_canonical"))
+    }
+
+    async fn update_canonical_atomic(
+        &self,
+        _command: UpdateCanonicalMemoryCommand,
+    ) -> MemorySpiResult<Option<MemoryCanonicalRecord>> {
+        Err(atomic_record_operation_required("update_canonical_atomic"))
+    }
+
+    async fn delete_canonical_atomic(
+        &self,
+        _command: DeleteCanonicalMemoryCommand,
+    ) -> MemorySpiResult<MemoryDeletionReceipt> {
+        Err(atomic_record_operation_required("delete_canonical_atomic"))
+    }
 }
 
 #[async_trait]
@@ -538,10 +697,40 @@ pub trait MemoryPolicyStorePort: Send + Sync {
 pub trait MemoryRetrieverPort: Send + Sync {
     fn retriever_code(&self) -> &str;
 
+    /// Whether the implementation supports the bounded, scope-aware search contract.
+    /// Production HTTP composition fails closed when this capability is absent.
+    fn supports_bounded_scoped_search(&self) -> bool {
+        false
+    }
+
     async fn retrieve(
         &self,
         command: RetrieveMemoryCandidatesCommand,
     ) -> MemorySpiResult<MemoryRetrieverResult>;
+
+    async fn retrieve_scoped(
+        &self,
+        _scope: MemoryScopeContext,
+        _command: RetrieveMemoryCandidatesCommand,
+    ) -> MemorySpiResult<MemoryRetrieverResult> {
+        Err(MemorySpiError::PortOperationFailed {
+            port: "MemoryRetrieverPort".to_string(),
+            message: "scope-aware retrieval is not implemented; refusing an unscoped fallback"
+                .to_string(),
+        })
+    }
+
+    async fn search_scoped(
+        &self,
+        _query: SearchMemoryCandidatesQuery,
+    ) -> MemorySpiResult<MemoryRetrieverSearchResult> {
+        Err(MemorySpiError::PortOperationFailed {
+            port: "MemoryRetrieverPort".to_string(),
+            message:
+                "bounded scope-aware retrieval is not implemented; refusing an unbounded fallback"
+                    .to_string(),
+        })
+    }
 }
 
 #[async_trait]
@@ -608,9 +797,31 @@ pub trait MemoryContextAssemblerPort: Send + Sync {
         &self,
         command: AssembleMemoryContextCommand,
     ) -> MemorySpiResult<MemoryContextPackDraft>;
+
+    async fn assemble_scoped(
+        &self,
+        _scope: MemoryScopeContext,
+        _command: AssembleMemoryContextCommand,
+    ) -> MemorySpiResult<MemoryContextPackDraft> {
+        Err(MemorySpiError::PortOperationFailed {
+            port: "MemoryContextAssemblerPort".to_string(),
+            message:
+                "scope-aware context assembly is not implemented; refusing an unscoped fallback"
+                    .to_string(),
+        })
+    }
 }
 
 #[async_trait]
 pub trait MemoryEvaluationPort: Send + Sync {
     async fn run(&self, command: RunMemoryEvalCommand) -> MemorySpiResult<MemoryEvalRunResult>;
+}
+
+fn atomic_record_operation_required(operation: &str) -> MemorySpiError {
+    MemorySpiError::PortOperationFailed {
+        port: "MemoryRecordStorePort".to_string(),
+        message: format!(
+            "atomic canonical memory operation {operation} is not implemented; refusing non-atomic fallback"
+        ),
+    }
 }

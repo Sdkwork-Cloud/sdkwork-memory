@@ -67,6 +67,27 @@ impl MemoryPluginManifest {
             ));
         }
 
+        if self.deployment_modes.is_empty() {
+            return Err(MemorySpiError::ManifestInvalid(
+                "deploymentModes must not be empty".to_string(),
+            ));
+        }
+
+        let mut declared_ports = std::collections::HashSet::new();
+        for export in &self.port_exports {
+            if export.port.trim().is_empty() || export.builder.trim().is_empty() {
+                return Err(MemorySpiError::ManifestInvalid(
+                    "portExports must declare a non-empty port and executable builder".to_string(),
+                ));
+            }
+            if !declared_ports.insert(&export.port) {
+                return Err(MemorySpiError::ManifestInvalid(format!(
+                    "portExports contains duplicate port {}",
+                    export.port
+                )));
+            }
+        }
+
         for secret_ref in &self.secret_refs {
             if looks_like_secret_value(secret_ref) {
                 return Err(MemorySpiError::ManifestInvalid(
@@ -157,7 +178,11 @@ impl MemoryPluginManifest {
                 MemoryImplementationKind::NativeSql,
                 MemoryImplementationKind::LocalEmbedded,
             ],
-            plugin_roles: vec![MemoryPluginRole::Implementation, MemoryPluginRole::Store],
+            plugin_roles: vec![
+                MemoryPluginRole::Implementation,
+                MemoryPluginRole::Store,
+                MemoryPluginRole::Retriever,
+            ],
             deployment_modes: vec![
                 MemoryDeploymentMode::Server,
                 MemoryDeploymentMode::Container,
@@ -194,9 +219,19 @@ impl MemoryPluginManifest {
                     port: "MemoryRetrievalTraceStorePort".to_string(),
                     builder: "build_native_sql_retrieval_trace_store".to_string(),
                 },
+                MemoryPluginPortExport {
+                    port: "MemoryRetrieverPort".to_string(),
+                    builder: "build_native_sql_retriever".to_string(),
+                },
             ],
             provider_kinds: vec![],
-            retriever_kinds: vec![],
+            retriever_kinds: vec![
+                MemoryRetrieverKind::Sql,
+                MemoryRetrieverKind::Keyword,
+                MemoryRetrieverKind::Dictionary,
+                MemoryRetrieverKind::Time,
+                MemoryRetrieverKind::Event,
+            ],
             index_kinds: vec![],
             required_core_version: "0.1.0".to_string(),
             config_schema_ref: None,
@@ -262,14 +297,7 @@ impl MemoryPluginManifest {
                 MemoryPluginRole::Context,
                 MemoryPluginRole::Evaluation,
             ],
-            deployment_modes: vec![
-                MemoryDeploymentMode::Server,
-                MemoryDeploymentMode::Container,
-                MemoryDeploymentMode::Private,
-                MemoryDeploymentMode::Local,
-                MemoryDeploymentMode::Test,
-                MemoryDeploymentMode::EvalOnly,
-            ],
+            deployment_modes: vec![MemoryDeploymentMode::Test, MemoryDeploymentMode::EvalOnly],
             port_exports: vec![
                 MemoryPluginPortExport {
                     port: "MemoryRecordStorePort".to_string(),

@@ -291,6 +291,7 @@ async fn execute_learning_job(
                 &service.store,
                 job.tenant_id,
                 &request,
+                &service.core_runtime.profile().profile_id,
             )
             .await
             .map_err(|error| error.detail)?;

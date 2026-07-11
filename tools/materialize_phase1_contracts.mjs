@@ -734,9 +734,9 @@ Draft contract artifacts:
 - \`sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json\`
 - \`sdks/sdkwork-memory-app-sdk/openapi/memory-app-api.openapi.json\`
 - \`sdks/sdkwork-memory-backend-sdk/openapi/memory-backend-api.openapi.json\`
-- \`sdks/sdkwork-memory-sdk/.sdkwork-assembly.json\`
-- \`sdks/sdkwork-memory-app-sdk/.sdkwork-assembly.json\`
-- \`sdks/sdkwork-memory-backend-sdk/.sdkwork-assembly.json\`
+- \`sdks/sdkwork-memory-sdk/sdk-manifest.json\`
+- \`sdks/sdkwork-memory-app-sdk/sdk-manifest.json\`
+- \`sdks/sdkwork-memory-backend-sdk/sdk-manifest.json\`
 
 Phase 1 verification:
 
@@ -765,9 +765,9 @@ powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1
         "sdkwork.app.config.json",
         "AGENTS.md",
         "specs/component.spec.json",
-        "sdks/sdkwork-memory-sdk/.sdkwork-assembly.json",
-        "sdks/sdkwork-memory-app-sdk/.sdkwork-assembly.json",
-        "sdks/sdkwork-memory-backend-sdk/.sdkwork-assembly.json"
+        "sdks/sdkwork-memory-sdk/sdk-manifest.json",
+        "sdks/sdkwork-memory-app-sdk/sdk-manifest.json",
+        "sdks/sdkwork-memory-backend-sdk/sdk-manifest.json"
       ]
     },
     canonicalSpecs: rootCanonicalSpecs,
@@ -826,7 +826,7 @@ powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1
     integration: {
       authority: "Root SDKWork specs remain authoritative. Local specs may extend but must not contradict them.",
       memoryPolicy: "Canonical ai_record and ai_event tables are the source of truth; all indexes are derived and rebuildable.",
-      implementationPolicy: "Memory implementation profiles select native_sql, event_sourced, graph_temporal, search_first, local_embedded, external_provider_bridge, or hybrid_platform without changing app/backend API contracts.",
+      implementationPolicy: "Memory implementation profiles select native_sql, event_sourced, graph_temporal, search_first, local_embedded, external_provider_bridge, or hybrid_platform without changing app/backend API contracts. Required ports are resolved per plugin binding; reference profiles are evaluation-only until their production deployment qualification is proven.",
       embeddingPolicy: "Embedding is an optional retriever/index provider, not a required storage dependency.",
       sdkPolicy: "Generated SDK clients are consumed through generated SDKs or approved composed wrappers; no raw HTTP fallback."
     },
@@ -877,58 +877,6 @@ function sdkSurfaceProfile(surface) {
   return profile;
 }
 
-function sdkFamilyAssembly({ surface, prefix, title, authority, openapiFile, client, dependencies }) {
-  const profile = sdkSurfaceProfile(surface);
-  const family = profile.family;
-  const languageWorkspace = `${family}-typescript`;
-  return {
-    workspace: family,
-    title,
-    apiVersion: version,
-    openapiVersion: "3.1.2",
-    authoritySpec: `openapi/${openapiFile}`,
-    generationInputSpec: `openapi/${openapiFile}`,
-    derivedSpecs: {
-      default: `openapi/${openapiFile}`
-    },
-    apiAuthority: authority,
-    discoverySurface: {
-      sdkTarget: profile.sdkTarget,
-      apiPrefix: prefix,
-      schemaUrl: profile.schemaUrl,
-      generatedProtocols: ["http-openapi"],
-      manualTransports: []
-    },
-    languages: [
-      {
-        language: "typescript",
-        workspace: languageWorkspace,
-        generationState: "declared",
-        releaseState: "not_published",
-        generatedPath: `${languageWorkspace}/generated/server-openapi`,
-        manifestPath: `${languageWorkspace}/generated/server-openapi/package.json`,
-        name: profile.packageName,
-        version,
-        description: `Generator-owned TypeScript transport SDK for ${authority}.`,
-        consumerSurface: {
-          primaryClient: client,
-          apiPrefix: prefix
-        }
-      }
-    ],
-    sdkOwner: owner,
-    sdkDependencies: dependencies,
-    dependencyApiExports: [],
-    dependencyApiSurfaces: [],
-    metadata: {
-      standardVersion,
-      ownerOnlyOperationCount: null,
-      materializationState: "authority-active",
-      managedBy: "tools/materialize_phase1_contracts.mjs"
-    }
-  };
-}
-
 function sdkComponentSpec({ surface, prefix, title, authority, openapiFile, client, dependencies }) {
   const profile = sdkSurfaceProfile(surface);
   const family = profile.family;
@@ -948,10 +896,7 @@ function sdkComponentSpec({ surface, prefix, title, authority, openapiFile, clie
       languages: ["typescript"],
       generated: true,
       private: false,
-      manifests: [
-        ".sdkwork-assembly.json",
-        "sdk-manifest.json"
-      ]
+      manifests: ["sdk-manifest.json"]
     },
     canonicalSpecs: sdkCanonicalSpecs,
     contracts: {
@@ -964,18 +909,13 @@ function sdkComponentSpec({ surface, prefix, title, authority, openapiFile, clie
         standard: "../sdkwork-specs/SDK_WORKSPACE_GENERATION_SPEC.md"
       },
       publicExports: [],
-      runtimeEntrypoints: [
-        ".sdkwork-assembly.json"
-      ],
+      runtimeEntrypoints: ["sdk-manifest.json"],
       sdkDependencies: dependencies,
       dependencyApiExports: [],
       dependencyApiSurfaces: [],
       sdkClients: [client],
       events: [],
-      configKeys: [
-        ".sdkwork-assembly.json",
-        "sdk-manifest.json"
-      ]
+      configKeys: ["sdk-manifest.json"]
     },
     integration: {
       authority: "Root SDKWork specs remain authoritative. Local specs may extend but must not contradict them.",
@@ -995,9 +935,11 @@ function sdkComponentSpec({ surface, prefix, title, authority, openapiFile, clie
   };
 }
 
-function sdkManifest({ surface, prefix, authority, openapiFile, dependencies }) {
+function sdkManifest({ surface, prefix, title, authority, openapiFile, client, dependencies }) {
   const profile = sdkSurfaceProfile(surface);
   const family = profile.family;
+  const languageWorkspace = `${family}-typescript`;
+  const transportPackageName = `${family}-generated-typescript`;
   return {
     schemaVersion: 1,
     sdkName: family,
@@ -1010,14 +952,60 @@ function sdkManifest({ surface, prefix, authority, openapiFile, dependencies }) 
     language: "typescript",
     apiPrefix: prefix,
     generationInputSpec: `openapi/${openapiFile}`,
-    generatedOutput: `${family}-typescript/generated/server-openapi`,
+    generatedOutput: `${languageWorkspace}/generated/server-openapi`,
     standardProfile: "sdkwork-v3",
     sdkDependencies: dependencies,
     dependencyApiExports: [],
     dependencyApiSurfaces: [],
     ownerOnlyOperationCount: null,
     standardVersion,
-    managedBy: "tools/materialize_phase1_contracts.mjs"
+    managedBy: "tools/materialize_phase1_contracts.mjs",
+    transportPackageName,
+    typescript: {
+      composedRoot: languageWorkspace,
+      composedEntry: `${languageWorkspace}/src/index.ts`,
+      transportRoot: `${languageWorkspace}/generated/server-openapi`,
+      transportEntry: `${languageWorkspace}/generated/server-openapi/src/index.ts`
+    },
+    workspace: family,
+    title,
+    apiVersion: version,
+    openapiVersion: "3.1.2",
+    authoritySpec: `openapi/${openapiFile}`,
+    derivedSpecs: {
+      default: `openapi/${openapiFile}`
+    },
+    discoverySurface: {
+      sdkTarget: profile.sdkTarget,
+      apiPrefix: prefix,
+      schemaUrl: profile.schemaUrl,
+      generatedProtocols: ["http-openapi"],
+      manualTransports: []
+    },
+    metadata: {
+      standardVersion,
+      ownerOnlyOperationCount: null,
+      materializationState: "authority-active",
+      managedBy: "tools/materialize_phase1_contracts.mjs"
+    },
+    languages: [
+      {
+        language: "typescript",
+        workspace: languageWorkspace,
+        generationState: "declared",
+        releaseState: "not_published",
+        generatedPath: `${languageWorkspace}/generated/server-openapi`,
+        manifestPath: `${languageWorkspace}/generated/server-openapi/package.json`,
+        version,
+        description: `Generator-owned TypeScript transport SDK for ${authority}.`,
+        consumerSurface: {
+          primaryClient: client,
+          apiPrefix: prefix
+        },
+        consumerPackageName: profile.packageName,
+        transportPackageName
+      }
+    ]
   };
 }
 
@@ -1087,13 +1075,11 @@ Root standards remain authoritative:
 
 Local authority:
 
-- \`../.sdkwork-assembly.json\`
 - \`../sdk-manifest.json\`
 - \`../openapi/${openapiFile}\`
 `);
-  writeJson(`sdks/${family}/.sdkwork-assembly.json`, sdkFamilyAssembly({ surface, prefix, title, authority, openapiFile, client, dependencies }));
   writeJson(`sdks/${family}/specs/component.spec.json`, sdkComponentSpec({ surface, prefix, title, authority, openapiFile, client, dependencies }));
-  writeJson(`sdks/${family}/sdk-manifest.json`, sdkManifest({ surface, prefix, authority, openapiFile, dependencies }));
+  writeJson(`sdks/${family}/sdk-manifest.json`, sdkManifest({ surface, prefix, title, authority, openapiFile, client, dependencies }));
   writeSdkgenConfig({ surface, prefix, authority, openapiFile });
 }
 
@@ -3623,19 +3609,16 @@ $requiredFiles = @(
     "docs/schema-registry/tables/005-memory-governance.yaml",
     "sdks/README.md",
     "sdks/sdkwork-memory-sdk/README.md",
-    "sdks/sdkwork-memory-sdk/.sdkwork-assembly.json",
     "sdks/sdkwork-memory-sdk/sdk-manifest.json",
     "sdks/sdkwork-memory-sdk/specs/README.md",
     "sdks/sdkwork-memory-sdk/specs/component.spec.json",
     "sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json",
     "sdks/sdkwork-memory-app-sdk/README.md",
-    "sdks/sdkwork-memory-app-sdk/.sdkwork-assembly.json",
     "sdks/sdkwork-memory-app-sdk/sdk-manifest.json",
     "sdks/sdkwork-memory-app-sdk/specs/README.md",
     "sdks/sdkwork-memory-app-sdk/specs/component.spec.json",
     "sdks/sdkwork-memory-app-sdk/openapi/memory-app-api.openapi.json",
     "sdks/sdkwork-memory-backend-sdk/README.md",
-    "sdks/sdkwork-memory-backend-sdk/.sdkwork-assembly.json",
     "sdks/sdkwork-memory-backend-sdk/sdk-manifest.json",
     "sdks/sdkwork-memory-backend-sdk/specs/README.md",
     "sdks/sdkwork-memory-backend-sdk/specs/component.spec.json",
@@ -3694,23 +3677,22 @@ foreach ($family in @(
     @{ Path = "sdks/sdkwork-memory-app-sdk"; Authority = "sdkwork-memory.app"; Prefix = "/app/v3/api"; SchemaUrl = "/app/v3/openapi.json"; Spec = "openapi/memory-app-api.openapi.json"; Client = "SdkworkMemoryAppClient" },
     @{ Path = "sdks/sdkwork-memory-backend-sdk"; Authority = "sdkwork-memory.backend"; Prefix = "/backend/v3/api"; SchemaUrl = "/backend/v3/openapi.json"; Spec = "openapi/memory-backend-api.openapi.json"; Client = "SdkworkMemoryBackendClient" }
 )) {
-    $assembly = Read-JsonFile (Join-Path $family.Path ".sdkwork-assembly.json")
     $manifest = Read-JsonFile (Join-Path $family.Path "sdk-manifest.json")
     $component = Read-JsonFile (Join-Path $family.Path "specs/component.spec.json")
 
-    if ($assembly.sdkOwner -ne "sdkwork-memory") {
-        throw "$($family.Path) assembly sdkOwner mismatch"
+    if ($manifest.sdkOwner -ne "sdkwork-memory") {
+        throw "$($family.Path) manifest sdkOwner mismatch"
     }
-    if ($assembly.apiAuthority -ne $family.Authority -or $manifest.apiAuthority -ne $family.Authority) {
+    if ($manifest.apiAuthority -ne $family.Authority) {
         throw "$($family.Path) apiAuthority mismatch"
     }
-    if ($assembly.generationInputSpec -ne $family.Spec -or $manifest.generationInputSpec -ne $family.Spec) {
+    if ($manifest.generationInputSpec -ne $family.Spec) {
         throw "$($family.Path) generationInputSpec mismatch"
     }
-    if ($assembly.discoverySurface.apiPrefix -ne $family.Prefix -or $manifest.apiPrefix -ne $family.Prefix) {
+    if ($manifest.discoverySurface.apiPrefix -ne $family.Prefix -or $manifest.apiPrefix -ne $family.Prefix) {
         throw "$($family.Path) apiPrefix mismatch"
     }
-    if ($assembly.discoverySurface.schemaUrl -ne $family.SchemaUrl) {
+    if ($manifest.discoverySurface.schemaUrl -ne $family.SchemaUrl) {
         throw "$($family.Path) schemaUrl mismatch"
     }
     if ($null -eq $component.contracts.sdkDependencies) {

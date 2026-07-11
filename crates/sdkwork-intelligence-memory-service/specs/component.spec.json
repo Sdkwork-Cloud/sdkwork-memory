@@ -15,13 +15,27 @@
     "manifests": ["Cargo.toml"]
   },
   "canonicalSpecs": [
+    { "file": "APPLICATION_LAYERED_ARCHITECTURE_SPEC.md", "path": "../../../sdkwork-specs/APPLICATION_LAYERED_ARCHITECTURE_SPEC.md" },
+    { "file": "COMPOSABLE_ARCHITECTURE_SPEC.md", "path": "../../../sdkwork-specs/COMPOSABLE_ARCHITECTURE_SPEC.md" },
     { "file": "WEB_BACKEND_SPEC.md", "path": "../../../sdkwork-specs/WEB_BACKEND_SPEC.md" },
     { "file": "DATABASE_SPEC.md", "path": "../../../sdkwork-specs/DATABASE_SPEC.md" },
     { "file": "TEST_SPEC.md", "path": "../../../sdkwork-specs/TEST_SPEC.md" }
   ],
   "contracts": {
-    "publicExports": ["OpenMemoryService", "AppMemoryService", "BackendMemoryService"],
-    "runtimeEntrypoints": [],
+    "layerRole": "backend-service",
+    "publicExports": ["."],
+    "providedPorts": [
+      { "name": "MemoryOpenApiService", "export": "." },
+      { "name": "MemoryRuntimeDataPlane", "export": "." }
+    ],
+    "requiredPorts": [
+      { "name": "MemoryPluginSpi", "export": ".", "dependency": "sdkwork-memory-spi" },
+      { "name": "MemoryDriveExportUploader", "export": ".", "dependency": "sdkwork-memory-spi" }
+    ],
+    "runtimeEntrypoints": [
+      "sdkwork_intelligence_memory_service::OpenMemoryService::try_from_core_runtime",
+      "sdkwork_intelligence_memory_service::MemoryRuntimeDataPlane::try_for_phase1_http"
+    ],
     "sdkClients": [],
     "sdkDependencies": [
       { "workspace": "sdkwork-utils" },
@@ -31,6 +45,9 @@
     "configKeys": []
   },
   "verification": {
-    "commands": ["cargo test -p sdkwork-intelligence-memory-service"]
+    "commands": [
+      "cargo test -p sdkwork-intelligence-memory-service",
+      "node ../sdkwork-specs/tools/check-component-port-bindings.mjs --root crates/sdkwork-intelligence-memory-service --strict"
+    ]
   }
 }

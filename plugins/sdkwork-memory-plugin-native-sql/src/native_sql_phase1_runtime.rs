@@ -4,8 +4,9 @@ use std::sync::Arc;
 
 use sdkwork_database_config::DatabaseConfig;
 use sdkwork_memory_spi::{
-    MemoryAuditStorePort, MemoryCandidateStorePort, MemoryEventStorePort, MemoryHabitStorePort,
-    MemoryOutboxStorePort, MemoryRecordStorePort, MemoryRetrievalTraceStorePort,
+    MemoryAuditStorePort, MemoryCandidateStorePort, MemoryEventStorePort,
+    MemoryExecutablePluginRuntime, MemoryHabitStorePort, MemoryOutboxStorePort,
+    MemoryPluginPorts, MemoryRecordStorePort, MemoryRetrievalTraceStorePort, MemoryRetrieverPort,
 };
 
 use crate::store::{NativeSqlMemoryStore, NativeSqlStoreError};
@@ -47,6 +48,26 @@ impl NativeSqlPhase1Runtime {
     pub fn into_store(self) -> NativeSqlMemoryStore {
         Arc::try_unwrap(self.store).unwrap_or_else(|arc| (*arc).clone())
     }
+
+    pub fn executable_plugin_runtime(&self) -> MemoryExecutablePluginRuntime {
+        build_native_sql_executable_runtime(self.store.clone())
+    }
+}
+
+pub fn build_native_sql_executable_runtime(
+    store: Arc<NativeSqlMemoryStore>,
+) -> MemoryExecutablePluginRuntime {
+    MemoryExecutablePluginRuntime::new(
+        MemoryPluginPorts::new()
+            .with_record_store(store.clone())
+            .with_event_store(store.clone())
+            .with_audit_store(store.clone())
+            .with_outbox_store(store.clone())
+            .with_candidate_store(store.clone())
+            .with_habit_store(store.clone())
+            .with_retrieval_trace_store(store.clone())
+            .with_retriever(store),
+    )
 }
 
 /// Runtime proof that the store exposes every phase-1 required SPI port plus DB readiness.
@@ -60,8 +81,9 @@ pub async fn validate_native_sql_phase1_ports(
     let candidate: &dyn MemoryCandidateStorePort = store;
     let habit: &dyn MemoryHabitStorePort = store;
     let trace: &dyn MemoryRetrievalTraceStorePort = store;
+    let retriever: &dyn MemoryRetrieverPort = store;
 
-    let _ = (record, event, audit, outbox, candidate, habit, trace);
+    let _ = (record, event, audit, outbox, candidate, habit, trace, retriever);
 
     store.ping().await
 }

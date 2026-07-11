@@ -34,6 +34,7 @@ pub struct RetrievalRecordInput {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RetrievalEventInput {
+    pub memory_id: Option<String>,
     pub event_id: String,
     pub payload_text: String,
     pub created_at: String,
@@ -333,7 +334,10 @@ pub fn orchestrate_retrieval_candidates(
                 continue;
             }
             let synthetic = RetrievalRecordInput {
-                memory_id: format!("event:{}", event.event_id),
+                memory_id: event
+                    .memory_id
+                    .clone()
+                    .unwrap_or_else(|| format!("event:{}", event.event_id)),
                 subject: Some("event".to_string()),
                 predicate: Some("mentions".to_string()),
                 object_text: event.payload_text.clone(),

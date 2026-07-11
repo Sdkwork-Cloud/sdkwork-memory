@@ -20,9 +20,9 @@
       "sdkwork.app.config.json",
       "AGENTS.md",
       "specs/component.spec.json",
-      "sdks/sdkwork-memory-sdk/.sdkwork-assembly.json",
-      "sdks/sdkwork-memory-app-sdk/.sdkwork-assembly.json",
-      "sdks/sdkwork-memory-backend-sdk/.sdkwork-assembly.json"
+      "sdks/sdkwork-memory-sdk/sdk-manifest.json",
+      "sdks/sdkwork-memory-app-sdk/sdk-manifest.json",
+      "sdks/sdkwork-memory-backend-sdk/sdk-manifest.json"
     ]
   },
   "canonicalSpecs": [
@@ -301,7 +301,7 @@
   "integration": {
     "authority": "Root SDKWork specs remain authoritative. Local specs may extend but must not contradict them.",
     "memoryPolicy": "Canonical ai_record and ai_event tables are the source of truth; all indexes are derived and rebuildable.",
-    "implementationPolicy": "Memory implementation profiles select native_sql, event_sourced, graph_temporal, search_first, local_embedded, external_provider_bridge, or hybrid_platform without changing app/backend API contracts.",
+    "implementationPolicy": "Memory implementation profiles select native_sql, event_sourced, graph_temporal, search_first, local_embedded, external_provider_bridge, or hybrid_platform without changing app/backend API contracts. Required ports are resolved per plugin binding; reference profiles are evaluation-only until their production deployment qualification is proven.",
     "embeddingPolicy": "Embedding is an optional retriever/index provider, not a required storage dependency.",
     "sdkPolicy": "Generated SDK clients are consumed through generated SDKs or approved composed wrappers; no raw HTTP fallback."
   },

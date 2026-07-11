@@ -11,9 +11,9 @@ path = "src/lib.rs"
 
 [dependencies]
 axum.workspace = true
-tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }
+tokio.workspace = true
 sdkwork-intelligence-memory-service.workspace = true
-sdkwork_routes_memory_app_api = { package = "sdkwork-routes-memory-app-api", path = "../sdkwork-routes-memory-app-api" }
-sdkwork_routes_memory_backend_api = { package = "sdkwork-routes-memory-backend-api", path = "../sdkwork-routes-memory-backend-api" }
-sdkwork_routes_memory_open_api = { package = "sdkwork-routes-memory-open-api", path = "../sdkwork-routes-memory-open-api" }
-sdkwork_routes_memory_support = { package = "sdkwork-routes-memory-support", path = "../sdkwork-routes-memory-support" }
+sdkwork-routes-memory-app-api.workspace = true
+sdkwork-routes-memory-backend-api.workspace = true
+sdkwork-routes-memory-open-api.workspace = true
+sdkwork-routes-memory-support.workspace = true

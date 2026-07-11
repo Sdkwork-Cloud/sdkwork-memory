@@ -35,9 +35,9 @@ Draft contract artifacts:
 - `sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json`
 - `sdks/sdkwork-memory-app-sdk/openapi/memory-app-api.openapi.json`
 - `sdks/sdkwork-memory-backend-sdk/openapi/memory-backend-api.openapi.json`
-- `sdks/sdkwork-memory-sdk/.sdkwork-assembly.json`
-- `sdks/sdkwork-memory-app-sdk/.sdkwork-assembly.json`
-- `sdks/sdkwork-memory-backend-sdk/.sdkwork-assembly.json`
+- `sdks/sdkwork-memory-sdk/sdk-manifest.json`
+- `sdks/sdkwork-memory-app-sdk/sdk-manifest.json`
+- `sdks/sdkwork-memory-backend-sdk/sdk-manifest.json`
 
 Phase 1 verification:
 

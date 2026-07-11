@@ -130,14 +130,14 @@ All L2+ SDKWork-owned custom HTTP contracts, including `app-api`, `backend-api`,
 - **Success output:** `SdkWorkApiResponse` with `{ "code": 0, "data": <payload>, "traceId": "<server-uuid>" }`.
 - **Error output:** HTTP 4xx/5xx `application/problem+json` (`ProblemDetail`) with numeric `code` and `traceId`.
 - Success `code` is numeric `int32`; HTTP 2xx JSON bodies `MUST` use `0` only. REST semantics remain on HTTP status (`201`, `202`, etc.).
-- Platform error codes are numeric non-zero values per section 15.3 (`40001`, `40101`, `40401`, …).
+- Platform error codes are numeric non-zero values per section 15.3 (`40001`, `40101`, `40401`, ...).
 - Single resource: `data.item`
 - Lists: `data.items` + `data.pageInfo` (`PageInfo.mode` is `offset` or `cursor`)
 - Commands: `data.accepted` plus optional `resourceId` / `status`
 - Async accept (`202`): `data.operationId`, `data.status`, optional `pollUrl`
 - Operation patterns: retrieve/list/search/create/update/delete/command/async/bulk semantics follow `API_SPEC.md` section 15.4; create uses `201`, delete uses `204` with no JSON body, and `PUT`/`PATCH` use SDK action `update`.
 
-Vendor compatibility `open-api` routes that mirror upstream tool or provider wire (for example OpenAI `/v1/*`, Anthropic/Claude `/anthropic/v1/*`, Google/Gemini `/google/v1beta/*`, Claude Code, or Codex) `MAY` opt out only when every exempt operation declares operation-level `x-sdkwork-wire-protocol: external` and `x-sdkwork-external-protocol-id` per `API_SPEC.md` section 4.5.2. SDKWork-owned business `open-api` operations `MUST NOT` opt out. Mixed OpenAPI documents are validated per operation; one external operation never exempts SDKWork-owned operations in the same document.
+Vendor compatibility `open-api` routes that mirror upstream tool or provider wire MAY opt out only when every exempt operation declares operation-level `x-sdkwork-wire-protocol: external` and `x-sdkwork-external-protocol-id` per `API_SPEC.md` section 4.5.2. SDKWork-owned business `open-api` operations `MUST NOT` opt out. Mixed OpenAPI documents are validated per operation; one external operation never exempts SDKWork-owned operations in the same document.
 
 Errors `MUST` use HTTP 4xx/5xx with `application/problem+json` (`ProblemDetail`) including required numeric `code` and `traceId`. Business failures `MUST NOT` use HTTP 2xx with non-zero `code`, string wire codes, `success`, or human `message`.
 
@@ -152,7 +152,7 @@ node <sdkwork-specs>/tools/check-api-operation-patterns.mjs --workspace <workspa
 node <sdkwork-specs>/tools/check-api-response-envelope.mjs --workspace <workspace-root>
 ```
 
-Authority: `sdkwork-specs/API_SPEC.md` section 4.5 and sections 14–16, `SDK_SPEC.md` section 4.2, `FRONTEND_SPEC.md`, `MIGRATION_SPEC.md` section 4.2.
+Authority: `sdkwork-specs/API_SPEC.md` section 4.5 and sections 14-16, `SDK_SPEC.md` section 4.2, `FRONTEND_SPEC.md`, `MIGRATION_SPEC.md` section 4.2.
 
 ## Human Review Rules
 

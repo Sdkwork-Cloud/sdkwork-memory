@@ -1,13 +1,26 @@
-use sdkwork_memory_spi::{MemoryImplementationKind, MemoryPluginRegistry, MemorySpiError};
+use sdkwork_memory_spi::{
+    MemoryCoreRuntime, MemoryDeploymentMode, MemoryImplementationKind, MemoryPluginRegistry,
+    MemoryRuntimeProfileMetadata, MemorySpiError,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thiserror::Error;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryProfilePortBinding {
+    pub port: String,
+    pub plugin_id: String,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MemoryImplementationProfileDraft {
     pub profile_id: String,
     pub implementation_kind: MemoryImplementationKind,
     pub primary_plugin_id: String,
+    pub deployment_mode: MemoryDeploymentMode,
+    #[serde(default)]
+    pub port_bindings: Vec<MemoryProfilePortBinding>,
     pub required_ports: Vec<String>,
     pub safe_config_json: Value,
 }
@@ -18,6 +31,8 @@ impl MemoryImplementationProfileDraft {
             profile_id: "native-sql-phase1".to_string(),
             implementation_kind: MemoryImplementationKind::NativeSql,
             primary_plugin_id: "sdkwork-memory-plugin-native-sql".to_string(),
+            deployment_mode: MemoryDeploymentMode::Server,
+            port_bindings: Vec::new(),
             required_ports: native_sql_store_ports(),
             safe_config_json: Value::Object(Default::default()),
         }
@@ -28,6 +43,8 @@ impl MemoryImplementationProfileDraft {
             profile_id: "local-embedded-phase1".to_string(),
             implementation_kind: MemoryImplementationKind::LocalEmbedded,
             primary_plugin_id: "sdkwork-memory-plugin-native-sql".to_string(),
+            deployment_mode: MemoryDeploymentMode::Local,
+            port_bindings: Vec::new(),
             required_ports: native_sql_store_ports(),
             safe_config_json: Value::Object(Default::default()),
         }
@@ -134,6 +151,8 @@ fn reference_profile(
         profile_id: profile_id.to_string(),
         implementation_kind,
         primary_plugin_id: "sdkwork-memory-plugin-reference-profiles".to_string(),
+        deployment_mode: MemoryDeploymentMode::EvalOnly,
+        port_bindings: Vec::new(),
         required_ports,
         safe_config_json: Value::Object(Default::default()),
     }
@@ -165,6 +184,22 @@ pub struct ResolvedMemoryImplementationProfile {
     pub profile_id: String,
     pub implementation_kind: MemoryImplementationKind,
     pub primary_plugin_id: String,
+    pub deployment_mode: MemoryDeploymentMode,
+    pub port_bindings: Vec<MemoryProfilePortBinding>,
+}
+
+impl MemoryImplementationProfileDraft {
+    pub fn with_port_binding(
+        mut self,
+        port: impl Into<String>,
+        plugin_id: impl Into<String>,
+    ) -> Self {
+        self.port_bindings.push(MemoryProfilePortBinding {
+            port: port.into(),
+            plugin_id: plugin_id.into(),
+        });
+        self
+    }
 }
 
 #[derive(Debug)]
@@ -198,18 +233,115 @@ impl<'a> MemoryRuntimeProfileResolver<'a> {
             });
         }
 
+        if !manifest.deployment_modes.contains(&profile.deployment_mode) {
+            return Err(MemoryRuntimeError::DeploymentModeUnsupported {
+                plugin_id: profile.primary_plugin_id,
+                deployment_mode: profile.deployment_mode,
+            });
+        }
+
         reject_literal_secrets(&profile.safe_config_json)?;
 
-        let required_ports: Vec<&str> = profile.required_ports.iter().map(String::as_str).collect();
-        self.registry
-            .validate_required_ports(&profile.primary_plugin_id, &required_ports)
-            .map_err(MemoryRuntimeError::from)?;
+        let mut explicit_bindings = std::collections::HashMap::new();
+        for binding in &profile.port_bindings {
+            if !profile
+                .required_ports
+                .iter()
+                .any(|port| port == &binding.port)
+            {
+                return Err(MemoryRuntimeError::PortBindingNotRequired {
+                    port: binding.port.clone(),
+                });
+            }
+            if explicit_bindings
+                .insert(binding.port.clone(), binding.plugin_id.clone())
+                .is_some()
+            {
+                return Err(MemoryRuntimeError::DuplicatePortBinding(
+                    binding.port.clone(),
+                ));
+            }
+        }
+
+        let mut resolved_bindings = Vec::with_capacity(profile.required_ports.len());
+        for required_port in &profile.required_ports {
+            let plugin_id = explicit_bindings
+                .get(required_port)
+                .cloned()
+                .unwrap_or_else(|| profile.primary_plugin_id.clone());
+            let manifest = self.registry.get(&plugin_id).ok_or_else(|| {
+                if plugin_id == profile.primary_plugin_id {
+                    MemoryRuntimeError::PrimaryPluginMissing(plugin_id.clone())
+                } else {
+                    MemoryRuntimeError::PortBindingPluginMissing {
+                        port: required_port.clone(),
+                        plugin_id: plugin_id.clone(),
+                    }
+                }
+            })?;
+
+            if !manifest.deployment_modes.contains(&profile.deployment_mode) {
+                return Err(MemoryRuntimeError::DeploymentModeUnsupported {
+                    plugin_id,
+                    deployment_mode: profile.deployment_mode.clone(),
+                });
+            }
+            if !manifest
+                .port_exports
+                .iter()
+                .any(|export| export.port == *required_port)
+            {
+                return Err(MemoryRuntimeError::RequiredPortMissing {
+                    plugin_id,
+                    port: required_port.clone(),
+                });
+            }
+
+            resolved_bindings.push(MemoryProfilePortBinding {
+                port: required_port.clone(),
+                plugin_id,
+            });
+        }
 
         Ok(ResolvedMemoryImplementationProfile {
             profile_id: profile.profile_id,
             implementation_kind: profile.implementation_kind,
             primary_plugin_id: profile.primary_plugin_id,
+            deployment_mode: profile.deployment_mode,
+            port_bindings: resolved_bindings,
         })
+    }
+
+    pub fn assemble(
+        &self,
+        profile: &ResolvedMemoryImplementationProfile,
+    ) -> Result<MemoryCoreRuntime, MemoryRuntimeError> {
+        let mut runtime = MemoryCoreRuntime::new(MemoryRuntimeProfileMetadata {
+            profile_id: profile.profile_id.clone(),
+            implementation_kind: profile.implementation_kind.clone(),
+            primary_plugin_id: profile.primary_plugin_id.clone(),
+            deployment_mode: profile.deployment_mode.clone(),
+        });
+
+        for binding in &profile.port_bindings {
+            let executable = self
+                .registry
+                .require_executable_runtime(&binding.plugin_id)
+                .map_err(MemoryRuntimeError::from)?;
+            runtime
+                .bind_port(binding.plugin_id.clone(), &binding.port, executable)
+                .map_err(MemoryRuntimeError::from)?;
+        }
+
+        Ok(runtime)
+    }
+
+    pub fn resolve_executable(
+        &self,
+        profile: MemoryImplementationProfileDraft,
+    ) -> Result<MemoryCoreRuntime, MemoryRuntimeError> {
+        let resolved = self.resolve(profile)?;
+        self.assemble(&resolved)
     }
 }
 
@@ -224,8 +356,23 @@ pub enum MemoryRuntimeError {
         plugin_id: String,
         implementation_kind: String,
     },
+    #[error("memory plugin {plugin_id} does not support deployment mode {deployment_mode:?}")]
+    DeploymentModeUnsupported {
+        plugin_id: String,
+        deployment_mode: MemoryDeploymentMode,
+    },
+    #[error("memory profile binds non-required port {port}")]
+    PortBindingNotRequired { port: String },
+    #[error("memory profile port {port} is bound to missing plugin {plugin_id}")]
+    PortBindingPluginMissing { port: String, plugin_id: String },
+    #[error("memory profile declares duplicate binding for port {0}")]
+    DuplicatePortBinding(String),
     #[error("memory runtime profile is missing required port {port} on plugin {plugin_id}")]
     RequiredPortMissing { plugin_id: String, port: String },
+    #[error("memory plugin has no executable runtime registered: {0}")]
+    ExecutablePluginMissing(String),
+    #[error("memory plugin {plugin_id} has no executable port {port}")]
+    ExecutablePortMissing { plugin_id: String, port: String },
     #[error("memory runtime safe config contains a literal secret-like value at {0}")]
     UnsafeConfigSecret(String),
     #[error("memory runtime SPI error: {0}")]
@@ -237,6 +384,12 @@ impl From<MemorySpiError> for MemoryRuntimeError {
         match value {
             MemorySpiError::RequiredPortMissing { plugin_id, port } => {
                 MemoryRuntimeError::RequiredPortMissing { plugin_id, port }
+            }
+            MemorySpiError::ExecutableRuntimeMissing { plugin_id } => {
+                MemoryRuntimeError::ExecutablePluginMissing(plugin_id)
+            }
+            MemorySpiError::ExecutablePortMissing { plugin_id, port } => {
+                MemoryRuntimeError::ExecutablePortMissing { plugin_id, port }
             }
             other => MemoryRuntimeError::Spi(other.to_string()),
         }

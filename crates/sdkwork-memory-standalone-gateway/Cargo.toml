@@ -17,7 +17,7 @@ name = "sdkwork-memory-standalone-gateway"
 path = "src/main.rs"
 
 [dependencies]
-sdkwork_memory_gateway_assembly = { package = "sdkwork-memory-gateway-assembly", path = "../sdkwork-memory-gateway-assembly" }
+sdkwork-memory-gateway-assembly.workspace = true
 axum.workspace = true
 tokio.workspace = true
 tracing.workspace = true
@@ -34,4 +34,3 @@ tracing-opentelemetry = { version = "0.28", optional = true }
 opentelemetry = { version = "0.27", optional = true }
 opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"], optional = true }
 opentelemetry-otlp = { version = "0.27", features = ["http-proto", "reqwest-client"], optional = true }
-

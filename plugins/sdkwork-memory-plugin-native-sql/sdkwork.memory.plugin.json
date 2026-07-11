@@ -7,7 +7,7 @@
   "version": "0.1.0",
   "owner": "sdkwork-memory",
   "implementationKinds": ["native_sql", "local_embedded"],
-  "pluginRoles": ["implementation", "store"],
+  "pluginRoles": ["implementation", "store", "retriever"],
   "deploymentModes": ["server", "container", "private", "local", "test"],
   "portExports": [
     {
@@ -37,10 +37,14 @@
     {
       "port": "MemoryRetrievalTraceStorePort",
       "builder": "build_native_sql_retrieval_trace_store"
+    },
+    {
+      "port": "MemoryRetrieverPort",
+      "builder": "build_native_sql_retriever"
     }
   ],
   "providerKinds": [],
-  "retrieverKinds": [],
+  "retrieverKinds": ["sql", "keyword", "dictionary", "time", "event"],
   "indexKinds": [],
   "requiredCoreVersion": "0.1.0",
   "secretRefs": [],

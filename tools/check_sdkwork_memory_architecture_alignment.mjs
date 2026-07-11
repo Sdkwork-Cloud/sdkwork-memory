@@ -714,13 +714,15 @@ assert(
 );
 
 const topologySpec = readJson('specs/topology.spec.json');
-assert(topologySpec.schemaVersion === 2, 'specs/topology.spec.json schemaVersion must be 2');
+assert(topologySpec.schemaVersion === 4, 'specs/topology.spec.json schemaVersion must be 4');
 assert(topologySpec.archetype === 'application-http-gateway', 'topology archetype must be application-http-gateway');
-for (const profileId of [
+const defaultProfileIds = [
   topologySpec.defaults?.developmentProfileId,
   topologySpec.defaults?.productionProfileId,
-]) {
-  assert(profileId, 'topology defaults must declare development and production profile ids');
+  topologySpec.defaults?.desktopBuildProfileId,
+];
+for (const profileId of defaultProfileIds) {
+  assert(profileId, 'topology defaults must declare development, production, and desktop build profile ids');
   assert(
     topologySpec.profileFiles?.[profileId],
     `specs/topology.spec.json must declare profileFiles.${profileId}`,
@@ -730,10 +732,12 @@ for (const profileId of [
     `${topologySpec.profileFiles[profileId]} must exist`,
   );
 }
-assert(
-  fs.existsSync(path.join(repoRoot, 'configs/topology/standalone.unified-process.production.env')),
-  'configs/topology/standalone.unified-process.production.env must exist',
-);
+for (const [profileId, profileFile] of Object.entries(topologySpec.profileFiles ?? {})) {
+  assert(
+    fs.existsSync(path.join(repoRoot, profileFile)),
+    `topology profile ${profileId} must resolve existing file ${profileFile}`,
+  );
+}
 assert(
   fs.existsSync(path.join(repoRoot, 'sdks/test/verify-sdk-ownership-boundaries.test.mjs')),
   'sdks/test/verify-sdk-ownership-boundaries.test.mjs must exist',
@@ -846,6 +850,8 @@ for (const specFile of [
 
 const crateComponentSpecs = [
   'crates/sdkwork-memory-contract/specs/component.spec.json',
+  'crates/sdkwork-memory-spi/specs/component.spec.json',
+  'crates/sdkwork-memory-profile-resolver/specs/component.spec.json',
   'crates/sdkwork-routes-memory-support/specs/component.spec.json',
   'crates/sdkwork-intelligence-memory-service/specs/component.spec.json',
   'crates/sdkwork-intelligence-memory-repository-sqlx/specs/component.spec.json',

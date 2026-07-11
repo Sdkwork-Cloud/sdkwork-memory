@@ -9,12 +9,46 @@ const open = JSON.parse(
 );
 
 const operations = Object.values(open.paths).flatMap((pathItem) =>
-  ["get", "post", "patch", "delete"]
+  ["get", "post", "put", "patch", "delete"]
     .filter((method) => pathItem[method])
     .map((method) => pathItem[method]),
 );
 
-assert.equal(operations.length, 17);
+const operationIds = new Set(operations.map((operation) => operation.operationId));
+assert.equal(operationIds.size, operations.length);
+
+const requiredPhase1OperationIds = [
+  "capabilities.retrieve",
+  "events.create",
+  "events.retrieve",
+  "memories.create",
+  "memories.list",
+  "memories.retrieve",
+  "memories.update",
+  "memories.delete",
+  "retrievals.create",
+  "retrievals.retrieve",
+  "contextPacks.create",
+  "contextPacks.retrieve",
+  "feedback.create",
+  "extractions.create",
+  "candidates.list",
+  "candidates.retrieve",
+  "providerHealth.retrieve",
+  "entities.list",
+  "entities.create",
+  "entities.retrieve",
+  "entities.update",
+  "edges.list",
+  "edges.create",
+  "edges.retrieve",
+  "edges.update",
+  "edges.delete",
+];
+for (const operationId of requiredPhase1OperationIds) {
+  assert.ok(operationIds.has(operationId), `missing Phase 1 operation: ${operationId}`);
+}
+
 assert.ok(open.components.securitySchemes.ApiKey);
 assert.ok(!open.components.securitySchemes.AuthToken);
 assert.ok(!open.components.securitySchemes.AccessToken);
@@ -25,7 +59,7 @@ for (const operation of operations) {
 }
 
 for (const [pathKey, pathItem] of Object.entries(open.paths)) {
-  for (const method of ["post", "patch", "delete"]) {
+  for (const method of ["post", "put", "patch", "delete"]) {
     const operation = pathItem[method];
     if (!operation) {
       continue;

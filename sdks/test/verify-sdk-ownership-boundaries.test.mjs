@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -52,18 +52,6 @@ function operationEntries(openapi) {
   return entries;
 }
 
-test("memory SDK family assemblies declare owner-only authority metadata", () => {
-  for (const family of families) {
-    const assemblyPath = path.join("sdks", family.root, ".sdkwork-assembly.json");
-    assert.ok(existsSync(path.join(workspaceRoot, assemblyPath)), `${family.root} must have ${assemblyPath}`);
-
-    const assembly = readJson(assemblyPath);
-    assert.equal(assembly.sdkOwner, family.owner, `${family.root} must declare sdkOwner`);
-    assert.equal(assembly.apiAuthority, family.authority, `${family.root} must declare apiAuthority`);
-    assert.equal(assembly.generationInputSpec, family.input, `${family.root} must generate from owner-only OpenAPI input`);
-  }
-});
-
 test("memory SDK manifests record owner and authority boundaries", () => {
   for (const family of families) {
     const manifest = readJson(path.join("sdks", family.root, family.manifest));
@@ -75,6 +63,11 @@ test("memory SDK manifests record owner and authority boundaries", () => {
       `${family.root} manifest must point at owner-only OpenAPI input`,
     );
     assert.equal(manifest.standardProfile, "sdkwork-v3", `${family.root} manifest must declare standardProfile sdkwork-v3`);
+    assert.equal(
+      manifest.discoverySurface.apiPrefix,
+      manifest.apiPrefix,
+      `${family.root} manifest discovery prefix must match apiPrefix`,
+    );
   }
 });
 

@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.component.spec",
+  "component": {
+    "name": "sdkwork-memory-plugin-native-sql",
+    "displayName": "SDKWork Memory Native SQL Plugin",
+    "version": "0.1.0",
+    "type": "rust-crate",
+    "root": "sdkwork-memory/plugins/sdkwork-memory-plugin-native-sql",
+    "domain": "intelligence",
+    "capability": "memory",
+    "surface": "runtime-plugin",
+    "languages": ["rust"],
+    "generated": false,
+    "status": "active",
+    "manifests": [
+      "Cargo.toml",
+      "sdkwork.memory.plugin.json",
+      "specs/component.spec.json"
+    ]
+  },
+  "canonicalSpecs": [
+    { "file": "SOUL.md", "path": "../../../sdkwork-specs/SOUL.md" },
+    { "file": "COMPONENT_SPEC.md", "path": "../../../sdkwork-specs/COMPONENT_SPEC.md" },
+    { "file": "CODE_STYLE_SPEC.md", "path": "../../../sdkwork-specs/CODE_STYLE_SPEC.md" },
+    { "file": "NAMING_SPEC.md", "path": "../../../sdkwork-specs/NAMING_SPEC.md" },
+    { "file": "MODULE_SPEC.md", "path": "../../../sdkwork-specs/MODULE_SPEC.md" },
+    { "file": "RUST_CODE_SPEC.md", "path": "../../../sdkwork-specs/RUST_CODE_SPEC.md" },
+    { "file": "CONFIG_SPEC.md", "path": "../../../sdkwork-specs/CONFIG_SPEC.md" },
+    { "file": "DEPLOYMENT_SPEC.md", "path": "../../../sdkwork-specs/DEPLOYMENT_SPEC.md" },
+    { "file": "DATABASE_SPEC.md", "path": "../../../sdkwork-specs/DATABASE_SPEC.md" },
+    { "file": "SECURITY_SPEC.md", "path": "../../../sdkwork-specs/SECURITY_SPEC.md" },
+    { "file": "PRIVACY_SPEC.md", "path": "../../../sdkwork-specs/PRIVACY_SPEC.md" },
+    { "file": "TEST_SPEC.md", "path": "../../../sdkwork-specs/TEST_SPEC.md" }
+  ],
+  "contracts": {
+    "layerRole": "backend-provider",
+    "publicExports": ["."],
+    "providedPorts": [
+      {
+        "name": "MemoryRecordStorePort",
+        "export": ".",
+        "canonicalAtomic": true,
+        "journalSideEffects": ["outbox", "audit", "search-index"]
+      },
+      { "name": "MemoryEventStorePort", "export": "." },
+      { "name": "MemoryAuditStorePort", "export": "." },
+      { "name": "MemoryOutboxStorePort", "export": "." },
+      { "name": "MemoryCandidateStorePort", "export": "." },
+      { "name": "MemoryHabitStorePort", "export": "." },
+      { "name": "MemoryRetrievalTraceStorePort", "export": "." },
+      {
+        "name": "MemoryRetrieverPort",
+        "export": ".",
+        "scopeAwareMethod": "search_scoped",
+        "bounded": true,
+        "canonicalRehydration": "service"
+      }
+    ],
+    "requiredPorts": [
+      { "name": "MemoryPluginSpi", "export": ".", "dependency": "sdkwork-memory-spi" }
+    ],
+    "runtimeEntrypoints": [
+      "sdkwork_memory_plugin_native_sql::native_sql_manifest",
+      "sdkwork_memory_plugin_native_sql::build_native_sql_executable_runtime",
+      "sdkwork_memory_plugin_native_sql::build_native_sql_record_store",
+      "sdkwork_memory_plugin_native_sql::build_native_sql_event_store",
+      "sdkwork_memory_plugin_native_sql::build_native_sql_audit_store",
+      "sdkwork_memory_plugin_native_sql::build_native_sql_outbox_store",
+      "sdkwork_memory_plugin_native_sql::build_native_sql_candidate_store",
+      "sdkwork_memory_plugin_native_sql::build_native_sql_habit_store",
+      "sdkwork_memory_plugin_native_sql::build_native_sql_retrieval_trace_store",
+      "sdkwork_memory_plugin_native_sql::build_native_sql_retriever"
+    ],
+    "routeManifest": null,
+    "sdkClients": [],
+    "sdkDependencies": [],
+    "permissionComposition": {},
+    "dependencyApiExports": [],
+    "dependencyApiSurfaces": [],
+    "events": [],
+    "configKeys": [],
+    "runtimePlugin": {
+      "manifest": "sdkwork.memory.plugin.json",
+      "manifestKind": "sdkwork.memory.plugin",
+      "deploymentQualification": {
+        "state": "production-baseline",
+        "eligibleDeploymentProfiles": ["standalone", "cloud"],
+        "eligibleRuntimeTargets": ["server", "container"],
+        "testOnlyModes": ["test"]
+      }
+    }
+  },
+  "verification": {
+    "commands": [
+      "cargo test -p sdkwork-memory-plugin-native-sql",
+      "node --test tests/contracts/runtime_plugin_layout_contract_test.mjs"
+    ]
+  }
+}

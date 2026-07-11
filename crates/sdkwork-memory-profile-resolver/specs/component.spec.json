@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.component.spec",
+  "component": {
+    "name": "sdkwork-memory-profile-resolver",
+    "displayName": "SDKWork Memory Profile Resolver",
+    "version": "0.1.0",
+    "type": "rust-crate",
+    "root": "sdkwork-memory/crates/sdkwork-memory-profile-resolver",
+    "domain": "intelligence",
+    "capability": "memory",
+    "surface": "runtime-composition",
+    "languages": ["rust"],
+    "generated": false,
+    "status": "active",
+    "manifests": ["Cargo.toml", "specs/component.spec.json"]
+  },
+  "canonicalSpecs": [
+    { "file": "SOUL.md", "path": "../../../sdkwork-specs/SOUL.md" },
+    { "file": "COMPONENT_SPEC.md", "path": "../../../sdkwork-specs/COMPONENT_SPEC.md" },
+    { "file": "CODE_STYLE_SPEC.md", "path": "../../../sdkwork-specs/CODE_STYLE_SPEC.md" },
+    { "file": "NAMING_SPEC.md", "path": "../../../sdkwork-specs/NAMING_SPEC.md" },
+    { "file": "MODULE_SPEC.md", "path": "../../../sdkwork-specs/MODULE_SPEC.md" },
+    { "file": "RUST_CODE_SPEC.md", "path": "../../../sdkwork-specs/RUST_CODE_SPEC.md" },
+    {
+      "file": "APPLICATION_LAYERED_ARCHITECTURE_SPEC.md",
+      "path": "../../../sdkwork-specs/APPLICATION_LAYERED_ARCHITECTURE_SPEC.md"
+    },
+    {
+      "file": "COMPOSABLE_ARCHITECTURE_SPEC.md",
+      "path": "../../../sdkwork-specs/COMPOSABLE_ARCHITECTURE_SPEC.md"
+    },
+    { "file": "CONFIG_SPEC.md", "path": "../../../sdkwork-specs/CONFIG_SPEC.md" },
+    { "file": "DEPLOYMENT_SPEC.md", "path": "../../../sdkwork-specs/DEPLOYMENT_SPEC.md" },
+    { "file": "SECURITY_SPEC.md", "path": "../../../sdkwork-specs/SECURITY_SPEC.md" },
+    { "file": "TEST_SPEC.md", "path": "../../../sdkwork-specs/TEST_SPEC.md" }
+  ],
+  "contracts": {
+    "layerRole": "runtime-service-host",
+    "publicExports": ["."],
+    "providedPorts": [
+      { "name": "MemoryRuntimeProfileResolver", "export": "." },
+      { "name": "MemoryCoreRuntimeAssembly", "export": "." }
+    ],
+    "requiredPorts": [
+      { "name": "MemoryPluginSpi", "export": ".", "dependency": "sdkwork-memory-spi" }
+    ],
+    "runtimeEntrypoints": [
+      "sdkwork_memory_profile_resolver::MemoryRuntimeProfileResolver::new",
+      "sdkwork_memory_profile_resolver::MemoryRuntimeProfileResolver::resolve",
+      "sdkwork_memory_profile_resolver::MemoryRuntimeProfileResolver::assemble",
+      "sdkwork_memory_profile_resolver::MemoryRuntimeProfileResolver::resolve_executable"
+    ],
+    "routeManifest": null,
+    "sdkClients": [],
+    "sdkDependencies": [],
+    "permissionComposition": {},
+    "dependencyApiExports": [],
+    "dependencyApiSurfaces": [],
+    "events": [],
+    "configKeys": []
+  },
+  "verification": {
+    "commands": [
+      "cargo test -p sdkwork-memory-profile-resolver",
+      "node ../sdkwork-specs/tools/check-component-port-bindings.mjs --root crates/sdkwork-memory-profile-resolver --strict"
+    ]
+  }
+}

@@ -64,7 +64,7 @@ async fn open_capabilities_route_rejects_missing_context() {
 }
 
 #[test]
-fn open_route_manifest_has_seventeen_operations() {
+fn open_route_manifest_contains_phase1_operations() {
     let manifest = open_route_manifest();
     assert!(manifest
         .match_route("GET", "/mem/v3/api/memory/capabilities")

@@ -1,5 +1,21 @@
 use sdkwork_memory_contract::{MemoryServiceError, MemoryServiceErrorKind};
 use sdkwork_memory_plugin_native_sql::NativeSqlStoreError;
+use sdkwork_memory_spi::MemorySpiError;
+
+pub fn map_memory_spi_error(error: MemorySpiError) -> MemoryServiceError {
+    if let MemorySpiError::IdempotencyConflict { .. } = error {
+        return MemoryServiceError::conflict(
+            "resource already exists with a different idempotent payload",
+        );
+    }
+
+    tracing::error!(error = %error, "memory runtime port operation failed");
+    MemoryServiceError {
+        kind: MemoryServiceErrorKind::Storage,
+        code: "storage_error".to_string(),
+        detail: "internal storage error".to_string(),
+    }
+}
 
 pub fn map_native_sql_store_error(error: NativeSqlStoreError) -> MemoryServiceError {
     if let NativeSqlStoreError::EventConflict { .. } = error {
@@ -51,5 +67,23 @@ mod tests {
             outbox_id: "ob-1".to_string(),
         });
         assert_eq!(mapped.kind, MemoryServiceErrorKind::Conflict);
+    }
+
+    #[test]
+    fn maps_spi_idempotency_conflict_to_http_conflict() {
+        let mapped = map_memory_spi_error(MemorySpiError::IdempotencyConflict {
+            idempotency_key: "idem-1".to_string(),
+        });
+        assert_eq!(mapped.kind, MemoryServiceErrorKind::Conflict);
+    }
+
+    #[test]
+    fn hides_spi_port_failure_details() {
+        let mapped = map_memory_spi_error(MemorySpiError::PortOperationFailed {
+            port: "MemoryRecordStorePort".to_string(),
+            message: "database password leaked by provider".to_string(),
+        });
+        assert_eq!(mapped.kind, MemoryServiceErrorKind::Storage);
+        assert_eq!(mapped.detail, "internal storage error");
     }
 }

@@ -98,8 +98,9 @@ async fn reference_runtime_round_trips_core_ports_and_retrieves_by_keyword() {
     .await
     .unwrap()
     .unwrap();
-    let hits = MemoryRetrieverPort::retrieve(
+    let hits = MemoryRetrieverPort::retrieve_scoped(
         &runtime,
+        scope.clone(),
         RetrieveMemoryCandidatesCommand {
             query: "keyword".to_string(),
         },
@@ -166,8 +167,9 @@ async fn reference_runtime_outbox_context_eval_and_bridge_fail_closed_are_determ
     .await
     .unwrap()
     .unwrap();
-    let context = MemoryContextAssemblerPort::assemble(
+    let context = MemoryContextAssemblerPort::assemble_scoped(
         &runtime,
+        scope.clone(),
         AssembleMemoryContextCommand {
             memory_ids: vec!["rec-context".to_string()],
         },
@@ -188,12 +190,10 @@ async fn reference_runtime_outbox_context_eval_and_bridge_fail_closed_are_determ
 
     assert_eq!(pending.len(), 1);
     assert_eq!(published.publish_state, "published");
-    assert!(
-        published
-            .published_at
-            .as_deref()
-            .is_some_and(|value| value.ends_with('Z'))
-    );
+    assert!(published
+        .published_at
+        .as_deref()
+        .is_some_and(|value| value.ends_with('Z')));
     assert_eq!(context.context_text, "context line");
     assert_eq!(eval.eval_type, "baseline");
     assert!(bridge_error
@@ -332,6 +332,7 @@ async fn reference_runtime_round_trips_learning_and_trace_ports_by_scope() {
             hits: vec![MemoryRetrievalHitDraft {
                 hit_id: "hit-reference".to_string(),
                 memory_id: Some("rec-trace".to_string()),
+                space_id: Some(tenant_one.space_id),
                 retriever_name: "reference_keyword".to_string(),
                 result_rank: 1,
                 raw_score: Some(0.9),
@@ -415,4 +416,136 @@ async fn reference_runtime_round_trips_learning_and_trace_ports_by_scope() {
     .await
     .unwrap()
     .is_none());
+}
+
+#[tokio::test]
+async fn reference_retrieval_and_context_assembly_are_isolated_by_tenant_and_space() {
+    let runtime = ReferenceMemoryRuntime::new();
+    let tenant_one = MemoryScopeContext::for_test(1, 10);
+    let tenant_two = MemoryScopeContext::for_test(2, 10);
+    let tenant_one_other_space = MemoryScopeContext::for_test(1, 20);
+
+    for (scope, memory_id, content) in [
+        (
+            tenant_one.clone(),
+            "rec-tenant-one",
+            "shared isolation keyword tenant one",
+        ),
+        (
+            tenant_two.clone(),
+            "rec-tenant-two",
+            "shared isolation keyword tenant two",
+        ),
+        (
+            tenant_one_other_space.clone(),
+            "rec-other-space",
+            "shared isolation keyword other space",
+        ),
+    ] {
+        MemoryRecordStorePort::create(
+            &runtime,
+            CreateMemoryRecordCommand {
+                scope,
+                memory_id: memory_id.to_string(),
+                content: content.to_string(),
+            },
+        )
+        .await
+        .unwrap();
+    }
+
+    let tenant_one_hits = MemoryRetrieverPort::retrieve_scoped(
+        &runtime,
+        tenant_one.clone(),
+        RetrieveMemoryCandidatesCommand {
+            query: "isolation keyword".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(tenant_one_hits.memory_ids, vec!["rec-tenant-one"]);
+
+    let tenant_two_hits = MemoryRetrieverPort::retrieve_scoped(
+        &runtime,
+        tenant_two.clone(),
+        RetrieveMemoryCandidatesCommand {
+            query: "isolation keyword".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(tenant_two_hits.memory_ids, vec!["rec-tenant-two"]);
+
+    let other_space_hits = MemoryRetrieverPort::retrieve_scoped(
+        &runtime,
+        tenant_one_other_space.clone(),
+        RetrieveMemoryCandidatesCommand {
+            query: "isolation keyword".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(other_space_hits.memory_ids, vec!["rec-other-space"]);
+
+    let tenant_one_context = MemoryContextAssemblerPort::assemble_scoped(
+        &runtime,
+        tenant_one,
+        AssembleMemoryContextCommand {
+            memory_ids: vec![
+                "rec-tenant-one".to_string(),
+                "rec-tenant-two".to_string(),
+                "rec-other-space".to_string(),
+            ],
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        tenant_one_context.context_text,
+        "shared isolation keyword tenant one"
+    );
+    assert_eq!(tenant_one_context.memory_ids, vec!["rec-tenant-one"]);
+
+    let tenant_two_context = MemoryContextAssemblerPort::assemble_scoped(
+        &runtime,
+        tenant_two,
+        AssembleMemoryContextCommand {
+            memory_ids: vec![
+                "rec-tenant-one".to_string(),
+                "rec-tenant-two".to_string(),
+                "rec-other-space".to_string(),
+            ],
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        tenant_two_context.context_text,
+        "shared isolation keyword tenant two"
+    );
+    assert_eq!(tenant_two_context.memory_ids, vec!["rec-tenant-two"]);
+
+    let unscoped_retrieval_error = MemoryRetrieverPort::retrieve(
+        &runtime,
+        RetrieveMemoryCandidatesCommand {
+            query: "isolation keyword".to_string(),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert!(unscoped_retrieval_error
+        .to_string()
+        .contains("use retrieve_scoped"));
+
+    let unscoped_context_error = MemoryContextAssemblerPort::assemble(
+        &runtime,
+        AssembleMemoryContextCommand {
+            memory_ids: vec!["rec-tenant-one".to_string()],
+        },
+    )
+    .await
+    .unwrap_err();
+    assert!(unscoped_context_error
+        .to_string()
+        .contains("use assemble_scoped"));
 }

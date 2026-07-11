@@ -46,6 +46,6 @@ fn context_pack_builder_respects_token_budget_without_embeddings() {
     let (pack, tokens, truncated) = build_context_pack_from_hits(&hits, 8);
     assert!(tokens <= 8 || truncated);
     assert_eq!(pack["embeddingOptional"], true);
-    assert!(pack["fragments"].as_array().unwrap().len() >= 1);
+    assert!(!pack["fragments"].as_array().unwrap().is_empty());
     assert!(estimate_tokens("hello world") >= 2);
 }

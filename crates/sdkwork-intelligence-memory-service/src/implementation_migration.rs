@@ -15,6 +15,7 @@ pub async fn execute_implementation_profile_migration(
     store: &NativeSqlMemoryStore,
     tenant_id: i64,
     request: &MemoryMigrationJobRequest,
+    active_runtime_profile_id: &str,
 ) -> MemoryServiceResult<serde_json::Value> {
     store
         .ensure_default_implementation_profile_for_tenant(tenant_id)
@@ -70,6 +71,9 @@ pub async fn execute_implementation_profile_migration(
             "sourceRole": source.role,
             "targetRole": target.role,
             "shadow": mode == "shadow",
+            "migrationScope": "control_plane_only",
+            "liveRuntimeCutover": false,
+            "activeRuntimeProfileId": active_runtime_profile_id,
         }));
     }
 
@@ -97,5 +101,83 @@ pub async fn execute_implementation_profile_migration(
         "implementationKind": target.implementation_kind,
         "rebuiltRecords": rebuilt,
         "migrated": true,
+        "migrationScope": "control_plane_only",
+        "liveRuntimeCutover": false,
+        "activeRuntimeProfileId": active_runtime_profile_id,
+        "requiresRuntimeCutover": true,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    async fn migration_store() -> NativeSqlMemoryStore {
+        let store = NativeSqlMemoryStore::new_in_memory_sqlite()
+            .await
+            .expect("migration test store must open");
+        store
+            .ensure_default_implementation_profile_for_tenant(1)
+            .await
+            .unwrap();
+        store
+            .insert_mem_implementation_profile(
+                1,
+                "2",
+                "search-first-eval",
+                "search_first",
+                "shadow",
+                "active",
+                r#"{"keyword":true}"#,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        store
+    }
+
+    fn request(mode: &str) -> MemoryMigrationJobRequest {
+        MemoryMigrationJobRequest {
+            source_implementation_profile_id: 1,
+            target_implementation_profile_id: 2,
+            mode: mode.to_string(),
+            space_ids: None,
+            dry_run: None,
+            metadata: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn shadow_result_never_claims_live_runtime_cutover() {
+        let store = migration_store().await;
+        let result = execute_implementation_profile_migration(
+            &store,
+            1,
+            &request("shadow"),
+            "local-embedded-phase1",
+        )
+        .await
+        .unwrap();
+        assert_eq!(result["migrationScope"], "control_plane_only");
+        assert_eq!(result["liveRuntimeCutover"], false);
+        assert_eq!(result["activeRuntimeProfileId"], "local-embedded-phase1");
+    }
+
+    #[tokio::test]
+    async fn switch_result_distinguishes_metadata_promotion_from_runtime_cutover() {
+        let store = migration_store().await;
+        let result = execute_implementation_profile_migration(
+            &store,
+            1,
+            &request("switch"),
+            "local-embedded-phase1",
+        )
+        .await
+        .unwrap();
+        assert_eq!(result["migrated"], true);
+        assert_eq!(result["migrationScope"], "control_plane_only");
+        assert_eq!(result["liveRuntimeCutover"], false);
+        assert_eq!(result["requiresRuntimeCutover"], true);
+    }
 }

@@ -6,16 +6,35 @@ use sdkwork_memory_plugin_native_sql::{
 use sdkwork_memory_spi::{
     AppendMemoryAuditCommand, AppendMemoryEventCommand, AppendMemoryOutboxCommand,
     AppendMemoryRetrievalTraceCommand, ApproveMemoryCandidateCommand, CreateMemoryCandidateCommand,
-    CreateMemoryRecordCommand, DecayMemoryHabitCommand, DeleteMemoryRecordCommand,
+    CreateCanonicalMemoryCommand, CreateMemoryRecordCommand, DecayMemoryHabitCommand,
+    DeleteCanonicalMemoryCommand, DeleteMemoryRecordCommand,
     ListMemoryRetrievalTracesQuery, ListPendingMemoryOutboxQuery, MarkMemoryOutboxFailedCommand,
     MarkMemoryOutboxPublishedCommand, MemoryAuditStorePort, MemoryCandidateStorePort,
-    MemoryContextPackSnapshot, MemoryEventStorePort, MemoryHabitStorePort, MemoryOutboxStorePort,
-    MemoryRecordStorePort, MemoryRetrievalHitDraft, MemoryRetrievalTraceStorePort,
+    MemoryContextPackSnapshot, MemoryEventStorePort, MemoryHabitStorePort, MemoryMutationJournal,
+    MemoryOutboxStorePort, MemoryRecordStorePort, MemoryRetrievalHitDraft,
+    MemoryRetrievalTraceStorePort,
     MemoryScopeContext, MemorySpiError, PromoteMemoryHabitCommand, RejectMemoryCandidateCommand,
-    RetrieveMemoryAuditQuery, RetrieveMemoryCandidateQuery, RetrieveMemoryEventQuery,
-    RetrieveMemoryHabitQuery, RetrieveMemoryOutboxQuery, RetrieveMemoryRecordQuery,
-    RetrieveMemoryRetrievalTraceQuery, UpsertMemoryHabitCommand,
+    RetrieveCanonicalMemoryQuery, RetrieveMemoryAuditQuery, RetrieveMemoryCandidateQuery,
+    RetrieveMemoryEventQuery, RetrieveMemoryHabitQuery, RetrieveMemoryOutboxQuery,
+    RetrieveMemoryRecordQuery, RetrieveMemoryRetrievalTraceQuery, UpdateCanonicalMemoryCommand,
+    UpsertMemoryHabitCommand,
 };
+
+fn mutation_journal(memory_id: &str, suffix: &str) -> MemoryMutationJournal {
+    MemoryMutationJournal {
+        outbox_id: format!("outbox-{suffix}"),
+        aggregate_type: "memory_record".to_string(),
+        aggregate_id: memory_id.to_string(),
+        event_type: format!("memory.record.{suffix}"),
+        event_version: "1.0".to_string(),
+        payload_json: format!(r#"{{"memoryId":"{memory_id}"}}"#),
+        audit_id: format!("audit-{suffix}"),
+        audit_action: format!("memory.record.{suffix}"),
+        audit_resource_type: "memory_record".to_string(),
+        audit_resource_id: memory_id.to_string(),
+        audit_result: "accepted".to_string(),
+    }
+}
 
 fn assert_utc_timestamp(value: Option<&str>) {
     let Some(text) = value else {
@@ -46,7 +65,7 @@ fn candidate_command(
     candidate_id: &str,
 ) -> CreateMemoryCandidateCommand {
     CreateMemoryCandidateCommand {
-        scope,
+        scope: scope.clone(),
         candidate_id: candidate_id.to_string(),
         candidate_type: "observation".to_string(),
         memory_type: "semantic".to_string(),
@@ -82,7 +101,7 @@ fn retrieval_trace_command(
     trace_id: &str,
 ) -> AppendMemoryRetrievalTraceCommand {
     AppendMemoryRetrievalTraceCommand {
-        scope,
+        scope: scope.clone(),
         trace_id: trace_id.to_string(),
         actor_id: Some("user-42".to_string()),
         query_text: Some("concise answer preference".to_string()),
@@ -95,6 +114,7 @@ fn retrieval_trace_command(
             MemoryRetrievalHitDraft {
                 hit_id: format!("{trace_id}-hit-1"),
                 memory_id: Some("rec-trace-1".to_string()),
+                space_id: Some(scope.space_id),
                 retriever_name: "native_sql".to_string(),
                 result_rank: 1,
                 raw_score: Some(0.75),
@@ -105,6 +125,7 @@ fn retrieval_trace_command(
             MemoryRetrievalHitDraft {
                 hit_id: format!("{trace_id}-hit-2"),
                 memory_id: None,
+                space_id: None,
                 retriever_name: "native_sql".to_string(),
                 result_rank: 2,
                 raw_score: Some(0.5),
@@ -153,6 +174,131 @@ async fn new_contract_store() -> NativeSqlMemoryStore {
         .expect("contract sqlite store must initialize");
     seed_contract_spaces(&store).await;
     store
+}
+
+#[tokio::test]
+async fn sqlite_canonical_atomic_mutations_journal_and_suppress_stale_fts() {
+    let store = new_contract_store().await;
+    let scope = MemoryScopeContext::for_test(1, 1);
+    assert!(store.supports_canonical_atomic());
+
+    let created = MemoryRecordStorePort::create_canonical_atomic(
+        &store,
+        CreateCanonicalMemoryCommand {
+            scope: scope.clone(),
+            memory_id: "canonical-1".to_string(),
+            scope_label: "user".to_string(),
+            memory_type: "semantic".to_string(),
+            subject: Some("user".to_string()),
+            predicate: Some("prefers".to_string()),
+            object_text: "dark mode".to_string(),
+            canonical_text: "User prefers dark mode".to_string(),
+            sensitivity_level: "internal".to_string(),
+            journal: mutation_journal("canonical-1", "created"),
+        },
+    )
+    .await
+    .expect("canonical create must commit");
+    assert_eq!(created.version, 1);
+    assert_eq!(created.canonical_text, "User prefers dark mode");
+
+    let loaded = MemoryRecordStorePort::retrieve_canonical(
+        &store,
+        RetrieveCanonicalMemoryQuery {
+            scope: scope.clone(),
+            memory_id: "canonical-1".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(loaded.memory_id, "canonical-1");
+    assert_eq!(loaded.version, 1);
+
+    let create_outbox = MemoryOutboxStorePort::retrieve(
+        &store,
+        RetrieveMemoryOutboxQuery {
+            scope: scope.clone(),
+            outbox_id: "outbox-created".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(create_outbox.aggregate_id, "canonical-1");
+    let create_audit = MemoryAuditStorePort::retrieve(
+        &store,
+        RetrieveMemoryAuditQuery {
+            scope: scope.clone(),
+            audit_id: "audit-created".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(create_audit.resource_id, "canonical-1");
+
+    let updated = MemoryRecordStorePort::update_canonical_atomic(
+        &store,
+        UpdateCanonicalMemoryCommand {
+            scope: scope.clone(),
+            memory_id: "canonical-1".to_string(),
+            canonical_text: Some("User prefers light mode".to_string()),
+            subject: Some("account".to_string()),
+            journal: mutation_journal("canonical-1", "updated"),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(updated.version, 2);
+    assert_eq!(updated.subject.as_deref(), Some("account"));
+
+    let updated_hits = store
+        .search_record_details_fulltext(&scope, "light mode", 5)
+        .await
+        .unwrap();
+    assert_eq!(updated_hits.len(), 1);
+
+    let receipt = MemoryRecordStorePort::delete_canonical_atomic(
+        &store,
+        DeleteCanonicalMemoryCommand {
+            scope: scope.clone(),
+            memory_id: "canonical-1".to_string(),
+            journal: mutation_journal("canonical-1", "deleted"),
+        },
+    )
+    .await
+    .unwrap();
+    assert!(receipt.deleted);
+    assert!(!receipt.already_deleted);
+    assert!(MemoryRecordStorePort::retrieve_canonical(
+        &store,
+        RetrieveCanonicalMemoryQuery {
+            scope: scope.clone(),
+            memory_id: "canonical-1".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .is_none());
+    assert!(store
+        .search_record_details_fulltext(&scope, "light mode", 5)
+        .await
+        .unwrap()
+        .is_empty());
+
+    let delete_outbox = MemoryOutboxStorePort::retrieve(
+        &store,
+        RetrieveMemoryOutboxQuery {
+            scope,
+            outbox_id: "outbox-deleted".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(delete_outbox.event_type, "memory.record.deleted");
 }
 
 #[tokio::test]

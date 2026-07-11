@@ -154,6 +154,7 @@ async fn postgres_store_persists_retrieval_trace_boolean_fields() {
             hits: vec![MemoryRetrievalHitDraft {
                 hit_id: "pg-trace-bool-hit-1".to_string(),
                 memory_id: Some("pg-trace-rec".to_string()),
+                space_id: Some(scope.space_id),
                 retriever_name: "native_sql".to_string(),
                 result_rank: 1,
                 raw_score: Some(0.75),

@@ -6,9 +6,9 @@ license.workspace = true
 
 [dependencies]
 async-trait.workspace = true
-sdkwork-memory-spi = { path = "../../crates/sdkwork-memory-spi" }
-sdkwork-database-config = { path = "../../../sdkwork-database/crates/sdkwork-database-config", package = "sdkwork-database-config" }
-sdkwork-database-sqlx = { path = "../../../sdkwork-database/crates/sdkwork-database-sqlx", package = "sdkwork-database-sqlx" }
+sdkwork-memory-spi.workspace = true
+sdkwork-database-config.workspace = true
+sdkwork-database-sqlx.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sdkwork-utils-rust.workspace = true

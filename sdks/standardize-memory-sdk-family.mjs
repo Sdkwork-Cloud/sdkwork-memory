@@ -17,6 +17,7 @@ const families = [
     input: "openapi/memory-open-api.openapi.json",
     packageName: "@sdkwork/memory-sdk",
     apiPrefix: "/mem/v3/api",
+    schemaUrl: "/mem/v3/openapi.json",
     clientName: "SdkworkMemoryOpenClient",
     forbiddenPathPrefixes: ["/app/v3/api/", "/backend/v3/api/"],
   },
@@ -26,6 +27,7 @@ const families = [
     input: "openapi/memory-app-api.openapi.json",
     packageName: "@sdkwork/memory-app-sdk",
     apiPrefix: "/app/v3/api",
+    schemaUrl: "/app/v3/openapi.json",
     clientName: "SdkworkMemoryAppClient",
     forbiddenPathPrefixes: ["/backend/v3/api/", "/mem/v3/api/"],
   },
@@ -35,6 +37,7 @@ const families = [
     input: "openapi/memory-backend-api.openapi.json",
     packageName: "@sdkwork/memory-backend-sdk",
     apiPrefix: "/backend/v3/api",
+    schemaUrl: "/backend/v3/openapi.json",
     clientName: "SdkworkMemoryBackendClient",
     forbiddenPathPrefixes: ["/app/v3/api/", "/mem/v3/api/"],
   },
@@ -47,21 +50,24 @@ function readJson(relativePath) {
 const failures = [];
 
 for (const family of families) {
-  const assembly = readJson(path.join(family.root, ".sdkwork-assembly.json"));
   const manifest = readJson(path.join(family.root, "sdk-manifest.json"));
   const component = readJson(path.join(family.root, "specs/component.spec.json"));
 
-  if (assembly.sdkOwner !== owner) {
-    failures.push(`${family.root} assembly sdkOwner must be ${owner}`);
-  }
   if (manifest.sdkOwner !== owner) {
     failures.push(`${family.root} manifest sdkOwner must be ${owner}`);
   }
-  if (assembly.apiAuthority !== family.authority || manifest.apiAuthority !== family.authority) {
+  if (manifest.apiAuthority !== family.authority) {
     failures.push(`${family.root} apiAuthority mismatch`);
   }
-  if (assembly.generationInputSpec !== family.input || manifest.generationInputSpec !== family.input) {
+  if (manifest.generationInputSpec !== family.input) {
     failures.push(`${family.root} generationInputSpec mismatch`);
+  }
+  if (
+    manifest.apiPrefix !== family.apiPrefix
+    || manifest.discoverySurface?.apiPrefix !== family.apiPrefix
+    || manifest.discoverySurface?.schemaUrl !== family.schemaUrl
+  ) {
+    failures.push(`${family.root} discovery surface mismatch`);
   }
   if (manifest.standardProfile !== "sdkwork-v3") {
     failures.push(`${family.root} must declare standardProfile sdkwork-v3`);

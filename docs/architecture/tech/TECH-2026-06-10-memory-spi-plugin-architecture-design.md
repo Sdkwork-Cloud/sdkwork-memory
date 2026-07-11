@@ -11,13 +11,14 @@ The goal is a memory system that supports a practical no-embedding native SQL ba
 
 ## 2. Current Repository State
 
-Status: Active — aligned with implementation as of 2026-07-06.
+Status: Active; aligned with implementation as of 2026-07-11.
 
 The repository is a runnable Rust workspace with native SQL storage, commercial management APIs, and generated SDK families:
 
-- **Runtime:** `sdkwork-memory-standalone-gateway` bootstraps `OpenMemoryService` via `assemble_application_business_router` (production path). Trait-only `gateway_mount` remains for contract tests only.
-- **Storage:** `sdkwork-memory-plugin-native-sql` implements SPI ports with symmetric PostgreSQL/SQLite migrations, FTS (`predicate` column on SQLite), scoped index rebuild, and store-level cursor pagination.
-- **Service:** `sdkwork-intelligence-memory-service` owns access control, commercial APIs, retrieval orchestration, background jobs, and implementation profile migration.
+- **Runtime:** `sdkwork-memory-standalone-gateway` resolves a typed profile, registers executable plugin ports, assembles `MemoryCoreRuntime`, and injects the validated native SQL composition into `OpenMemoryService` before mounting `assemble_application_business_router`.
+- **Storage:** `sdkwork-memory-plugin-native-sql` implements and materializes the production SPI ports with symmetric PostgreSQL/SQLite migrations, FTS (`predicate` column on SQLite), scoped index rebuild, and store-level cursor pagination.
+- **Evaluation implementations:** `sdkwork-memory-plugin-reference-profiles` materializes typed ports for event-sourced, search-first, graph-temporal, external-bridge, and hybrid conformance profiles. Scope-aware retrieval and context assembly require explicit tenant/space context and reject unscoped fallback. Its deployment qualification remains `test`/`eval_only`, not production.
+- **Service:** `sdkwork-intelligence-memory-service` owns access control, commercial APIs, retrieval orchestration, background jobs, and implementation profile migration. Its `MemoryRuntimeDataPlane` now validates the complete Phase-1 port set plus atomic canonical-mutation support at startup. Canonical create/update/delete, candidate, habit, audit, outbox, and retrieval-trace operations dispatch through the resolved typed runtime; Native SQL keeps record, audit, and outbox writes in one transaction and suppresses stale FTS entries on delete.
 - **APIs:** Open, App, and Backend route crates expose typed handlers with `SdkWorkApiResponse` envelopes and `PAGINATION_SPEC.md` compliance.
 - **Verification:** `pnpm verify`, `cargo test --workspace`, `pnpm check:pagination`, `pnpm check:api-envelope`.
 
@@ -26,7 +27,9 @@ Authoritative current-state summary for commercial landing: `docs/architecture/t
 Remaining SPI roadmap (not blocking L2+ landing):
 
 - Vector/embedding retriever plugin port (embedding-optional product stance).
-- Runnable reference implementation profiles beyond catalog metadata.
+- Move canonical record/event transactions, governance/access checks, privacy flows, control-plane repositories, workers, and rich retrieval from concrete `NativeSqlMemoryStore` methods into service-owned coarse-grained ports. The typed runtime already owns candidate, habit, audit, outbox, retrieval-trace, scoped reference retrieval, and scoped context-assembly paths, but non-SQL profiles are not yet complete HTTP production data planes.
+- Add canonical-to-derived synchronization and deletion/stale-index conformance for cross-plugin hybrid profiles.
+- Connect backend profile migration/control-plane APIs to executable runtime cutover; until then they must not be treated as proof that the live HTTP data plane switched implementations.
 - Dynamic plugin loading and backend plugin-list APIs (static registration is production baseline for 0.1.x).
 
 ## 2.1 Original Pre-Implementation Review (Historical)
@@ -179,6 +182,15 @@ Runtime profile resolution must fail before serving traffic when:
 - A same-process plugin lacks executable integration entrypoints.
 - A plugin config contains secrets instead of secret references.
 - A migration or external bridge requires shadow/audit support but the plugin manifest does not provide it.
+
+Port ownership is resolved independently for every required port. The
+`primaryPluginId` identifies the implementation family, while optional
+`portBindings` may delegate individual stores, retrievers, indexes, providers,
+context assemblers, or evaluation ports to other registered plugins. Every
+bound plugin must be present, support the selected deployment mode, and export
+the requested port. This is the composition rule used by `hybrid_platform`;
+it prevents a profile from appearing healthy merely because one plugin happens
+to declare a broad capability list.
 
 ## 7. SPI Port Families
 
@@ -902,4 +914,3 @@ These decisions are fixed for the first runtime landing so implementation can st
 8. Migrations and provider switches produce evidence before cutover.
 9. Static scans can distinguish runtime Memory plugins under `plugins/` from agent workspace plugins under `.sdkwork/plugins/`.
 10. SDKWork Phase 1 verification continues to pass after the SPI design is added.
-

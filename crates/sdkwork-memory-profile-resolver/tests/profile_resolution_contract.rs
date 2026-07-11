@@ -1,7 +1,9 @@
 use sdkwork_memory_profile_resolver::{
     MemoryImplementationProfileDraft, MemoryRuntimeError, MemoryRuntimeProfileResolver,
 };
-use sdkwork_memory_spi::{MemoryImplementationKind, MemoryPluginManifest, MemoryPluginRegistry};
+use sdkwork_memory_spi::{
+    MemoryDeploymentMode, MemoryImplementationKind, MemoryPluginManifest, MemoryPluginRegistry,
+};
 
 fn registry_with_native_sql() -> MemoryPluginRegistry {
     let mut registry = MemoryPluginRegistry::default();
@@ -33,6 +35,20 @@ fn native_sql_profile_resolves_when_plugin_is_registered() {
         resolved.primary_plugin_id,
         "sdkwork-memory-plugin-native-sql"
     );
+    assert_eq!(resolved.deployment_mode, MemoryDeploymentMode::Server);
+}
+
+#[test]
+fn local_embedded_profile_resolves_only_for_local_deployment() {
+    let registry = registry_with_native_sql();
+    let profile = MemoryImplementationProfileDraft::local_embedded_phase1();
+
+    let resolved = MemoryRuntimeProfileResolver::new(&registry)
+        .resolve(profile)
+        .unwrap();
+
+    assert_eq!(resolved.profile_id, "local-embedded-phase1");
+    assert_eq!(resolved.deployment_mode, MemoryDeploymentMode::Local);
 }
 
 #[test]
@@ -112,6 +128,13 @@ fn phase1_family_profiles_resolve_when_baseline_plugins_are_registered() {
             "phase1 family profiles must include {implementation_kind:?}"
         );
     }
+
+    for profile in resolved
+        .iter()
+        .filter(|profile| profile.primary_plugin_id == "sdkwork-memory-plugin-reference-profiles")
+    {
+        assert_eq!(profile.deployment_mode, MemoryDeploymentMode::EvalOnly);
+    }
 }
 
 #[test]
@@ -157,4 +180,104 @@ fn profile_rejects_safe_config_that_contains_literal_secret_values() {
         .unwrap_err();
 
     assert!(matches!(err, MemoryRuntimeError::UnsafeConfigSecret(_)));
+}
+
+#[test]
+fn reference_profile_cannot_be_promoted_to_server_without_production_plugin_support() {
+    let registry = registry_with_phase1_baselines();
+    let mut profile = MemoryImplementationProfileDraft::search_first_phase1();
+    profile.deployment_mode = MemoryDeploymentMode::Server;
+
+    let err = MemoryRuntimeProfileResolver::new(&registry)
+        .resolve(profile)
+        .unwrap_err();
+
+    assert!(matches!(
+        err,
+        MemoryRuntimeError::DeploymentModeUnsupported {
+            deployment_mode: MemoryDeploymentMode::Server,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn hybrid_profile_can_compose_required_ports_across_plugins() {
+    let registry = registry_with_phase1_baselines();
+    let native_sql = "sdkwork-memory-plugin-native-sql";
+    let mut profile = MemoryImplementationProfileDraft::hybrid_platform_phase1();
+    profile.deployment_mode = MemoryDeploymentMode::Test;
+    let profile = profile
+        .with_port_binding("MemoryRecordStorePort", native_sql)
+        .with_port_binding("MemoryEventStorePort", native_sql)
+        .with_port_binding("MemoryAuditStorePort", native_sql)
+        .with_port_binding("MemoryOutboxStorePort", native_sql)
+        .with_port_binding("MemoryCandidateStorePort", native_sql)
+        .with_port_binding("MemoryHabitStorePort", native_sql)
+        .with_port_binding("MemoryRetrievalTraceStorePort", native_sql);
+
+    let resolved = MemoryRuntimeProfileResolver::new(&registry)
+        .resolve(profile)
+        .expect("hybrid profile should compose ports from both baseline plugins");
+
+    assert_eq!(resolved.deployment_mode, MemoryDeploymentMode::Test);
+    assert!(resolved
+        .port_bindings
+        .iter()
+        .filter(|binding| binding.plugin_id == native_sql)
+        .count()
+        >= 7);
+    assert!(resolved.port_bindings.iter().any(|binding| {
+        binding.port == "MemoryRetrieverPort"
+            && binding.plugin_id == "sdkwork-memory-plugin-reference-profiles"
+    }));
+}
+
+#[test]
+fn profile_rejects_unknown_or_duplicate_port_bindings() {
+    let registry = registry_with_phase1_baselines();
+
+    let profile = MemoryImplementationProfileDraft::native_sql_phase1()
+        .with_port_binding("MemoryPolicyStorePort", "sdkwork-memory-plugin-native-sql");
+    let err = MemoryRuntimeProfileResolver::new(&registry)
+        .resolve(profile)
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        MemoryRuntimeError::PortBindingNotRequired { .. }
+    ));
+
+    let profile = MemoryImplementationProfileDraft::native_sql_phase1()
+        .with_port_binding(
+            "MemoryRecordStorePort",
+            "sdkwork-memory-plugin-native-sql",
+        )
+        .with_port_binding(
+            "MemoryRecordStorePort",
+            "sdkwork-memory-plugin-native-sql",
+        );
+    let err = MemoryRuntimeProfileResolver::new(&registry)
+        .resolve(profile)
+        .unwrap_err();
+    assert!(matches!(err, MemoryRuntimeError::DuplicatePortBinding(_)));
+}
+
+#[test]
+fn profile_rejects_bound_plugin_that_cannot_serve_the_selected_mode() {
+    let registry = registry_with_phase1_baselines();
+    let profile = MemoryImplementationProfileDraft::native_sql_phase1().with_port_binding(
+        "MemoryRecordStorePort",
+        "sdkwork-memory-plugin-reference-profiles",
+    );
+
+    let err = MemoryRuntimeProfileResolver::new(&registry)
+        .resolve(profile)
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        MemoryRuntimeError::DeploymentModeUnsupported {
+            plugin_id,
+            deployment_mode: MemoryDeploymentMode::Server,
+        } if plugin_id == "sdkwork-memory-plugin-reference-profiles"
+    ));
 }

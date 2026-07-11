@@ -11,6 +11,5 @@ Root standards remain authoritative:
 
 Local authority:
 
-- `../.sdkwork-assembly.json`
 - `../sdk-manifest.json`
 - `../openapi/memory-backend-api.openapi.json`

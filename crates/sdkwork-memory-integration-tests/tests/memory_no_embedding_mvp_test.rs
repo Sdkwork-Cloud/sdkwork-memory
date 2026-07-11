@@ -1,7 +1,7 @@
 use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_contract::{
-    MemoryContextPackRequest, MemoryOpenApi, MemoryOpenApiRequestContext, MemoryRecordRequest,
-    MemoryRetrievalRequest, MemoryType,
+    MemoryContextPackRequest, MemoryImplementationKind, MemoryOpenApi, MemoryOpenApiRequestContext,
+    MemoryRecordRequest, MemoryRetrievalRequest, MemoryType,
 };
 
 fn open_context() -> MemoryOpenApiRequestContext {
@@ -13,6 +13,39 @@ async fn remembers_retrieves_and_builds_context_without_embeddings() {
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let service = OpenMemoryService::new(store);
     let context = open_context();
+
+    let capabilities = service
+        .retrieve_capabilities(context.clone())
+        .await
+        .expect("retrieve capabilities");
+    assert_eq!(
+        capabilities.implementation_kinds,
+        vec![MemoryImplementationKind::LocalEmbedded]
+    );
+    assert_eq!(
+        capabilities.metadata.as_ref().and_then(|metadata| {
+            metadata
+                .get("activeProfileId")
+                .and_then(serde_json::Value::as_str)
+        }),
+        Some("local-embedded-phase1")
+    );
+    assert_eq!(
+        capabilities.metadata.as_ref().and_then(|metadata| {
+            metadata
+                .get("deploymentQualification")
+                .and_then(serde_json::Value::as_str)
+        }),
+        Some("local")
+    );
+    assert_eq!(
+        capabilities.metadata.as_ref().and_then(|metadata| {
+            metadata
+                .get("dynamicProfileCutover")
+                .and_then(serde_json::Value::as_bool)
+        }),
+        Some(false)
+    );
 
     service
         .create_memory(

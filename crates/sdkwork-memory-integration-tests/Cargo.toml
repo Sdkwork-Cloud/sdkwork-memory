@@ -19,5 +19,5 @@ sdkwork-routes-memory-app-api.workspace = true
 sdkwork-routes-memory-open-api.workspace = true
 sdkwork-routes-memory-backend-api.workspace = true
 sdkwork-web-core.workspace = true
-sdkwork-memory-standalone-gateway = { path = "../sdkwork-memory-standalone-gateway" }
+sdkwork-memory-standalone-gateway.workspace = true
 sdkwork-memory-test-support.workspace = true

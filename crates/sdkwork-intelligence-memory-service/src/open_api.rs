@@ -12,40 +12,54 @@ use sdkwork_memory_contract::{
     MemoryRetrievalResult, MemoryRetrievalTrace, MemoryRetrieverKind, MemoryServiceError,
     MemoryServiceResult, MemoryType,
 };
+use sdkwork_memory_plugin_native_sql::{
+    build_native_sql_executable_runtime, native_sql_phase1_port_builders,
+    NativeSqlMemoryRecordDetail, NativeSqlMemoryStore, NativeSqlOpenApiEventRow,
+    NATIVE_SQL_PLUGIN_ID,
+};
 use sdkwork_memory_retrieval::{
     build_context_pack_from_hits, fuse_retrieval_candidates, orchestrate_retrieval_candidates,
     RetrievalCandidate, RetrievalEventInput, RetrievalRecordInput,
 };
-use sdkwork_memory_plugin_native_sql::{
-    NativeSqlAppendOutboxEventCommand, NativeSqlMemoryRecordDetail, NativeSqlMemoryStore,
-    NativeSqlOpenApiEventRow,
-};
 use sdkwork_memory_spi::{
-    AppendMemoryRetrievalTraceCommand, CreateMemoryCandidateCommand, MemoryDriveExportUploader,
-    MemoryRetrievalHitDraft, MemoryScopeContext,
+    AppendMemoryAuditCommand, AppendMemoryOutboxCommand, AppendMemoryRetrievalTraceCommand,
+    CreateCanonicalMemoryCommand, CreateMemoryCandidateCommand, DeleteCanonicalMemoryCommand,
+    MemoryCanonicalRecord, MemoryCoreRuntime, MemoryDeploymentMode, MemoryDriveExportUploader,
+    MemoryImplementationKind as SpiMemoryImplementationKind, MemoryRetrievalHitDraft,
+    MemoryMutationJournal, MemoryRetrieverKind as SpiMemoryRetrieverKind,
+    MemorySensitivityReadScope,
+    MemoryRuntimeProfileMetadata, MemoryScopeContext, RetrieveCanonicalMemoryQuery,
+    SearchMemoryCandidatesQuery, UpdateCanonicalMemoryCommand,
+    MAX_MEMORY_RETRIEVAL_CANDIDATES,
 };
 
 use tracing::info;
 
 use crate::access;
 use crate::platform;
+use crate::runtime_data_plane::MemoryRuntimeDataPlane;
 use crate::sensitive_content::assert_memory_text_is_safe;
 use crate::store_error::map_native_sql_store_error;
 
 pub struct OpenMemoryService {
     pub(crate) store: Arc<NativeSqlMemoryStore>,
-    pub(crate) profile_id: String,
-    pub(crate) primary_plugin_id: String,
+    pub(crate) core_runtime: MemoryCoreRuntime,
+    pub(crate) runtime_data_plane: MemoryRuntimeDataPlane,
     pub(crate) drive_export_uploader: Option<Arc<dyn MemoryDriveExportUploader>>,
 }
 
 impl OpenMemoryService {
     pub fn new(store: NativeSqlMemoryStore) -> Self {
-        Self::with_runtime_profile(
+        let store = Arc::new(store);
+        let core_runtime = Self::build_default_core_runtime(store.clone());
+        let runtime_data_plane = MemoryRuntimeDataPlane::try_for_phase1_http(core_runtime.clone())
+            .expect("built-in native SQL runtime must expose the Phase-1 HTTP data plane");
+        Self {
             store,
-            "native-sql-phase1",
-            sdkwork_memory_plugin_native_sql::NATIVE_SQL_PLUGIN_ID,
-        )
+            core_runtime,
+            runtime_data_plane,
+            drive_export_uploader: None,
+        }
     }
 
     pub fn with_runtime_profile(
@@ -53,12 +67,112 @@ impl OpenMemoryService {
         profile_id: impl Into<String>,
         primary_plugin_id: impl Into<String>,
     ) -> Self {
+        let store = Arc::new(store);
+        let metadata = Self::legacy_runtime_profile_metadata(
+            profile_id.into(),
+            primary_plugin_id.into(),
+        );
+        let core_runtime = Self::build_native_core_runtime(store.clone(), metadata);
+        let runtime_data_plane = MemoryRuntimeDataPlane::try_for_phase1_http(core_runtime.clone())
+            .expect("built-in native SQL runtime must expose the Phase-1 HTTP data plane");
         Self {
-            store: Arc::new(store),
-            profile_id: profile_id.into(),
-            primary_plugin_id: primary_plugin_id.into(),
+            store,
+            core_runtime,
+            runtime_data_plane,
             drive_export_uploader: None,
         }
+    }
+
+    fn build_default_core_runtime(store: Arc<NativeSqlMemoryStore>) -> MemoryCoreRuntime {
+        let metadata = match store.dialect() {
+            sdkwork_memory_plugin_native_sql::MemorySqlDialect::Postgres => {
+                MemoryRuntimeProfileMetadata {
+                    profile_id: "native-sql-phase1".to_string(),
+                    implementation_kind: SpiMemoryImplementationKind::NativeSql,
+                    primary_plugin_id: NATIVE_SQL_PLUGIN_ID.to_string(),
+                    deployment_mode: MemoryDeploymentMode::Server,
+                }
+            }
+            sdkwork_memory_plugin_native_sql::MemorySqlDialect::Sqlite => {
+                MemoryRuntimeProfileMetadata {
+                    profile_id: "local-embedded-phase1".to_string(),
+                    implementation_kind: SpiMemoryImplementationKind::LocalEmbedded,
+                    primary_plugin_id: NATIVE_SQL_PLUGIN_ID.to_string(),
+                    deployment_mode: MemoryDeploymentMode::Local,
+                }
+            }
+        };
+        Self::build_native_core_runtime(store, metadata)
+    }
+
+    fn build_native_core_runtime(
+        store: Arc<NativeSqlMemoryStore>,
+        metadata: MemoryRuntimeProfileMetadata,
+    ) -> MemoryCoreRuntime {
+        let executable = build_native_sql_executable_runtime(store);
+        let mut runtime = MemoryCoreRuntime::new(metadata);
+        for builder in native_sql_phase1_port_builders() {
+            runtime
+                .bind_port(NATIVE_SQL_PLUGIN_ID, builder.port_name, &executable)
+                .expect("built-in native SQL executable port must bind");
+        }
+        runtime
+    }
+
+    fn legacy_runtime_profile_metadata(
+        profile_id: String,
+        primary_plugin_id: String,
+    ) -> MemoryRuntimeProfileMetadata {
+        let implementation_kind = match profile_id.as_str() {
+            "local-embedded-phase1" => SpiMemoryImplementationKind::LocalEmbedded,
+            "event-sourced-phase1" => SpiMemoryImplementationKind::EventSourced,
+            "search-first-phase1" => SpiMemoryImplementationKind::SearchFirst,
+            "graph-temporal-phase1" => SpiMemoryImplementationKind::GraphTemporal,
+            "external-provider-bridge-eval" => {
+                SpiMemoryImplementationKind::ExternalProviderBridge
+            }
+            "hybrid-platform-phase1" => SpiMemoryImplementationKind::HybridPlatform,
+            _ => SpiMemoryImplementationKind::NativeSql,
+        };
+        let deployment_mode = match profile_id.as_str() {
+            "local-embedded-phase1" => MemoryDeploymentMode::Local,
+            "native-sql-phase1" => MemoryDeploymentMode::Server,
+            _ => MemoryDeploymentMode::EvalOnly,
+        };
+        MemoryRuntimeProfileMetadata {
+            profile_id,
+            implementation_kind,
+            primary_plugin_id,
+            deployment_mode,
+        }
+    }
+
+    fn validate_native_sql_core_runtime(runtime: &MemoryCoreRuntime) -> Result<(), String> {
+        let profile = runtime.profile();
+        if profile.primary_plugin_id != NATIVE_SQL_PLUGIN_ID {
+            return Err(format!(
+                "native SQL service requires primary plugin {NATIVE_SQL_PLUGIN_ID}, got {}",
+                profile.primary_plugin_id
+            ));
+        }
+        if !matches!(
+            &profile.implementation_kind,
+            SpiMemoryImplementationKind::NativeSql | SpiMemoryImplementationKind::LocalEmbedded
+        ) {
+            return Err(format!(
+                "native SQL service cannot serve implementation kind {:?}",
+                profile.implementation_kind
+            ));
+        }
+        for builder in native_sql_phase1_port_builders() {
+            if runtime.port_owner(builder.port_name) != Some(NATIVE_SQL_PLUGIN_ID) {
+                return Err(format!(
+                    "native SQL service requires {} to be bound to {NATIVE_SQL_PLUGIN_ID}",
+                    builder.port_name
+                ));
+            }
+        }
+        Ok(())
     }
 
     pub fn with_drive_export_uploader(
@@ -73,17 +187,48 @@ impl OpenMemoryService {
         self.drive_export_uploader.as_ref()
     }
 
+    pub fn core_runtime(&self) -> &MemoryCoreRuntime {
+        &self.core_runtime
+    }
+
+    pub fn runtime_data_plane(&self) -> &MemoryRuntimeDataPlane {
+        &self.runtime_data_plane
+    }
+
     pub fn from_phase1_runtime(
         phase1: sdkwork_memory_plugin_native_sql::NativeSqlPhase1Runtime,
         profile_id: impl Into<String>,
         primary_plugin_id: impl Into<String>,
     ) -> Self {
+        let store = phase1.into_arc_store();
+        let metadata = Self::legacy_runtime_profile_metadata(
+            profile_id.into(),
+            primary_plugin_id.into(),
+        );
+        let core_runtime = Self::build_native_core_runtime(store.clone(), metadata);
+        let runtime_data_plane = MemoryRuntimeDataPlane::try_for_phase1_http(core_runtime.clone())
+            .expect("built-in native SQL runtime must expose the Phase-1 HTTP data plane");
         Self {
-            store: phase1.into_arc_store(),
-            profile_id: profile_id.into(),
-            primary_plugin_id: primary_plugin_id.into(),
+            store,
+            core_runtime,
+            runtime_data_plane,
             drive_export_uploader: None,
         }
+    }
+
+    pub fn try_from_core_runtime(
+        phase1: sdkwork_memory_plugin_native_sql::NativeSqlPhase1Runtime,
+        core_runtime: MemoryCoreRuntime,
+    ) -> Result<Self, String> {
+        Self::validate_native_sql_core_runtime(&core_runtime)?;
+        let runtime_data_plane = MemoryRuntimeDataPlane::try_for_phase1_http(core_runtime.clone())
+            .map_err(|error| error.to_string())?;
+        Ok(Self {
+            store: phase1.into_arc_store(),
+            core_runtime,
+            runtime_data_plane,
+            drive_export_uploader: None,
+        })
     }
 
     pub async fn ready_check(&self) -> MemoryServiceResult<()> {
@@ -92,8 +237,8 @@ impl OpenMemoryService {
             .await
             .map_err(Self::map_store_error)?;
         tracing::debug!(
-            profile_id = %self.profile_id,
-            primary_plugin_id = %self.primary_plugin_id,
+            profile_id = %self.core_runtime.profile().profile_id,
+            primary_plugin_id = %self.core_runtime.profile().primary_plugin_id,
             "memory store ready"
         );
         Ok(())
@@ -103,6 +248,31 @@ impl OpenMemoryService {
         match self.store.dialect() {
             sdkwork_memory_plugin_native_sql::MemorySqlDialect::Postgres => "postgresql",
             sdkwork_memory_plugin_native_sql::MemorySqlDialect::Sqlite => "sqlite",
+        }
+    }
+
+    fn active_implementation_kind(&self) -> MemoryImplementationKind {
+        match &self.core_runtime.profile().implementation_kind {
+            SpiMemoryImplementationKind::NativeSql => MemoryImplementationKind::NativeSql,
+            SpiMemoryImplementationKind::EventSourced => MemoryImplementationKind::EventSourced,
+            SpiMemoryImplementationKind::SearchFirst => MemoryImplementationKind::SearchFirst,
+            SpiMemoryImplementationKind::GraphTemporal => MemoryImplementationKind::GraphTemporal,
+            SpiMemoryImplementationKind::LocalEmbedded => MemoryImplementationKind::LocalEmbedded,
+            SpiMemoryImplementationKind::ExternalProviderBridge => {
+                MemoryImplementationKind::ExternalProviderBridge
+            }
+            SpiMemoryImplementationKind::HybridPlatform => MemoryImplementationKind::HybridPlatform,
+        }
+    }
+
+    fn deployment_qualification(&self) -> &'static str {
+        match &self.core_runtime.profile().deployment_mode {
+            MemoryDeploymentMode::Server => "server",
+            MemoryDeploymentMode::Container => "container",
+            MemoryDeploymentMode::Private => "private",
+            MemoryDeploymentMode::Local => "local",
+            MemoryDeploymentMode::Test => "test",
+            MemoryDeploymentMode::EvalOnly => "evaluation_only",
         }
     }
 
@@ -168,19 +338,45 @@ impl OpenMemoryService {
         let payload_json = serde_json::to_string(&payload).map_err(|error| {
             MemoryServiceError::storage_internal(format!("domain event payload encode failed: {error}"))
         })?;
-        self.store
-            .append_outbox_event(NativeSqlAppendOutboxEventCommand {
-                scope,
-                outbox_id: &outbox_id,
-                aggregate_type,
-                aggregate_id,
-                event_type,
-                event_version: "1.0",
-                payload_json: &payload_json,
+        self.runtime_data_plane
+            .append_outbox(AppendMemoryOutboxCommand {
+                scope: scope.clone(),
+                outbox_id,
+                aggregate_type: aggregate_type.to_string(),
+                aggregate_id: aggregate_id.to_string(),
+                event_type: event_type.to_string(),
+                event_version: "1.0".to_string(),
+                payload_json,
             })
-            .await
-            .map_err(Self::map_store_error)?;
+            .await?;
         Ok(())
+    }
+
+    fn memory_mutation_journal(
+        &self,
+        memory_id: &str,
+        event_type: &str,
+        audit_action: &str,
+        payload: serde_json::Value,
+    ) -> MemoryServiceResult<MemoryMutationJournal> {
+        let payload_json = serde_json::to_string(&payload).map_err(|error| {
+            MemoryServiceError::storage_internal(format!(
+                "memory mutation payload encode failed: {error}"
+            ))
+        })?;
+        Ok(MemoryMutationJournal {
+            outbox_id: self.next_id()?.to_string(),
+            aggregate_type: "memory_record".to_string(),
+            aggregate_id: memory_id.to_string(),
+            event_type: event_type.to_string(),
+            event_version: "1.0".to_string(),
+            payload_json,
+            audit_id: self.next_id()?.to_string(),
+            audit_action: audit_action.to_string(),
+            audit_resource_type: "memory_record".to_string(),
+            audit_resource_id: memory_id.to_string(),
+            audit_result: "accepted".to_string(),
+        })
     }
 
     async fn load_scoped_record(
@@ -193,13 +389,15 @@ impl OpenMemoryService {
         access::assert_retrieval_capability_allowed(&self.store, context, space_id).await?;
         let scope = Self::scope(context, space_id)?;
         match self
-            .store
-            .retrieve_record_detail(&scope, &memory_id.to_string())
-            .await
-            .map_err(Self::map_store_error)?
+            .runtime_data_plane
+            .retrieve_canonical_memory(RetrieveCanonicalMemoryQuery {
+                scope,
+                memory_id: memory_id.to_string(),
+            })
+            .await?
         {
             Some(row) => {
-                let record = Self::map_record(row)?;
+                let record = Self::map_canonical_record(row)?;
                 access::assert_actor_may_read_record_sensitivity(
                     &self.store,
                     context,
@@ -303,6 +501,44 @@ impl OpenMemoryService {
         })
     }
 
+    pub(crate) fn map_canonical_record(
+        detail: MemoryCanonicalRecord,
+    ) -> MemoryServiceResult<MemoryRecord> {
+        let memory_id = Self::parse_id(&detail.memory_id)
+            .ok_or_else(|| MemoryServiceError::storage("memory id must be numeric"))?;
+        let space_id = u64::try_from(detail.space_id)
+            .map_err(|_| MemoryServiceError::storage("space id must be non-negative"))?;
+        let version = u64::try_from(detail.version.max(0))
+            .map_err(|_| MemoryServiceError::storage("version must be non-negative"))?;
+        Ok(MemoryRecord {
+            memory_id,
+            uuid: Some(detail.memory_id),
+            space_id,
+            user_id: detail.user_id.and_then(|value| u64::try_from(value).ok()),
+            scope: detail.scope_label,
+            memory_type: Self::memory_type_from_db(&detail.memory_type),
+            subject: detail.subject,
+            predicate: detail.predicate,
+            object_text: Some(detail.object_text),
+            canonical_text: detail.canonical_text,
+            summary_text: None,
+            confidence: detail.confidence,
+            evidence_count: Some(detail.evidence_count),
+            contradiction_count: Some(detail.contradiction_count),
+            status: detail.status,
+            sensitivity_level: detail.sensitivity_level,
+            supersedes_memory_id: detail
+                .supersedes_memory_id
+                .and_then(|value| Self::parse_id(&value)),
+            superseded_by_memory_id: detail
+                .superseded_by_memory_id
+                .and_then(|value| Self::parse_id(&value)),
+            created_at: detail.created_at,
+            updated_at: detail.updated_at,
+            version,
+        })
+    }
+
     pub(crate) fn map_event(row: NativeSqlOpenApiEventRow) -> MemoryServiceResult<MemoryEvent> {
         let event_id = Self::parse_id(&row.event_id)
             .ok_or_else(|| MemoryServiceError::storage("event id must be numeric"))?;
@@ -350,49 +586,28 @@ impl OpenMemoryService {
         }))
     }
 
-    async fn sync_record_fts_with_retry(
-        &self,
-        scope: &MemoryScopeContext,
-        memory_id: &str,
-        canonical_text: &str,
-        object_text: &str,
-        subject: Option<&str>,
-        predicate: Option<&str>,
-    ) -> MemoryServiceResult<()> {
-        const MAX_ATTEMPTS: u32 = 3;
-        let mut last_error = None;
-        for attempt in 1..=MAX_ATTEMPTS {
-            match self
-                .store
-                .sync_record_fts_entry(
-                    scope,
-                    memory_id,
-                    canonical_text,
-                    object_text,
-                    subject,
-                    predicate,
-                )
-                .await
-            {
-                Ok(()) => return Ok(()),
-                Err(error) => {
-                    tracing::warn!(
-                        memory_id,
-                        attempt,
-                        error = %error,
-                        "record FTS sync failed; retrying"
-                    );
-                    last_error = Some(Self::map_store_error(error));
-                    if attempt < MAX_ATTEMPTS {
-                        tokio::time::sleep(std::time::Duration::from_millis(50 * u64::from(attempt)))
-                            .await;
-                    }
-                }
-            }
-        }
-        Err(last_error.unwrap_or_else(|| {
-            MemoryServiceError::storage("record FTS sync failed after retries")
-        }))
+    fn enabled_retriever_kinds(
+        profile: Option<&serde_json::Value>,
+    ) -> Vec<SpiMemoryRetrieverKind> {
+        let definitions = [
+            ("sql", SpiMemoryRetrieverKind::Sql),
+            ("keyword", SpiMemoryRetrieverKind::Keyword),
+            ("dictionary", SpiMemoryRetrieverKind::Dictionary),
+            ("time", SpiMemoryRetrieverKind::Time),
+            ("event", SpiMemoryRetrieverKind::Event),
+        ];
+        definitions
+            .into_iter()
+            .filter(|(name, _kind)| {
+                profile
+                    .and_then(|value| value.get(*name))
+                    .and_then(|value| value.get("weight"))
+                    .and_then(serde_json::Value::as_f64)
+                    .map(|weight| weight > 0.0)
+                    .unwrap_or(profile.is_none())
+            })
+            .map(|(_name, kind)| kind)
+            .collect()
     }
 
     pub(crate) async fn execute_extraction_work(
@@ -437,8 +652,8 @@ impl OpenMemoryService {
                     .to_string();
                 assert_memory_text_is_safe(&[("proposedText", &proposed)])?;
                 let candidate_id = self.next_id()?.to_string();
-                self.store
-                    .create_candidate(&CreateMemoryCandidateCommand {
+                self.runtime_data_plane
+                    .create_candidate(CreateMemoryCandidateCommand {
                         scope: scope.clone(),
                         candidate_id,
                         candidate_type: "extraction".to_string(),
@@ -448,8 +663,7 @@ impl OpenMemoryService {
                         evidence_json: Some(format!(r#"["event:{event_id}"]"#)),
                         confidence: 0.7,
                     })
-                    .await
-                    .map_err(Self::map_store_error)?;
+                    .await?;
                 created_candidates += 1;
             } else {
                 missing_events += 1;
@@ -491,11 +705,17 @@ impl MemoryOpenApi for OpenMemoryService {
                 MemoryProviderInterface::Memory,
                 MemoryProviderInterface::Search,
             ],
-            implementation_kinds: vec![MemoryImplementationKind::NativeSql],
+            implementation_kinds: vec![self.active_implementation_kind()],
             open_api_prefix: "/mem/v3/api".to_string(),
             sdk_family: "sdkwork-memory-sdk".to_string(),
             checked_at: platform::current_timestamp(),
-            metadata: None,
+            metadata: Some(serde_json::json!({
+                "activeProfileId": self.core_runtime.profile().profile_id,
+                "primaryPluginId": self.core_runtime.profile().primary_plugin_id,
+                "deploymentQualification": self.deployment_qualification(),
+                "runtimeComposition": "typed_ports",
+                "dynamicProfileCutover": false,
+            })),
         })
     }
 
@@ -535,17 +755,16 @@ impl MemoryOpenApi for OpenMemoryService {
             .map_err(Self::map_store_error)?;
 
         let audit_id = self.next_id()?.to_string();
-        self.store
-            .append_audit(
-                &scope,
-                &audit_id,
-                "memory.event.create",
-                "memory_event",
-                &event_id,
-                "accepted",
-            )
-            .await
-            .map_err(Self::map_store_error)?;
+        self.runtime_data_plane
+            .append_audit(AppendMemoryAuditCommand {
+                scope: scope.clone(),
+                audit_id,
+                action: "memory.event.create".to_string(),
+                resource_type: "memory_event".to_string(),
+                resource_id: event_id.clone(),
+                result: "accepted".to_string(),
+            })
+            .await?;
 
         self.store
             .retrieve_open_api_event(&scope, &event_id)
@@ -641,90 +860,33 @@ impl MemoryOpenApi for OpenMemoryService {
             ("predicate", request.predicate.as_deref().unwrap_or("")),
         ])?;
 
-        // Begin transaction: record creation + outbox event + audit log must be atomic.
-        let mut tx = self
-            .store
-            .begin_tx()
-            .await
-            .map_err(Self::map_store_error)?;
-
-        NativeSqlMemoryStore::create_record_on_tx(
-            &mut tx,
-            &scope,
-            &memory_id,
-            &request.scope,
-            Self::memory_type_to_db(request.memory_type),
-            request.subject.as_deref(),
-            request.predicate.as_deref(),
-            &object_text,
-            &request.canonical_text,
-            sensitivity,
-        )
-        .await
-        .map_err(Self::map_store_error)?;
-
         let event_payload = serde_json::json!({
             "memoryId": memory_id,
             "spaceId": request.space_id,
             "memoryType": request.memory_type,
         });
-        let payload_json = serde_json::to_string(&event_payload).map_err(|error| {
-            MemoryServiceError::storage_internal(format!(
-                "domain event payload encode failed: {error}"
-            ))
-        })?;
-        let outbox_id = self.next_id()?.to_string();
-
-        NativeSqlMemoryStore::append_outbox_on_tx(
-            &mut tx,
-            &scope,
-            &outbox_id,
-            "memory_record",
+        let journal = self.memory_mutation_journal(
             &memory_id,
             "memory.record.created",
-            "1.0",
-            &payload_json,
-        )
-        .await
-        .map_err(Self::map_store_error)?;
-
-        let audit_id = self.next_id()?.to_string();
-        NativeSqlMemoryStore::append_audit_on_tx(
-            &mut tx,
-            &scope,
-            &audit_id,
             "memory.record.create",
-            "memory_record",
-            &memory_id,
-            "accepted",
-        )
-        .await
-        .map_err(Self::map_store_error)?;
-
-        tx.commit().await.map_err(|e| Self::map_store_error(e.into()))?;
-
-        self.sync_record_fts_with_retry(
-            &scope,
-            &memory_id,
-            &request.canonical_text,
-            &object_text,
-            request.subject.as_deref(),
-            request.predicate.as_deref(),
-        )
-        .await?;
-
+            event_payload,
+        )?;
         let record = self
-            .store
-            .retrieve_record_detail(&scope, &memory_id)
-            .await
-            .map_err(Self::map_store_error)?
-            .map(Self::map_record)
-            .transpose()?
-            .ok_or_else(|| {
-                MemoryServiceError::storage("created memory could not be loaded")
-            })?;
-
-        Ok(record)
+            .runtime_data_plane
+            .create_canonical_memory_atomic(CreateCanonicalMemoryCommand {
+                scope,
+                memory_id,
+                scope_label: request.scope,
+                memory_type: Self::memory_type_to_db(request.memory_type).to_string(),
+                subject: request.subject,
+                predicate: request.predicate,
+                object_text,
+                canonical_text: request.canonical_text,
+                sensitivity_level: sensitivity.to_string(),
+                journal,
+            })
+            .await?;
+        Self::map_canonical_record(record)
     }
 
     async fn retrieve_memory(
@@ -764,89 +926,29 @@ impl MemoryOpenApi for OpenMemoryService {
             assert_memory_text_is_safe(&[("subject", subject)])?;
         }
 
-        // Begin transaction: record update + outbox event + audit log must be atomic.
-        let mut tx = self
-            .store
-            .begin_tx()
-            .await
-            .map_err(Self::map_store_error)?;
-
-        let updated = NativeSqlMemoryStore::update_record_on_tx(
-            &mut tx,
-            &scope,
-            &memory_id.to_string(),
-            patch.canonical_text.as_deref(),
-            patch.subject.as_deref(),
-        )
-        .await
-        .map_err(Self::map_store_error)?;
-
-        if !updated {
-            tx.rollback().await.map_err(|e| Self::map_store_error(e.into()))?;
-            return Err(MemoryServiceError::not_found("memory not found"));
-        }
-
         let event_payload = serde_json::json!({
             "memoryId": memory_id,
             "spaceId": space_id,
         });
-        let payload_json = serde_json::to_string(&event_payload).map_err(|error| {
-            MemoryServiceError::storage_internal(format!(
-                "domain event payload encode failed: {error}"
-            ))
-        })?;
-        let outbox_id = self.next_id()?.to_string();
-
-        NativeSqlMemoryStore::append_outbox_on_tx(
-            &mut tx,
-            &scope,
-            &outbox_id,
-            "memory_record",
-            &memory_id.to_string(),
+        let memory_id_text = memory_id.to_string();
+        let journal = self.memory_mutation_journal(
+            &memory_id_text,
             "memory.record.updated",
-            "1.0",
-            &payload_json,
-        )
-        .await
-        .map_err(Self::map_store_error)?;
-
-        let audit_id = self.next_id()?.to_string();
-        NativeSqlMemoryStore::append_audit_on_tx(
-            &mut tx,
-            &scope,
-            &audit_id,
             "memory.record.update",
-            "memory_record",
-            &memory_id.to_string(),
-            "accepted",
-        )
-        .await
-        .map_err(Self::map_store_error)?;
-
-        tx.commit().await.map_err(|e| Self::map_store_error(e.into()))?;
-
+            event_payload,
+        )?;
         let record = self
-            .store
-            .retrieve_record_detail(&scope, &memory_id.to_string())
-            .await
-            .map_err(Self::map_store_error)?
-            .map(Self::map_record)
-            .transpose()?
-            .ok_or_else(|| {
-                MemoryServiceError::storage("updated memory could not be loaded")
-            })?;
-
-        self.sync_record_fts_with_retry(
-            &scope,
-            &memory_id.to_string(),
-            &record.canonical_text,
-            record.object_text.as_deref().unwrap_or(&record.canonical_text),
-            record.subject.as_deref(),
-            record.predicate.as_deref(),
-        )
-        .await?;
-
-        Ok(record)
+            .runtime_data_plane
+            .update_canonical_memory_atomic(UpdateCanonicalMemoryCommand {
+                scope,
+                memory_id: memory_id_text,
+                canonical_text: patch.canonical_text,
+                subject: patch.subject,
+                journal,
+            })
+            .await?
+            .ok_or_else(|| MemoryServiceError::not_found("memory not found"))?;
+        Self::map_canonical_record(record)
     }
 
     #[tracing::instrument(
@@ -868,71 +970,24 @@ impl MemoryOpenApi for OpenMemoryService {
         let scope = Self::scope(&context, space_id)?;
         let _existing = self.load_scoped_record(&context, space_id, memory_id).await?;
 
-        // Begin transaction: record deletion + outbox event + audit log must be atomic.
-        let mut tx = self
-            .store
-            .begin_tx()
-            .await
-            .map_err(Self::map_store_error)?;
-
-        let deleted = NativeSqlMemoryStore::mark_record_deleted_on_tx(
-            &mut tx,
-            &scope,
-            &memory_id.to_string(),
-        )
-        .await
-        .map_err(Self::map_store_error)?;
-
-        if !deleted {
-            // Already deleted or not found — rollback and return Ok (idempotent).
-            tx.rollback().await.map_err(|e| Self::map_store_error(e.into()))?;
-            return Ok(());
-        }
-
         let event_payload = serde_json::json!({
             "memoryId": memory_id,
             "spaceId": space_id,
         });
-        let payload_json = serde_json::to_string(&event_payload).map_err(|error| {
-            MemoryServiceError::storage_internal(format!(
-                "domain event payload encode failed: {error}"
-            ))
-        })?;
-        let outbox_id = self.next_id()?.to_string();
-
-        NativeSqlMemoryStore::append_outbox_on_tx(
-            &mut tx,
-            &scope,
-            &outbox_id,
-            "memory_record",
-            &memory_id.to_string(),
+        let memory_id_text = memory_id.to_string();
+        let journal = self.memory_mutation_journal(
+            &memory_id_text,
             "memory.record.deleted",
-            "1.0",
-            &payload_json,
-        )
-        .await
-        .map_err(Self::map_store_error)?;
-
-        let audit_id = self.next_id()?.to_string();
-        NativeSqlMemoryStore::append_audit_on_tx(
-            &mut tx,
-            &scope,
-            &audit_id,
             "memory.record.delete",
-            "memory_record",
-            &memory_id.to_string(),
-            "accepted",
-        )
-        .await
-        .map_err(Self::map_store_error)?;
-
-        tx.commit().await.map_err(|e| Self::map_store_error(e.into()))?;
-
-        self.store
-            .remove_record_fts_entry(&scope, &memory_id.to_string())
-            .await
-            .map_err(Self::map_store_error)?;
-
+            event_payload,
+        )?;
+        self.runtime_data_plane
+            .delete_canonical_memory_atomic(DeleteCanonicalMemoryCommand {
+                scope,
+                memory_id: memory_id_text,
+                journal,
+            })
+            .await?;
         Ok(())
     }
 
@@ -957,6 +1012,17 @@ impl MemoryOpenApi for OpenMemoryService {
             return Err(MemoryServiceError::validation(format!(
                 "spaceIds must not exceed {} entries per retrieval request",
                 platform::MAX_SCOPE_SPACE_IDS
+            )));
+        }
+        if request.query.trim().is_empty() {
+            return Err(MemoryServiceError::validation(
+                "query must not be blank",
+            ));
+        }
+        if !(1..=platform::MAX_RETRIEVAL_TOP_K).contains(&request.top_k) {
+            return Err(MemoryServiceError::validation(format!(
+                "topK must be between 1 and {}",
+                platform::MAX_RETRIEVAL_TOP_K
             )));
         }
 
@@ -985,11 +1051,17 @@ impl MemoryOpenApi for OpenMemoryService {
                     .await
                     .map_err(Self::map_store_error)?
                 {
-                    let retrievers = serde_json::from_str(&row.retrievers_json).ok();
+                    let retrievers: serde_json::Value = serde_json::from_str(&row.retrievers_json)
+                        .map_err(|_| {
+                            MemoryServiceError::storage(
+                                "retrieval profile contains invalid retriever configuration",
+                            )
+                        })?;
+                    crate::retrieval_profile::validate_retrieval_retrievers(&retrievers)?;
                     (
                         platform::clamp_retrieval_top_k(row.top_k.min(request.top_k)),
                         Some(profile_id),
-                        retrievers,
+                        Some(retrievers),
                     )
                 } else {
                     (
@@ -1006,14 +1078,29 @@ impl MemoryOpenApi for OpenMemoryService {
                 )
             };
 
+        let enabled_retriever_kinds = Self::enabled_retriever_kinds(profile_retrievers.as_ref());
+        if enabled_retriever_kinds.is_empty() {
+            return Err(MemoryServiceError::validation(
+                "retrieval profile must enable at least one retriever",
+            ));
+        }
+        let candidate_limit = u32::try_from(
+            (effective_top_k as u32)
+                .saturating_mul(2)
+                .clamp(1, MAX_MEMORY_RETRIEVAL_CANDIDATES),
+        )
+        .map_err(|_| MemoryServiceError::validation("retrieval candidate limit is invalid"))?;
+
         let memory_type_filter = request.memory_types.as_ref().map(|types| {
             types
                 .iter()
-                .map(|value| Self::memory_type_to_db(*value))
+                .map(|value| Self::memory_type_to_db(*value).to_string())
                 .collect::<Vec<_>>()
         });
 
         let mut candidates: Vec<RetrievalCandidate> = Vec::new();
+        let mut retrieval_degraded = false;
+        let mut unavailable_retriever_kinds = Vec::new();
 
         // Phase 1: collect all access checks and owner checks in parallel.
         let space_futures: Vec<_> = request.space_ids.iter().map(|space_id| {
@@ -1034,83 +1121,129 @@ impl MemoryOpenApi for OpenMemoryService {
         }
 
         // Phase 2: search all spaces in parallel.
-        let search_futures: Vec<_> = space_data.iter().map(|(scope, _actor_is_owner)| {
-            let query = &request.query;
-            let top_k = effective_top_k;
-            async move {
-                let rows = self.store
-                    .search_record_details_keyword(scope, query, top_k)
-                    .await
-                    .map_err(Self::map_store_error)?;
-                let event_rows = self.store
-                    .search_open_api_events_keyword(scope, query, top_k)
-                    .await
-                    .map_err(Self::map_store_error)?;
-                Ok::<_, MemoryServiceError>((rows, event_rows))
-            }
-        }).collect();
-        let search_results: Vec<MemoryServiceResult<(Vec<NativeSqlMemoryRecordDetail>, Vec<NativeSqlOpenApiEventRow>)>> =
-            futures::future::join_all(search_futures).await;
+        let search_futures: Vec<_> = space_data
+            .iter()
+            .map(|(scope, actor_is_owner)| {
+                let read_scope = if *actor_is_owner {
+                    MemorySensitivityReadScope::Owner
+                } else if context.elevated_tenant_access {
+                    MemorySensitivityReadScope::Elevated
+                } else {
+                    MemorySensitivityReadScope::Public
+                };
+                self.runtime_data_plane
+                    .search_candidates_scoped(SearchMemoryCandidatesQuery {
+                        scope: scope.clone(),
+                        query: request.query.clone(),
+                        limit: candidate_limit,
+                        retriever_kinds: enabled_retriever_kinds.clone(),
+                        memory_types: memory_type_filter.clone().unwrap_or_default(),
+                        read_scope,
+                    })
+            })
+            .collect();
+        let search_results = futures::future::join_all(search_futures).await;
 
         // Phase 3: combine and score results.
         for (space_idx, search_result) in search_results.into_iter().enumerate() {
-            let (rows, event_rows) = search_result?;
-            let (_scope, actor_is_owner) = &space_data[space_idx];
+            let search_result = search_result?;
+            let (scope, actor_is_owner) = &space_data[space_idx];
+            retrieval_degraded |= search_result.degraded;
+            for kind in search_result.unavailable_retriever_kinds {
+                if !unavailable_retriever_kinds.contains(&kind) {
+                    unavailable_retriever_kinds.push(kind);
+                }
+            }
 
-            let record_inputs: Vec<RetrievalRecordInput> = rows
+            let candidate_ids = search_result
+                .records
                 .iter()
-                .map(|row| RetrievalRecordInput {
-                    memory_id: row.memory_id.clone(),
-                    subject: row.subject.clone(),
-                    predicate: row.predicate.clone(),
-                    object_text: row.object_text.clone(),
-                    canonical_text: row.canonical_text.clone(),
-                    created_at: row.created_at.clone(),
-                })
-                .collect();
-            let event_inputs: Vec<RetrievalEventInput> = event_rows
-                .iter()
-                .map(|row| RetrievalEventInput {
-                    event_id: row.event_id.clone(),
-                    payload_text: row.payload.to_string(),
-                    created_at: row.created_at.clone(),
-                })
-                .collect();
-
-            let orchestrated = orchestrate_retrieval_candidates(
-                &request.query,
-                &record_inputs,
-                &event_inputs,
-                profile_retrievers.as_ref(),
-                effective_top_k as usize,
-            );
-
-            let rows_by_memory_id: std::collections::HashMap<&str, &_> = rows
-                .iter()
-                .map(|row| (row.memory_id.as_str(), row))
-                .collect();
-
-            for candidate in orchestrated {
-                let memory = if candidate.record.memory_id.starts_with("event:") {
-                    continue;
-                } else if let Some(row) = rows_by_memory_id.get(candidate.record.memory_id.as_str()) {
-                    Self::map_record((*row).clone())?
-                } else {
+                .map(|candidate| candidate.memory_id.clone())
+                .chain(
+                    search_result
+                        .events
+                        .iter()
+                        .map(|candidate| candidate.memory_id.clone()),
+                )
+                .collect::<std::collections::BTreeSet<_>>();
+            let rehydrate_futures = candidate_ids.into_iter().map(|memory_id| {
+                let scope = scope.clone();
+                async move {
+                    let canonical = self
+                        .runtime_data_plane
+                        .retrieve_canonical_memory(RetrieveCanonicalMemoryQuery {
+                            scope,
+                            memory_id: memory_id.clone(),
+                        })
+                        .await?;
+                    Ok::<_, MemoryServiceError>((memory_id, canonical))
+                }
+            });
+            let rehydrated = futures::future::join_all(rehydrate_futures).await;
+            let mut canonical_by_id = std::collections::BTreeMap::new();
+            for result in rehydrated {
+                let (memory_id, Some(canonical)) = result? else {
                     continue;
                 };
+                if canonical.space_id != scope.space_id {
+                    return Err(MemoryServiceError::storage(
+                        "retriever returned a candidate outside the requested scope",
+                    ));
+                }
                 if !access::actor_may_read_sensitivity(
                     &context,
-                    &memory.sensitivity_level,
+                    &canonical.sensitivity_level,
                     *actor_is_owner,
                 ) {
                     continue;
                 }
                 if let Some(filters) = &memory_type_filter {
-                    let memory_type = Self::memory_type_to_db(memory.memory_type);
-                    if !filters.iter().any(|filter| filter == &memory_type) {
+                    if !filters
+                        .iter()
+                        .any(|filter| *filter == canonical.memory_type)
+                    {
                         continue;
                     }
                 }
+                canonical_by_id.insert(memory_id, canonical);
+            }
+
+            let record_inputs = canonical_by_id
+                .values()
+                .map(|record| RetrievalRecordInput {
+                    memory_id: record.memory_id.clone(),
+                    subject: record.subject.clone(),
+                    predicate: record.predicate.clone(),
+                    object_text: record.object_text.clone(),
+                    canonical_text: record.canonical_text.clone(),
+                    created_at: record.created_at.clone(),
+                })
+                .collect::<Vec<_>>();
+            let event_inputs = search_result
+                .events
+                .iter()
+                .filter(|event| canonical_by_id.contains_key(&event.memory_id))
+                .map(|event| RetrievalEventInput {
+                    memory_id: Some(event.memory_id.clone()),
+                    event_id: event.event_id.clone(),
+                    payload_text: event.payload_text.clone(),
+                    created_at: event.created_at.clone(),
+                })
+                .collect::<Vec<_>>();
+            let orchestrated = orchestrate_retrieval_candidates(
+                &request.query,
+                &record_inputs,
+                &event_inputs,
+                profile_retrievers.as_ref(),
+                candidate_limit as usize,
+            );
+
+            for candidate in orchestrated {
+                let Some(canonical) = canonical_by_id.get(&candidate.record.memory_id).cloned()
+                else {
+                    continue;
+                };
+                let memory = Self::map_canonical_record(canonical)?;
                 if candidate.raw_score > 0.0 {
                     candidates.push(RetrievalCandidate {
                         memory,
@@ -1154,18 +1287,45 @@ impl MemoryOpenApi for OpenMemoryService {
             .map(|hit| MemoryRetrievalHitDraft {
                 hit_id: hit.hit_id.to_string(),
                 memory_id: hit.memory_id.map(|value| value.to_string()),
+                space_id: hit
+                    .memory
+                    .as_ref()
+                    .and_then(|memory| i64::try_from(memory.space_id).ok()),
                 retriever_name: hit.retriever_name.clone(),
                 result_rank: i64::from(hit.result_rank),
                 raw_score: hit.raw_score,
                 fused_score: hit.fused_score,
-                explanation_json: None,
+                explanation_json: hit.memory.as_ref().map(|memory| {
+                    serde_json::json!({
+                        "spaceId": memory.space_id,
+                        "canonicalRehydrated": true,
+                    })
+                    .to_string()
+                }),
                 status: hit.status.clone(),
             })
             .collect();
 
+        let metadata_json = if request.filters.is_some() || !unavailable_retriever_kinds.is_empty()
+        {
+            let mut metadata = serde_json::Map::new();
+            if let Some(filters) = request.filters.clone() {
+                metadata.insert("filters".to_string(), filters);
+            }
+            if !unavailable_retriever_kinds.is_empty() {
+                metadata.insert(
+                    "unavailableRetrieverKinds".to_string(),
+                    serde_json::to_value(&unavailable_retriever_kinds).unwrap_or_default(),
+                );
+            }
+            Some(serde_json::Value::Object(metadata).to_string())
+        } else {
+            None
+        };
+
         let _ = self
-            .store
-            .append_retrieval_trace(&AppendMemoryRetrievalTraceCommand {
+            .runtime_data_plane
+            .append_retrieval_trace(AppendMemoryRetrievalTraceCommand {
                 scope: primary_scope,
                 trace_id: trace_id.clone(),
                 actor_id: request.actor_id.clone(),
@@ -1173,15 +1333,12 @@ impl MemoryOpenApi for OpenMemoryService {
                 query_hash: query_hash.clone(),
                 retrievers_json: Some(retrievers_json.clone()),
                 latency_ms: Some(latency_ms),
-                degraded: false,
-                metadata_json: request.filters.as_ref().map(|filters| {
-                    serde_json::json!({ "filters": filters }).to_string()
-                }),
+                degraded: retrieval_degraded,
+                metadata_json,
                 hits: trace_hits,
                 context_pack: None,
             })
-            .await
-            .map_err(Self::map_store_error)?;
+            .await?;
 
         let trace = if request.include_trace.unwrap_or(false) {
             Some(MemoryRetrievalTrace {
@@ -1192,7 +1349,7 @@ impl MemoryOpenApi for OpenMemoryService {
                 query_text: Some(request.query),
                 query_hash,
                 result_count: hits.len() as i32,
-                degraded: false,
+                degraded: retrieval_degraded,
                 created_at: platform::current_timestamp(),
             })
         } else {
@@ -1213,7 +1370,7 @@ impl MemoryOpenApi for OpenMemoryService {
             retrieval_id,
             trace,
             hits,
-            degraded: false,
+            degraded: retrieval_degraded,
         })
     }
 
@@ -1233,32 +1390,52 @@ impl MemoryOpenApi for OpenMemoryService {
         let trace = lookup.trace;
         let trace_space_id = u64::try_from(lookup.space_id.max(0))
             .map_err(|_| MemoryServiceError::storage("space id must be non-negative"))?;
-        let scope = Self::scope(&context, trace_space_id)?;
 
         let mut hits = Vec::new();
         for (index, hit) in trace.hits.iter().enumerate() {
-            let memory = if let Some(memory_id) = hit.memory_id.as_deref() {
-                match self
-                    .store
-                    .retrieve_record_detail(&scope, memory_id)
-                    .await
-                    .map_err(Self::map_store_error)?
-                {
-                    Some(row) => {
-                        access::assert_actor_may_read_record_sensitivity(
-                            &self.store,
-                            &context,
-                            trace_space_id,
-                            &row.sensitivity_level,
-                        )
-                        .await?;
-                        Some(Self::map_record(row)?)
-                    }
-                    None => None,
-                }
-            } else {
-                None
+            let Some(memory_id) = hit.memory_id.as_deref() else {
+                continue;
             };
+            let hit_space_id = hit
+                .space_id
+                .and_then(|value| u64::try_from(value).ok())
+                .or_else(|| {
+                    hit.explanation_json
+                        .as_deref()
+                        .and_then(|value| serde_json::from_str::<serde_json::Value>(value).ok())
+                        .and_then(|value| {
+                            value.get("spaceId").and_then(serde_json::Value::as_u64)
+                        })
+                })
+                .unwrap_or(trace_space_id);
+            let hit_space_id_i64 = i64::try_from(hit_space_id)
+                .map_err(|_| MemoryServiceError::storage("space id must be non-negative"))?;
+            access::assert_actor_can_access_space_i64(&self.store, &context, hit_space_id_i64)
+                .await?;
+            let scope = Self::scope(&context, hit_space_id)?;
+            let Some(canonical) = self
+                .runtime_data_plane
+                .retrieve_canonical_memory(RetrieveCanonicalMemoryQuery {
+                    scope,
+                    memory_id: memory_id.to_string(),
+                })
+                .await?
+            else {
+                // A trace may outlive a deleted or retention-purged canonical record. Do not
+                // expose a stale identifier as a readable hit.
+                continue;
+            };
+            if canonical.space_id != hit_space_id_i64 {
+                continue;
+            }
+            access::assert_actor_may_read_record_sensitivity(
+                &self.store,
+                &context,
+                hit_space_id,
+                &canonical.sensitivity_level,
+            )
+            .await?;
+            let memory = Some(Self::map_canonical_record(canonical)?);
 
             hits.push(MemoryRetrievalHit {
                 hit_id: hit
@@ -1524,17 +1701,16 @@ impl MemoryOpenApi for OpenMemoryService {
         };
         let scope = Self::scope(&context, space_id)?;
         access::assert_actor_can_access_space_for_write(&self.store, &context, space_id).await?;
-        self.store
-            .append_audit(
-                &scope,
-                &feedback_id.to_string(),
-                "feedback.create",
-                &request.target_type,
-                &request.target_id.to_string(),
-                "accepted",
-            )
-            .await
-            .map_err(Self::map_store_error)?;
+        self.runtime_data_plane
+            .append_audit(AppendMemoryAuditCommand {
+                scope,
+                audit_id: feedback_id.to_string(),
+                action: "feedback.create".to_string(),
+                resource_type: request.target_type.clone(),
+                resource_id: request.target_id.to_string(),
+                result: "accepted".to_string(),
+            })
+            .await?;
 
         Ok(MemoryFeedback {
             feedback_id,

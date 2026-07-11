@@ -36,24 +36,22 @@ assert.equal(
   "Memory public open-api prefix must use /mem/v3/api to avoid /memory/.../memory URL duplication",
 );
 
-const assembly = readJson("sdks/sdkwork-memory-sdk/.sdkwork-assembly.json");
+const sdkManifest = readJson("sdks/sdkwork-memory-sdk/sdk-manifest.json");
 assert.equal(
-  assembly.discoverySurface.apiPrefix,
+  sdkManifest.discoverySurface.apiPrefix,
   openApiPrefix,
-  "Memory open SDK assembly must use the /mem/v3/api public prefix",
+  "Memory open SDK manifest must use the /mem/v3/api public prefix",
 );
 assert.equal(
-  assembly.discoverySurface.schemaUrl,
+  sdkManifest.discoverySurface.schemaUrl,
   openApiSchemaUrl,
-  "Memory open SDK assembly must expose the /mem/v3/openapi.json schema URL",
+  "Memory open SDK manifest must expose the /mem/v3/openapi.json schema URL",
 );
 assert.notEqual(
-  assembly.discoverySurface.schemaUrl,
+  sdkManifest.discoverySurface.schemaUrl,
   legacyOpenApiSchemaUrl,
-  "Memory open SDK assembly must not keep the legacy /memory/v3/openapi.json schema URL",
+  "Memory open SDK manifest must not keep the legacy /memory/v3/openapi.json schema URL",
 );
-
-const sdkManifest = readJson("sdks/sdkwork-memory-sdk/sdk-manifest.json");
 assert.equal(
   sdkManifest.apiPrefix,
   openApiPrefix,

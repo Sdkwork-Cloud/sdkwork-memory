@@ -13,7 +13,7 @@ use sdkwork_memory_plugin_native_sql::{
     NativeSqlEvalRunRow, NativeSqlImplementationProfileRow, NativeSqlMemoryIndexRow,
     NativeSqlProviderBindingRow, NativeSqlRetrievalProfileRow,
 };
-use sdkwork_memory_spi::MemoryScopeContext;
+use sdkwork_memory_spi::{MemoryImplementationKind, MemoryScopeContext};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -27,6 +27,82 @@ const RT_RETENTION_JOB: &str = "retention_job";
 const RT_MIGRATION_JOB: &str = "migration_job";
 
 impl OpenMemoryService {
+    fn validate_implementation_profile_request(
+        request: &MemoryImplementationProfileRequest,
+    ) -> MemoryServiceResult<()> {
+        if request.name.trim().is_empty() {
+            return Err(MemoryServiceError::validation(
+                "implementation profile name must not be empty",
+            ));
+        }
+        serde_json::from_value::<MemoryImplementationKind>(
+            Value::String(request.implementation_kind.clone()),
+        )
+        .map_err(|_| {
+            MemoryServiceError::validation(format!(
+                "unsupported implementationKind: {}",
+                request.implementation_kind
+            ))
+        })?;
+        if !matches!(request.role.as_str(), "primary" | "secondary" | "shadow") {
+            return Err(MemoryServiceError::validation(
+                "implementation profile role must be primary, secondary, or shadow",
+            ));
+        }
+        if let Some(status) = request.status.as_deref() {
+            if !matches!(status, "active" | "disabled" | "migrating" | "deprecated" | "deleted")
+            {
+                return Err(MemoryServiceError::validation(
+                    "implementation profile status is invalid",
+                ));
+            }
+        }
+        if !request.capabilities.is_object() {
+            return Err(MemoryServiceError::validation(
+                "implementation profile capabilities must be an object",
+            ));
+        }
+        for (name, value) in [
+            ("config", request.config.as_ref()),
+            ("rollout", request.rollout.as_ref()),
+        ] {
+            if let Some(value) = value {
+                Self::reject_literal_profile_secret(value, name)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn reject_literal_profile_secret(
+        value: &Value,
+        path: &str,
+    ) -> MemoryServiceResult<()> {
+        match value {
+            Value::Object(object) => {
+                for (key, child) in object {
+                    let key_lower = key.to_ascii_lowercase();
+                    if matches!(
+                        key_lower.as_str(),
+                        "password" | "token" | "api_key" | "apikey" | "private_key"
+                    ) && child.is_string()
+                    {
+                        return Err(MemoryServiceError::validation(format!(
+                            "implementation profile {path}.{key} must reference a secret, not contain a literal"
+                        )));
+                    }
+                    Self::reject_literal_profile_secret(child, &format!("{path}.{key}"))?;
+                }
+            }
+            Value::Array(items) => {
+                for (index, child) in items.iter().enumerate() {
+                    Self::reject_literal_profile_secret(child, &format!("{path}[{index}]"))?;
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     fn admin_page_info(page_size: i32, has_more: bool, next_cursor: Option<String>) -> PageInfo {
         platform::memory_cursor_page_info(page_size, has_more, next_cursor)
     }
@@ -609,6 +685,7 @@ impl OpenMemoryService {
         context: MemoryBackendRequestContext,
         request: MemoryImplementationProfileRequest,
     ) -> MemoryServiceResult<MemoryImplementationProfile> {
+        Self::validate_implementation_profile_request(&request)?;
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let profile_id = self.next_id()?.to_string();
         let capability_json = serde_json::to_string(&request.capabilities).map_err(|error| {
@@ -664,6 +741,7 @@ impl OpenMemoryService {
         profile_id: u64,
         request: MemoryImplementationProfileRequest,
     ) -> MemoryServiceResult<MemoryImplementationProfile> {
+        Self::validate_implementation_profile_request(&request)?;
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let capability_json = serde_json::to_string(&request.capabilities).ok();
         let config_json = Self::optional_json_patch(&request.config);
@@ -1005,6 +1083,7 @@ impl OpenMemoryService {
             &self.store,
             tenant_id,
             &request,
+            &self.core_runtime.profile().profile_id,
         )
         .await?;
         let job_id = self.next_id()?;
@@ -1108,5 +1187,56 @@ impl OpenMemoryService {
         .await?;
 
         Ok(record)
+    }
+}
+
+#[cfg(test)]
+mod implementation_profile_validation_tests {
+    use super::*;
+
+    fn request() -> MemoryImplementationProfileRequest {
+        MemoryImplementationProfileRequest {
+            name: "native sql".to_string(),
+            implementation_kind: "native_sql".to_string(),
+            role: "primary".to_string(),
+            capabilities: serde_json::json!({ "keyword": true, "embedding": false }),
+            status: Some("active".to_string()),
+            config: Some(serde_json::json!({ "secretRef": "memory/db" })),
+            rollout: None,
+            version: None,
+        }
+    }
+
+    #[test]
+    fn accepts_typed_native_profile_with_secret_reference() {
+        OpenMemoryService::validate_implementation_profile_request(&request())
+            .expect("native profile request should be valid");
+    }
+
+    #[test]
+    fn rejects_unknown_implementation_kind() {
+        let mut value = request();
+        value.implementation_kind = "made_up_store".to_string();
+        let error = OpenMemoryService::validate_implementation_profile_request(&value)
+            .expect_err("unknown implementation kinds must fail closed");
+        assert_eq!(error.kind, sdkwork_memory_contract::MemoryServiceErrorKind::Validation);
+    }
+
+    #[test]
+    fn rejects_literal_profile_token() {
+        let mut value = request();
+        value.config = Some(serde_json::json!({ "token": "literal-token" }));
+        let error = OpenMemoryService::validate_implementation_profile_request(&value)
+            .expect_err("literal provider tokens must not be persisted");
+        assert_eq!(error.kind, sdkwork_memory_contract::MemoryServiceErrorKind::Validation);
+    }
+
+    #[test]
+    fn rejects_unknown_profile_role() {
+        let mut value = request();
+        value.role = "active-primary".to_string();
+        let error = OpenMemoryService::validate_implementation_profile_request(&value)
+            .expect_err("unknown profile roles must fail closed");
+        assert_eq!(error.kind, sdkwork_memory_contract::MemoryServiceErrorKind::Validation);
     }
 }

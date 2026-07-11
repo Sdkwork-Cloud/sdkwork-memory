@@ -123,6 +123,7 @@ fn retrieval_trace_port_contract_types_are_public_and_bounded() {
     let hit = MemoryRetrievalHitDraft {
         hit_id: "hit-1".to_string(),
         memory_id: Some("rec-1".to_string()),
+        space_id: Some(scope.space_id),
         retriever_name: "native_sql".to_string(),
         result_rank: 1,
         raw_score: Some(0.75),

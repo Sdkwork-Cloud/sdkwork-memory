@@ -1,4 +1,6 @@
-use sdkwork_memory_spi::{MemoryImplementationKind, MemoryPluginManifest, MemoryPluginRole};
+use sdkwork_memory_spi::{
+    MemoryDeploymentMode, MemoryImplementationKind, MemoryPluginManifest, MemoryPluginRole,
+};
 
 #[test]
 fn native_sql_manifest_deserializes_and_declares_no_embedding_baseline() {
@@ -117,5 +119,32 @@ fn manifest_rejects_enabled_capabilities_without_required_ports() {
         .port_exports
         .retain(|export| export.port != "MemoryOutboxStorePort");
 
+    assert!(manifest.validate().is_err());
+}
+
+#[test]
+fn reference_profiles_are_explicitly_evaluation_only() {
+    let manifest = MemoryPluginManifest::reference_profiles_for_test();
+
+    assert_eq!(
+        manifest.deployment_modes,
+        vec![MemoryDeploymentMode::Test, MemoryDeploymentMode::EvalOnly]
+    );
+    assert!(!manifest
+        .deployment_modes
+        .contains(&MemoryDeploymentMode::Server));
+    assert!(!manifest
+        .deployment_modes
+        .contains(&MemoryDeploymentMode::Container));
+}
+
+#[test]
+fn manifest_rejects_missing_or_duplicate_executable_port_builders() {
+    let mut manifest = MemoryPluginManifest::native_sql_for_test();
+    manifest.port_exports[0].builder.clear();
+    assert!(manifest.validate().is_err());
+
+    let mut manifest = MemoryPluginManifest::native_sql_for_test();
+    manifest.port_exports[1].port = manifest.port_exports[0].port.clone();
     assert!(manifest.validate().is_err());
 }

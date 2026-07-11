@@ -1,6 +1,6 @@
 //! Full-text search index maintenance and query helpers.
 
-use sdkwork_memory_spi::MemoryScopeContext;
+use sdkwork_memory_spi::{MemoryScopeContext, MemorySensitivityReadScope};
 
 use crate::pool_backend::MemorySqlDialect;
 use crate::store::{
@@ -8,6 +8,38 @@ use crate::store::{
 };
 
 impl NativeSqlMemoryStore {
+    pub(crate) fn read_scope_level(read_scope: MemorySensitivityReadScope) -> i32 {
+        match read_scope {
+            MemorySensitivityReadScope::Public => 0,
+            MemorySensitivityReadScope::Elevated => 1,
+            MemorySensitivityReadScope::Owner => 2,
+        }
+    }
+
+    pub(crate) fn append_memory_type_filter(
+        sql: &mut String,
+        table_alias: &str,
+        memory_types: &[String],
+    ) {
+        if memory_types.is_empty() {
+            return;
+        }
+        sql.push_str(&format!(" AND {table_alias}.memory_type IN ("));
+        sql.push_str(
+            &(0..memory_types.len())
+                .map(|_| "?")
+                .collect::<Vec<_>>()
+                .join(","),
+        );
+        sql.push(')');
+    }
+
+    pub(crate) fn append_sensitivity_filter(sql: &mut String, table_alias: &str) {
+        sql.push_str(&format!(
+            " AND (? >= 2 OR (? >= 1 AND {table_alias}.sensitivity_level IN ('public','internal','private','sensitive')) OR {table_alias}.sensitivity_level IN ('public','internal'))"
+        ));
+    }
+
     pub async fn sync_record_fts_entry(
         &self,
         scope: &MemoryScopeContext,
@@ -59,12 +91,14 @@ impl NativeSqlMemoryStore {
         if !matches!(self.dialect(), MemorySqlDialect::Sqlite) {
             return Ok(());
         }
-        if let Some(row_id) = self.lookup_record_row_id(scope, memory_uuid).await? {
-            sqlx::query("DELETE FROM ai_record_fts WHERE rowid = ?")
-                .bind(row_id)
-                .execute(self.pool())
-                .await?;
-        }
+        sqlx::query(
+            "DELETE FROM ai_record_fts WHERE tenant_id = ? AND space_id = ? AND memory_uuid = ?",
+        )
+        .bind(scope.tenant_id)
+        .bind(scope.space_id)
+        .bind(memory_uuid)
+        .execute(self.pool())
+        .await?;
         Ok(())
     }
 
@@ -199,13 +233,32 @@ impl NativeSqlMemoryStore {
         query: &str,
         top_k: i32,
     ) -> Result<Vec<NativeSqlMemoryRecordDetail>, NativeSqlStoreError> {
+        self.search_record_details_fulltext_filtered(
+            scope,
+            query,
+            top_k,
+            &[],
+            MemorySensitivityReadScope::Owner,
+        )
+        .await
+    }
+
+    pub async fn search_record_details_fulltext_filtered(
+        &self,
+        scope: &MemoryScopeContext,
+        query: &str,
+        top_k: i32,
+        memory_types: &[String],
+        read_scope: MemorySensitivityReadScope,
+    ) -> Result<Vec<NativeSqlMemoryRecordDetail>, NativeSqlStoreError> {
         let trimmed = query.trim();
         if trimmed.is_empty() {
             return Ok(Vec::new());
         }
+        let sensitivity_level = Self::read_scope_level(read_scope);
         match self.dialect() {
             MemorySqlDialect::Postgres => {
-                let rows = sqlx::query(
+                let mut sql = String::from(
                     r#"
                     SELECT
                       r.uuid,
@@ -236,13 +289,24 @@ impl NativeSqlMemoryStore {
                       AND r.space_id = ?
                       AND r.status <> 'deleted'
                       AND r.search_document @@ plainto_tsquery('simple', ?)
-                    ORDER BY ts_rank(r.search_document, plainto_tsquery('simple', ?)) DESC
-                    LIMIT ?
                     "#,
-                )
+                );
+                Self::append_sensitivity_filter(&mut sql, "r");
+                Self::append_memory_type_filter(&mut sql, "r", memory_types);
+                sql.push_str(
+                    " ORDER BY ts_rank(r.search_document, plainto_tsquery('simple', ?)) DESC, r.uuid ASC LIMIT ?",
+                );
+                let mut query_builder = sqlx::query(&sql)
                 .bind(scope.tenant_id)
                 .bind(scope.space_id)
                 .bind(trimmed)
+                .bind(sensitivity_level)
+                .bind(sensitivity_level)
+                ;
+                for memory_type in memory_types {
+                    query_builder = query_builder.bind(memory_type);
+                }
+                let rows = query_builder
                 .bind(trimmed)
                 .bind(top_k.max(1) as i64)
                 .fetch_all(self.pool())
@@ -251,7 +315,7 @@ impl NativeSqlMemoryStore {
             }
             MemorySqlDialect::Sqlite => {
                 let fts_query = escape_fts5_query(trimmed);
-                let rows = sqlx::query(
+                let mut sql = String::from(
                     r#"
                     SELECT
                       r.uuid,
@@ -283,13 +347,21 @@ impl NativeSqlMemoryStore {
                       AND r.tenant_id = ?
                       AND r.space_id = ?
                       AND r.status <> 'deleted'
-                    ORDER BY rank
-                    LIMIT ?
                     "#,
-                )
+                );
+                Self::append_sensitivity_filter(&mut sql, "r");
+                Self::append_memory_type_filter(&mut sql, "r", memory_types);
+                sql.push_str(" ORDER BY rank, r.uuid ASC LIMIT ?");
+                let mut query_builder = sqlx::query(&sql)
                 .bind(fts_query)
                 .bind(scope.tenant_id)
                 .bind(scope.space_id)
+                .bind(sensitivity_level)
+                .bind(sensitivity_level);
+                for memory_type in memory_types {
+                    query_builder = query_builder.bind(memory_type);
+                }
+                let rows = query_builder
                 .bind(top_k.max(1) as i64)
                 .fetch_all(self.pool())
                 .await?;
@@ -342,5 +414,4 @@ mod tests {
     fn fts5_escape_handles_empty_input() {
         let result = escape_fts5_query("   ");
         assert_eq!(result, "");
-    }
-}
+ 

@@ -14,10 +14,11 @@ fn rust_manifest_matches_source_controlled_json_manifest() {
     let json_manifest: MemoryPluginManifest = serde_json::from_str(&json).unwrap();
     let rust_manifest = native_sql_manifest();
 
-    assert_eq!(rust_manifest.plugin_id, json_manifest.plugin_id);
-    assert_eq!(rust_manifest.package_name, json_manifest.package_name);
-    assert_eq!(rust_manifest.version, json_manifest.version);
-    assert_eq!(rust_manifest.capabilities, json_manifest.capabilities);
+    assert_eq!(
+        serde_json::to_value(&rust_manifest).unwrap(),
+        serde_json::to_value(&json_manifest).unwrap(),
+        "Rust and source-controlled native SQL manifests must match in full"
+    );
     assert!(rust_manifest.validate().is_ok());
     assert!(rust_manifest
         .implementation_kinds

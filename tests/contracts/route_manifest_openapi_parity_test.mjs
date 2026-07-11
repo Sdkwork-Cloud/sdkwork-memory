@@ -10,17 +10,25 @@ function readJson(relativePath) {
   return JSON.parse(fs.readFileSync(path.join(repoRoot, relativePath), 'utf8'));
 }
 
-function countOpenApiOperations(openapiPath) {
+function listOpenApiRoutes(openapiPath) {
   const openapi = readJson(openapiPath);
-  let count = 0;
-  for (const pathItem of Object.values(openapi.paths ?? {})) {
-    for (const method of Object.keys(pathItem ?? {})) {
-      if (['get', 'post', 'patch', 'delete'].includes(method)) {
-        count += 1;
+  const routes = [];
+  for (const [path, methods] of Object.entries(openapi.paths ?? {})) {
+    for (const [method, operation] of Object.entries(methods ?? {})) {
+      if (['get', 'post', 'put', 'patch', 'delete'].includes(method)) {
+        routes.push({
+          method: method.toUpperCase(),
+          path,
+          operationId: operation.operationId,
+        });
       }
     }
   }
-  return count;
+  return routes;
+}
+
+function routeKey(route) {
+  return `${route.method} ${route.path} ${route.operationId}`;
 }
 
 const surfaces = [
@@ -43,12 +51,16 @@ const surfaces = [
 
 for (const surface of surfaces) {
   test(`${surface.openapiPath} route manifest parity`, () => {
-    const openapiCount = countOpenApiOperations(surface.openapiPath);
+    const openapiRoutes = listOpenApiRoutes(surface.openapiPath);
     const routeManifest = readJson(surface.routeManifestPath);
-    assert.equal(routeManifest.routes.length, openapiCount);
+    const expectedRoutes = openapiRoutes.map(routeKey).sort();
+    const actualRoutes = routeManifest.routes.map(routeKey).sort();
+    assert.equal(new Set(expectedRoutes).size, expectedRoutes.length);
+    assert.equal(new Set(actualRoutes).size, actualRoutes.length);
+    assert.deepEqual(actualRoutes, expectedRoutes);
     const rustManifest = fs.readFileSync(path.join(repoRoot, surface.httpRouteManifestPath), 'utf8');
     const rustRouteCount = (rustManifest.match(/HttpRoute::/g) ?? []).length;
-    assert.equal(rustRouteCount, openapiCount);
+    assert.equal(rustRouteCount, openapiRoutes.length);
   });
 }
 

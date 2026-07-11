@@ -1295,8 +1295,8 @@ impl MemoryAppApi for OpenMemoryService {
             user_id: context.actor_id.map(|value| value as i64),
         };
         let user_id = existing.user_id;
-        self.store
-            .upsert_habit(&UpsertMemoryHabitCommand {
+        self.runtime_data_plane
+            .upsert_habit(UpsertMemoryHabitCommand {
                 scope,
                 habit_id: existing.habit_id.clone(),
                 user_id,
@@ -1312,8 +1312,7 @@ impl MemoryAppApi for OpenMemoryService {
                     .map(|value| value.to_string())
                     .or(existing.metadata_json),
             })
-            .await
-            .map_err(OpenMemoryService::map_store_error)?;
+            .await?;
         self.retrieve_habit(context, habit_id).await
     }
 
@@ -1332,15 +1331,14 @@ impl MemoryAppApi for OpenMemoryService {
             organization_id: context.organization_id.map(|value| value as i64),
             user_id: context.actor_id.map(|value| value as i64),
         };
-        self.store
-            .promote_habit(&PromoteMemoryHabitCommand {
+        self.runtime_data_plane
+            .promote_habit(PromoteMemoryHabitCommand {
                 scope,
                 user_id: existing.user_id,
                 habit_key: existing.habit_key.clone(),
                 promoted_memory_id: None,
             })
-            .await
-            .map_err(OpenMemoryService::map_store_error)?;
+            .await?;
         self.retrieve_habit(context, habit_id).await
     }
 
@@ -1359,15 +1357,14 @@ impl MemoryAppApi for OpenMemoryService {
             organization_id: context.organization_id.map(|value| value as i64),
             user_id: context.actor_id.map(|value| value as i64),
         };
-        self.store
-            .decay_habit(&DecayMemoryHabitCommand {
+        self.runtime_data_plane
+            .decay_habit(DecayMemoryHabitCommand {
                 scope,
                 user_id: existing.user_id,
                 habit_key: existing.habit_key.clone(),
                 strength_delta: existing.strength.max(0.1),
             })
-            .await
-            .map_err(OpenMemoryService::map_store_error)?;
+            .await?;
         self.retrieve_habit(context, habit_id).await
     }
 
@@ -1657,15 +1654,14 @@ impl MemoryBackendApi for OpenMemoryService {
             organization_id: None,
             user_id: context.operator_id.map(|value| value as i64),
         };
-        self.store
-            .reject_candidate(&RejectMemoryCandidateCommand {
+        self.runtime_data_plane
+            .reject_candidate(RejectMemoryCandidateCommand {
                 scope,
                 candidate_id: candidate_id.to_string(),
                 decision_reason: None,
                 decided_by: context.operator_id.map(|value| value as i64),
             })
-            .await
-            .map_err(OpenMemoryService::map_store_error)?;
+            .await?;
         match self
             .store
             .retrieve_candidate_for_tenant(tenant_id, &candidate_id.to_string())

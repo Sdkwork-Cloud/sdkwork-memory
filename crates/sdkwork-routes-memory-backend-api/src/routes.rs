@@ -29,6 +29,7 @@ pub struct BackendState {
 }
 
 impl BackendState {
+    #[allow(clippy::result_large_err)]
     pub(crate) fn require_product(&self) -> Result<Arc<OpenMemoryService>, Response> {
         self.product.clone().ok_or_else(|| {
             BackendApiProblem::new(

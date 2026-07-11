@@ -69,7 +69,15 @@ pub fn build_native_sql_retrieval_trace_store() -> NativeSqlPortBuilder {
     }
 }
 
-pub fn native_sql_phase1_port_builders() -> [NativeSqlPortBuilder; 7] {
+pub fn build_native_sql_retriever() -> NativeSqlPortBuilder {
+    NativeSqlPortBuilder {
+        port_name: "MemoryRetrieverPort",
+        builder_name: "build_native_sql_retriever",
+        ready: true,
+    }
+}
+
+pub fn native_sql_phase1_port_builders() -> [NativeSqlPortBuilder; 8] {
     [
         build_native_sql_record_store(),
         build_native_sql_event_store(),
@@ -78,6 +86,7 @@ pub fn native_sql_phase1_port_builders() -> [NativeSqlPortBuilder; 7] {
         build_native_sql_candidate_store(),
         build_native_sql_habit_store(),
         build_native_sql_retrieval_trace_store(),
+        build_native_sql_retriever(),
     ]
 }
 

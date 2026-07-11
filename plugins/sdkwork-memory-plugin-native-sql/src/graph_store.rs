@@ -184,6 +184,7 @@ impl NativeSqlMemoryStore {
         Ok(row.map(map_entity_row))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn list_entities(
         &self,
         tenant_id: i64,

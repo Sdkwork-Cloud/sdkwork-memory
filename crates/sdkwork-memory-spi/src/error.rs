@@ -16,4 +16,16 @@ pub enum MemorySpiError {
     IdempotencyConflict { idempotency_key: String },
     #[error("memory plugin port {port} operation failed: {message}")]
     PortOperationFailed { port: String, message: String },
+    #[error("memory plugin {plugin_id} has no executable runtime registered")]
+    ExecutableRuntimeMissing { plugin_id: String },
+    #[error("memory plugin executable runtime is already registered: {0}")]
+    DuplicateExecutableRuntime(String),
+    #[error("memory plugin {plugin_id} has no executable port {port}")]
+    ExecutablePortMissing { plugin_id: String, port: String },
+    #[error("memory runtime port is already bound: {0}")]
+    ExecutablePortAlreadyBound(String),
+    #[error("memory runtime port is unsupported: {0}")]
+    UnsupportedRuntimePort(String),
+    #[error("memory plugin {plugin_id} executable runtime exports undeclared port {port}")]
+    ExecutablePortUndeclared { plugin_id: String, port: String },
 }

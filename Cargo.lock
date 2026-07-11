@@ -2979,6 +2979,7 @@ dependencies = [
 name = "sdkwork-database-sqlx"
 version = "0.1.0"
 dependencies = [
+ "libsqlite3-sys",
  "sdkwork-database-config",
  "serde",
  "sqlx",
@@ -3000,6 +3001,7 @@ name = "sdkwork-drive-contract"
 version = "0.1.0"
 dependencies = [
  "sdkwork-drive-storage-contract",
+ "sdkwork-utils-rust",
  "serde",
  "serde_json",
 ]
@@ -3111,6 +3113,7 @@ name = "sdkwork-iam-bootstrap"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
+ "argon2",
  "base64",
  "chrono",
  "rand_core 0.6.4",
@@ -3217,6 +3220,7 @@ dependencies = [
  "sdkwork-id-core",
  "sdkwork-memory-contract",
  "sdkwork-memory-plugin-native-sql",
+ "sdkwork-memory-plugin-reference-profiles",
  "sdkwork-memory-retrieval",
  "sdkwork-memory-spi",
  "sdkwork-utils-rust",
@@ -3277,6 +3281,7 @@ dependencies = [
  "sdkwork-routes-memory-app-api",
  "sdkwork-routes-memory-backend-api",
  "sdkwork-routes-memory-open-api",
+ "sdkwork-routes-memory-support",
  "tokio",
 ]
 
@@ -3334,10 +3339,12 @@ dependencies = [
 name = "sdkwork-memory-profile-resolver"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "sdkwork-memory-spi",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]
@@ -3358,6 +3365,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]

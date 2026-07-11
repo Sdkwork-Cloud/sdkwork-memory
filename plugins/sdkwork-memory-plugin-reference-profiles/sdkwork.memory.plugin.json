@@ -22,7 +22,7 @@
     "context",
     "evaluation"
   ],
-  "deploymentModes": ["server", "container", "private", "local", "test", "eval_only"],
+  "deploymentModes": ["test", "eval_only"],
   "portExports": [
     {
       "port": "MemoryRecordStorePort",

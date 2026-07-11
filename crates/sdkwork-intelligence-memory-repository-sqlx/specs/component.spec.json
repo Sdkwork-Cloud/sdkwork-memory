@@ -20,8 +20,18 @@
     { "file": "TEST_SPEC.md", "path": "../../../sdkwork-specs/TEST_SPEC.md" }
   ],
   "contracts": {
-    "publicExports": [],
-    "runtimeEntrypoints": [],
+    "layerRole": "backend-repository",
+    "publicExports": ["."],
+    "providedPorts": [
+      { "name": "MemoryRuntimeBootstrap", "export": "." }
+    ],
+    "requiredPorts": [
+      { "name": "MemoryPluginSpi", "export": ".", "dependency": "sdkwork-memory-spi" },
+      { "name": "MemoryServiceAssembly", "export": ".", "dependency": "sdkwork-intelligence-memory-service" }
+    ],
+    "runtimeEntrypoints": [
+      "sdkwork_intelligence_memory_repository_sqlx::bootstrap_memory_runtime_from_env"
+    ],
     "sdkClients": [],
     "sdkDependencies": [
       { "workspace": "sdkwork-database" },

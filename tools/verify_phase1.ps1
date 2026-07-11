@@ -42,19 +42,16 @@ $requiredFiles = @(
     "docs/schema-registry/tables/005-memory-governance.yaml",
     "sdks/README.md",
     "sdks/sdkwork-memory-sdk/README.md",
-    "sdks/sdkwork-memory-sdk/.sdkwork-assembly.json",
     "sdks/sdkwork-memory-sdk/sdk-manifest.json",
     "sdks/sdkwork-memory-sdk/specs/README.md",
     "sdks/sdkwork-memory-sdk/specs/component.spec.json",
     "sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json",
     "sdks/sdkwork-memory-app-sdk/README.md",
-    "sdks/sdkwork-memory-app-sdk/.sdkwork-assembly.json",
     "sdks/sdkwork-memory-app-sdk/sdk-manifest.json",
     "sdks/sdkwork-memory-app-sdk/specs/README.md",
     "sdks/sdkwork-memory-app-sdk/specs/component.spec.json",
     "sdks/sdkwork-memory-app-sdk/openapi/memory-app-api.openapi.json",
     "sdks/sdkwork-memory-backend-sdk/README.md",
-    "sdks/sdkwork-memory-backend-sdk/.sdkwork-assembly.json",
     "sdks/sdkwork-memory-backend-sdk/sdk-manifest.json",
     "sdks/sdkwork-memory-backend-sdk/specs/README.md",
     "sdks/sdkwork-memory-backend-sdk/specs/component.spec.json",
@@ -113,23 +110,22 @@ foreach ($family in @(
     @{ Path = "sdks/sdkwork-memory-app-sdk"; Authority = "sdkwork-memory.app"; Prefix = "/app/v3/api"; SchemaUrl = "/app/v3/openapi.json"; Spec = "openapi/memory-app-api.openapi.json"; Client = "SdkworkMemoryAppClient" },
     @{ Path = "sdks/sdkwork-memory-backend-sdk"; Authority = "sdkwork-memory.backend"; Prefix = "/backend/v3/api"; SchemaUrl = "/backend/v3/openapi.json"; Spec = "openapi/memory-backend-api.openapi.json"; Client = "SdkworkMemoryBackendClient" }
 )) {
-    $assembly = Read-JsonFile (Join-Path $family.Path ".sdkwork-assembly.json")
     $manifest = Read-JsonFile (Join-Path $family.Path "sdk-manifest.json")
     $component = Read-JsonFile (Join-Path $family.Path "specs/component.spec.json")
 
-    if ($assembly.sdkOwner -ne "sdkwork-memory") {
-        throw "$($family.Path) assembly sdkOwner mismatch"
+    if ($manifest.sdkOwner -ne "sdkwork-memory") {
+        throw "$($family.Path) manifest sdkOwner mismatch"
     }
-    if ($assembly.apiAuthority -ne $family.Authority -or $manifest.apiAuthority -ne $family.Authority) {
+    if ($manifest.apiAuthority -ne $family.Authority) {
         throw "$($family.Path) apiAuthority mismatch"
     }
-    if ($assembly.generationInputSpec -ne $family.Spec -or $manifest.generationInputSpec -ne $family.Spec) {
+    if ($manifest.generationInputSpec -ne $family.Spec) {
         throw "$($family.Path) generationInputSpec mismatch"
     }
-    if ($assembly.discoverySurface.apiPrefix -ne $family.Prefix -or $manifest.apiPrefix -ne $family.Prefix) {
+    if ($manifest.discoverySurface.apiPrefix -ne $family.Prefix -or $manifest.apiPrefix -ne $family.Prefix) {
         throw "$($family.Path) apiPrefix mismatch"
     }
-    if ($assembly.discoverySurface.schemaUrl -ne $family.SchemaUrl) {
+    if ($manifest.discoverySurface.schemaUrl -ne $family.SchemaUrl) {
         throw "$($family.Path) schemaUrl mismatch"
     }
     if ($null -eq $component.contracts.sdkDependencies) {

@@ -2,17 +2,23 @@ use async_trait::async_trait;
 use sdkwork_memory_spi::{
     AppendMemoryAuditCommand, AppendMemoryEventCommand, AppendMemoryOutboxCommand,
     AppendMemoryRetrievalTraceCommand, ApproveMemoryCandidateCommand, CreateMemoryCandidateCommand,
-    CreateMemoryRecordCommand, DecayMemoryHabitCommand, DeleteMemoryRecordCommand,
+    CreateCanonicalMemoryCommand, CreateMemoryRecordCommand, DecayMemoryHabitCommand,
+    DeleteCanonicalMemoryCommand, DeleteMemoryRecordCommand,
     ListMemoryRetrievalTracesQuery, ListPendingMemoryOutboxQuery, MarkMemoryOutboxFailedCommand,
     MarkMemoryOutboxPublishedCommand, MemoryAuditRecord, MemoryAuditStorePort, MemoryCandidate,
-    MemoryCandidateStorePort, MemoryContextPackSnapshot, MemoryDeletionReceipt, MemoryEvent,
-    MemoryEventStorePort, MemoryHabit, MemoryHabitStorePort, MemoryOutboxEvent,
-    MemoryOutboxStorePort, MemoryRecord, MemoryRecordStorePort, MemoryRetrievalHitDraft,
-    MemoryRetrievalTrace, MemoryRetrievalTraceStorePort, MemoryScopeContext, MemorySpiError,
-    MemorySpiResult, PromoteMemoryHabitCommand, RejectMemoryCandidateCommand,
-    RetrieveMemoryAuditQuery, RetrieveMemoryCandidateQuery, RetrieveMemoryEventQuery,
-    RetrieveMemoryHabitQuery, RetrieveMemoryOutboxQuery, RetrieveMemoryRecordQuery,
-    RetrieveMemoryRetrievalTraceQuery, UpsertMemoryHabitCommand,
+    MemoryCandidateStorePort, MemoryCanonicalRecord, MemoryContextPackSnapshot,
+    MemoryDeletionReceipt, MemoryEvent, MemoryEventStorePort, MemoryHabit, MemoryHabitStorePort,
+    MemoryOutboxEvent, MemoryOutboxStorePort, MemoryRecord, MemoryRecordStorePort,
+    MemoryRetrievalEventCandidate, MemoryRetrievalHitDraft, MemoryRetrievalRecordCandidate,
+    MemoryRetrievalTrace, MemoryRetrievalTraceStorePort, MemoryRetrieverKind, MemoryRetrieverPort,
+    MemoryRetrieverResult, MemoryRetrieverSearchResult, MemoryScopeContext, MemorySpiError,
+    MemorySensitivityReadScope, MemorySpiResult, PromoteMemoryHabitCommand,
+    RejectMemoryCandidateCommand,
+    RetrieveCanonicalMemoryQuery, RetrieveMemoryAuditQuery, RetrieveMemoryCandidateQuery,
+    RetrieveMemoryCandidatesCommand, RetrieveMemoryEventQuery, RetrieveMemoryHabitQuery,
+    RetrieveMemoryOutboxQuery, RetrieveMemoryRecordQuery, RetrieveMemoryRetrievalTraceQuery,
+    SearchMemoryCandidatesQuery, UpdateCanonicalMemoryCommand, UpsertMemoryHabitCommand,
+    MAX_MEMORY_RETRIEVAL_CANDIDATES,
 };
 use sdkwork_database_config::DatabaseConfig;
 use serde_json::Value;
@@ -840,14 +846,42 @@ event_type: row.get("event_type"),
         query: &str,
         top_k: i32,
     ) -> Result<Vec<NativeSqlMemoryRecordDetail>, NativeSqlStoreError> {
-        match self
-            .search_record_details_fulltext(scope, query, top_k)
-            .await
-        {
-            Ok(rows) if !rows.is_empty() => Ok(rows),
-            Ok(_) | Err(_) => {
-                let pattern = crate::privacy::like_pattern(query.trim());
-                let rows = sqlx::query(
+        self.search_record_details_keyword_filtered(
+            scope,
+            query,
+            top_k,
+            &[],
+            MemorySensitivityReadScope::Owner,
+        )
+        .await
+        .map(|(rows, _degraded)| rows)
+    }
+
+    pub async fn search_record_details_keyword_filtered(
+        &self,
+        scope: &MemoryScopeContext,
+        query: &str,
+        top_k: i32,
+        memory_types: &[String],
+        read_scope: MemorySensitivityReadScope,
+    ) -> Result<(Vec<NativeSqlMemoryRecordDetail>, bool), NativeSqlStoreError> {
+        let fulltext_result = self
+            .search_record_details_fulltext_filtered(
+                scope,
+                query,
+                top_k,
+                memory_types,
+                read_scope,
+            )
+            .await;
+        let degraded = match fulltext_result {
+            Ok(rows) if !rows.is_empty() => return Ok((rows, false)),
+            Ok(_) => false,
+            Err(_) => true,
+        };
+        let pattern = crate::privacy::like_pattern(query.trim());
+        let sensitivity_level = Self::read_scope_level(read_scope);
+        let mut sql = String::from(
             r#"
             SELECT
               r.uuid,
@@ -881,23 +915,32 @@ event_type: row.get("event_type"),
                    OR r.object_text LIKE ? ESCAPE '\'
                    OR COALESCE(r.subject, '') LIKE ? ESCAPE '\'
                    OR COALESCE(r.predicate, '') LIKE ? ESCAPE '\')
-            ORDER BY r.updated_at DESC
-            LIMIT ?
             "#,
-        )
-        .bind(scope.tenant_id)
-        .bind(scope.space_id)
-        .bind(&pattern)
-        .bind(&pattern)
-        .bind(&pattern)
-        .bind(&pattern)
-        .bind(top_k.max(1) as i64)
-        .fetch_all(&self.pool)
-        .await?;
-
-                Ok(rows.into_iter().map(record_detail_from_row).collect())
-            }
+        );
+        Self::append_sensitivity_filter(&mut sql, "r");
+        Self::append_memory_type_filter(&mut sql, "r", memory_types);
+        sql.push_str(" ORDER BY r.updated_at DESC, r.uuid ASC LIMIT ?");
+        let mut query_builder = sqlx::query(&sql)
+            .bind(scope.tenant_id)
+            .bind(scope.space_id)
+            .bind(&pattern)
+            .bind(&pattern)
+            .bind(&pattern)
+            .bind(&pattern)
+            .bind(sensitivity_level)
+            .bind(sensitivity_level);
+        for memory_type in memory_types {
+            query_builder = query_builder.bind(memory_type);
         }
+        let rows = query_builder
+            .bind(top_k.max(1) as i64)
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok((
+            rows.into_iter().map(record_detail_from_row).collect(),
+            degraded,
+        ))
     }
 
     pub async fn search_open_api_events_keyword(
@@ -946,6 +989,183 @@ event_type: row.get("event_type"),
                 created_at: row.get("created_at"),
             })
             .collect())
+    }
+
+    pub async fn search_linked_event_candidates_keyword(
+        &self,
+        scope: &MemoryScopeContext,
+        query: &str,
+        limit: u32,
+        memory_types: &[String],
+        read_scope: MemorySensitivityReadScope,
+    ) -> Result<Vec<MemoryRetrievalEventCandidate>, NativeSqlStoreError> {
+        let pattern = crate::privacy::like_pattern(query.trim());
+        let sensitivity_level = Self::read_scope_level(read_scope);
+        let mut sql = String::from(
+            r#"
+            SELECT
+              record.uuid AS memory_uuid,
+              event.uuid AS event_uuid,
+              event.payload_json,
+              event.created_at
+            FROM ai_event event
+            INNER JOIN ai_record_source source
+              ON source.tenant_id = event.tenant_id
+             AND source.event_id = event.id
+            INNER JOIN ai_record record
+              ON record.tenant_id = source.tenant_id
+             AND record.id = source.memory_id
+            WHERE event.tenant_id = ?
+              AND event.space_id = ?
+              AND record.space_id = ?
+              AND record.status <> 'deleted'
+              AND event.payload_json LIKE ? ESCAPE '\'
+            "#,
+        );
+        Self::append_sensitivity_filter(&mut sql, "record");
+        Self::append_memory_type_filter(&mut sql, "record", memory_types);
+        sql.push_str(" ORDER BY event.created_at DESC, record.uuid ASC, event.uuid ASC LIMIT ?");
+        let mut query_builder = sqlx::query(&sql)
+            .bind(scope.tenant_id)
+            .bind(scope.space_id)
+            .bind(scope.space_id)
+            .bind(&pattern)
+            .bind(sensitivity_level)
+            .bind(sensitivity_level);
+        for memory_type in memory_types {
+            query_builder = query_builder.bind(memory_type);
+        }
+        let rows = query_builder
+            .bind(i64::from(limit))
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| MemoryRetrievalEventCandidate {
+                memory_id: row.get("memory_uuid"),
+                event_id: row.get("event_uuid"),
+                payload_text: row.get::<String, _>("payload_json"),
+                created_at: row.get("created_at"),
+            })
+            .collect())
+    }
+
+    pub async fn search_memory_candidates(
+        &self,
+        query: &SearchMemoryCandidatesQuery,
+    ) -> Result<MemoryRetrieverSearchResult, NativeSqlStoreError> {
+        let trimmed_query = query.query.trim();
+        if trimmed_query.is_empty() {
+            return Err(NativeSqlStoreError::InvariantViolation {
+                message: "memory retrieval query must not be blank".to_string(),
+            });
+        }
+
+        if query.retriever_kinds.is_empty() {
+            return Err(NativeSqlStoreError::InvariantViolation {
+                message: "memory retrieval must select at least one retriever".to_string(),
+            });
+        }
+        if query.limit == 0 || query.limit > MAX_MEMORY_RETRIEVAL_CANDIDATES {
+            return Err(NativeSqlStoreError::InvariantViolation {
+                message: format!(
+                    "memory retrieval candidate limit must be between 1 and {MAX_MEMORY_RETRIEVAL_CANDIDATES}"
+                ),
+            });
+        }
+
+        let total_limit = query.limit;
+        let unavailable_retriever_kinds = query
+            .retriever_kinds
+            .iter()
+            .filter(|kind| {
+                !matches!(
+                    kind,
+                    MemoryRetrieverKind::Sql
+                        | MemoryRetrieverKind::Keyword
+                        | MemoryRetrieverKind::Dictionary
+                        | MemoryRetrieverKind::Time
+                        | MemoryRetrieverKind::Event
+                )
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        let record_retriever_enabled = query.retriever_kinds.iter().any(|kind| {
+            matches!(
+                kind,
+                MemoryRetrieverKind::Sql
+                    | MemoryRetrieverKind::Keyword
+                    | MemoryRetrieverKind::Dictionary
+                    | MemoryRetrieverKind::Time
+            )
+        });
+        let event_retriever_enabled = query
+            .retriever_kinds
+            .contains(&MemoryRetrieverKind::Event);
+
+        if !record_retriever_enabled && !event_retriever_enabled {
+            return Err(NativeSqlStoreError::InvariantViolation {
+                message: "selected memory retrievers are not supported by native SQL"
+                    .to_string(),
+            });
+        }
+
+        let (record_limit, event_limit) = match (
+            record_retriever_enabled,
+            event_retriever_enabled,
+        ) {
+            (true, true) => (total_limit.saturating_add(1) / 2, total_limit / 2),
+            (true, false) => (total_limit, 0),
+            (false, true) => (0, total_limit),
+            (false, false) => unreachable!("supported retriever selection was checked above"),
+        };
+
+        let (records, record_search_degraded) = if record_retriever_enabled {
+            let (rows, degraded) = self
+                .search_record_details_keyword_filtered(
+                    &query.scope,
+                    trimmed_query,
+                    i32::try_from(record_limit).unwrap_or(i32::MAX),
+                    &query.memory_types,
+                    query.read_scope,
+                )
+                .await?;
+            (
+                rows.into_iter()
+                    .map(|row| MemoryRetrievalRecordCandidate {
+                        memory_id: row.memory_id,
+                        subject: row.subject,
+                        predicate: row.predicate,
+                        object_text: row.object_text,
+                        canonical_text: row.canonical_text,
+                        created_at: row.created_at,
+                    })
+                    .collect(),
+                degraded,
+            )
+        } else {
+            (Vec::new(), false)
+        };
+        let events = if event_retriever_enabled && event_limit > 0 {
+            self.search_linked_event_candidates_keyword(
+                &query.scope,
+                trimmed_query,
+                event_limit,
+                &query.memory_types,
+                query.read_scope,
+            )
+            .await?
+        } else {
+            Vec::new()
+        };
+
+        Ok(MemoryRetrieverSearchResult {
+            records,
+            events,
+            degraded: record_search_degraded || !unavailable_retriever_kinds.is_empty(),
+            unavailable_retriever_kinds,
+        })
     }
 
     pub async fn append_event(
@@ -2832,7 +3052,15 @@ event_type: row.get("event_type"),
 
         for hit in &command.hits {
             let memory_row_id = match hit.memory_id.as_deref() {
-                Some(memory_id) => self.lookup_record_row_id(&command.scope, memory_id).await?,
+                Some(memory_id) => {
+                    let hit_scope = MemoryScopeContext {
+                        tenant_id: command.scope.tenant_id,
+                        space_id: hit.space_id.unwrap_or(command.scope.space_id),
+                        organization_id: command.scope.organization_id,
+                        user_id: command.scope.user_id,
+                    };
+                    self.lookup_record_row_id(&hit_scope, memory_id).await?
+                }
                 None => None,
             };
             sqlx::query(
@@ -3252,6 +3480,7 @@ event_type: row.get("event_type"),
             SELECT
               hit.uuid,
               record.uuid AS memory_uuid,
+              record.space_id AS memory_space_id,
               hit.retriever_name,
               hit.result_rank,
               hit.raw_score,
@@ -3262,14 +3491,12 @@ event_type: row.get("event_type"),
             LEFT JOIN ai_record record
               ON record.id = hit.memory_id
              AND record.tenant_id = hit.tenant_id
-             AND record.space_id = ?
             WHERE hit.tenant_id = ?
               AND hit.retrieval_trace_id = ?
             ORDER BY hit.result_rank ASC, hit.id ASC
             LIMIT 1000
             "#,
         )
-        .bind(scope.space_id)
         .bind(scope.tenant_id)
         .bind(trace_row_id)
         .fetch_all(&self.pool)
@@ -3280,6 +3507,7 @@ event_type: row.get("event_type"),
             .map(|row| MemoryRetrievalHitDraft {
                 hit_id: row.get("uuid"),
                 memory_id: row.get("memory_uuid"),
+                space_id: row.get("memory_space_id"),
                 retriever_name: row.get("retriever_name"),
                 result_rank: row.get("result_rank"),
                 raw_score: row.get("raw_score"),
@@ -4173,7 +4401,10 @@ event_type: row.get("event_type"),
         Ok(count)
     }
 
-    async fn ensure_space(&self, scope: &MemoryScopeContext) -> Result<(), NativeSqlStoreError> {
+    pub(crate) async fn ensure_space(
+        &self,
+        scope: &MemoryScopeContext,
+    ) -> Result<(), NativeSqlStoreError> {
         if self
             .retrieve_space_for_tenant(scope.tenant_id, scope.space_id)
             .await?
@@ -4188,6 +4419,74 @@ event_type: row.get("event_type"),
                 scope.space_id, scope.tenant_id
             ),
         })
+    }
+}
+
+#[async_trait]
+impl MemoryRetrieverPort for NativeSqlMemoryStore {
+    fn retriever_code(&self) -> &str {
+        "native_sql_phase1"
+    }
+
+    fn supports_bounded_scoped_search(&self) -> bool {
+        true
+    }
+
+    async fn retrieve(
+        &self,
+        _command: RetrieveMemoryCandidatesCommand,
+    ) -> MemorySpiResult<MemoryRetrieverResult> {
+        Err(MemorySpiError::PortOperationFailed {
+            port: "MemoryRetrieverPort".to_string(),
+            message: "scope-aware retrieval is required; use search_scoped".to_string(),
+        })
+    }
+
+    async fn retrieve_scoped(
+        &self,
+        scope: MemoryScopeContext,
+        command: RetrieveMemoryCandidatesCommand,
+    ) -> MemorySpiResult<MemoryRetrieverResult> {
+        let result = self
+            .search_memory_candidates(&SearchMemoryCandidatesQuery {
+                scope,
+                query: command.query,
+                limit: 20,
+                retriever_kinds: vec![
+                    MemoryRetrieverKind::Sql,
+                    MemoryRetrieverKind::Keyword,
+                    MemoryRetrieverKind::Dictionary,
+                    MemoryRetrieverKind::Time,
+                    MemoryRetrieverKind::Event,
+                ],
+                memory_types: Vec::new(),
+                read_scope: MemorySensitivityReadScope::Owner,
+            })
+            .await
+            .map_err(|err| port_error("MemoryRetrieverPort", err))?;
+        let mut memory_ids = result
+            .records
+            .into_iter()
+            .map(|candidate| candidate.memory_id)
+            .chain(
+                result
+                    .events
+                    .into_iter()
+                    .map(|candidate| candidate.memory_id),
+            )
+            .collect::<Vec<_>>();
+        memory_ids.sort();
+        memory_ids.dedup();
+        Ok(MemoryRetrieverResult { memory_ids })
+    }
+
+    async fn search_scoped(
+        &self,
+        query: SearchMemoryCandidatesQuery,
+    ) -> MemorySpiResult<MemoryRetrieverSearchResult> {
+        self.search_memory_candidates(&query)
+            .await
+            .map_err(|err| port_error("MemoryRetrieverPort", err))
     }
 }
 
@@ -4222,6 +4521,10 @@ impl MemoryEventStorePort for NativeSqlMemoryStore {
 
 #[async_trait]
 impl MemoryRecordStorePort for NativeSqlMemoryStore {
+    fn supports_canonical_atomic(&self) -> bool {
+        true
+    }
+
     async fn create(&self, command: CreateMemoryRecordCommand) -> MemorySpiResult<MemoryRecord> {
         self.create_record(&command.scope, &command.memory_id, "spi", &command.content)
             .await
@@ -4253,6 +4556,42 @@ impl MemoryRecordStorePort for NativeSqlMemoryStore {
         command: DeleteMemoryRecordCommand,
     ) -> MemorySpiResult<MemoryDeletionReceipt> {
         self.mark_record_deleted(&command.scope, &command.memory_id)
+            .await
+            .map_err(|err| port_error("MemoryRecordStorePort", err))
+    }
+
+    async fn create_canonical_atomic(
+        &self,
+        command: CreateCanonicalMemoryCommand,
+    ) -> MemorySpiResult<MemoryCanonicalRecord> {
+        self.create_canonical_memory_atomic(&command)
+            .await
+            .map_err(|err| port_error("MemoryRecordStorePort", err))
+    }
+
+    async fn retrieve_canonical(
+        &self,
+        query: RetrieveCanonicalMemoryQuery,
+    ) -> MemorySpiResult<Option<MemoryCanonicalRecord>> {
+        self.retrieve_canonical_memory(&query.scope, &query.memory_id)
+            .await
+            .map_err(|err| port_error("MemoryRecordStorePort", err))
+    }
+
+    async fn update_canonical_atomic(
+        &self,
+        command: UpdateCanonicalMemoryCommand,
+    ) -> MemorySpiResult<Option<MemoryCanonicalRecord>> {
+        self.update_canonical_memory_atomic(&command)
+            .await
+            .map_err(|err| port_error("MemoryRecordStorePort", err))
+    }
+
+    async fn delete_canonical_atomic(
+        &self,
+        command: DeleteCanonicalMemoryCommand,
+    ) -> MemorySpiResult<MemoryDeletionReceipt> {
+        self.delete_canonical_memory_atomic(&command)
             .await
             .map_err(|err| port_error("MemoryRecordStorePort", err))
     }

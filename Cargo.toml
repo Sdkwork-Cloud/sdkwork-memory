@@ -51,12 +51,14 @@ rand = "0.8"
 
 sdkwork-memory-database-host = { path = "crates/sdkwork-memory-database-host" }
 sdkwork-memory-drive = { path = "crates/sdkwork-memory-drive" }
+sdkwork-memory-gateway-assembly = { path = "crates/sdkwork-memory-gateway-assembly" }
 sdkwork-memory-spi = { path = "crates/sdkwork-memory-spi" }
 sdkwork-memory-profile-resolver = { path = "crates/sdkwork-memory-profile-resolver" }
 sdkwork-memory-contract = { path = "crates/sdkwork-memory-contract" }
 sdkwork-memory-retrieval = { path = "crates/sdkwork-memory-retrieval" }
 sdkwork-memory-test-support = { path = "crates/sdkwork-memory-test-support" }
 sdkwork-memory-plugin-native-sql = { path = "plugins/sdkwork-memory-plugin-native-sql" }
+sdkwork-memory-plugin-reference-profiles = { path = "plugins/sdkwork-memory-plugin-reference-profiles" }
 sdkwork-intelligence-memory-service = { path = "crates/sdkwork-intelligence-memory-service" }
 sdkwork-intelligence-memory-repository-sqlx = { path = "crates/sdkwork-intelligence-memory-repository-sqlx" }
 sdkwork-routes-memory-open-api = { path = "crates/sdkwork-routes-memory-open-api" }
