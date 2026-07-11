@@ -4,7 +4,7 @@
   "applicationCode": "memory",
   "packageName": "sdkwork-memory-gateway-assembly",
   "crateDir": "crates/sdkwork-memory-gateway-assembly",
-  "generatedAt": "2026-06-27T05:25:13.708Z",
+  "generatedAt": "2026-07-08T01:34:15.138Z",
   "routeCrates": [
     {
       "packageName": "sdkwork-routes-memory-app-api",

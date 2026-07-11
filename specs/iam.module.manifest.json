@@ -1,0 +1,395 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.iam.module",
+  "moduleId": "memory",
+  "domain": "memory",
+  "permissions": {
+    "catalog": [
+      {
+        "code": "memory.app.entities.read",
+        "description": "Permission memory.app.entities.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.app.entities.write",
+        "description": "Permission memory.app.entities.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.app.policies.write",
+        "description": "Permission memory.app.policies.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.auditLogs.read",
+        "description": "Permission memory.backend.auditLogs.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.bindings.read",
+        "description": "Permission memory.backend.bindings.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.bindings.write",
+        "description": "Permission memory.backend.bindings.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.candidates.read",
+        "description": "Permission memory.backend.candidates.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.candidates.write",
+        "description": "Permission memory.backend.candidates.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.capabilityBindings.read",
+        "description": "Permission memory.backend.capabilityBindings.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.capabilityBindings.write",
+        "description": "Permission memory.backend.capabilityBindings.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.commercialReadiness.read",
+        "description": "Permission memory.backend.commercialReadiness.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.commercialReadiness.write",
+        "description": "Permission memory.backend.commercialReadiness.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.edges.write",
+        "description": "Permission memory.backend.edges.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.entities.read",
+        "description": "Permission memory.backend.entities.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.entities.write",
+        "description": "Permission memory.backend.entities.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.evalRuns.read",
+        "description": "Permission memory.backend.evalRuns.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.evalRuns.write",
+        "description": "Permission memory.backend.evalRuns.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.events.read",
+        "description": "Permission memory.backend.events.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.implementationProfiles.read",
+        "description": "Permission memory.backend.implementationProfiles.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.implementationProfiles.write",
+        "description": "Permission memory.backend.implementationProfiles.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.indexes.read",
+        "description": "Permission memory.backend.indexes.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.indexes.write",
+        "description": "Permission memory.backend.indexes.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.learning.read",
+        "description": "Permission memory.backend.learning.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.learning.write",
+        "description": "Permission memory.backend.learning.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.migrations.read",
+        "description": "Permission memory.backend.migrations.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.migrations.write",
+        "description": "Permission memory.backend.migrations.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.policies.write",
+        "description": "Permission memory.backend.policies.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.providerBindings.read",
+        "description": "Permission memory.backend.providerBindings.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.providerBindings.write",
+        "description": "Permission memory.backend.providerBindings.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.providerHealth.read",
+        "description": "Permission memory.backend.providerHealth.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.records.read",
+        "description": "Permission memory.backend.records.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.records.write",
+        "description": "Permission memory.backend.records.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.retention.write",
+        "description": "Permission memory.backend.retention.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.retrievalProfiles.read",
+        "description": "Permission memory.backend.retrievalProfiles.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.retrievalProfiles.write",
+        "description": "Permission memory.backend.retrievalProfiles.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.retrievalTraces.read",
+        "description": "Permission memory.backend.retrievalTraces.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.spaces.read",
+        "description": "Permission memory.backend.spaces.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.spaces.write",
+        "description": "Permission memory.backend.spaces.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.subjects.read",
+        "description": "Permission memory.backend.subjects.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.backend.subjects.write",
+        "description": "Permission memory.backend.subjects.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.candidates.read",
+        "description": "Permission memory.candidates.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.candidates.write",
+        "description": "Permission memory.candidates.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.contextPacks.read",
+        "description": "Permission memory.contextPacks.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.contextPacks.write",
+        "description": "Permission memory.contextPacks.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.events.read",
+        "description": "Permission memory.events.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.events.write",
+        "description": "Permission memory.events.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.exports.read",
+        "description": "Permission memory.exports.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.exports.write",
+        "description": "Permission memory.exports.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.feedback.write",
+        "description": "Permission memory.feedback.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.forget.read",
+        "description": "Permission memory.forget.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.forget.write",
+        "description": "Permission memory.forget.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.habits.read",
+        "description": "Permission memory.habits.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.habits.write",
+        "description": "Permission memory.habits.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.learning.write",
+        "description": "Permission memory.learning.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.learningSettings.read",
+        "description": "Permission memory.learningSettings.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.learningSettings.write",
+        "description": "Permission memory.learningSettings.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.open.candidates.read",
+        "description": "Permission memory.open.candidates.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.open.capabilities.read",
+        "description": "Permission memory.open.capabilities.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.open.contextPacks.read",
+        "description": "Permission memory.open.contextPacks.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.open.contextPacks.write",
+        "description": "Permission memory.open.contextPacks.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.open.entities.read",
+        "description": "Permission memory.open.entities.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.open.entities.write",
+        "description": "Permission memory.open.entities.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.open.events.read",
+        "description": "Permission memory.open.events.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.open.events.write",
+        "description": "Permission memory.open.events.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.open.feedback.write",
+        "description": "Permission memory.open.feedback.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.open.learning.write",
+        "description": "Permission memory.open.learning.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.open.providerHealth.read",
+        "description": "Permission memory.open.providerHealth.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.open.records.read",
+        "description": "Permission memory.open.records.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.open.records.write",
+        "description": "Permission memory.open.records.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.open.retrievals.read",
+        "description": "Permission memory.open.retrievals.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.open.retrievals.write",
+        "description": "Permission memory.open.retrievals.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.records.read",
+        "description": "Permission memory.records.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.records.write",
+        "description": "Permission memory.records.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.retrievals.read",
+        "description": "Permission memory.retrievals.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.retrievals.write",
+        "description": "Permission memory.retrievals.write",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.spaces.read",
+        "description": "Permission memory.spaces.read",
+        "source": "openapi"
+      },
+      {
+        "code": "memory.spaces.write",
+        "description": "Permission memory.spaces.write",
+        "source": "openapi"
+      }
+    ]
+  }
+}

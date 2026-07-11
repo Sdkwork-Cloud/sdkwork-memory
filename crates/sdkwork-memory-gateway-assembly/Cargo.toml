@@ -16,3 +16,4 @@ sdkwork-intelligence-memory-service.workspace = true
 sdkwork_routes_memory_app_api = { package = "sdkwork-routes-memory-app-api", path = "../sdkwork-routes-memory-app-api" }
 sdkwork_routes_memory_backend_api = { package = "sdkwork-routes-memory-backend-api", path = "../sdkwork-routes-memory-backend-api" }
 sdkwork_routes_memory_open_api = { package = "sdkwork-routes-memory-open-api", path = "../sdkwork-routes-memory-open-api" }
+sdkwork_routes_memory_support = { package = "sdkwork-routes-memory-support", path = "../sdkwork-routes-memory-support" }

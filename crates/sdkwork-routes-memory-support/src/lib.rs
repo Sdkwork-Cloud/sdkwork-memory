@@ -145,3 +145,9 @@ mod tests {
         }
     }
 }
+
+use axum::Router;
+
+pub fn gateway_mount() -> axum::Router {
+    axum::Router::new()
+}

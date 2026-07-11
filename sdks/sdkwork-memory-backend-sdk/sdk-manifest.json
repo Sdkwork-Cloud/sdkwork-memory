@@ -66,5 +66,53 @@
   "dependencyApiSurfaces": [],
   "ownerOnlyOperationCount": null,
   "standardVersion": "2026-06-10",
-  "managedBy": "tools/materialize_phase1_contracts.mjs"
+  "managedBy": "tools/materialize_phase1_contracts.mjs",
+  "transportPackageName": "sdkwork-memory-backend-sdk-generated-typescript",
+  "typescript": {
+    "composedRoot": "sdkwork-memory-backend-sdk-typescript",
+    "composedEntry": "sdkwork-memory-backend-sdk-typescript/src/index.ts",
+    "transportRoot": "sdkwork-memory-backend-sdk-typescript/generated/server-openapi",
+    "transportEntry": "sdkwork-memory-backend-sdk-typescript/generated/server-openapi/src/index.ts"
+  },
+  "workspace": "sdkwork-memory-backend-sdk",
+  "title": "SDKWork Memory Backend API SDK",
+  "apiVersion": "0.1.0",
+  "openapiVersion": "3.1.2",
+  "authoritySpec": "openapi/memory-backend-api.openapi.json",
+  "derivedSpecs": {
+    "default": "openapi/memory-backend-api.openapi.json"
+  },
+  "discoverySurface": {
+    "sdkTarget": "backend",
+    "apiPrefix": "/backend/v3/api",
+    "schemaUrl": "/backend/v3/openapi.json",
+    "generatedProtocols": [
+      "http-openapi"
+    ],
+    "manualTransports": []
+  },
+  "metadata": {
+    "standardVersion": "2026-06-10",
+    "ownerOnlyOperationCount": null,
+    "materializationState": "authority-active",
+    "managedBy": "tools/materialize_phase1_contracts.mjs"
+  },
+  "languages": [
+    {
+      "language": "typescript",
+      "workspace": "sdkwork-memory-backend-sdk-typescript",
+      "generationState": "declared",
+      "releaseState": "not_published",
+      "generatedPath": "sdkwork-memory-backend-sdk-typescript/generated/server-openapi",
+      "manifestPath": "sdkwork-memory-backend-sdk-typescript/generated/server-openapi/package.json",
+      "version": "0.1.0",
+      "description": "Generator-owned TypeScript transport SDK for sdkwork-memory.backend.",
+      "consumerSurface": {
+        "primaryClient": "SdkworkMemoryBackendClient",
+        "apiPrefix": "/backend/v3/api"
+      },
+      "consumerPackageName": "@sdkwork/memory-backend-sdk",
+      "transportPackageName": "sdkwork-memory-backend-sdk-generated-typescript"
+    }
+  ]
 }
