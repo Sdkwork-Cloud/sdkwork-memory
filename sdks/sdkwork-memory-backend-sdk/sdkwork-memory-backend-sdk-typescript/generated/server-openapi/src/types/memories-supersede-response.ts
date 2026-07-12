@@ -1,6 +1,6 @@
-import type { MemoryCandidate } from './memory-candidate';
+import type { MemoryRecord } from './memory-record';
 
-export interface CandidatesRejectResponse201 {
+export interface MemoriesSupersedeResponse {
   code: 0;
   data: unknown & Record<string, unknown>;
   /** Server-owned request correlation id. */

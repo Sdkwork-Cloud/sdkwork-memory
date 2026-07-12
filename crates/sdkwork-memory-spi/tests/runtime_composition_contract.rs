@@ -4,9 +4,10 @@ use async_trait::async_trait;
 use sdkwork_memory_spi::{
     AssembleMemoryContextCommand, MemoryContextAssemblerPort, MemoryContextPackDraft,
     MemoryCoreRuntime, MemoryDeploymentMode, MemoryExecutablePluginRuntime,
-    MemoryImplementationKind, MemoryPluginManifest, MemoryPluginPorts, MemoryPluginRegistry,
-    MemoryRetrieverPort, MemoryRetrieverResult, MemoryRuntimeProfileMetadata, MemoryScopeContext,
-    MemorySpiError, MemorySpiResult, RetrieveMemoryCandidatesCommand,
+    MemoryGovernanceAccessPort, MemoryImplementationKind, MemoryPluginManifest, MemoryPluginPorts,
+    MemoryPluginRegistry, MemoryRetrieverPort, MemoryRetrieverResult, MemoryRuntimeProfileMetadata,
+    MemoryScopeContext, MemorySpiError, MemorySpiResult, ResolveMemorySpaceGovernanceQuery,
+    RetrieveMemoryCandidatesCommand,
 };
 
 struct NamedRetriever {
@@ -44,6 +45,11 @@ impl MemoryContextAssemblerPort for UnscopedContextAssembler {
     }
 }
 
+struct UnscopedGovernance;
+
+#[async_trait]
+impl MemoryGovernanceAccessPort for UnscopedGovernance {}
+
 #[tokio::test]
 async fn scoped_port_methods_fail_closed_until_an_implementation_overrides_them() {
     let scope = MemoryScopeContext::for_test(1, 10);
@@ -79,6 +85,25 @@ async fn scoped_port_methods_fail_closed_until_an_implementation_overrides_them(
         MemorySpiError::PortOperationFailed { port, message }
             if port == "MemoryContextAssemblerPort"
                 && message.contains("scope-aware context assembly")
+    ));
+
+    assert!(!UnscopedGovernance.supports_bounded_governance_access());
+    let governance_error = MemoryGovernanceAccessPort::resolve_space_governance(
+        &UnscopedGovernance,
+        ResolveMemorySpaceGovernanceQuery {
+            scope: MemoryScopeContext::for_test(1, 10),
+            actor: None,
+            capability_code: None,
+            fact_limit: 1,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(
+        governance_error,
+        MemorySpiError::PortOperationFailed { port, message }
+            if port == "MemoryGovernanceAccessPort"
+                && message.contains("bounded tenant-scoped governance")
     ));
 }
 

@@ -15,7 +15,9 @@ use sdkwork_memory_contract::{
 use sdkwork_web_core::{WebFrameworkError, WebRequestContextResolver, WebRequestPrincipal};
 
 pub use correlation::{with_problem_correlation, MemoryProblemCorrelation};
-pub use metrics::{memory_http_metrics, memory_metric_environment_label, refresh_memory_http_metric_dimensions};
+pub use metrics::{
+    memory_http_metrics, memory_metric_environment_label, refresh_memory_http_metric_dimensions,
+};
 pub use principal::{parse_principal_optional_u64, parse_principal_u64};
 pub use problem::{MemoryApiError, MemoryApiProblem, MemoryApiResult};
 pub use readiness::memory_dependency_ready_check;
@@ -23,12 +25,11 @@ pub use response::{
     created_resource_json, finish_created_resource_response, finish_no_content_response,
     finish_page_response, finish_resource_response, no_content_json, ok_page_json,
     ok_resource_json, resolved_trace_id, success_created_page_response,
-    success_created_resource_response,
-    success_no_content_response, success_page_response, success_resource_response,
+    success_created_resource_response, success_no_content_response, success_page_response,
+    success_resource_response,
 };
 
-const PRODUCTION_AUTH_UNAVAILABLE: &str =
-    "production memory auth requires IAM PostgreSQL database";
+const PRODUCTION_AUTH_UNAVAILABLE: &str = "production memory auth requires IAM PostgreSQL database";
 
 /// How HTTP routers should resolve request context from environment.
 pub enum MemoryWebAuthMode {
@@ -51,11 +52,9 @@ pub async fn memory_web_auth_mode_from_env() -> MemoryWebAuthMode {
         return MemoryWebAuthMode::ProductionFailClosed;
     }
 
-    MemoryWebAuthMode::IamDatabase(
-        sdkwork_iam_web_adapter::IamWebRequestContextResolver::new(
-            readiness::shared_iam_postgres_pool().await,
-        ),
-    )
+    MemoryWebAuthMode::IamDatabase(sdkwork_iam_web_adapter::IamWebRequestContextResolver::new(
+        readiness::shared_iam_postgres_pool().await,
+    ))
 }
 
 #[derive(Clone, Default)]
@@ -67,7 +66,9 @@ impl WebRequestContextResolver for ProductionFailClosedResolver {
         &self,
         _raw_api_key: &str,
     ) -> Result<WebRequestPrincipal, WebFrameworkError> {
-        Err(WebFrameworkError::dependency_unavailable(PRODUCTION_AUTH_UNAVAILABLE))
+        Err(WebFrameworkError::dependency_unavailable(
+            PRODUCTION_AUTH_UNAVAILABLE,
+        ))
     }
 
     async fn resolve_dual_token(
@@ -75,77 +76,105 @@ impl WebRequestContextResolver for ProductionFailClosedResolver {
         _raw_auth_token: &str,
         _raw_access_token: &str,
     ) -> Result<WebRequestPrincipal, WebFrameworkError> {
-        Err(WebFrameworkError::dependency_unavailable(PRODUCTION_AUTH_UNAVAILABLE))
+        Err(WebFrameworkError::dependency_unavailable(
+            PRODUCTION_AUTH_UNAVAILABLE,
+        ))
     }
 
     async fn resolve_access_token(
         &self,
         _raw_access_token: &str,
     ) -> Result<WebRequestPrincipal, WebFrameworkError> {
-        Err(WebFrameworkError::dependency_unavailable(PRODUCTION_AUTH_UNAVAILABLE))
+        Err(WebFrameworkError::dependency_unavailable(
+            PRODUCTION_AUTH_UNAVAILABLE,
+        ))
     }
 
     async fn resolve_oauth_bearer(
         &self,
         _raw_bearer_token: &str,
     ) -> Result<WebRequestPrincipal, WebFrameworkError> {
-        Err(WebFrameworkError::dependency_unavailable(PRODUCTION_AUTH_UNAVAILABLE))
+        Err(WebFrameworkError::dependency_unavailable(
+            PRODUCTION_AUTH_UNAVAILABLE,
+        ))
     }
+}
+
+pub fn gateway_mount() -> axum::Router {
+    axum::Router::new()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn production_without_iam_database_uses_fail_closed_mode() {
-        let _guard = sdkwork_memory_contract::runtime_env::env_test_lock();
-        let previous_environment = std::env::var("SDKWORK_MEMORY_ENVIRONMENT").ok();
-        let previous_bypass = std::env::var("SDKWORK_MEMORY_DEV_AUTH_BYPASS").ok();
-        std::env::set_var("SDKWORK_MEMORY_ENVIRONMENT", "production");
-        std::env::remove_var("SDKWORK_MEMORY_DEV_AUTH_BYPASS");
-        std::env::remove_var("SDKWORK_IAM_DATABASE_URL");
+    struct EnvironmentRestore {
+        values: Vec<(&'static str, Option<std::ffi::OsString>)>,
+    }
 
-        let mode = memory_web_auth_mode_from_env().await;
-        assert!(matches!(mode, MemoryWebAuthMode::ProductionFailClosed));
-
-        if let Some(value) = previous_environment {
-            std::env::set_var("SDKWORK_MEMORY_ENVIRONMENT", value);
-        } else {
-            std::env::remove_var("SDKWORK_MEMORY_ENVIRONMENT");
-        }
-        if let Some(value) = previous_bypass {
-            std::env::set_var("SDKWORK_MEMORY_DEV_AUTH_BYPASS", value);
-        } else {
-            std::env::remove_var("SDKWORK_MEMORY_DEV_AUTH_BYPASS");
+    impl EnvironmentRestore {
+        fn capture(keys: &[&'static str]) -> Self {
+            Self {
+                values: keys
+                    .iter()
+                    .map(|key| (*key, std::env::var_os(key)))
+                    .collect(),
+            }
         }
     }
 
-    #[tokio::test]
-    async fn production_without_iam_database_fails_dependency_ready_check() {
+    impl Drop for EnvironmentRestore {
+        fn drop(&mut self) {
+            for (key, value) in self.values.drain(..) {
+                if let Some(value) = value {
+                    std::env::set_var(key, value);
+                } else {
+                    std::env::remove_var(key);
+                }
+            }
+        }
+    }
+
+    fn block_on<T>(future: impl std::future::Future<Output = T>) -> T {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime must initialize")
+            .block_on(future)
+    }
+
+    #[test]
+    fn production_without_iam_database_uses_fail_closed_mode() {
         let _guard = sdkwork_memory_contract::runtime_env::env_test_lock();
-        let previous_environment = std::env::var("SDKWORK_MEMORY_ENVIRONMENT").ok();
-        let previous_bypass = std::env::var("SDKWORK_MEMORY_DEV_AUTH_BYPASS").ok();
+        let _restore = EnvironmentRestore::capture(&[
+            "SDKWORK_MEMORY_ENVIRONMENT",
+            "SDKWORK_MEMORY_DEV_AUTH_BYPASS",
+            "SDKWORK_IAM_DATABASE_URL",
+            "SDKWORK_IAM_DATABASE_ENGINE",
+        ]);
         std::env::set_var("SDKWORK_MEMORY_ENVIRONMENT", "production");
         std::env::remove_var("SDKWORK_MEMORY_DEV_AUTH_BYPASS");
         std::env::remove_var("SDKWORK_IAM_DATABASE_URL");
         std::env::remove_var("SDKWORK_IAM_DATABASE_ENGINE");
 
-        assert!(!super::readiness::memory_dependency_ready_check().await);
-
-        if let Some(value) = previous_environment {
-            std::env::set_var("SDKWORK_MEMORY_ENVIRONMENT", value);
-        } else {
-            std::env::remove_var("SDKWORK_MEMORY_ENVIRONMENT");
-        }
-        if let Some(value) = previous_bypass {
-            std::env::set_var("SDKWORK_MEMORY_DEV_AUTH_BYPASS", value);
-        } else {
-            std::env::remove_var("SDKWORK_MEMORY_DEV_AUTH_BYPASS");
-        }
+        let mode = block_on(memory_web_auth_mode_from_env());
+        assert!(matches!(mode, MemoryWebAuthMode::ProductionFailClosed));
     }
-}
 
-pub fn gateway_mount() -> axum::Router {
-    axum::Router::new()
+    #[test]
+    fn production_without_iam_database_fails_dependency_ready_check() {
+        let _guard = sdkwork_memory_contract::runtime_env::env_test_lock();
+        let _restore = EnvironmentRestore::capture(&[
+            "SDKWORK_MEMORY_ENVIRONMENT",
+            "SDKWORK_MEMORY_DEV_AUTH_BYPASS",
+            "SDKWORK_IAM_DATABASE_URL",
+            "SDKWORK_IAM_DATABASE_ENGINE",
+        ]);
+        std::env::set_var("SDKWORK_MEMORY_ENVIRONMENT", "production");
+        std::env::remove_var("SDKWORK_MEMORY_DEV_AUTH_BYPASS");
+        std::env::remove_var("SDKWORK_IAM_DATABASE_URL");
+        std::env::remove_var("SDKWORK_IAM_DATABASE_ENGINE");
+
+        assert!(!block_on(super::readiness::memory_dependency_ready_check()));
+    }
 }

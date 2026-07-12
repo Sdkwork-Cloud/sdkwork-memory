@@ -1,7 +1,7 @@
-import type { MemoryPageInfo } from './memory-page-info';
 import type { MemoryRetrievalTrace } from './memory-retrieval-trace';
+import type { PageInfo } from './page-info';
 
 export interface MemoryRetrievalTraceList {
   items: MemoryRetrievalTrace[];
-  pageInfo: MemoryPageInfo;
+  pageInfo: PageInfo;
 }

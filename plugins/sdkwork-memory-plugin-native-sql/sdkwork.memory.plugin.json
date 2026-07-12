@@ -39,6 +39,14 @@
       "builder": "build_native_sql_retrieval_trace_store"
     },
     {
+      "port": "MemoryGovernanceAccessPort",
+      "builder": "build_native_sql_governance_access"
+    },
+    {
+      "port": "MemorySpaceStorePort",
+      "builder": "build_native_sql_space_store"
+    },
+    {
       "port": "MemoryRetrieverPort",
       "builder": "build_native_sql_retriever"
     }

@@ -2912,6 +2912,7 @@ dependencies = [
  "sha2 0.10.9",
  "sqlx",
  "thiserror 2.0.18",
+ "tokio",
 ]
 
 [[package]]
@@ -3303,6 +3304,7 @@ dependencies = [
  "sdkwork-routes-memory-open-api",
  "sdkwork-web-core",
  "serde_json",
+ "sqlx",
  "tokio",
  "tower 0.5.3",
 ]

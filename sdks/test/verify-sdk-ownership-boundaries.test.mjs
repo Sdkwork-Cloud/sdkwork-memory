@@ -100,3 +100,49 @@ test("memory generated OpenAPI inputs contain only sdkwork-memory owned operatio
     }
   }
 });
+
+test("backend capability resolution preserves its named page data contract", () => {
+  const openapi = readJson(
+    path.join(
+      "sdks",
+      "sdkwork-memory-backend-sdk",
+      "openapi/memory-backend-api.openapi.json",
+    ),
+  );
+  const operation = openapi.paths["/backend/v3/api/memory/capabilities/resolve"].post;
+  const successSchema = operation.responses["200"].content["application/json"].schema;
+  const pageSchema = openapi.components.schemas.MemoryResolvedCapabilityList;
+  const responseSchema = openapi.components.schemas.MemoryResolvedCapabilityListResponse;
+
+  assert.deepEqual(successSchema, {
+    $ref: "#/components/schemas/MemoryResolvedCapabilityListResponse",
+  });
+  assert.deepEqual(pageSchema.required, ["items", "pageInfo"]);
+  assert.equal(
+    pageSchema.properties.items.items.$ref,
+    "#/components/schemas/MemoryResolvedCapability",
+  );
+  assert.equal(pageSchema.properties.pageInfo.$ref, "#/components/schemas/PageInfo");
+  assert.equal(
+    responseSchema.allOf[1].properties.data.$ref,
+    "#/components/schemas/MemoryResolvedCapabilityList",
+  );
+});
+
+test("backend TypeScript capability resolution returns the named page type", () => {
+  const generatedApi = readFileSync(
+    path.join(
+      workspaceRoot,
+      "sdks",
+      "sdkwork-memory-backend-sdk",
+      "sdkwork-memory-backend-sdk-typescript",
+      "generated/server-openapi/src/api/memory.ts",
+    ),
+    "utf8",
+  );
+
+  assert.match(
+    generatedApi,
+    /async resolve\(body: MemoryResolveCapabilitiesRequest, params\?: MemoryCapabilitiesResolveParams\): Promise<MemoryResolvedCapabilityList>/,
+  );
+});

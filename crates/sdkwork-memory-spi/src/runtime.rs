@@ -5,10 +5,10 @@ use std::sync::Arc;
 use crate::{
     EmbeddingModelPort, ExternalMemoryBridgePort, LanguageModelPort, MemoryAuditStorePort,
     MemoryCandidateStorePort, MemoryContextAssemblerPort, MemoryDeploymentMode,
-    MemoryEvaluationPort, MemoryEventStorePort, MemoryHabitStorePort, MemoryImplementationKind,
-    MemoryIndexPort, MemoryOutboxStorePort, MemoryPolicyStorePort, MemoryRecordStorePort,
-    MemoryRetrievalTraceStorePort, MemoryRetrieverPort, MemoryRuntimePlugin, MemorySpiError,
-    MemorySpiResult, RerankModelPort,
+    MemoryEvaluationPort, MemoryEventStorePort, MemoryGovernanceAccessPort, MemoryHabitStorePort,
+    MemoryImplementationKind, MemoryIndexPort, MemoryOutboxStorePort, MemoryPolicyStorePort,
+    MemoryRecordStorePort, MemoryRetrievalTraceStorePort, MemoryRetrieverPort, MemoryRuntimePlugin,
+    MemorySpaceStorePort, MemorySpiError, MemorySpiResult, RerankModelPort,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -160,6 +160,16 @@ define_memory_plugin_ports! {
     policy_store,
     MemoryPolicyStorePort,
     "MemoryPolicyStorePort";
+    governance_access,
+    with_governance_access,
+    governance_access,
+    MemoryGovernanceAccessPort,
+    "MemoryGovernanceAccessPort";
+    space_store,
+    with_space_store,
+    space_store,
+    MemorySpaceStorePort,
+    "MemorySpaceStorePort";
     retriever,
     with_retriever,
     retriever,
@@ -307,6 +317,14 @@ impl MemoryCoreRuntime {
 
     pub fn policy_store(&self) -> Option<Arc<dyn MemoryPolicyStorePort>> {
         self.ports.policy_store()
+    }
+
+    pub fn governance_access(&self) -> Option<Arc<dyn MemoryGovernanceAccessPort>> {
+        self.ports.governance_access()
+    }
+
+    pub fn space_store(&self) -> Option<Arc<dyn MemorySpaceStorePort>> {
+        self.ports.space_store()
     }
 
     pub fn retriever(&self) -> Option<Arc<dyn MemoryRetrieverPort>> {

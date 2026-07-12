@@ -52,26 +52,29 @@ fn local_embedded_profile_resolves_only_for_local_deployment() {
 }
 
 #[test]
-fn native_sql_and_local_embedded_profiles_require_learning_and_trace_ports() {
+fn native_sql_and_local_embedded_profiles_require_complete_native_data_plane() {
+    let expected_ports = vec![
+        "MemoryRecordStorePort".to_string(),
+        "MemoryEventStorePort".to_string(),
+        "MemoryAuditStorePort".to_string(),
+        "MemoryOutboxStorePort".to_string(),
+        "MemoryCandidateStorePort".to_string(),
+        "MemoryHabitStorePort".to_string(),
+        "MemoryRetrievalTraceStorePort".to_string(),
+        "MemoryGovernanceAccessPort".to_string(),
+        "MemorySpaceStorePort".to_string(),
+        "MemoryRetrieverPort".to_string(),
+    ];
+
     for profile in [
         MemoryImplementationProfileDraft::native_sql_phase1(),
         MemoryImplementationProfileDraft::local_embedded_phase1(),
     ] {
-        for required_port in [
-            "MemoryRecordStorePort",
-            "MemoryEventStorePort",
-            "MemoryAuditStorePort",
-            "MemoryOutboxStorePort",
-            "MemoryCandidateStorePort",
-            "MemoryHabitStorePort",
-            "MemoryRetrievalTraceStorePort",
-        ] {
-            assert!(
-                profile.required_ports.contains(&required_port.to_string()),
-                "{} must require {required_port}",
-                profile.profile_id
-            );
-        }
+        assert_eq!(
+            profile.required_ports, expected_ports,
+            "{} must require the complete native SQL phase-1 data plane",
+            profile.profile_id
+        );
     }
 }
 
@@ -221,12 +224,14 @@ fn hybrid_profile_can_compose_required_ports_across_plugins() {
         .expect("hybrid profile should compose ports from both baseline plugins");
 
     assert_eq!(resolved.deployment_mode, MemoryDeploymentMode::Test);
-    assert!(resolved
-        .port_bindings
-        .iter()
-        .filter(|binding| binding.plugin_id == native_sql)
-        .count()
-        >= 7);
+    assert!(
+        resolved
+            .port_bindings
+            .iter()
+            .filter(|binding| binding.plugin_id == native_sql)
+            .count()
+            >= 7
+    );
     assert!(resolved.port_bindings.iter().any(|binding| {
         binding.port == "MemoryRetrieverPort"
             && binding.plugin_id == "sdkwork-memory-plugin-reference-profiles"
@@ -248,14 +253,8 @@ fn profile_rejects_unknown_or_duplicate_port_bindings() {
     ));
 
     let profile = MemoryImplementationProfileDraft::native_sql_phase1()
-        .with_port_binding(
-            "MemoryRecordStorePort",
-            "sdkwork-memory-plugin-native-sql",
-        )
-        .with_port_binding(
-            "MemoryRecordStorePort",
-            "sdkwork-memory-plugin-native-sql",
-        );
+        .with_port_binding("MemoryRecordStorePort", "sdkwork-memory-plugin-native-sql")
+        .with_port_binding("MemoryRecordStorePort", "sdkwork-memory-plugin-native-sql");
     let err = MemoryRuntimeProfileResolver::new(&registry)
         .resolve(profile)
         .unwrap_err();

@@ -26,7 +26,8 @@ impl MemoryDataPlane {
     }
 }
 
-pub async fn connect_and_bootstrap_memory_database_from_env() -> Result<MemoryDatabaseHost, String> {
+pub async fn connect_and_bootstrap_memory_database_from_env() -> Result<MemoryDatabaseHost, String>
+{
     let config = DatabaseConfig::from_env("MEMORY").map_err(|error| error.to_string())?;
     let config = normalize_memory_database_config(config);
     let pool = create_pool_from_config(config)
@@ -77,7 +78,9 @@ pub async fn bootstrap_memory_data_plane_from_env() -> Result<MemoryDataPlane, S
         .unwrap_or(false);
 
     // Guard: reject SQLite in production-like environments.
-    if sdkwork_memory_contract::memory_is_production_like_environment() && config.engine == DatabaseEngine::Sqlite {
+    if sdkwork_memory_contract::memory_is_production_like_environment()
+        && config.engine == DatabaseEngine::Sqlite
+    {
         return Err(
             "production-like environment detected with SQLite engine — "
                 .to_string()

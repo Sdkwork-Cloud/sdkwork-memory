@@ -2,8 +2,7 @@ use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_contract::{MemoryOpenApi, MemoryOpenApiRequestContext};
 use sdkwork_memory_plugin_native_sql::{NativeSqlMemoryStore, NativeSqlPhase1Runtime};
 use sdkwork_memory_spi::{
-    MemoryCoreRuntime, MemoryDeploymentMode, MemoryImplementationKind,
-    MemoryRuntimeProfileMetadata,
+    MemoryCoreRuntime, MemoryDeploymentMode, MemoryImplementationKind, MemoryRuntimeProfileMetadata,
 };
 
 #[tokio::test]

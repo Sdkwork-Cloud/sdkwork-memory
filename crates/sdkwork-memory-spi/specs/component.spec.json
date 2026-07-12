@@ -51,23 +51,75 @@
         "name": "MemoryRecordStorePort",
         "export": ".",
         "atomicCapabilityProbe": "supports_canonical_atomic",
+        "atomicQuotaCapabilityProbe": "supports_atomic_record_quota_admission",
+        "atomicSupersedeCapabilityProbe": "supports_atomic_supersede",
+        "atomicSupersedeMethod": "supersede_canonical_atomic_with_quota",
         "atomicMethods": [
           "create_canonical_atomic",
+          "create_canonical_atomic_with_quota",
+          "supersede_canonical_atomic_with_quota",
           "update_canonical_atomic",
           "delete_canonical_atomic"
-        ]
+        ],
+        "quotaAdmissionOutcome": "typed-admitted-or-quota-exceeded"
       },
       { "name": "MemoryEventStorePort", "export": "." },
       { "name": "MemoryAuditStorePort", "export": "." },
       { "name": "MemoryOutboxStorePort", "export": "." },
-      { "name": "MemoryCandidateStorePort", "export": "." },
+      {
+        "name": "MemoryCandidateStorePort",
+        "export": ".",
+        "candidateDetailCapabilityProbe": "supports_candidate_detail_lookup",
+        "candidateDetailMethod": "retrieve_detail",
+        "candidateListingCapabilityProbe": "supports_candidate_listing",
+        "candidateListingMethod": "list_candidates",
+        "candidateListingPagination": "provider-owned-cursor",
+        "atomicPromotionCapabilityProbe": "supports_atomic_candidate_promotion",
+        "atomicPromotionMethod": "promote_atomic_with_quota",
+        "atomicPromotionJournalCapabilityProbe": "supports_atomic_candidate_promotion_journal",
+        "atomicPromotionJournalMethod": "promote_atomic_with_quota_and_journal",
+        "quotaAdmissionOutcome": "typed-admitted-or-quota-exceeded"
+      },
       { "name": "MemoryHabitStorePort", "export": "." },
-      { "name": "MemoryRetrievalTraceStorePort", "export": "." },
+      {
+        "name": "MemoryRetrievalTraceStorePort",
+        "export": ".",
+        "tenantScopedLookupMethod": "retrieve_for_tenant",
+        "capabilityProbe": "supports_tenant_trace_lookup",
+        "ambiguityPolicy": "fail-closed"
+      },
       { "name": "MemoryPolicyStorePort", "export": "." },
+      {
+        "name": "MemoryGovernanceAccessPort",
+        "export": ".",
+        "resolveMethod": "resolve_space_governance",
+        "capabilityProbe": "supports_bounded_governance_access",
+        "maxFacts": 32,
+        "completenessField": "complete",
+        "incompleteFactsPolicy": "fail-closed",
+        "policyOwner": "sdkwork-intelligence-memory-service",
+        "quotaCountMethods": [
+          "count_active_records",
+          "count_user_owned_spaces"
+        ],
+        "quotaAtomicity": "observation-only; admission-is-owned-by-mutation-ports"
+      },
+      {
+        "name": "MemorySpaceStorePort",
+        "export": ".",
+        "atomicQuotaCapabilityProbe": "supports_atomic_user_space_quota_admission",
+        "atomicQuotaMethod": "create_space_atomic_with_quota",
+        "quotaAdmissionOutcome": "typed-admitted-or-quota-exceeded",
+        "defaultBehavior": "fail-closed"
+      },
       {
         "name": "MemoryRetrieverPort",
         "export": ".",
-        "scopeAwareMethod": "retrieve_scoped"
+        "legacyScopeAwareMethod": "retrieve_scoped",
+        "boundedSearchMethod": "search_scoped",
+        "capabilityProbe": "supports_bounded_scoped_search",
+        "maxCandidateLimit": 200,
+        "canonicalRehydration": "required-by-service"
       },
       { "name": "MemoryIndexPort", "export": "." },
       { "name": "LanguageModelPort", "export": "." },

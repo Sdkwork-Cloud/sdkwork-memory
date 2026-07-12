@@ -27,7 +27,25 @@
     ],
     "requiredPorts": [
       { "name": "MemoryPluginSpi", "export": ".", "dependency": "sdkwork-memory-spi" },
-      { "name": "MemoryServiceAssembly", "export": ".", "dependency": "sdkwork-intelligence-memory-service" }
+      { "name": "MemoryServiceAssembly", "export": ".", "dependency": "sdkwork-intelligence-memory-service" },
+      {
+        "name": "MemoryGovernanceAccessPort",
+        "export": ".",
+        "dependency": "sdkwork-memory-spi",
+        "requiredFor": "native-sql-runtime-bootstrap"
+      },
+      {
+        "name": "MemorySpaceStorePort",
+        "export": ".",
+        "dependency": "sdkwork-memory-spi",
+        "requiredFor": "native-sql-runtime-bootstrap"
+      },
+      {
+        "name": "MemoryRetrieverPort",
+        "export": ".",
+        "dependency": "sdkwork-memory-spi",
+        "requiredFor": "native-sql-runtime-bootstrap"
+      }
     ],
     "runtimeEntrypoints": [
       "sdkwork_intelligence_memory_repository_sqlx::bootstrap_memory_runtime_from_env"

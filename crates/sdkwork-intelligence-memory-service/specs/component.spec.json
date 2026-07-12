@@ -30,6 +30,69 @@
     ],
     "requiredPorts": [
       { "name": "MemoryPluginSpi", "export": ".", "dependency": "sdkwork-memory-spi" },
+      {
+        "name": "MemoryRecordStorePort",
+        "export": ".",
+        "dependency": "sdkwork-memory-spi",
+        "requiredFor": "phase1-http",
+        "atomicCapabilityProbe": "supports_canonical_atomic",
+        "atomicQuotaCapabilityProbe": "supports_atomic_record_quota_admission",
+        "atomicSupersedeCapabilityProbe": "supports_atomic_supersede",
+        "atomicSupersedeMethod": "supersede_canonical_atomic_with_quota",
+        "atomicQuotaMethod": "create_canonical_atomic_with_quota"
+      },
+      {
+        "name": "MemoryCandidateStorePort",
+        "export": ".",
+        "dependency": "sdkwork-memory-spi",
+        "requiredFor": "phase1-http",
+        "candidateDetailCapabilityProbe": "supports_candidate_detail_lookup",
+        "candidateDetailMethod": "retrieve_detail",
+        "candidateListingCapabilityProbe": "supports_candidate_listing",
+        "candidateListingMethod": "list_candidates",
+        "atomicPromotionCapabilityProbe": "supports_atomic_candidate_promotion",
+        "atomicPromotionMethod": "promote_atomic_with_quota",
+        "atomicPromotionJournalCapabilityProbe": "supports_atomic_candidate_promotion_journal",
+        "atomicPromotionJournalMethod": "promote_atomic_with_quota_and_journal"
+      },
+      {
+        "name": "MemoryRetrieverPort",
+        "export": ".",
+        "dependency": "sdkwork-memory-spi",
+        "requiredFor": "phase1-http",
+        "capabilityProbe": "supports_bounded_scoped_search"
+      },
+      {
+        "name": "MemoryRetrievalTraceStorePort",
+        "export": ".",
+        "dependency": "sdkwork-memory-spi",
+        "requiredFor": "phase1-http",
+        "tenantScopedLookupMethod": "retrieve_for_tenant",
+        "capabilityProbe": "supports_tenant_trace_lookup"
+      },
+      {
+        "name": "MemoryGovernanceAccessPort",
+        "export": ".",
+        "dependency": "sdkwork-memory-spi",
+        "requiredFor": "phase1-http",
+        "resolveMethod": "resolve_space_governance",
+        "capabilityProbe": "supports_bounded_governance_access",
+        "maxFacts": 32,
+        "incompleteFactsPolicy": "fail-closed",
+        "policyOwner": "service-core",
+        "authorizationResolution": "single-bounded-snapshot-per-space",
+        "multiSpaceDuplicatePolicy": "deduplicate-preserve-first-seen-order",
+        "contextPackAuthorization": "reuse-retrieval-workflow",
+        "userSpaceQuotaAtomicity": "owned-by-MemorySpaceStorePort"
+      },
+      {
+        "name": "MemorySpaceStorePort",
+        "export": ".",
+        "dependency": "sdkwork-memory-spi",
+        "requiredFor": "phase1-http",
+        "atomicQuotaCapabilityProbe": "supports_atomic_user_space_quota_admission",
+        "atomicQuotaMethod": "create_space_atomic_with_quota"
+      },
       { "name": "MemoryDriveExportUploader", "export": ".", "dependency": "sdkwork-memory-spi" }
     ],
     "runtimeEntrypoints": [

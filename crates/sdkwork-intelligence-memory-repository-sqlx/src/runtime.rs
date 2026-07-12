@@ -19,6 +19,9 @@ const NATIVE_SQL_REQUIRED_PORTS: &[&str] = &[
     "MemoryCandidateStorePort",
     "MemoryHabitStorePort",
     "MemoryRetrievalTraceStorePort",
+    "MemoryGovernanceAccessPort",
+    "MemorySpaceStorePort",
+    "MemoryRetrieverPort",
 ];
 
 /// Validated plugin registry plus materialized SQL data plane for phase 1.

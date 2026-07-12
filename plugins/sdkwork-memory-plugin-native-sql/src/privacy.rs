@@ -46,54 +46,6 @@ impl NativeSqlMemoryStore {
         Ok(())
     }
 
-    pub async fn purge_derivatives_for_memory(
-        &self,
-        tenant_id: i64,
-        memory_uuid: &str,
-    ) -> Result<(u32, u32), NativeSqlStoreError> {
-        let rejected = sqlx::query(
-            r#"
-            UPDATE ai_candidate
-            SET decision_state = 'rejected',
-                decision_reason = 'privacy_forget',
-                decided_at = ?,
-                updated_at = ?,
-                version = version + 1
-            WHERE tenant_id = ?
-              AND target_memory_id = (
-                SELECT id FROM ai_record WHERE tenant_id = ? AND uuid = ? LIMIT 1
-              )
-              AND decision_state = 'pending'
-            "#,
-        )
-        .bind(now_text())
-        .bind(now_text())
-        .bind(tenant_id)
-        .bind(tenant_id)
-        .bind(memory_uuid)
-        .execute(self.pool())
-        .await?
-        .rows_affected();
-
-        let sources = sqlx::query(
-            r#"
-            DELETE FROM ai_record_source
-            WHERE tenant_id = ?
-              AND memory_id = (
-                SELECT id FROM ai_record WHERE tenant_id = ? AND uuid = ? LIMIT 1
-              )
-            "#,
-        )
-        .bind(tenant_id)
-        .bind(tenant_id)
-        .bind(memory_uuid)
-        .execute(self.pool())
-        .await?
-        .rows_affected();
-
-        Ok((rejected as u32, sources as u32))
-    }
-
     pub async fn forget_all_records_in_space(
         &self,
         scope: &MemoryScopeContext,
@@ -103,7 +55,13 @@ impl NativeSqlMemoryStore {
 
         loop {
             let rows = self
-                .list_record_details(scope, None, sdkwork_utils_rust::MAX_LIST_PAGE_SIZE, Some(&cursor), crate::store::SENSITIVITY_READ_OWNER)
+                .list_record_details(
+                    scope,
+                    None,
+                    sdkwork_utils_rust::MAX_LIST_PAGE_SIZE,
+                    Some(&cursor),
+                    crate::store::SENSITIVITY_READ_OWNER,
+                )
                 .await?;
             if rows.is_empty() {
                 break;
@@ -117,13 +75,13 @@ impl NativeSqlMemoryStore {
             };
 
             for row in batch {
-                if self.hard_delete_record(scope, &row.memory_id).await? {
+                let outcome = self
+                    .hard_delete_record_with_cleanup(scope, &row.memory_id)
+                    .await?;
+                if outcome.deleted {
                     stats.deleted_records += 1;
                 }
-                let (rejected, _) = self
-                    .purge_derivatives_for_memory(scope.tenant_id, &row.memory_id)
-                    .await?;
-                stats.rejected_candidates += rejected;
+                stats.rejected_candidates += outcome.rejected_candidates;
             }
 
             if !has_more {
@@ -146,35 +104,62 @@ impl NativeSqlMemoryStore {
         space_id: Option<i64>,
     ) -> Result<ForgetScopeStats, NativeSqlStoreError> {
         let mut stats = ForgetScopeStats::default();
-        let now = now_text();
+        let batch_size = i64::from(sdkwork_utils_rust::MAX_LIST_PAGE_SIZE);
+        loop {
+            let rows = if let Some(space_id) = space_id {
+                sqlx::query(
+                    r#"
+                    SELECT uuid, space_id
+                    FROM ai_record
+                    WHERE tenant_id = ? AND space_id = ? AND user_id = ?
+                    ORDER BY id ASC
+                    LIMIT ?
+                    "#,
+                )
+                .bind(tenant_id)
+                .bind(space_id)
+                .bind(user_id)
+                .bind(batch_size)
+                .fetch_all(self.pool())
+                .await?
+            } else {
+                sqlx::query(
+                    r#"
+                    SELECT uuid, space_id
+                    FROM ai_record
+                    WHERE tenant_id = ? AND user_id = ?
+                    ORDER BY id ASC
+                    LIMIT ?
+                    "#,
+                )
+                .bind(tenant_id)
+                .bind(user_id)
+                .bind(batch_size)
+                .fetch_all(self.pool())
+                .await?
+            };
+            if rows.is_empty() {
+                break;
+            }
+            for row in rows {
+                let memory_id: String = row.get("uuid");
+                let scope = MemoryScopeContext {
+                    tenant_id,
+                    space_id: row.get("space_id"),
+                    organization_id: None,
+                    user_id: Some(user_id),
+                };
+                let outcome = self
+                    .hard_delete_record_with_cleanup(&scope, &memory_id)
+                    .await?;
+                if outcome.deleted {
+                    stats.deleted_records += 1;
+                }
+                stats.rejected_candidates += outcome.rejected_candidates;
+            }
+        }
 
-        let deleted = if let Some(space_id) = space_id {
-            sqlx::query(
-                r#"
-                DELETE FROM ai_record
-                WHERE tenant_id = ? AND space_id = ? AND user_id = ?
-                "#,
-            )
-            .bind(tenant_id)
-            .bind(space_id)
-            .bind(user_id)
-            .execute(self.pool())
-            .await?
-            .rows_affected()
-        } else {
-            sqlx::query(
-                r#"
-                DELETE FROM ai_record
-                WHERE tenant_id = ? AND user_id = ?
-                "#,
-            )
-            .bind(tenant_id)
-            .bind(user_id)
-            .execute(self.pool())
-            .await?
-            .rows_affected()
-        };
-        stats.deleted_records = deleted as u32;
+        let now = now_text();
 
         let rejected = if let Some(space_id) = space_id {
             sqlx::query(
@@ -216,10 +201,11 @@ impl NativeSqlMemoryStore {
             .await?
             .rows_affected()
         };
-        stats.rejected_candidates = rejected as u32;
+        stats.rejected_candidates += rejected as u32;
 
         stats.purged_events = if let Some(space_id) = space_id {
-            self.delete_events_in_space(tenant_id, space_id).await?
+            self.delete_events_for_user_in_space(tenant_id, user_id, space_id)
+                .await?
         } else {
             self.delete_events_for_user_all_spaces(tenant_id, user_id)
                 .await?
@@ -268,13 +254,13 @@ impl NativeSqlMemoryStore {
 
             for row in rows {
                 let memory_id: String = row.get("uuid");
-                if self.hard_delete_record(scope, &memory_id).await? {
+                let outcome = self
+                    .hard_delete_record_with_cleanup(scope, &memory_id)
+                    .await?;
+                if outcome.deleted {
                     stats.deleted_records += 1;
                 }
-                let (rejected, _) = self
-                    .purge_derivatives_for_memory(scope.tenant_id, &memory_id)
-                    .await?;
-                stats.rejected_candidates += rejected;
+                stats.rejected_candidates += outcome.rejected_candidates;
             }
         }
 
@@ -312,7 +298,13 @@ impl NativeSqlMemoryStore {
             let mut cursor = String::new();
             loop {
                 let rows = self
-                    .list_record_details(&scope, None, sdkwork_utils_rust::MAX_LIST_PAGE_SIZE, Some(&cursor), sensitivity_scope)
+                    .list_record_details(
+                        &scope,
+                        None,
+                        sdkwork_utils_rust::MAX_LIST_PAGE_SIZE,
+                        Some(&cursor),
+                        sensitivity_scope,
+                    )
                     .await?;
                 if rows.is_empty() {
                     break;
@@ -437,6 +429,27 @@ impl NativeSqlMemoryStore {
         )
         .bind(tenant_id)
         .bind(user_id)
+        .execute(self.pool())
+        .await?
+        .rows_affected();
+        Ok(purged as u32)
+    }
+
+    async fn delete_events_for_user_in_space(
+        &self,
+        tenant_id: i64,
+        user_id: i64,
+        space_id: i64,
+    ) -> Result<u32, NativeSqlStoreError> {
+        let purged = sqlx::query(
+            r#"
+            DELETE FROM ai_event
+            WHERE tenant_id = ? AND user_id = ? AND space_id = ?
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(user_id)
+        .bind(space_id)
         .execute(self.pool())
         .await?
         .rows_affected();

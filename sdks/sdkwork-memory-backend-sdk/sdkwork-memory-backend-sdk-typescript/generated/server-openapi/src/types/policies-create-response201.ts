@@ -1,6 +1,6 @@
-import type { MemoryCandidate } from './memory-candidate';
+import type { MemoryPolicy } from './memory-policy';
 
-export interface CandidatesApproveResponse201 {
+export interface PoliciesCreateResponse201 {
   code: 0;
   data: unknown & Record<string, unknown>;
   /** Server-owned request correlation id. */

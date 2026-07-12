@@ -48,6 +48,17 @@ pub fn build_reference_retrieval_trace_store() -> ReferenceProfilePortBuilder {
     )
 }
 
+pub fn build_reference_governance_access() -> ReferenceProfilePortBuilder {
+    ready_builder(
+        "MemoryGovernanceAccessPort",
+        "build_reference_governance_access",
+    )
+}
+
+pub fn build_reference_space_store() -> ReferenceProfilePortBuilder {
+    ready_builder("MemorySpaceStorePort", "build_reference_space_store")
+}
+
 pub fn build_reference_retriever() -> ReferenceProfilePortBuilder {
     ready_builder("MemoryRetrieverPort", "build_reference_retriever")
 }

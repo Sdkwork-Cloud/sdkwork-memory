@@ -11,15 +11,27 @@ pub fn validate_retrieval_retrievers(retrievers: &Value) -> MemoryServiceResult<
         ));
     };
     if object.is_empty() {
-        return Err(MemoryServiceError::validation("retrievers must not be empty"));
+        return Err(MemoryServiceError::validation(
+            "retrievers must not be empty",
+        ));
     }
-    for key in object.keys() {
+    for (key, config) in object {
         if !SUPPORTED_RETRIEVERS.contains(&key.as_str()) {
             return Err(MemoryServiceError::validation(format!(
                 "unsupported retriever '{key}': supported values are {}",
                 SUPPORTED_RETRIEVERS.join(", ")
             )));
         }
+        config
+            .as_object()
+            .and_then(|config| config.get("weight"))
+            .and_then(Value::as_f64)
+            .filter(|weight| weight.is_finite() && *weight > 0.0 && *weight <= 10.0)
+            .ok_or_else(|| {
+                MemoryServiceError::validation(format!(
+                    "retriever '{key}' weight must be a finite number greater than 0 and at most 10"
+                ))
+            })?;
     }
     Ok(())
 }
@@ -43,5 +55,16 @@ mod tests {
             "dictionary": { "weight": 0.4 }
         }))
         .expect("supported retrievers must pass validation");
+    }
+
+    #[test]
+    fn rejects_missing_zero_or_excessive_weights() {
+        for retrievers in [
+            json!({ "keyword": {} }),
+            json!({ "keyword": { "weight": 0.0 } }),
+            json!({ "keyword": { "weight": 10.1 } }),
+        ] {
+            assert!(validate_retrieval_retrievers(&retrievers).is_err());
+        }
     }
 }

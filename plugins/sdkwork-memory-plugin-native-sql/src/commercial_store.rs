@@ -236,7 +236,7 @@ impl NativeSqlMemoryStore {
     // -----------------------------------------------------------------------
 
     #[allow(clippy::too_many_arguments)]
-pub async fn insert_binding(
+    pub async fn insert_binding(
         &self,
         id: i64,
         uuid: &str,
@@ -307,7 +307,7 @@ pub async fn insert_binding(
     }
 
     #[allow(clippy::too_many_arguments)]
-pub async fn list_bindings(
+    pub async fn list_bindings(
         &self,
         tenant_id: i64,
         source_subject_id: Option<i64>,
@@ -433,7 +433,7 @@ pub async fn list_bindings(
     // -----------------------------------------------------------------------
 
     #[allow(clippy::too_many_arguments)]
-pub async fn insert_capability_binding(
+    pub async fn insert_capability_binding(
         &self,
         id: i64,
         uuid: &str,
@@ -498,7 +498,7 @@ pub async fn insert_capability_binding(
     }
 
     #[allow(clippy::too_many_arguments)]
-pub async fn list_capability_bindings(
+    pub async fn list_capability_bindings(
         &self,
         tenant_id: i64,
         capability_code: Option<&str>,

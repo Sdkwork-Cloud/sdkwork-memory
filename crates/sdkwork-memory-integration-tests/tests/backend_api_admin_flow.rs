@@ -2,14 +2,15 @@ use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
 use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
 use sdkwork_intelligence_memory_service::OpenMemoryService;
-use sdkwork_routes_memory_backend_api::{
-    build_router_with_backend_api, wrap_router_with_iam_database_web_framework,
-};
 use sdkwork_memory_test_support::api_envelope;
 use sdkwork_memory_test_support::web_auth::{
     lock_integration_test_env, memory_access_token, memory_auth_token_bearer,
-    MEMORY_TEST_IDEMPOTENCY_KEY,
+    memory_content_sha256, memory_idempotency_key,
 };
+use sdkwork_routes_memory_backend_api::{
+    build_router_with_backend_api, wrap_router_with_iam_database_web_framework,
+};
+use sdkwork_web_core::CONTENT_SHA256_HEADER;
 use serde_json::json;
 use tower::util::ServiceExt;
 
@@ -24,7 +25,9 @@ fn authed_get(uri: &str) -> Request<Body> {
 }
 
 fn authed_json(method: &str, uri: &str, body: serde_json::Value) -> Request<Body> {
-    let idempotency_key = format!("{MEMORY_TEST_IDEMPOTENCY_KEY}:{method}:{uri}");
+    let body = body.to_string();
+    let idempotency_key = memory_idempotency_key(method, uri, &body);
+    let content_sha256 = memory_content_sha256(&body);
     Request::builder()
         .method(method)
         .uri(uri)
@@ -32,7 +35,8 @@ fn authed_json(method: &str, uri: &str, body: serde_json::Value) -> Request<Body
         .header("Authorization", memory_auth_token_bearer("9001"))
         .header("Access-Token", memory_access_token("9001"))
         .header("Idempotency-Key", idempotency_key)
-        .body(Body::from(body.to_string()))
+        .header(CONTENT_SHA256_HEADER, content_sha256)
+        .body(Body::from(body))
         .unwrap()
 }
 
@@ -53,7 +57,24 @@ async fn backend_api_indexes_and_retrieval_profiles_return_phase1_defaults() {
     assert_eq!(indexes.status(), StatusCode::OK);
     let indexes_body = to_bytes(indexes.into_body(), usize::MAX).await.unwrap();
     let indexes_json: serde_json::Value = serde_json::from_slice(&indexes_body).unwrap();
-    assert_eq!(api_envelope::items(&indexes_json)[0]["indexKind"], "keyword");
+    let index_id = api_envelope::items(&indexes_json)[0]["indexId"]
+        .as_str()
+        .expect("default index id");
+    assert_eq!(
+        api_envelope::items(&indexes_json)[0]["indexKind"],
+        "keyword"
+    );
+
+    let rebuild = app
+        .clone()
+        .oneshot(authed_json(
+            "POST",
+            &format!("/backend/v3/api/memory/indexes/{index_id}/rebuild"),
+            json!({}),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(rebuild.status(), StatusCode::OK);
 
     let profiles = app
         .oneshot(authed_get("/backend/v3/api/memory/retrieval_profiles"))
@@ -62,7 +83,10 @@ async fn backend_api_indexes_and_retrieval_profiles_return_phase1_defaults() {
     assert_eq!(profiles.status(), StatusCode::OK);
     let profiles_body = to_bytes(profiles.into_body(), usize::MAX).await.unwrap();
     let profiles_json: serde_json::Value = serde_json::from_slice(&profiles_body).unwrap();
-    assert_eq!(api_envelope::items(&profiles_json)[0]["name"], "keyword-default");
+    assert_eq!(
+        api_envelope::items(&profiles_json)[0]["name"],
+        "keyword-default"
+    );
 }
 
 #[tokio::test]
@@ -143,7 +167,9 @@ async fn backend_api_admin_config_persists_in_sql_tables() {
     assert_eq!(create.status(), StatusCode::CREATED);
     let create_body = to_bytes(create.into_body(), usize::MAX).await.unwrap();
     let create_json: serde_json::Value = serde_json::from_slice(&create_body).unwrap();
-    let eval_run_id = api_envelope::item(&create_json)["evalRunId"].as_str().unwrap();
+    let eval_run_id = api_envelope::item(&create_json)["evalRunId"]
+        .as_str()
+        .unwrap();
 
     let eval_row = store
         .retrieve_mem_eval_run_for_tenant(100_001, eval_run_id)
@@ -182,7 +208,10 @@ async fn backend_api_admin_config_persists_in_sql_tables() {
         .await
         .unwrap()
         .expect("provider binding should exist in ai_provider_binding");
-    assert_eq!(binding_row.endpoint_ref.as_deref(), Some("providers/native-sql"));
+    assert_eq!(
+        binding_row.endpoint_ref.as_deref(),
+        Some("providers/native-sql")
+    );
     assert!(binding_row.config_json.is_some());
 
     let profile = app
@@ -204,7 +233,10 @@ async fn backend_api_admin_config_persists_in_sql_tables() {
     assert_eq!(profile.status(), StatusCode::CREATED);
     let profile_body = to_bytes(profile.into_body(), usize::MAX).await.unwrap();
     let profile_json: serde_json::Value = serde_json::from_slice(&profile_body).unwrap();
-    assert_eq!(api_envelope::item(&profile_json)["fusionPolicy"]["mode"], "rrf");
+    assert_eq!(
+        api_envelope::item(&profile_json)["fusionPolicy"]["mode"],
+        "rrf"
+    );
 
     let audit_config = store
         .retrieve_admin_config_entity(100_001, "eval_run", eval_run_id)
@@ -229,11 +261,21 @@ async fn backend_api_governance_jobs_consolidation_and_retention_succeed() {
         user_id: Some(9001),
     };
     store
-        .create_record(&scope, "rec-dup-1", "preference", "duplicate canonical text")
+        .create_record(
+            &scope,
+            "rec-dup-1",
+            "preference",
+            "duplicate canonical text",
+        )
         .await
         .unwrap();
     store
-        .create_record(&scope, "rec-dup-2", "preference", "duplicate canonical text")
+        .create_record(
+            &scope,
+            "rec-dup-2",
+            "preference",
+            "duplicate canonical text",
+        )
         .await
         .unwrap();
 
@@ -288,7 +330,7 @@ async fn backend_api_governance_jobs_consolidation_and_retention_succeed() {
 }
 
 #[tokio::test]
-async fn backend_api_supersede_memory_links_chain_and_marks_old_record() {
+async fn backend_api_supersede_memory_replays_result_without_duplicate_side_effects() {
     use sdkwork_memory_spi::MemoryScopeContext;
 
     let _env = lock_integration_test_env();
@@ -313,24 +355,26 @@ async fn backend_api_supersede_memory_links_chain_and_marks_old_record() {
         )
         .await
         .unwrap();
+    let pool = store.pool().clone();
 
     let app = wrap_router_with_iam_database_web_framework(
         IamWebRequestContextResolver::new(None),
         build_router_with_backend_api(OpenMemoryService::new(store)),
     );
 
+    let supersede_request = json!({
+        "spaceId": "1",
+        "scope": "user",
+        "memoryType": "semantic",
+        "canonicalText": "updated preference text",
+        "objectText": "updated preference text"
+    });
     let supersede = app
         .clone()
         .oneshot(authed_json(
             "POST",
             "/backend/v3/api/memory/memories/100/supersede",
-            json!({
-                "spaceId": "1",
-                "scope": "user",
-                "memoryType": "semantic",
-                "canonicalText": "updated preference text",
-                "objectText": "updated preference text"
-            }),
+            supersede_request.clone(),
         ))
         .await
         .unwrap();
@@ -344,6 +388,23 @@ async fn backend_api_supersede_memory_links_chain_and_marks_old_record() {
     assert_eq!(supersede_item["supersedesMemoryId"], "100");
     assert_ne!(new_memory_id, "100");
 
+    let replay = app
+        .clone()
+        .oneshot(authed_json(
+            "POST",
+            "/backend/v3/api/memory/memories/100/supersede",
+            supersede_request,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(replay.status(), StatusCode::OK);
+    let replay_body = to_bytes(replay.into_body(), usize::MAX).await.unwrap();
+    let replay_json: serde_json::Value = serde_json::from_slice(&replay_body).unwrap();
+    assert_eq!(replay_json, supersede_json);
+    let replay_item = api_envelope::item(&replay_json);
+    assert_eq!(replay_item["memoryId"], new_memory_id);
+    assert_eq!(replay_item["supersedesMemoryId"], "100");
+
     let old_record = app
         .clone()
         .oneshot(authed_get("/backend/v3/api/memory/memories/100?spaceId=1"))
@@ -355,4 +416,147 @@ async fn backend_api_supersede_memory_links_chain_and_marks_old_record() {
     let old_item = api_envelope::item(&old_json);
     assert_eq!(old_item["status"], "superseded");
     assert_eq!(old_item["supersededByMemoryId"], new_memory_id);
+
+    let old_record_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_record WHERE tenant_id = ? AND space_id = ? AND uuid = ?",
+    )
+    .bind(scope.tenant_id)
+    .bind(scope.space_id)
+    .bind("100")
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let new_record_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_record WHERE tenant_id = ? AND space_id = ? AND uuid = ?",
+    )
+    .bind(scope.tenant_id)
+    .bind(scope.space_id)
+    .bind(new_memory_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let superseded_outbox_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_outbox_event WHERE aggregate_id = ? AND event_type = 'memory.record.superseded'",
+    )
+    .bind("100")
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let created_outbox_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_outbox_event WHERE aggregate_id = ? AND event_type = 'memory.record.created'",
+    )
+    .bind(new_memory_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let superseded_audit_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_audit_log WHERE resource_id = ? AND action = 'memory.record.supersede'",
+    )
+    .bind("100")
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let created_audit_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_audit_log WHERE resource_id = ? AND action = 'memory.record.create'",
+    )
+    .bind(new_memory_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(old_record_count, 1);
+    assert_eq!(new_record_count, 1);
+    assert_eq!(superseded_outbox_count, 1);
+    assert_eq!(created_outbox_count, 1);
+    assert_eq!(superseded_audit_count, 1);
+    assert_eq!(created_audit_count, 1);
+}
+
+#[tokio::test]
+async fn backend_api_supersede_quota_rejection_rolls_back_chain_and_journals() {
+    use sdkwork_memory_spi::MemoryScopeContext;
+
+    let _env = lock_integration_test_env();
+    let previous_limit = std::env::var("SDKWORK_MEMORY_MAX_RECORDS_PER_SPACE").ok();
+    std::env::set_var("SDKWORK_MEMORY_MAX_RECORDS_PER_SPACE", "1");
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
+    let scope = MemoryScopeContext {
+        tenant_id: 100_001,
+        space_id: 1,
+        organization_id: None,
+        user_id: Some(9001),
+    };
+    store
+        .create_record_open_api(
+            &scope,
+            "101",
+            "user",
+            "semantic",
+            None,
+            None,
+            "quota protected preference",
+            "quota protected preference",
+            "internal",
+        )
+        .await
+        .unwrap();
+    let pool = store.pool().clone();
+    let app = wrap_router_with_iam_database_web_framework(
+        IamWebRequestContextResolver::new(None),
+        build_router_with_backend_api(OpenMemoryService::new(store)),
+    );
+
+    let response = app
+        .oneshot(authed_json(
+            "POST",
+            "/backend/v3/api/memory/memories/101/supersede",
+            json!({
+                "spaceId": "1",
+                "scope": "user",
+                "memoryType": "semantic",
+                "canonicalText": "must not be committed",
+                "objectText": "must not be committed"
+            }),
+        ))
+        .await
+        .unwrap();
+    match previous_limit {
+        Some(value) => std::env::set_var("SDKWORK_MEMORY_MAX_RECORDS_PER_SPACE", value),
+        None => std::env::remove_var("SDKWORK_MEMORY_MAX_RECORDS_PER_SPACE"),
+    }
+    assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+
+    let retained_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_record WHERE tenant_id = ? AND space_id = ? AND status <> 'deleted'",
+    )
+    .bind(scope.tenant_id)
+    .bind(scope.space_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let old_status: String = sqlx::query_scalar(
+        "SELECT status FROM ai_record WHERE tenant_id = ? AND space_id = ? AND uuid = ?",
+    )
+    .bind(scope.tenant_id)
+    .bind(scope.space_id)
+    .bind("101")
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let journal_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_outbox_event WHERE event_type IN ('memory.record.superseded', 'memory.record.created')",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let audit_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_audit_log WHERE action IN ('memory.record.supersede', 'memory.record.create')",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(retained_count, 1);
+    assert_eq!(old_status, "active");
+    assert_eq!(journal_count, 0);
+    assert_eq!(audit_count, 0);
 }

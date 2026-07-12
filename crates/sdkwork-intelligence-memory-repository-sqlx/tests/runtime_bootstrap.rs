@@ -105,6 +105,9 @@ async fn bootstrap_memory_runtime_from_env_with_sqlite() {
         "MemoryCandidateStorePort",
         "MemoryHabitStorePort",
         "MemoryRetrievalTraceStorePort",
+        "MemoryGovernanceAccessPort",
+        "MemorySpaceStorePort",
+        "MemoryRetrieverPort",
     ] {
         assert!(runtime.core_runtime.has_port(port));
         assert_eq!(

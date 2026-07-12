@@ -53,6 +53,14 @@
       "builder": "build_reference_retrieval_trace_store"
     },
     {
+      "port": "MemoryGovernanceAccessPort",
+      "builder": "build_reference_governance_access"
+    },
+    {
+      "port": "MemorySpaceStorePort",
+      "builder": "build_reference_space_store"
+    },
+    {
       "port": "MemoryRetrieverPort",
       "builder": "build_reference_retriever"
     },
@@ -74,7 +82,7 @@
     }
   ],
   "providerKinds": ["search_engine", "graph_engine", "external_memory"],
-  "retrieverKinds": ["sql", "keyword", "time", "event", "graph", "external"],
+  "retrieverKinds": ["keyword", "dictionary", "time"],
   "indexKinds": ["sql", "keyword", "time", "event", "graph"],
   "requiredCoreVersion": "0.1.0",
   "secretRefs": [],

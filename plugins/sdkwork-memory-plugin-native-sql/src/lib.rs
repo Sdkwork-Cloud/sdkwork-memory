@@ -3,6 +3,7 @@
 pub mod admin_tables;
 pub mod canonical_data;
 pub mod commercial_store;
+mod governance_access;
 pub mod graph_store;
 pub mod learning_jobs;
 pub mod manifest;
@@ -12,25 +13,26 @@ pub mod pool_backend;
 pub mod privacy;
 pub mod readiness_store;
 pub mod search_index;
+mod space_data;
 pub mod store;
 
 pub use admin_tables::*;
 pub use commercial_store::*;
 pub use graph_store::*;
-pub use policy_store::*;
-pub use readiness_store::*;
+pub use learning_jobs::{InsertLearningJobCommand, NativeSqlLearningJobRow};
 pub use manifest::{
     build_native_sql_audit_store, build_native_sql_candidate_store, build_native_sql_event_store,
-    build_native_sql_habit_store, build_native_sql_outbox_store, build_native_sql_record_store,
-    build_native_sql_retrieval_trace_store, build_native_sql_retriever, native_sql_manifest,
-    native_sql_phase1_port_builders, validate_native_sql_port_builders, NativeSqlPortBuilder,
-    NATIVE_SQL_PLUGIN_ID,
+    build_native_sql_governance_access, build_native_sql_habit_store,
+    build_native_sql_outbox_store, build_native_sql_record_store,
+    build_native_sql_retrieval_trace_store, build_native_sql_retriever,
+    build_native_sql_space_store, native_sql_manifest, native_sql_phase1_port_builders,
+    validate_native_sql_port_builders, NativeSqlPortBuilder, NATIVE_SQL_PLUGIN_ID,
 };
 pub use native_sql_phase1_runtime::{
-    build_native_sql_executable_runtime, validate_native_sql_phase1_ports,
-    NativeSqlPhase1Runtime,
+    build_native_sql_executable_runtime, validate_native_sql_phase1_ports, NativeSqlPhase1Runtime,
 };
+pub use policy_store::*;
 pub use pool_backend::{connect_any_pool, normalize_memory_database_config, MemorySqlDialect};
-pub use learning_jobs::{InsertLearningJobCommand, NativeSqlLearningJobRow};
 pub use privacy::{escape_like_pattern, like_pattern, ExportCollectedPayload, ForgetScopeStats};
+pub use readiness_store::*;
 pub use store::*;

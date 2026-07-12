@@ -1,7 +1,7 @@
-import type { MemoryPageInfo } from './memory-page-info';
 import type { MemoryRetrievalProfile } from './memory-retrieval-profile';
+import type { PageInfo } from './page-info';
 
 export interface MemoryRetrievalProfileList {
   items: MemoryRetrievalProfile[];
-  pageInfo: MemoryPageInfo;
+  pageInfo: PageInfo;
 }

@@ -60,8 +60,8 @@ pub fn init_id_generator(generator: SnowflakeIdGenerator, lease: Option<NodeLeas
 /// in `0..1024` to avoid collisions between processes on the same host.
 fn resolve_snowflake_node_id() -> u16 {
     if let Ok(value) = std::env::var("SDKWORK_MEMORY_SNOWFLAKE_NODE_ID") {
-        if let Some(parsed) = sdkwork_utils_rust::parse_int(&value)
-            .and_then(|parsed| u16::try_from(parsed).ok())
+        if let Some(parsed) =
+            sdkwork_utils_rust::parse_int(&value).and_then(|parsed| u16::try_from(parsed).ok())
         {
             return parsed;
         }
@@ -102,8 +102,7 @@ pub fn next_numeric_id() -> MemoryServiceResult<u64> {
     let id = id_generator()?
         .generate()
         .map_err(|error| MemoryServiceError::storage(format!("id generation failed: {error}")))?;
-    u64::try_from(id)
-        .map_err(|_| MemoryServiceError::storage(format!("id out of u64 range: {id}")))
+    u64::try_from(id).map_err(|_| MemoryServiceError::storage(format!("id out of u64 range: {id}")))
 }
 
 pub fn snowflake_initialized() -> bool {
@@ -128,7 +127,9 @@ pub fn deployment_environment_label() -> &'static str {
 }
 
 pub fn elapsed_millis_i64(started: std::time::Instant) -> i64 {
-    i64::try_from(started.elapsed().as_millis()).unwrap_or(i64::MAX).max(0)
+    i64::try_from(started.elapsed().as_millis())
+        .unwrap_or(i64::MAX)
+        .max(0)
 }
 
 pub fn stable_query_hash(query: &str) -> String {
@@ -146,9 +147,8 @@ pub fn parse_numeric_id(value: &str) -> Option<u64> {
 }
 
 pub fn parse_required_numeric_id(value: &str, field: &str) -> MemoryServiceResult<u64> {
-    parse_numeric_id(value).ok_or_else(|| {
-        MemoryServiceError::storage(format!("{field} must be numeric"))
-    })
+    parse_numeric_id(value)
+        .ok_or_else(|| MemoryServiceError::storage(format!("{field} must be numeric")))
 }
 
 pub fn non_negative_i64_as_u64(value: i64, field: &str) -> MemoryServiceResult<u64> {
@@ -206,7 +206,10 @@ pub fn max_extraction_input_events() -> usize {
 }
 
 pub fn max_export_events() -> usize {
-    read_env_usize("SDKWORK_MEMORY_EXPORT_MAX_EVENTS", DEFAULT_MAX_EXPORT_EVENTS)
+    read_env_usize(
+        "SDKWORK_MEMORY_EXPORT_MAX_EVENTS",
+        DEFAULT_MAX_EXPORT_EVENTS,
+    )
 }
 
 pub fn max_provider_health_bindings() -> usize {

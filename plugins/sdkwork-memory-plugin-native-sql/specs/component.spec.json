@@ -41,19 +41,66 @@
         "name": "MemoryRecordStorePort",
         "export": ".",
         "canonicalAtomic": true,
+        "atomicQuotaAdmission": true,
+        "atomicSupersede": true,
+        "atomicSupersedeMethod": "supersede_canonical_atomic_with_quota",
+        "quotaAdmissionMethod": "create_canonical_atomic_with_quota",
         "journalSideEffects": ["outbox", "audit", "search-index"]
       },
       { "name": "MemoryEventStorePort", "export": "." },
       { "name": "MemoryAuditStorePort", "export": "." },
       { "name": "MemoryOutboxStorePort", "export": "." },
-      { "name": "MemoryCandidateStorePort", "export": "." },
+      {
+        "name": "MemoryCandidateStorePort",
+        "export": ".",
+        "candidateDetail": true,
+        "candidateDetailMethod": "retrieve_detail",
+        "candidateListing": true,
+        "candidateListingMethod": "list_candidates",
+        "candidateListingPagination": "sql-cursor-limit",
+        "atomicPromotion": true,
+        "atomicPromotionMethod": "promote_atomic_with_quota",
+        "atomicPromotionJournal": true,
+        "atomicPromotionJournalMethod": "promote_atomic_with_quota_and_journal"
+      },
       { "name": "MemoryHabitStorePort", "export": "." },
-      { "name": "MemoryRetrievalTraceStorePort", "export": "." },
+      {
+        "name": "MemoryRetrievalTraceStorePort",
+        "export": ".",
+        "tenantScopedLookupMethod": "retrieve_for_tenant",
+        "capabilityProbe": "supports_tenant_trace_lookup",
+        "ambiguityPolicy": "fail-closed"
+      },
+      {
+        "name": "MemoryGovernanceAccessPort",
+        "export": ".",
+        "resolveMethod": "resolve_space_governance",
+        "capabilityProbe": "supports_bounded_governance_access",
+        "bounded": true,
+        "maxFacts": 32,
+        "incompleteFactsPolicy": "fail-closed",
+        "decisionOwnership": "service-core",
+        "quotaAtomicity": "canonical-create-and-candidate-promotion-transactional",
+        "supersedeAtomicity": "record-links-journals-and-search-index-transactional",
+        "userSpaceQuotaAtomicity": "owned-by-MemorySpaceStorePort",
+        "candidatePromotionSideEffects": ["record", "record-source", "candidate-target", "approval", "search-index", "outbox", "audit"],
+        "candidatePromotionJournal": "transactional"
+      },
+      {
+        "name": "MemorySpaceStorePort",
+        "export": ".",
+        "atomicQuotaAdmission": true,
+        "atomicQuotaMethod": "create_space_atomic_with_quota",
+        "serialization": "global-existing-schema-version-row",
+        "multiInstanceSafe": true,
+        "schemaMigrationRequired": false
+      },
       {
         "name": "MemoryRetrieverPort",
         "export": ".",
         "scopeAwareMethod": "search_scoped",
         "bounded": true,
+        "retrieverKinds": ["sql", "keyword", "dictionary", "time", "event"],
         "canonicalRehydration": "service"
       }
     ],
@@ -70,6 +117,7 @@
       "sdkwork_memory_plugin_native_sql::build_native_sql_candidate_store",
       "sdkwork_memory_plugin_native_sql::build_native_sql_habit_store",
       "sdkwork_memory_plugin_native_sql::build_native_sql_retrieval_trace_store",
+      "sdkwork_memory_plugin_native_sql::build_native_sql_governance_access",
       "sdkwork_memory_plugin_native_sql::build_native_sql_retriever"
     ],
     "routeManifest": null,

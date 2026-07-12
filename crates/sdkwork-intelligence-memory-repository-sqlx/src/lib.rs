@@ -8,14 +8,11 @@ pub mod runtime;
 use sdkwork_database_repository as _;
 
 pub use bootstrap::{
-    bootstrap_memory_database, bootstrap_memory_database_from_env,
-    bootstrap_memory_data_plane_from_env, connect_and_bootstrap_memory_database_from_env,
+    bootstrap_memory_data_plane_from_env, bootstrap_memory_database,
+    bootstrap_memory_database_from_env, connect_and_bootstrap_memory_database_from_env,
     MemoryDataPlane,
 };
-pub use db::{
-    connect_memory_pool_from_env, open_native_sql_store_from_pool,
-    MemoryDatabasePool,
-};
+pub use db::{connect_memory_pool_from_env, open_native_sql_store_from_pool, MemoryDatabasePool};
 pub use runtime::{
     bootstrap_memory_plugin_registry, bootstrap_memory_runtime_from_env,
     resolve_memory_deployment_mode_from_env, resolve_native_sql_phase1_profile,

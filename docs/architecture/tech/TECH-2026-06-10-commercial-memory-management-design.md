@@ -41,7 +41,7 @@ The repository implements commercial memory management on top of the Phase 1 bas
 - **Open API** currently exposes `entities.*` and `edges.*` only; subjects, bindings, and `capabilities.resolve` remain backend-only until Open §6.1 routes land.
 - **Authorization:** `access.rs` enforces user/agent space ownership, active `ai_memory_binding` grants with **read vs write role separation** (`viewer` read-only; `owner`/`learner` write), capability deny on memory read/list/retrieve/write paths, and entity sensitivity filtering pushed to SQL on list paths. Tenant-owned spaces no longer grant implicit access to all tenant actors.
 - Entity/edge read/list/delete enforce space access on all surfaces; `list_entities` applies store-level sensitivity predicates (no in-memory post-filter pagination). `create_edge` validates endpoint entities belong to the target space.
-- `capabilities.resolve` returns `201` with `data.items` + `data.pageInfo` (cursor pagination, store-level `LIMIT`).
+- `capabilities.resolve` is a synchronous command that returns `200 OK` with `data.items` + `data.pageInfo` (cursor pagination, store-level `LIMIT`).
 - `commercialReadiness.rebuild` computes coverage from live tenant counts, runtime probes (`snowflakeInitialized`, `outboxDeliveryReady`, export disable flag), and blocking/warning findings; `commercialReadiness` is true only when readiness `state == "ready"`.
 - Extraction requests enqueue durable `ai_learning_job` rows (`state = queued`) and execute asynchronously via the learning-job worker; event payloads must contain non-empty `content`.
 - Production-like environments require database-backed Snowflake allocation, PostgreSQL (SQLite rejected), and HTTP outbox delivery (`SDKWORK_MEMORY_OUTBOX_DELIVERY_MODE=http` + `SDKWORK_MEMORY_OUTBOX_DELIVERY_URL`).
@@ -1175,5 +1175,4 @@ They must not block the contract-first commercial memory management layer.
 - [ ] SDK resource method shape remains resource-oriented across all three surfaces.
 - [ ] Verification commands and runtime tests prove commercial readiness before release. (`pnpm verify`, pagination/envelope checks, SQLite contract suite, backend commercial flow, and opt-in Postgres contract tests pass; App/Open commercial integration tests and relation-rebuild worker remain.)
 - [ ] `relation_rebuild_jobs` route/worker surface (DDL exists).
-
 

@@ -5,8 +5,9 @@ use std::sync::Arc;
 use sdkwork_database_config::DatabaseConfig;
 use sdkwork_memory_spi::{
     MemoryAuditStorePort, MemoryCandidateStorePort, MemoryEventStorePort,
-    MemoryExecutablePluginRuntime, MemoryHabitStorePort, MemoryOutboxStorePort,
-    MemoryPluginPorts, MemoryRecordStorePort, MemoryRetrievalTraceStorePort, MemoryRetrieverPort,
+    MemoryExecutablePluginRuntime, MemoryGovernanceAccessPort, MemoryHabitStorePort,
+    MemoryOutboxStorePort, MemoryPluginPorts, MemoryRecordStorePort, MemoryRetrievalTraceStorePort,
+    MemoryRetrieverPort, MemorySpaceStorePort,
 };
 
 use crate::store::{NativeSqlMemoryStore, NativeSqlStoreError};
@@ -22,11 +23,16 @@ impl NativeSqlPhase1Runtime {
     }
 
     /// Use when `sdkwork-memory-database-host` already applied postgres lifecycle migrations.
-    pub async fn connect_without_migration(config: &DatabaseConfig) -> Result<Self, NativeSqlStoreError> {
+    pub async fn connect_without_migration(
+        config: &DatabaseConfig,
+    ) -> Result<Self, NativeSqlStoreError> {
         Self::open(config, false).await
     }
 
-    async fn open(config: &DatabaseConfig, apply_migration: bool) -> Result<Self, NativeSqlStoreError> {
+    async fn open(
+        config: &DatabaseConfig,
+        apply_migration: bool,
+    ) -> Result<Self, NativeSqlStoreError> {
         let store = NativeSqlMemoryStore::open_pool(config, apply_migration).await?;
         Ok(Self::from_store(store))
     }
@@ -66,6 +72,8 @@ pub fn build_native_sql_executable_runtime(
             .with_candidate_store(store.clone())
             .with_habit_store(store.clone())
             .with_retrieval_trace_store(store.clone())
+            .with_governance_access(store.clone())
+            .with_space_store(store.clone())
             .with_retriever(store),
     )
 }
@@ -81,9 +89,13 @@ pub async fn validate_native_sql_phase1_ports(
     let candidate: &dyn MemoryCandidateStorePort = store;
     let habit: &dyn MemoryHabitStorePort = store;
     let trace: &dyn MemoryRetrievalTraceStorePort = store;
+    let governance: &dyn MemoryGovernanceAccessPort = store;
+    let space: &dyn MemorySpaceStorePort = store;
     let retriever: &dyn MemoryRetrieverPort = store;
 
-    let _ = (record, event, audit, outbox, candidate, habit, trace, retriever);
+    let _ = (
+        record, event, audit, outbox, candidate, habit, trace, governance, space, retriever,
+    );
 
     store.ping().await
 }

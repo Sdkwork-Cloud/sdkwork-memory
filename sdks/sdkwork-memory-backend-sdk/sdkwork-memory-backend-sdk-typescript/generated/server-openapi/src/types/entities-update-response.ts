@@ -1,6 +1,6 @@
-import type { MemoryHabit } from './memory-habit';
+import type { MemoryEntity } from './memory-entity';
 
-export interface HabitsConfirmResponse201 {
+export interface EntitiesUpdateResponse {
   code: 0;
   data: unknown & Record<string, unknown>;
   /** Server-owned request correlation id. */

@@ -1,7 +1,7 @@
-import type { MemoryPageInfo } from './memory-page-info';
 import type { MemoryRecord } from './memory-record';
+import type { PageInfo } from './page-info';
 
 export interface MemoryRecordList {
   items: MemoryRecord[];
-  pageInfo: MemoryPageInfo;
+  pageInfo: PageInfo;
 }

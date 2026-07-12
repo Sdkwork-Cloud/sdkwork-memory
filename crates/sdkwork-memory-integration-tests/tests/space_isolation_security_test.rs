@@ -3,21 +3,28 @@ use axum::http::{Request, StatusCode};
 use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
 use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_plugin_native_sql::NativeSqlCreateSpaceCommand;
-use sdkwork_memory_spi::{CreateMemoryCandidateCommand, MemoryCandidateStorePort, MemoryScopeContext};
-use sdkwork_routes_memory_app_api::{
-    build_router_with_app_api, wrap_router_with_iam_database_web_framework,
+use sdkwork_memory_spi::{
+    CreateMemoryCandidateCommand, MemoryCandidateStorePort, MemoryScopeContext,
 };
-use sdkwork_routes_memory_open_api::build_router_with_shared_open_api;
 use sdkwork_memory_test_support::api_envelope;
 use sdkwork_memory_test_support::web_auth::{
     lock_integration_test_env, memory_access_token, memory_auth_token_bearer,
     MEMORY_TEST_IDEMPOTENCY_KEY,
 };
+use sdkwork_routes_memory_app_api::{
+    build_router_with_app_api, wrap_router_with_iam_database_web_framework,
+};
+use sdkwork_routes_memory_open_api::build_router_with_shared_open_api;
 use serde_json::json;
 use std::sync::Arc;
 use tower::util::ServiceExt;
 
-fn authed_json_request(user_id: &str, method: &str, uri: &str, body: serde_json::Value) -> Request<Body> {
+fn authed_json_request(
+    user_id: &str,
+    method: &str,
+    uri: &str,
+    body: serde_json::Value,
+) -> Request<Body> {
     let idempotency_key = format!("{MEMORY_TEST_IDEMPOTENCY_KEY}:{method}:{uri}");
     Request::builder()
         .method(method)
@@ -54,11 +61,13 @@ async fn open_api_rejects_cross_space_memory_access() {
                 .method("POST")
                 .uri("/mem/v3/api/memory/memories")
                 .header("content-type", "application/json")
-                .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
-                    "key-1",
-                    100_001,
-                    Some(2001),
-                ))
+                .extension(
+                    sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
+                        "key-1",
+                        100_001,
+                        Some(2001),
+                    ),
+                )
                 .body(Body::from(
                     json!({
                         "spaceId": "2",
@@ -77,18 +86,22 @@ async fn open_api_rejects_cross_space_memory_access() {
         .await
         .unwrap();
     let memory_json: serde_json::Value = serde_json::from_slice(&memory_body).unwrap();
-    let memory_id = api_envelope::item(&memory_json)["memoryId"].as_str().unwrap();
+    let memory_id = api_envelope::item(&memory_json)["memoryId"]
+        .as_str()
+        .unwrap();
 
     let wrong_space = open_app
         .oneshot(
             Request::builder()
                 .method("GET")
                 .uri(format!("/mem/v3/api/memory/memories/{memory_id}?spaceId=1"))
-                .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
-                    "key-1",
-                    100_001,
-                    Some(2001),
-                ))
+                .extension(
+                    sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
+                        "key-1",
+                        100_001,
+                        Some(2001),
+                    ),
+                )
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -209,11 +222,13 @@ async fn open_api_rejects_cross_space_candidate_retrieve() {
             Request::builder()
                 .method("GET")
                 .uri("/mem/v3/api/memory/candidates/7001")
-                .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
-                    "key-1",
-                    100_001,
-                    Some(2001),
-                ))
+                .extension(
+                    sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
+                        "key-1",
+                        100_001,
+                        Some(2001),
+                    ),
+                )
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -289,11 +304,13 @@ async fn open_api_rejects_cross_space_memory_write() {
                 .method("POST")
                 .uri("/mem/v3/api/memory/memories")
                 .header("content-type", "application/json")
-                .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
-                    "key-1",
-                    100_001,
-                    Some(2001),
-                ))
+                .extension(
+                    sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
+                        "key-1",
+                        100_001,
+                        Some(2001),
+                    ),
+                )
                 .body(Body::from(
                     json!({
                         "spaceId": "3",
@@ -348,11 +365,13 @@ async fn open_api_rejects_write_to_missing_space() {
                 .method("POST")
                 .uri("/mem/v3/api/memory/memories")
                 .header("content-type", "application/json")
-                .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
-                    "key-1",
-                    100_001,
-                    Some(2001),
-                ))
+                .extension(
+                    sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
+                        "key-1",
+                        100_001,
+                        Some(2001),
+                    ),
+                )
                 .body(Body::from(
                     json!({
                         "spaceId": "99",
@@ -366,7 +385,7 @@ async fn open_api_rejects_write_to_missing_space() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
@@ -385,11 +404,13 @@ async fn open_api_rejects_memory_create_when_space_record_quota_exceeded() {
                 .method("POST")
                 .uri("/mem/v3/api/memory/memories")
                 .header("content-type", "application/json")
-                .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
-                    "key-1",
-                    100_001,
-                    Some(2001),
-                ))
+                .extension(
+                    sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
+                        "key-1",
+                        100_001,
+                        Some(2001),
+                    ),
+                )
                 .body(Body::from(
                     json!({
                         "spaceId": "2",
@@ -411,11 +432,13 @@ async fn open_api_rejects_memory_create_when_space_record_quota_exceeded() {
                 .method("POST")
                 .uri("/mem/v3/api/memory/memories")
                 .header("content-type", "application/json")
-                .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
-                    "key-1",
-                    100_001,
-                    Some(2001),
-                ))
+                .extension(
+                    sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
+                        "key-1",
+                        100_001,
+                        Some(2001),
+                    ),
+                )
                 .body(Body::from(
                     json!({
                         "spaceId": "2",
@@ -444,6 +467,7 @@ async fn app_api_rejects_space_create_when_user_space_quota_exceeded() {
     std::env::set_var("SDKWORK_MEMORY_MAX_SPACES_PER_USER", "1");
 
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
+    let assertion_store = store.clone();
     let app = wrap_router_with_iam_database_web_framework(
         IamWebRequestContextResolver::new(None),
         build_router_with_app_api(OpenMemoryService::new(store)),
@@ -464,6 +488,13 @@ async fn app_api_rejects_space_create_when_user_space_quota_exceeded() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(
+        assertion_store
+            .count_user_owned_spaces_for_tenant(100_001, "2001")
+            .await
+            .unwrap(),
+        1
+    );
 
     match previous_limit {
         Some(value) => std::env::set_var("SDKWORK_MEMORY_MAX_SPACES_PER_USER", value),

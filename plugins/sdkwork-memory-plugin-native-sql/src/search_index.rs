@@ -7,6 +7,23 @@ use crate::store::{
     record_detail_from_row, NativeSqlMemoryRecordDetail, NativeSqlMemoryStore, NativeSqlStoreError,
 };
 
+pub(crate) fn is_recoverable_fulltext_error(error: &NativeSqlStoreError) -> bool {
+    let NativeSqlStoreError::Database(sqlx::Error::Database(database_error)) = error else {
+        return false;
+    };
+    is_fulltext_unavailable_message(database_error.message())
+}
+
+fn is_fulltext_unavailable_message(message: &str) -> bool {
+    let message = message.to_ascii_lowercase();
+    (message.contains("ai_record_fts")
+        && (message.contains("no such table") || message.contains("does not exist")))
+        || (message.contains("fts5") && message.contains("no such module"))
+        || (message.contains("search_document")
+            && (message.contains("no such column") || message.contains("does not exist")))
+        || (message.contains("websearch_to_tsquery") && message.contains("does not exist"))
+}
+
 impl NativeSqlMemoryStore {
     pub(crate) fn read_scope_level(read_scope: MemorySensitivityReadScope) -> i32 {
         match read_scope {
@@ -172,13 +189,11 @@ impl NativeSqlMemoryStore {
             }
             MemorySqlDialect::Sqlite => {
                 if let Some(space_id) = space_id {
-                    sqlx::query(
-                        "DELETE FROM ai_record_fts WHERE tenant_id = ? AND space_id = ?",
-                    )
-                    .bind(tenant_id)
-                    .bind(space_id)
-                    .execute(self.pool())
-                    .await?;
+                    sqlx::query("DELETE FROM ai_record_fts WHERE tenant_id = ? AND space_id = ?")
+                        .bind(tenant_id)
+                        .bind(space_id)
+                        .execute(self.pool())
+                        .await?;
                     let inserted = sqlx::query(
                         r#"
                         INSERT INTO ai_record_fts(
@@ -258,6 +273,7 @@ impl NativeSqlMemoryStore {
         let sensitivity_level = Self::read_scope_level(read_scope);
         match self.dialect() {
             MemorySqlDialect::Postgres => {
+                let websearch_query = postgres_websearch_or_query(trimmed);
                 let mut sql = String::from(
                     r#"
                     SELECT
@@ -288,29 +304,28 @@ impl NativeSqlMemoryStore {
                     WHERE r.tenant_id = ?
                       AND r.space_id = ?
                       AND r.status <> 'deleted'
-                      AND r.search_document @@ plainto_tsquery('simple', ?)
+                      AND r.search_document @@ websearch_to_tsquery('simple', ?)
                     "#,
                 );
                 Self::append_sensitivity_filter(&mut sql, "r");
                 Self::append_memory_type_filter(&mut sql, "r", memory_types);
                 sql.push_str(
-                    " ORDER BY ts_rank(r.search_document, plainto_tsquery('simple', ?)) DESC, r.uuid ASC LIMIT ?",
+                    " ORDER BY ts_rank(r.search_document, websearch_to_tsquery('simple', ?)) DESC, r.uuid ASC LIMIT ?",
                 );
                 let mut query_builder = sqlx::query(&sql)
-                .bind(scope.tenant_id)
-                .bind(scope.space_id)
-                .bind(trimmed)
-                .bind(sensitivity_level)
-                .bind(sensitivity_level)
-                ;
+                    .bind(scope.tenant_id)
+                    .bind(scope.space_id)
+                    .bind(&websearch_query)
+                    .bind(sensitivity_level)
+                    .bind(sensitivity_level);
                 for memory_type in memory_types {
                     query_builder = query_builder.bind(memory_type);
                 }
                 let rows = query_builder
-                .bind(trimmed)
-                .bind(top_k.max(1) as i64)
-                .fetch_all(self.pool())
-                .await?;
+                    .bind(&websearch_query)
+                    .bind(top_k.max(1) as i64)
+                    .fetch_all(self.pool())
+                    .await?;
                 Ok(rows.into_iter().map(record_detail_from_row).collect())
             }
             MemorySqlDialect::Sqlite => {
@@ -353,18 +368,18 @@ impl NativeSqlMemoryStore {
                 Self::append_memory_type_filter(&mut sql, "r", memory_types);
                 sql.push_str(" ORDER BY rank, r.uuid ASC LIMIT ?");
                 let mut query_builder = sqlx::query(&sql)
-                .bind(fts_query)
-                .bind(scope.tenant_id)
-                .bind(scope.space_id)
-                .bind(sensitivity_level)
-                .bind(sensitivity_level);
+                    .bind(fts_query)
+                    .bind(scope.tenant_id)
+                    .bind(scope.space_id)
+                    .bind(sensitivity_level)
+                    .bind(sensitivity_level);
                 for memory_type in memory_types {
                     query_builder = query_builder.bind(memory_type);
                 }
                 let rows = query_builder
-                .bind(top_k.max(1) as i64)
-                .fetch_all(self.pool())
-                .await?;
+                    .bind(top_k.max(1) as i64)
+                    .fetch_all(self.pool())
+                    .await?;
                 Ok(rows.into_iter().map(record_detail_from_row).collect())
             }
         }
@@ -384,6 +399,14 @@ fn escape_fts5_query(query: &str) -> String {
             let escaped = term.replace('"', "\"\"");
             format!("\"{escaped}\"")
         })
+        .collect::<Vec<_>>()
+        .join(" OR ")
+}
+
+fn postgres_websearch_or_query(query: &str) -> String {
+    query
+        .split_whitespace()
+        .map(|term| format!("\"{}\"", term.replace('"', " ")))
         .collect::<Vec<_>>()
         .join(" OR ")
 }
@@ -414,5 +437,32 @@ mod tests {
     fn fts5_escape_handles_empty_input() {
         let result = escape_fts5_query("   ");
         assert_eq!(result, "");
+    }
+
+    #[test]
+    fn postgres_websearch_query_matches_sqlite_or_semantics() {
+        assert_eq!(
+            postgres_websearch_or_query("alpha beta"),
+            "\"alpha\" OR \"beta\""
+        );
+    }
+
+    #[test]
+    fn only_missing_fulltext_capabilities_are_recoverable() {
+        for message in [
+            "no such table: ai_record_fts",
+            "no such module: fts5",
+            "column r.search_document does not exist",
+            "function websearch_to_tsquery(regconfig, text) does not exist",
+        ] {
+            assert!(is_fulltext_unavailable_message(message));
+        }
+        for message in [
+            "permission denied for table ai_record_fts",
+            "database connection is closed",
+            "syntax error near MATCH",
+        ] {
+            assert!(!is_fulltext_unavailable_message(message));
+        }
     }
 }

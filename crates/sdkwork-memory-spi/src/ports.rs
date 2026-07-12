@@ -95,6 +95,37 @@ pub struct CreateCanonicalMemoryCommand {
     pub journal: MemoryMutationJournal,
 }
 
+/// Atomically replaces one active canonical memory with a new version in the
+/// same space. Providers must serialize the space, admit the replacement
+/// against the configured active-record quota, link both records, and persist
+/// both mutation journals before committing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SupersedeCanonicalMemoryAtomicCommand {
+    pub scope: MemoryScopeContext,
+    pub old_memory_id: String,
+    pub new_memory_id: String,
+    pub scope_label: String,
+    pub memory_type: String,
+    pub subject: Option<String>,
+    pub predicate: Option<String>,
+    pub object_text: String,
+    pub canonical_text: String,
+    pub sensitivity_level: String,
+    pub created_journal: MemoryMutationJournal,
+    pub superseded_journal: MemoryMutationJournal,
+}
+
+/// Result of a record mutation whose space quota is admitted in the same
+/// atomic boundary as the mutation itself.
+#[derive(Debug, Clone, PartialEq)]
+pub enum MemoryRecordQuotaAdmission<T> {
+    Admitted(T),
+    QuotaExceeded {
+        active_records: u64,
+        max_active_records: u64,
+    },
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RetrieveCanonicalMemoryQuery {
     pub scope: MemoryScopeContext,
@@ -263,6 +294,40 @@ pub struct RejectMemoryCandidateCommand {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct MemoryCandidateEvidenceLink {
+    pub source_id: String,
+    pub event_id: String,
+    pub confidence_delta: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PromoteMemoryCandidateAtomicCommand {
+    pub scope: MemoryScopeContext,
+    pub candidate_id: String,
+    pub memory_id: String,
+    pub memory_type: String,
+    pub proposed_text: String,
+    pub evidence_links: Vec<MemoryCandidateEvidenceLink>,
+    pub decided_by: Option<i64>,
+}
+
+/// Journal-aware candidate promotion command. The base promotion command stays
+/// source-compatible for evaluation and legacy callers; production HTTP uses
+/// this additive form so the provider can commit its outbox/audit entries with
+/// the canonical record mutation.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PromoteMemoryCandidateAtomicWithJournalCommand {
+    pub promotion: PromoteMemoryCandidateAtomicCommand,
+    pub journal: MemoryMutationJournal,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryCandidatePromotion {
+    pub candidate_id: String,
+    pub memory_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct MemoryCandidate {
     pub candidate_id: String,
     pub candidate_type: String,
@@ -275,6 +340,58 @@ pub struct MemoryCandidate {
     pub decision_reason: Option<String>,
     pub decided_by: Option<i64>,
     pub decided_at: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RetrieveMemoryCandidateDetailQuery {
+    pub tenant_id: i64,
+    pub candidate_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListMemoryCandidatesQuery {
+    pub tenant_id: i64,
+    pub space_id: Option<i64>,
+    pub page_size: u32,
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MemoryCandidateSummary {
+    pub candidate_id: String,
+    pub space_id: i64,
+    pub candidate_type: String,
+    pub memory_type: String,
+    pub proposed_text: String,
+    pub confidence: f64,
+    pub decision_state: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MemoryCandidatePage {
+    pub items: Vec<MemoryCandidateSummary>,
+    pub has_more: bool,
+    pub next_cursor: Option<String>,
+}
+
+/// Provider-neutral candidate projection used by promotion workflows. The
+/// service must not depend on a provider's SQL row type to recover evidence or
+/// an existing promotion target.
+#[derive(Debug, Clone, PartialEq)]
+pub struct MemoryCandidateDetail {
+    pub candidate_id: String,
+    pub space_id: i64,
+    pub candidate_type: String,
+    pub memory_type: String,
+    pub proposed_text: String,
+    pub evidence_json: Option<String>,
+    pub confidence: f64,
+    pub decision_state: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub target_memory_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -375,6 +492,19 @@ pub struct RetrieveMemoryRetrievalTraceQuery {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetrieveMemoryRetrievalTraceForTenantQuery {
+    pub tenant_id: i64,
+    pub trace_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScopedMemoryRetrievalTrace {
+    pub scope: MemoryScopeContext,
+    pub trace: MemoryRetrievalTrace,
+    pub created_at: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ListMemoryRetrievalTracesQuery {
     pub scope: MemoryScopeContext,
     pub limit: u32,
@@ -398,6 +528,124 @@ pub struct MemoryRetrievalTrace {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemoryPolicy {
     pub policy_code: String,
+}
+
+pub const MAX_MEMORY_GOVERNANCE_FACTS: u32 = 32;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryGovernanceActor {
+    /// Trusted subject type when the request context provides one.
+    /// `None` preserves compatibility with the current actor-id-only HTTP context; providers
+    /// must fail closed when that identifier is ambiguous across subject namespaces.
+    pub subject_type: Option<String>,
+    pub subject_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolveMemorySpaceGovernanceQuery {
+    pub scope: MemoryScopeContext,
+    pub actor: Option<MemoryGovernanceActor>,
+    pub capability_code: Option<String>,
+    pub fact_limit: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemorySpaceGovernanceFact {
+    pub space_id: i64,
+    pub organization_id: Option<i64>,
+    pub owner_subject_type: String,
+    pub owner_subject_id: String,
+    pub lifecycle_status: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryActorSpaceBindingFact {
+    pub binding_id: String,
+    pub binding_kind: String,
+    pub binding_role: String,
+    pub status: String,
+    pub valid_from: Option<String>,
+    pub valid_to: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemoryCapabilityBindingFact {
+    pub binding_id: String,
+    pub capability_code: String,
+    pub mode: String,
+    pub priority: i32,
+    pub status: String,
+    pub valid_from: Option<String>,
+    pub valid_to: Option<String>,
+}
+
+/// Complete, bounded governance facts for one tenant-scoped memory space.
+///
+/// Providers set `complete` to false when either fact collection exceeds the requested bound.
+/// Service policy must fail closed instead of authorizing from a truncated fact set.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemorySpaceGovernanceFacts {
+    pub space: Option<MemorySpaceGovernanceFact>,
+    pub actor_bindings: Vec<MemoryActorSpaceBindingFact>,
+    pub capability_bindings: Vec<MemoryCapabilityBindingFact>,
+    pub complete: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CountActiveMemoryRecordsQuery {
+    pub scope: MemoryScopeContext,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CountUserOwnedMemorySpacesQuery {
+    pub tenant_id: i64,
+    pub owner_subject_id: String,
+}
+
+/// Input for a provider-owned memory-space creation mutation.
+///
+/// Space identifiers are allocated by the service, while the provider owns the
+/// transaction that admits the owner against its configured quota and persists
+/// the row. Providers must validate the tenant and owner fields again at this
+/// boundary; callers cannot use this command to widen a request scope.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreateMemorySpaceCommand {
+    pub tenant_id: i64,
+    pub space_id: i64,
+    pub organization_id: Option<i64>,
+    pub owner_subject_type: String,
+    pub owner_subject_id: String,
+    pub space_type: String,
+    pub display_name: String,
+    pub default_scope: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemorySpaceRecord {
+    pub space_id: i64,
+    pub uuid: String,
+    pub tenant_id: i64,
+    pub organization_id: Option<i64>,
+    pub owner_subject_type: String,
+    pub owner_subject_id: String,
+    pub space_type: String,
+    pub display_name: String,
+    pub default_scope: String,
+    pub lifecycle_status: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub version: i64,
+}
+
+/// Result of a space mutation whose user-owned-space quota is admitted in the
+/// same serialization boundary as the insert.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MemorySpaceQuotaAdmission<T> {
+    Admitted(T),
+    QuotaExceeded {
+        active_spaces: u64,
+        max_active_spaces: u64,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -453,6 +701,7 @@ pub struct MemoryRetrieverSearchResult {
     pub events: Vec<MemoryRetrievalEventCandidate>,
     pub degraded: bool,
     pub unavailable_retriever_kinds: Vec<MemoryRetrieverKind>,
+    pub degradation_codes: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -539,6 +788,18 @@ pub trait MemoryRecordStorePort: Send + Sync {
         false
     }
 
+    /// Whether canonical record creation can serialize quota admission with
+    /// the record mutation for one space.
+    fn supports_atomic_record_quota_admission(&self) -> bool {
+        false
+    }
+
+    /// Whether superseding a canonical record is admitted and committed as one
+    /// provider transaction, including both record links and mutation journals.
+    fn supports_atomic_supersede(&self) -> bool {
+        false
+    }
+
     async fn create(&self, command: CreateMemoryRecordCommand) -> MemorySpiResult<MemoryRecord>;
 
     async fn retrieve(
@@ -556,6 +817,29 @@ pub trait MemoryRecordStorePort: Send + Sync {
         _command: CreateCanonicalMemoryCommand,
     ) -> MemorySpiResult<MemoryCanonicalRecord> {
         Err(atomic_record_operation_required("create_canonical_atomic"))
+    }
+
+    /// Creates a canonical record only when the space remains below the
+    /// supplied active-record limit at the mutation's serialization point.
+    /// A zero limit disables quota rejection but still uses the atomic path.
+    async fn create_canonical_atomic_with_quota(
+        &self,
+        _command: CreateCanonicalMemoryCommand,
+        _max_active_records: u64,
+    ) -> MemorySpiResult<MemoryRecordQuotaAdmission<MemoryCanonicalRecord>> {
+        Err(atomic_record_operation_required(
+            "create_canonical_atomic_with_quota",
+        ))
+    }
+
+    async fn supersede_canonical_atomic_with_quota(
+        &self,
+        _command: SupersedeCanonicalMemoryAtomicCommand,
+        _max_active_records: u64,
+    ) -> MemorySpiResult<MemoryRecordQuotaAdmission<MemoryCanonicalRecord>> {
+        Err(atomic_record_operation_required(
+            "supersede_canonical_atomic_with_quota",
+        ))
     }
 
     async fn retrieve_canonical(
@@ -631,6 +915,28 @@ pub trait MemoryOutboxStorePort: Send + Sync {
 
 #[async_trait]
 pub trait MemoryCandidateStorePort: Send + Sync {
+    /// Whether the provider exposes the complete, tenant-scoped candidate
+    /// projection required by promotion workflows.
+    fn supports_candidate_detail_lookup(&self) -> bool {
+        false
+    }
+
+    /// Whether the provider can execute the bounded, cursor-based candidate
+    /// listing used by the HTTP surfaces.
+    fn supports_candidate_listing(&self) -> bool {
+        false
+    }
+
+    fn supports_atomic_candidate_promotion(&self) -> bool {
+        false
+    }
+
+    /// Whether candidate promotion also persists its mutation journal in the
+    /// same transaction as record/source/target/approval/index writes.
+    fn supports_atomic_candidate_promotion_journal(&self) -> bool {
+        false
+    }
+
     async fn create(
         &self,
         command: CreateMemoryCandidateCommand,
@@ -641,6 +947,26 @@ pub trait MemoryCandidateStorePort: Send + Sync {
         query: RetrieveMemoryCandidateQuery,
     ) -> MemorySpiResult<Option<MemoryCandidate>>;
 
+    async fn retrieve_detail(
+        &self,
+        _query: RetrieveMemoryCandidateDetailQuery,
+    ) -> MemorySpiResult<Option<MemoryCandidateDetail>> {
+        Err(MemorySpiError::PortOperationFailed {
+            port: "MemoryCandidateStorePort".to_string(),
+            message: "provider-neutral candidate detail lookup is not implemented".to_string(),
+        })
+    }
+
+    async fn list_candidates(
+        &self,
+        _query: ListMemoryCandidatesQuery,
+    ) -> MemorySpiResult<MemoryCandidatePage> {
+        Err(MemorySpiError::PortOperationFailed {
+            port: "MemoryCandidateStorePort".to_string(),
+            message: "provider-neutral candidate listing is not implemented".to_string(),
+        })
+    }
+
     async fn approve(
         &self,
         command: ApproveMemoryCandidateCommand,
@@ -650,6 +976,31 @@ pub trait MemoryCandidateStorePort: Send + Sync {
         &self,
         command: RejectMemoryCandidateCommand,
     ) -> MemorySpiResult<Option<MemoryCandidate>>;
+
+    async fn promote_atomic_with_quota(
+        &self,
+        _command: PromoteMemoryCandidateAtomicCommand,
+        _max_active_records: u64,
+    ) -> MemorySpiResult<MemoryRecordQuotaAdmission<MemoryCandidatePromotion>> {
+        Err(MemorySpiError::PortOperationFailed {
+            port: "MemoryCandidateStorePort".to_string(),
+            message:
+                "atomic candidate promotion is not implemented; refusing a non-atomic fallback"
+                    .to_string(),
+        })
+    }
+
+    async fn promote_atomic_with_quota_and_journal(
+        &self,
+        _command: PromoteMemoryCandidateAtomicWithJournalCommand,
+        _max_active_records: u64,
+    ) -> MemorySpiResult<MemoryRecordQuotaAdmission<MemoryCandidatePromotion>> {
+        Err(MemorySpiError::PortOperationFailed {
+            port: "MemoryCandidateStorePort".to_string(),
+            message: "journaled atomic candidate promotion is not implemented; refusing a non-atomic fallback"
+                .to_string(),
+        })
+    }
 }
 
 #[async_trait]
@@ -672,6 +1023,10 @@ pub trait MemoryHabitStorePort: Send + Sync {
 
 #[async_trait]
 pub trait MemoryRetrievalTraceStorePort: Send + Sync {
+    fn supports_tenant_trace_lookup(&self) -> bool {
+        false
+    }
+
     async fn append(
         &self,
         command: AppendMemoryRetrievalTraceCommand,
@@ -682,6 +1037,16 @@ pub trait MemoryRetrievalTraceStorePort: Send + Sync {
         query: RetrieveMemoryRetrievalTraceQuery,
     ) -> MemorySpiResult<Option<MemoryRetrievalTrace>>;
 
+    async fn retrieve_for_tenant(
+        &self,
+        _query: RetrieveMemoryRetrievalTraceForTenantQuery,
+    ) -> MemorySpiResult<Option<ScopedMemoryRetrievalTrace>> {
+        Err(MemorySpiError::PortOperationFailed {
+            port: "MemoryRetrievalTraceStorePort".to_string(),
+            message: "tenant-scoped retrieval trace lookup is not implemented".to_string(),
+        })
+    }
+
     async fn list_recent(
         &self,
         query: ListMemoryRetrievalTracesQuery,
@@ -691,6 +1056,74 @@ pub trait MemoryRetrievalTraceStorePort: Send + Sync {
 #[async_trait]
 pub trait MemoryPolicyStorePort: Send + Sync {
     async fn resolve_policy(&self, policy_code: String) -> MemorySpiResult<MemoryPolicy>;
+}
+
+#[async_trait]
+pub trait MemoryGovernanceAccessPort: Send + Sync {
+    /// Whether the implementation resolves tenant-scoped governance facts with a hard bound.
+    /// Production HTTP composition fails closed when this capability is absent.
+    fn supports_bounded_governance_access(&self) -> bool {
+        false
+    }
+
+    async fn resolve_space_governance(
+        &self,
+        _query: ResolveMemorySpaceGovernanceQuery,
+    ) -> MemorySpiResult<MemorySpaceGovernanceFacts> {
+        Err(MemorySpiError::PortOperationFailed {
+            port: "MemoryGovernanceAccessPort".to_string(),
+            message: "bounded tenant-scoped governance resolution is not implemented".to_string(),
+        })
+    }
+
+    async fn count_active_records(
+        &self,
+        _query: CountActiveMemoryRecordsQuery,
+    ) -> MemorySpiResult<u64> {
+        Err(MemorySpiError::PortOperationFailed {
+            port: "MemoryGovernanceAccessPort".to_string(),
+            message: "tenant-scoped active memory count is not implemented".to_string(),
+        })
+    }
+
+    async fn count_user_owned_spaces(
+        &self,
+        _query: CountUserOwnedMemorySpacesQuery,
+    ) -> MemorySpiResult<u64> {
+        Err(MemorySpiError::PortOperationFailed {
+            port: "MemoryGovernanceAccessPort".to_string(),
+            message: "tenant-scoped user-owned space count is not implemented".to_string(),
+        })
+    }
+}
+
+/// Mutation owner for memory-space lifecycle writes.
+///
+/// This is intentionally separate from `MemoryGovernanceAccessPort`: governance
+/// facts and quota observations are read-only evidence, while this port owns
+/// the transaction that reserves a user-owned space slot and inserts the row.
+#[async_trait]
+pub trait MemorySpaceStorePort: Send + Sync {
+    /// Whether user-owned-space quota admission is serialized with insertion.
+    fn supports_atomic_user_space_quota_admission(&self) -> bool {
+        false
+    }
+
+    /// Create a space with quota admission at the provider's serialization
+    /// point. A zero limit disables rejection but still requires the atomic
+    /// mutation path.
+    async fn create_space_atomic_with_quota(
+        &self,
+        _command: CreateMemorySpaceCommand,
+        _max_active_spaces: u64,
+    ) -> MemorySpiResult<MemorySpaceQuotaAdmission<MemorySpaceRecord>> {
+        Err(MemorySpiError::PortOperationFailed {
+            port: "MemorySpaceStorePort".to_string(),
+            message:
+                "atomic memory-space creation is not implemented; refusing a non-atomic fallback"
+                    .to_string(),
+        })
+    }
 }
 
 #[async_trait]

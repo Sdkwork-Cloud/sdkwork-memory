@@ -123,9 +123,7 @@ impl NativeSqlMemoryStore {
         if let Some(expected) = expected_space_id {
             if entity_space_id != expected {
                 return Err(NativeSqlStoreError::InvariantViolation {
-                    message: format!(
-                        "entity {entity_uuid} does not belong to space {expected}"
-                    ),
+                    message: format!("entity {entity_uuid} does not belong to space {expected}"),
                 });
             }
         }
@@ -270,10 +268,7 @@ impl NativeSqlMemoryStore {
         Ok(result.rows_affected() > 0)
     }
 
-    pub async fn insert_edge(
-        &self,
-        cmd: InsertEdgeCommand<'_>,
-    ) -> Result<(), NativeSqlStoreError> {
+    pub async fn insert_edge(&self, cmd: InsertEdgeCommand<'_>) -> Result<(), NativeSqlStoreError> {
         let now = now_text();
         sqlx::query(
             r#"
@@ -463,7 +458,10 @@ impl NativeSqlMemoryStore {
         Ok(result.rows_affected() > 0)
     }
 
-    pub async fn count_entities_for_tenant(&self, tenant_id: i64) -> Result<i64, NativeSqlStoreError> {
+    pub async fn count_entities_for_tenant(
+        &self,
+        tenant_id: i64,
+    ) -> Result<i64, NativeSqlStoreError> {
         let row = sqlx::query(
             r#"
             SELECT COUNT(*) AS total

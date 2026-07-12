@@ -4,13 +4,16 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use sdkwork_memory_contract::{
-    MemoryExtractionRequest, MemoryLearningJob, MemoryMigrationJobRequest, MemoryServiceError,
-    MemoryOpenApiRequestContext, MemoryRetentionJobRequest,
+    MemoryExtractionRequest, MemoryLearningJob, MemoryMigrationJobRequest,
+    MemoryOpenApiRequestContext, MemoryRetentionJobRequest, MemoryServiceError,
 };
 use sdkwork_memory_plugin_native_sql::{
     InsertLearningJobCommand, NativeSqlLearningJobRow, NativeSqlMemoryStore,
 };
-use sdkwork_memory_spi::MemoryScopeContext;
+use sdkwork_memory_spi::{
+    MemoryRetrieverKind, MemoryScopeContext, MemorySensitivityReadScope,
+    SearchMemoryCandidatesQuery,
+};
 use sdkwork_utils_rust::is_blank;
 use serde_json::Value;
 
@@ -35,7 +38,10 @@ pub fn spawn_background_workers(
     shutdown_tx
 }
 
-fn spawn_learning_job_worker(service: Arc<OpenMemoryService>, mut shutdown_rx: tokio::sync::watch::Receiver<bool>) {
+fn spawn_learning_job_worker(
+    service: Arc<OpenMemoryService>,
+    mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
+) {
     tokio::spawn(async move {
         let poll_interval = platform::read_env_u64("SDKWORK_MEMORY_JOB_POLL_INTERVAL_SECS", 2);
         loop {
@@ -56,7 +62,10 @@ fn spawn_learning_job_worker(service: Arc<OpenMemoryService>, mut shutdown_rx: t
     });
 }
 
-fn spawn_eval_run_worker(service: Arc<OpenMemoryService>, mut shutdown_rx: tokio::sync::watch::Receiver<bool>) {
+fn spawn_eval_run_worker(
+    service: Arc<OpenMemoryService>,
+    mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
+) {
     tokio::spawn(async move {
         let poll_interval = platform::read_env_u64("SDKWORK_MEMORY_EVAL_POLL_INTERVAL_SECS", 5);
         loop {
@@ -77,7 +86,10 @@ fn spawn_eval_run_worker(service: Arc<OpenMemoryService>, mut shutdown_rx: tokio
     });
 }
 
-fn spawn_provider_health_probe(service: Arc<OpenMemoryService>, mut shutdown_rx: tokio::sync::watch::Receiver<bool>) {
+fn spawn_provider_health_probe(
+    service: Arc<OpenMemoryService>,
+    mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
+) {
     tokio::spawn(async move {
         let poll_interval = platform::read_env_u64("SDKWORK_MEMORY_PROVIDER_HEALTH_PROBE_SECS", 60);
         loop {
@@ -157,11 +169,17 @@ fn parse_background_job_actor_id(input_json: &str) -> Option<u64> {
             value
                 .get("actorId")
                 .or_else(|| value.get("actor_id"))
-                .and_then(|id| id.as_u64().or_else(|| id.as_i64().and_then(|v| u64::try_from(v.max(0)).ok())))
+                .and_then(|id| {
+                    id.as_u64()
+                        .or_else(|| id.as_i64().and_then(|v| u64::try_from(v.max(0)).ok()))
+                })
         })
 }
 
-fn background_job_context(job: &NativeSqlLearningJobRow, input_json: &str) -> MemoryOpenApiRequestContext {
+fn background_job_context(
+    job: &NativeSqlLearningJobRow,
+    input_json: &str,
+) -> MemoryOpenApiRequestContext {
     MemoryOpenApiRequestContext::for_background_job(
         u64::try_from(job.tenant_id.max(0)).unwrap_or(0),
         parse_background_job_actor_id(input_json),
@@ -199,7 +217,8 @@ async fn execute_learning_job(
             let request: MemoryExtractionRequest = serde_json::from_str(input)
                 .map_err(|error| format!("consolidation input decode failed: {error}"))?;
             let tenant_id = job.tenant_id;
-            let space_id = platform::space_id_i64(request.space_id).map_err(|error| error.detail)?;
+            let space_id =
+                platform::space_id_i64(request.space_id).map_err(|error| error.detail)?;
             assert_learning_job_space_id(job, space_id)?;
             let scope = MemoryScopeContext {
                 tenant_id,
@@ -212,7 +231,8 @@ async fn execute_learning_job(
                 .consolidate_duplicate_records_in_scope(&scope)
                 .await
                 .map_err(|error| error.to_string())?;
-            serde_json::json!({ "mergedDuplicates": merged, "spaceId": request.space_id }).to_string()
+            serde_json::json!({ "mergedDuplicates": merged, "spaceId": request.space_id })
+                .to_string()
         }
         "retention" => {
             let request: MemoryRetentionJobRequest = serde_json::from_str(input)
@@ -302,7 +322,13 @@ async fn execute_learning_job(
     };
     service
         .store
-        .finish_learning_job(job.tenant_id, &job.job_uuid, "succeeded", Some(&result), None)
+        .finish_learning_job(
+            job.tenant_id,
+            &job.job_uuid,
+            "succeeded",
+            Some(&result),
+            None,
+        )
         .await
         .map_err(|error| error.to_string())?;
     Ok(())
@@ -338,13 +364,7 @@ async fn process_eval_run_batch(service: &OpenMemoryService) -> Result<(), Strin
         };
         service
             .store
-            .update_eval_run_state(
-                tenant_id,
-                &eval_uuid,
-                state,
-                Some(&metrics),
-                Some(&metrics),
-            )
+            .update_eval_run_state(tenant_id, &eval_uuid, state, Some(&metrics), Some(&metrics))
             .await
             .map_err(|error| error.to_string())?;
     }
@@ -361,18 +381,10 @@ async fn run_retrieval_quality_eval(
         .await;
     let spaces = service
         .store
-        .list_spaces_for_tenant(
-            tenant_id,
-            sdkwork_utils_rust::MAX_LIST_PAGE_SIZE,
-            0,
-            None,
-        )
+        .list_spaces_for_tenant(tenant_id, sdkwork_utils_rust::MAX_LIST_PAGE_SIZE, 0, None)
         .await
         .map_err(|error| error.to_string())?;
-    let space_id = spaces
-        .first()
-        .map(|space| space.space_id)
-        .unwrap_or(1);
+    let space_id = spaces.first().map(|space| space.space_id).unwrap_or(1);
     let sample_query = "memory";
     let scope = MemoryScopeContext {
         tenant_id,
@@ -380,17 +392,25 @@ async fn run_retrieval_quality_eval(
         organization_id: None,
         user_id: None,
     };
-    let hits = service
-        .store
-        .search_record_details_keyword(&scope, sample_query, 5)
+    let search = service
+        .runtime_data_plane
+        .search_candidates_scoped(SearchMemoryCandidatesQuery {
+            scope,
+            query: sample_query.to_string(),
+            limit: 5,
+            retriever_kinds: vec![MemoryRetrieverKind::Keyword],
+            memory_types: Vec::new(),
+            read_scope: MemorySensitivityReadScope::Owner,
+        })
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| error.detail)?;
+    let hit_count = search.records.len();
     Ok(serde_json::json!({
         "evalType": "retrieval_quality",
         "sampleQuery": sample_query,
         "spaceId": space_id,
-        "hitCount": hits.len(),
-        "passed": !hits.is_empty(),
+        "hitCount": hit_count,
+        "passed": hit_count > 0,
     })
     .to_string())
 }
@@ -499,7 +519,9 @@ pub async fn enqueue_learning_job(
         .await
 }
 
-pub fn learning_job_from_row(row: &NativeSqlLearningJobRow) -> MemoryServiceResult<MemoryLearningJob> {
+pub fn learning_job_from_row(
+    row: &NativeSqlLearningJobRow,
+) -> MemoryServiceResult<MemoryLearningJob> {
     let job_id = crate::platform::parse_numeric_id(&row.job_uuid).ok_or_else(|| {
         MemoryServiceError::storage("learning job id must be numeric".to_string())
     })?;

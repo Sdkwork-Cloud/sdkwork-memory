@@ -163,7 +163,11 @@ pub fn dictionary_match_score(
     }
     corpus.push_str(object_text);
     let tokens = tokenise_query(&query.trim().to_lowercase());
-    token_overlap_score(&query.trim().to_lowercase(), &corpus.to_lowercase(), &tokens)
+    token_overlap_score(
+        &query.trim().to_lowercase(),
+        &corpus.to_lowercase(),
+        &tokens,
+    )
 }
 
 pub fn sql_structured_match_score(
@@ -223,7 +227,10 @@ fn token_overlap_score(_query: &str, haystack: &str, tokens: &[String]) -> f64 {
     }
 
     // For CJK text, a character-level overlap heuristic is more meaningful.
-    if tokens.iter().any(|t| is_cjk(t.chars().next().unwrap_or_default())) {
+    if tokens
+        .iter()
+        .any(|t| is_cjk(t.chars().next().unwrap_or_default()))
+    {
         let matched = tokens
             .iter()
             .filter(|token| haystack.contains(token.as_str()))
@@ -238,21 +245,20 @@ fn token_overlap_score(_query: &str, haystack: &str, tokens: &[String]) -> f64 {
     matched as f64 / tokens.len() as f64
 }
 
-fn retriever_weight(profile: Option<&Value>, retriever: &str) -> f64 {
-    profile
-        .and_then(|value| value.get(retriever))
-        .and_then(|entry| entry.get("weight"))
-        .and_then(|weight| weight.as_f64())
-        .filter(|weight| *weight > 0.0)
-        .unwrap_or(0.0)
+fn retriever_weight(profile: Option<&Value>, retriever: &str, default_weight: f64) -> f64 {
+    match profile {
+        Some(profile) => profile
+            .get(retriever)
+            .and_then(|entry| entry.get("weight"))
+            .and_then(Value::as_f64)
+            .filter(|weight| weight.is_finite() && *weight > 0.0)
+            .unwrap_or(0.0),
+        None => default_weight,
+    }
 }
 
-fn retriever_enabled(profile: Option<&Value>, retriever: &str, default_enabled: bool) -> bool {
-    if let Some(profile) = profile {
-        retriever_weight(Some(profile), retriever) > 0.0
-    } else {
-        default_enabled
-    }
+fn retriever_enabled(profile: Option<&Value>, retriever: &str, default_weight: f64) -> bool {
+    retriever_weight(profile, retriever, default_weight) > 0.0
 }
 
 pub fn orchestrate_retrieval_candidates(
@@ -262,9 +268,9 @@ pub fn orchestrate_retrieval_candidates(
     profile: Option<&Value>,
     top_k: usize,
 ) -> Vec<OrchestratedCandidate> {
-    let mut weighted: HashMap<String, (RetrievalRecordInput, f64, String)> = HashMap::new();
+    let mut weighted: HashMap<String, (RetrievalRecordInput, f64, f64, String)> = HashMap::new();
 
-    let push_score = |map: &mut HashMap<String, (RetrievalRecordInput, f64, String)>,
+    let push_score = |map: &mut HashMap<String, (RetrievalRecordInput, f64, f64, String)>,
                       record: RetrievalRecordInput,
                       retriever: &str,
                       raw_score: f64,
@@ -272,28 +278,31 @@ pub fn orchestrate_retrieval_candidates(
         if raw_score <= 0.0 || weight <= 0.0 {
             return;
         }
-        let fused = raw_score * weight;
+        let contribution = raw_score * weight;
         let key = record.memory_id.clone();
         map.entry(key)
             .and_modify(|existing| {
-                if fused > existing.1 {
-                    *existing = (record.clone(), fused, retriever.to_string());
+                existing.1 += contribution;
+                if contribution > existing.2 {
+                    existing.0 = record.clone();
+                    existing.2 = contribution;
+                    existing.3 = retriever.to_string();
                 }
             })
-            .or_insert((record, fused, retriever.to_string()));
+            .or_insert((record, contribution, contribution, retriever.to_string()));
     };
 
-    if retriever_enabled(profile, "keyword", true) {
-        let weight = retriever_weight(profile, "keyword").max(1.0);
-        for record in records.iter().take(top_k.saturating_mul(2)) {
+    if retriever_enabled(profile, "keyword", 1.0) {
+        let weight = retriever_weight(profile, "keyword", 1.0);
+        for record in records {
             let score = keyword_match_score(query, &record.canonical_text);
             push_score(&mut weighted, record.clone(), "keyword", score, weight);
         }
     }
 
-    if retriever_enabled(profile, "dictionary", true) {
-        let weight = retriever_weight(profile, "dictionary").max(0.85);
-        for record in records.iter().take(top_k.saturating_mul(2)) {
+    if retriever_enabled(profile, "dictionary", 0.85) {
+        let weight = retriever_weight(profile, "dictionary", 0.85);
+        for record in records {
             let score = dictionary_match_score(
                 query,
                 record.subject.as_deref(),
@@ -304,9 +313,9 @@ pub fn orchestrate_retrieval_candidates(
         }
     }
 
-    if retriever_enabled(profile, "sql", true) {
-        let weight = retriever_weight(profile, "sql").max(0.75);
-        for record in records.iter().take(top_k.saturating_mul(2)) {
+    if retriever_enabled(profile, "sql", 0.75) {
+        let weight = retriever_weight(profile, "sql", 0.75);
+        for record in records {
             let score = sql_structured_match_score(
                 query,
                 record.subject.as_deref(),
@@ -316,9 +325,9 @@ pub fn orchestrate_retrieval_candidates(
         }
     }
 
-    if retriever_enabled(profile, "time", true) {
-        let weight = retriever_weight(profile, "time").max(0.5);
-        for record in records.iter().take(top_k.saturating_mul(2)) {
+    if retriever_enabled(profile, "time", 0.5) {
+        let weight = retriever_weight(profile, "time", 0.5);
+        for record in records {
             let score = time_recency_score(&record.created_at);
             if keyword_match_score(query, &record.canonical_text) > 0.0 || is_blank(Some(query)) {
                 push_score(&mut weighted, record.clone(), "time", score, weight);
@@ -326,9 +335,9 @@ pub fn orchestrate_retrieval_candidates(
         }
     }
 
-    if retriever_enabled(profile, "event", true) {
-        let weight = retriever_weight(profile, "event").max(0.6);
-        for event in events.iter().take(top_k.saturating_mul(2)) {
+    if retriever_enabled(profile, "event", 0.6) {
+        let weight = retriever_weight(profile, "event", 0.6);
+        for event in events {
             let score = event_match_score(query, &event.payload_text);
             if score <= 0.0 {
                 continue;
@@ -350,11 +359,13 @@ pub fn orchestrate_retrieval_candidates(
 
     let mut results: Vec<OrchestratedCandidate> = weighted
         .into_values()
-        .map(|(record, fused, retriever_name)| OrchestratedCandidate {
-            record,
-            retriever_name,
-            raw_score: fused,
-        })
+        .map(
+            |(record, fused, _dominant_score, retriever_name)| OrchestratedCandidate {
+                record,
+                retriever_name,
+                raw_score: fused,
+            },
+        )
         .collect();
 
     results.sort_by(|left, right| {
@@ -394,5 +405,90 @@ mod tests {
         );
         assert!(!hits.is_empty());
         assert!(hits[0].raw_score > 0.0);
+    }
+
+    #[test]
+    fn orchestrator_applies_exact_profile_weights_and_sums_signals() {
+        let records = vec![RetrievalRecordInput {
+            memory_id: "weighted".to_string(),
+            subject: None,
+            predicate: None,
+            object_text: "alpha".to_string(),
+            canonical_text: "alpha".to_string(),
+            created_at: sdkwork_utils_rust::format_datetime(sdkwork_utils_rust::now(), None),
+        }];
+        let hits = orchestrate_retrieval_candidates(
+            "alpha",
+            &records,
+            &[],
+            Some(&serde_json::json!({
+                "keyword": { "weight": 0.1 },
+                "dictionary": { "weight": 0.2 }
+            })),
+            1,
+        );
+        assert_eq!(hits.len(), 1);
+        assert!((hits[0].raw_score - 0.3).abs() < 1e-9);
+        assert_eq!(hits[0].retriever_name, "dictionary");
+    }
+
+    #[test]
+    fn orchestrator_scores_all_bounded_inputs_before_top_k() {
+        let now = sdkwork_utils_rust::format_datetime(sdkwork_utils_rust::now(), None);
+        let records = vec![
+            RetrievalRecordInput {
+                memory_id: "low-a".to_string(),
+                subject: None,
+                predicate: None,
+                object_text: "needle one".to_string(),
+                canonical_text: "needle one".to_string(),
+                created_at: now.clone(),
+            },
+            RetrievalRecordInput {
+                memory_id: "low-b".to_string(),
+                subject: None,
+                predicate: None,
+                object_text: "needle two".to_string(),
+                canonical_text: "needle two".to_string(),
+                created_at: now.clone(),
+            },
+            RetrievalRecordInput {
+                memory_id: "exact".to_string(),
+                subject: None,
+                predicate: None,
+                object_text: "needle".to_string(),
+                canonical_text: "needle".to_string(),
+                created_at: now,
+            },
+        ];
+        let hits = orchestrate_retrieval_candidates(
+            "needle",
+            &records,
+            &[],
+            Some(&serde_json::json!({ "keyword": { "weight": 1.0 } })),
+            1,
+        );
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].record.memory_id, "exact");
+    }
+
+    #[test]
+    fn orchestrator_preserves_linked_event_memory_id() {
+        let events = vec![RetrievalEventInput {
+            memory_id: Some("memory-from-event".to_string()),
+            event_id: "event-1".to_string(),
+            payload_text: "event needle".to_string(),
+            created_at: sdkwork_utils_rust::format_datetime(sdkwork_utils_rust::now(), None),
+        }];
+        let hits = orchestrate_retrieval_candidates(
+            "event needle",
+            &[],
+            &events,
+            Some(&serde_json::json!({ "event": { "weight": 1.0 } })),
+            1,
+        );
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].record.memory_id, "memory-from-event");
+        assert_eq!(hits[0].retriever_name, "event");
     }
 }

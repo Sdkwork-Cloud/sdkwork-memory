@@ -124,16 +124,12 @@ pub async fn deliver_outbox_event(
             Ok(())
         }
         OutboxDeliveryMode::Http => {
-            let url = config
-                .webhook_url
-                .as_deref()
-                .ok_or_else(|| {
-                    "SDKWORK_MEMORY_OUTBOX_DELIVERY_URL is required when delivery mode is http"
-                        .to_string()
-                })?;
-            crate::endpoint_validation::validate_outbound_url(url).map_err(|reason| {
-                format!("outbox delivery URL rejected: {reason}")
+            let url = config.webhook_url.as_deref().ok_or_else(|| {
+                "SDKWORK_MEMORY_OUTBOX_DELIVERY_URL is required when delivery mode is http"
+                    .to_string()
             })?;
+            crate::endpoint_validation::validate_outbound_url(url)
+                .map_err(|reason| format!("outbox delivery URL rejected: {reason}"))?;
             let response = config
                 .http_client
                 .post(url)

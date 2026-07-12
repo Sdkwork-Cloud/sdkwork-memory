@@ -43,7 +43,25 @@
       { "name": "MemoryCoreRuntimeAssembly", "export": "." }
     ],
     "requiredPorts": [
-      { "name": "MemoryPluginSpi", "export": ".", "dependency": "sdkwork-memory-spi" }
+      { "name": "MemoryPluginSpi", "export": ".", "dependency": "sdkwork-memory-spi" },
+      {
+        "name": "MemoryGovernanceAccessPort",
+        "export": ".",
+        "dependency": "sdkwork-memory-spi",
+        "requiredFor": "native-sql-phase1-and-local-embedded-phase1"
+      },
+      {
+        "name": "MemorySpaceStorePort",
+        "export": ".",
+        "dependency": "sdkwork-memory-spi",
+        "requiredFor": "native-sql-phase1-and-local-embedded-phase1"
+      },
+      {
+        "name": "MemoryRetrieverPort",
+        "export": ".",
+        "dependency": "sdkwork-memory-spi",
+        "requiredFor": "native-sql-phase1-and-local-embedded-phase1"
+      }
     ],
     "runtimeEntrypoints": [
       "sdkwork_memory_profile_resolver::MemoryRuntimeProfileResolver::new",

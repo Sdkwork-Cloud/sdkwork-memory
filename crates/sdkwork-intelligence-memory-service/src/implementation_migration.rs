@@ -51,7 +51,9 @@ pub async fn execute_implementation_profile_migration(
             .retrieve_mem_implementation_profile_for_tenant(tenant_id, &target_id)
             .await
             .map_err(map_native_sql_store_error)?
-            .ok_or_else(|| MemoryServiceError::not_found("target implementation profile not found"))?
+            .ok_or_else(|| {
+                MemoryServiceError::not_found("target implementation profile not found")
+            })?
     };
 
     if target.status == "deleted" {

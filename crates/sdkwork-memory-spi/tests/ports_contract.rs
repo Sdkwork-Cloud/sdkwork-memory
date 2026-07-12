@@ -1,10 +1,14 @@
 use sdkwork_memory_spi::{
     AppendMemoryRetrievalTraceCommand, ApproveMemoryCandidateCommand, CreateMemoryCandidateCommand,
-    DecayMemoryHabitCommand, MemoryCandidate, MemoryCandidateStorePort, MemoryContextPackSnapshot,
-    MemoryHabit, MemoryHabitStorePort, MemoryRetrievalHitDraft, MemoryRetrievalTrace,
-    MemoryRetrievalTraceStorePort, MemoryScopeContext, PromoteMemoryHabitCommand,
-    RejectMemoryCandidateCommand, RetrieveMemoryCandidateQuery, RetrieveMemoryHabitQuery,
-    RetrieveMemoryRetrievalTraceQuery, UpsertMemoryHabitCommand,
+    CreateMemorySpaceCommand, DecayMemoryHabitCommand, MemoryCandidate,
+    MemoryCandidateEvidenceLink, MemoryCandidatePromotion, MemoryCandidateStorePort,
+    MemoryContextPackSnapshot, MemoryGovernanceAccessPort, MemoryGovernanceActor, MemoryHabit,
+    MemoryHabitStorePort, MemoryRecordQuotaAdmission, MemoryRetrievalHitDraft,
+    MemoryRetrievalTrace, MemoryRetrievalTraceStorePort, MemoryScopeContext,
+    MemorySpaceQuotaAdmission, MemorySpaceRecord, MemorySpaceStorePort,
+    PromoteMemoryCandidateAtomicCommand, PromoteMemoryHabitCommand, RejectMemoryCandidateCommand,
+    ResolveMemorySpaceGovernanceQuery, RetrieveMemoryCandidateQuery, RetrieveMemoryHabitQuery,
+    RetrieveMemoryRetrievalTraceQuery, UpsertMemoryHabitCommand, MAX_MEMORY_GOVERNANCE_FACTS,
 };
 
 #[test]
@@ -51,11 +55,32 @@ fn candidate_lifecycle_port_contract_types_are_public_and_scoped() {
         decided_by: None,
         decided_at: None,
     };
+    let promotion = PromoteMemoryCandidateAtomicCommand {
+        scope: approve.scope.clone(),
+        candidate_id: candidate.candidate_id.clone(),
+        memory_id: "memory-1".to_string(),
+        memory_type: candidate.memory_type.clone(),
+        proposed_text: candidate.proposed_text.clone(),
+        evidence_links: vec![MemoryCandidateEvidenceLink {
+            source_id: "source-1".to_string(),
+            event_id: "event-1".to_string(),
+            confidence_delta: Some(0.91),
+        }],
+        decided_by: approve.decided_by,
+    };
+    let promotion_outcome = MemoryRecordQuotaAdmission::Admitted(MemoryCandidatePromotion {
+        candidate_id: promotion.candidate_id.clone(),
+        memory_id: promotion.memory_id.clone(),
+    });
 
     assert_eq!(retrieve.candidate_id, "cand-1");
     assert_eq!(approve.decided_by, Some(7));
     assert_eq!(reject.decided_by, Some(8));
     assert_eq!(candidate.decision_state, "pending");
+    assert!(matches!(
+        promotion_outcome,
+        MemoryRecordQuotaAdmission::Admitted(_)
+    ));
 }
 
 #[test]
@@ -174,8 +199,72 @@ fn retrieval_trace_port_contract_types_are_public_and_bounded() {
     assert!(!trace.degraded);
 }
 
+#[test]
+fn governance_access_port_contract_is_scoped_bounded_and_actor_typed() {
+    accept_governance_port_object(None);
+
+    let query = ResolveMemorySpaceGovernanceQuery {
+        scope: MemoryScopeContext::for_test(1, 10),
+        actor: Some(MemoryGovernanceActor {
+            subject_type: Some("user".to_string()),
+            subject_id: "42".to_string(),
+        }),
+        capability_code: Some("memory.retrieve".to_string()),
+        fact_limit: MAX_MEMORY_GOVERNANCE_FACTS,
+    };
+
+    assert_eq!(query.scope.tenant_id, 1);
+    assert_eq!(query.scope.space_id, 10);
+    assert_eq!(query.actor.unwrap().subject_type.as_deref(), Some("user"));
+    assert_eq!(query.fact_limit, 32);
+}
+
+#[test]
+fn space_store_quota_contract_types_are_public_and_tenant_scoped() {
+    accept_space_store_port_object(None);
+    let command = CreateMemorySpaceCommand {
+        tenant_id: 7,
+        space_id: 11,
+        organization_id: Some(3),
+        owner_subject_type: "user".to_string(),
+        owner_subject_id: "42".to_string(),
+        space_type: "personal".to_string(),
+        display_name: "Personal memory".to_string(),
+        default_scope: "user".to_string(),
+    };
+    let record = MemorySpaceRecord {
+        space_id: command.space_id,
+        uuid: "space-11".to_string(),
+        tenant_id: command.tenant_id,
+        organization_id: command.organization_id,
+        owner_subject_type: command.owner_subject_type,
+        owner_subject_id: command.owner_subject_id,
+        space_type: command.space_type,
+        display_name: command.display_name,
+        default_scope: command.default_scope,
+        lifecycle_status: "active".to_string(),
+        created_at: "2026-07-12T00:00:00Z".to_string(),
+        updated_at: "2026-07-12T00:00:00Z".to_string(),
+        version: 0,
+    };
+    let admission = MemorySpaceQuotaAdmission::Admitted(record);
+
+    assert!(matches!(
+        admission,
+        MemorySpaceQuotaAdmission::Admitted(MemorySpaceRecord {
+            tenant_id: 7,
+            space_id: 11,
+            ..
+        })
+    ));
+}
+
 fn accept_candidate_port_object(_port: Option<&dyn MemoryCandidateStorePort>) {}
 
 fn accept_habit_port_object(_port: Option<&dyn MemoryHabitStorePort>) {}
 
 fn accept_retrieval_trace_port_object(_port: Option<&dyn MemoryRetrievalTraceStorePort>) {}
+
+fn accept_governance_port_object(_port: Option<&dyn MemoryGovernanceAccessPort>) {}
+
+fn accept_space_store_port_object(_port: Option<&dyn MemorySpaceStorePort>) {}

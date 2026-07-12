@@ -240,10 +240,9 @@ impl NativeSqlMemoryStore {
                 message: "memory index not found".to_string(),
             })?;
 
-        let implementation_profile_id = implementation_profile_id
-            .unwrap_or(existing.implementation_profile_id);
-        let provider_binding_id =
-            provider_binding_id.unwrap_or(existing.provider_binding_id);
+        let implementation_profile_id =
+            implementation_profile_id.unwrap_or(existing.implementation_profile_id);
+        let provider_binding_id = provider_binding_id.unwrap_or(existing.provider_binding_id);
 
         sqlx::query(
             r#"
@@ -303,7 +302,7 @@ impl NativeSqlMemoryStore {
     }
 
     #[allow(clippy::too_many_arguments)]
-pub async fn insert_mem_retrieval_profile(
+    pub async fn insert_mem_retrieval_profile(
         &self,
         tenant_id: i64,
         profile_uuid: &str,
@@ -494,7 +493,7 @@ pub async fn insert_mem_retrieval_profile(
     }
 
     #[allow(clippy::too_many_arguments)]
-pub async fn insert_mem_implementation_profile(
+    pub async fn insert_mem_implementation_profile(
         &self,
         tenant_id: i64,
         profile_uuid: &str,
@@ -608,7 +607,7 @@ pub async fn insert_mem_implementation_profile(
     }
 
     #[allow(clippy::too_many_arguments)]
-pub async fn update_mem_implementation_profile_for_tenant(
+    pub async fn update_mem_implementation_profile_for_tenant(
         &self,
         tenant_id: i64,
         profile_uuid: &str,
@@ -751,7 +750,7 @@ pub async fn update_mem_implementation_profile_for_tenant(
     }
 
     #[allow(clippy::too_many_arguments)]
-pub async fn insert_mem_provider_binding(
+    pub async fn insert_mem_provider_binding(
         &self,
         tenant_id: i64,
         binding_uuid: &str,
@@ -873,7 +872,7 @@ pub async fn insert_mem_provider_binding(
     }
 
     #[allow(clippy::too_many_arguments)]
-pub async fn update_mem_provider_binding_for_tenant(
+    pub async fn update_mem_provider_binding_for_tenant(
         &self,
         tenant_id: i64,
         binding_uuid: &str,
@@ -1061,9 +1060,7 @@ fn map_retrieval_profile_row(row: sqlx::any::AnyRow) -> NativeSqlRetrievalProfil
     }
 }
 
-fn map_implementation_profile_row(
-    row: sqlx::any::AnyRow,
-) -> NativeSqlImplementationProfileRow {
+fn map_implementation_profile_row(row: sqlx::any::AnyRow) -> NativeSqlImplementationProfileRow {
     NativeSqlImplementationProfileRow {
         profile_uuid: row.get("uuid"),
         name: row.get("name"),

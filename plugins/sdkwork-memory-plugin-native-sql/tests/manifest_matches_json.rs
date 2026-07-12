@@ -2,10 +2,14 @@ use std::fs;
 
 use sdkwork_memory_plugin_native_sql::{
     build_native_sql_audit_store, build_native_sql_candidate_store, build_native_sql_event_store,
-    build_native_sql_habit_store, build_native_sql_outbox_store, build_native_sql_record_store,
-    build_native_sql_retrieval_trace_store, native_sql_manifest, validate_native_sql_port_builders,
+    build_native_sql_governance_access, build_native_sql_habit_store,
+    build_native_sql_outbox_store, build_native_sql_record_store,
+    build_native_sql_retrieval_trace_store, build_native_sql_retriever,
+    build_native_sql_space_store, native_sql_manifest, validate_native_sql_port_builders,
 };
-use sdkwork_memory_spi::{MemoryImplementationKind, MemoryPluginManifest};
+use sdkwork_memory_spi::{
+    MemoryImplementationKind, MemoryPluginManifest, MemoryPluginRole, MemoryRetrieverKind,
+};
 
 #[test]
 fn rust_manifest_matches_source_controlled_json_manifest() {
@@ -121,7 +125,59 @@ fn manifest_retrieval_trace_store_builder_is_exported_by_plugin_crate() {
 }
 
 #[test]
-fn manifest_declares_native_sql_store_ports() {
+fn manifest_governance_access_builder_is_exported_by_plugin_crate() {
+    let manifest = native_sql_manifest();
+    let builder = build_native_sql_governance_access();
+
+    assert!(manifest
+        .port_exports
+        .iter()
+        .any(|export| export.builder == builder.builder_name));
+    assert_eq!(builder.port_name, "MemoryGovernanceAccessPort");
+    assert!(builder.ready);
+}
+
+#[test]
+fn manifest_space_store_builder_is_exported_by_plugin_crate() {
+    let manifest = native_sql_manifest();
+    let builder = build_native_sql_space_store();
+
+    assert!(manifest
+        .port_exports
+        .iter()
+        .any(|export| export.builder == builder.builder_name));
+    assert_eq!(builder.port_name, "MemorySpaceStorePort");
+    assert!(builder.ready);
+}
+
+#[test]
+fn manifest_retriever_builder_is_exported_by_plugin_crate() {
+    let manifest = native_sql_manifest();
+    let builder = build_native_sql_retriever();
+    let export = manifest
+        .port_exports
+        .iter()
+        .find(|export| export.port == builder.port_name)
+        .expect("native SQL manifest must export MemoryRetrieverPort");
+
+    assert_eq!(builder.port_name, "MemoryRetrieverPort");
+    assert_eq!(export.builder, builder.builder_name);
+    assert!(builder.ready);
+    assert!(manifest.plugin_roles.contains(&MemoryPluginRole::Retriever));
+    assert_eq!(
+        manifest.retriever_kinds,
+        vec![
+            MemoryRetrieverKind::Sql,
+            MemoryRetrieverKind::Keyword,
+            MemoryRetrieverKind::Dictionary,
+            MemoryRetrieverKind::Time,
+            MemoryRetrieverKind::Event,
+        ]
+    );
+}
+
+#[test]
+fn manifest_declares_native_sql_phase1_data_plane_ports() {
     let manifest = native_sql_manifest();
     let ports = manifest
         .port_exports
@@ -136,6 +192,9 @@ fn manifest_declares_native_sql_store_ports() {
     assert!(ports.contains(&"MemoryCandidateStorePort"));
     assert!(ports.contains(&"MemoryHabitStorePort"));
     assert!(ports.contains(&"MemoryRetrievalTraceStorePort"));
+    assert!(ports.contains(&"MemoryGovernanceAccessPort"));
+    assert!(ports.contains(&"MemorySpaceStorePort"));
+    assert!(ports.contains(&"MemoryRetrieverPort"));
 }
 
 #[test]

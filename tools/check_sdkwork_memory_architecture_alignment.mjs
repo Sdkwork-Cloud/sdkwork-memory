@@ -267,7 +267,9 @@ assert(
   'standalone-gateway bootstrap must use unified memory runtime bootstrap',
 );
 assert(
-  readText('crates/sdkwork-memory-standalone-gateway/src/bootstrap.rs').includes('route("/readyz"'),
+  /\.route\(\s*["']\/readyz["']/.test(
+    readText('crates/sdkwork-memory-standalone-gateway/src/bootstrap.rs'),
+  ),
   'standalone-gateway must expose /readyz readiness endpoint',
 );
 assert(
@@ -393,9 +395,49 @@ assert(
 );
 assert(
   readText('crates/sdkwork-intelligence-memory-service/src/open_api.rs').includes(
-    'assert_space_record_quota',
+    'create_canonical_memory_atomic_with_quota',
   ),
   'create_memory must enforce per-space record quotas per PERFORMANCE_SPEC',
+);
+assert(
+  backendAdminApi.includes('supersede_canonical_memory_atomic_with_quota') &&
+    !backendAdminApi.includes('.supersede_record_open_api('),
+  'backend supersede must dispatch through the atomic quota-aware record-store port',
+);
+const nativeCanonicalSource = readText(
+  'plugins/sdkwork-memory-plugin-native-sql/src/canonical_data.rs',
+);
+assert(
+  nativeCanonicalSource.includes('command.superseded_journal') &&
+    nativeCanonicalSource.includes('command.created_journal') &&
+    nativeCanonicalSource.includes('remove_record_fts_on_tx('),
+  'native-sql supersede must commit both journals and remove the old search projection transactionally',
+);
+const candidatePromotionSource = readText(
+  'crates/sdkwork-intelligence-memory-service/src/candidate_promotion.rs',
+);
+assert(
+  candidatePromotionSource.includes('promote_candidate_atomic_with_quota_and_journal'),
+  'candidate promotion must dispatch through the journaled atomic runtime candidate port',
+);
+assert(
+  candidatePromotionSource.includes('retrieve_candidate_detail('),
+  'candidate promotion must recover evidence and targets through the provider-neutral runtime detail port',
+);
+assert(
+  !candidatePromotionSource.includes('NativeSqlCandidateDetailRow') &&
+    !candidatePromotionSource.includes('retrieve_candidate_detail_for_tenant'),
+  'candidate promotion service must not depend on Native SQL candidate detail projections',
+);
+assert(
+  !candidatePromotionSource.includes('.promote_and_approve_candidate'),
+  'candidate promotion service must not bypass the runtime candidate port',
+);
+assert(
+  readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs').includes(
+    'append_journal_on_tx(&mut tx, command.scope, journal)',
+  ),
+  'native-sql candidate promotion must append outbox/audit before its transaction commits',
 );
 assert(
   readText('crates/sdkwork-intelligence-memory-service/src/tenant_quota.rs').includes(
@@ -407,11 +449,51 @@ assert(
   readText('crates/sdkwork-routes-memory-support/src/problem.rs').includes('QuotaExceeded'),
   'router problem mapping must translate quota_exceeded to HTTP 429',
 );
+const appBackendSource = readText(
+  'crates/sdkwork-intelligence-memory-service/src/app_backend_api.rs',
+);
+const openApiServiceSource = readText(
+  'crates/sdkwork-intelligence-memory-service/src/open_api.rs',
+);
 assert(
-  readText('crates/sdkwork-intelligence-memory-service/src/app_backend_api.rs').includes(
-    'assert_user_space_quota',
+  appBackendSource.includes('.list_candidates(ListMemoryCandidatesQuery') &&
+    openApiServiceSource.includes('.list_candidates(ListMemoryCandidatesQuery'),
+  'candidate HTTP lists must dispatch through the provider-neutral runtime candidate port',
+);
+for (const [sourceName, source] of [
+  ['app_backend_api.rs', appBackendSource],
+  ['open_api.rs', openApiServiceSource],
+]) {
+  assert(
+    !source.includes('NativeSqlCandidateRow') &&
+      !source.includes('.list_candidates_for_tenant(') &&
+      !source.includes('.retrieve_candidate_for_tenant('),
+    `${sourceName} must not consume Native SQL candidate projections directly`,
+  );
+}
+const referenceRuntimeSource = readText(
+  'plugins/sdkwork-memory-plugin-reference-profiles/src/reference_runtime.rs',
+);
+assert(
+  referenceRuntimeSource.includes('candidate_listing_index') &&
+    referenceRuntimeSource.includes('candidate_space_listing_index') &&
+    referenceRuntimeSource.includes('index.range((lower_bound, Unbounded))'),
+  'reference candidate listing must use incrementally maintained ordered indexes',
+);
+assert(
+  appBackendSource.includes('create_space_atomic_with_quota'),
+  'create_space must dispatch through atomic user-space quota admission',
+);
+assert(
+  !appBackendSource.includes('assert_user_space_quota') &&
+    !appBackendSource.includes('.create_space_record('),
+  'create_space must not split user-space quota observation from the space insert',
+);
+assert(
+  readText('plugins/sdkwork-memory-plugin-native-sql/src/space_data.rs').includes(
+    'SPACE_QUOTA_LOCK_VERSION',
   ),
-  'create_space must enforce per-user space quotas per PERFORMANCE_SPEC',
+  'native-sql space creation must serialize quota admission inside its transaction',
 );
 assert(
   readText('crates/sdkwork-intelligence-memory-service/src/app_backend_api.rs').includes(

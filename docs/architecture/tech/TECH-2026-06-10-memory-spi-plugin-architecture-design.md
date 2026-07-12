@@ -18,7 +18,7 @@ The repository is a runnable Rust workspace with native SQL storage, commercial 
 - **Runtime:** `sdkwork-memory-standalone-gateway` resolves a typed profile, registers executable plugin ports, assembles `MemoryCoreRuntime`, and injects the validated native SQL composition into `OpenMemoryService` before mounting `assemble_application_business_router`.
 - **Storage:** `sdkwork-memory-plugin-native-sql` implements and materializes the production SPI ports with symmetric PostgreSQL/SQLite migrations, FTS (`predicate` column on SQLite), scoped index rebuild, and store-level cursor pagination.
 - **Evaluation implementations:** `sdkwork-memory-plugin-reference-profiles` materializes typed ports for event-sourced, search-first, graph-temporal, external-bridge, and hybrid conformance profiles. Scope-aware retrieval and context assembly require explicit tenant/space context and reject unscoped fallback. Its deployment qualification remains `test`/`eval_only`, not production.
-- **Service:** `sdkwork-intelligence-memory-service` owns access control, commercial APIs, retrieval orchestration, background jobs, and implementation profile migration. Its `MemoryRuntimeDataPlane` now validates the complete Phase-1 port set plus atomic canonical-mutation support at startup. Canonical create/update/delete, candidate, habit, audit, outbox, and retrieval-trace operations dispatch through the resolved typed runtime; Native SQL keeps record, audit, and outbox writes in one transaction and suppresses stale FTS entries on delete.
+- **Service:** `sdkwork-intelligence-memory-service` owns access control, commercial APIs, retrieval orchestration, background jobs, and implementation profile migration. Its `MemoryRuntimeDataPlane` now validates the complete Phase-1 port set, bounded governance access, and atomic canonical-mutation support at startup. Canonical create/update/delete, candidate, habit, audit, outbox, retrieval-trace, and governance-fact operations dispatch through the resolved typed runtime; Native SQL keeps record, audit, and outbox writes in one transaction and suppresses stale FTS entries on delete.
 - **APIs:** Open, App, and Backend route crates expose typed handlers with `SdkWorkApiResponse` envelopes and `PAGINATION_SPEC.md` compliance.
 - **Verification:** `pnpm verify`, `cargo test --workspace`, `pnpm check:pagination`, `pnpm check:api-envelope`.
 
@@ -27,7 +27,7 @@ Authoritative current-state summary for commercial landing: `docs/architecture/t
 Remaining SPI roadmap (not blocking L2+ landing):
 
 - Vector/embedding retriever plugin port (embedding-optional product stance).
-- Move canonical record/event transactions, governance/access checks, privacy flows, control-plane repositories, workers, and rich retrieval from concrete `NativeSqlMemoryStore` methods into service-owned coarse-grained ports. The typed runtime already owns candidate, habit, audit, outbox, retrieval-trace, scoped reference retrieval, and scoped context-assembly paths, but non-SQL profiles are not yet complete HTTP production data planes.
+- Move the remaining canonical record/event transactions, privacy flows, control-plane repositories, workers, and rich retrieval from concrete `NativeSqlMemoryStore` methods into service-owned coarse-grained ports. Bounded governance/access facts now cross `MemoryGovernanceAccessPort`; non-SQL profiles are still not complete HTTP production data planes.
 - Add canonical-to-derived synchronization and deletion/stale-index conformance for cross-plugin hybrid profiles.
 - Connect backend profile migration/control-plane APIs to executable runtime cutover; until then they must not be treated as proof that the live HTTP data plane switched implementations.
 - Dynamic plugin loading and backend plugin-list APIs (static registration is production baseline for 0.1.x).
@@ -233,9 +233,76 @@ export interface MemoryPolicyStorePort {
   resolvePolicy(query: ResolveMemoryPolicyQuery): Promise<ResolvedMemoryPolicy>;
   upsertPolicy(command: UpsertMemoryPolicyCommand): Promise<MemoryPolicy>;
 }
+
+export interface MemoryGovernanceAccessPort {
+  supportsBoundedGovernanceAccess(): boolean;
+  resolveSpaceGovernance(
+    query: ResolveMemorySpaceGovernanceQuery,
+  ): Promise<MemorySpaceGovernanceFacts>;
+  countActiveRecords(query: CountActiveMemoryRecordsQuery): Promise<NonNegativeCount>;
+  countUserOwnedSpaces(query: CountUserOwnedMemorySpacesQuery): Promise<NonNegativeCount>;
+}
+
+export interface MemorySpaceStorePort {
+  supportsAtomicUserSpaceQuotaAdmission(): boolean;
+  createSpaceAtomicWithQuota(
+    command: CreateMemorySpaceCommand,
+    maxActiveSpaces: NonNegativeCount,
+  ): Promise<MemorySpaceQuotaAdmission<MemorySpaceRecord>>;
+}
 ```
 
 These ports must be implemented by a trusted local plugin for L3 deployments. External-only implementations are not sufficient because Memory must enforce deletion, retention, audit, and tenant isolation locally.
+
+`MemoryGovernanceAccessPort` is a facts boundary, not an authorization engine. A
+query carries explicit tenant/space scope, an optional actor, an optional exact
+capability code, and a fact limit no greater than `32`. The provider applies
+tenant, space, actor, target, and capability predicates before its store limit
+and returns space, actor-binding, and capability-binding facts. The `complete`
+flag is authoritative: `complete=false` means the bound was exceeded and the
+service must fail closed rather than authorize from a truncated set. Core
+policy owns owner and lifecycle semantics, binding role/time validity,
+capability precedence, sensitivity, request context, and malformed-value
+handling; unknown or invalid governance facts never become an implicit allow.
+For one space operation, the service evaluates lifecycle, actor access, owner
+status, and the exact operation capability from the same bounded fact response
+and one evaluation timestamp. Multi-space workflows deduplicate repeated space
+ids while preserving first-seen order. Context-pack creation reuses retrieval
+authorization instead of resolving the same governance state twice.
+
+`countActiveRecords` and `countUserOwnedSpaces` remain non-negative observation
+queries; they are never reservations. Canonical record creation now receives a
+typed quota policy through the record-store mutation port. Native SQL locks the
+tenant/space row, counts records with `status <> 'deleted'`, and commits the
+record, outbox, audit, and SQLite FTS projection in one transaction. Its
+candidate promotion path uses the same space lock and re-reads the candidate
+target before admission, making retries idempotent; record/source/target/
+approval/FTS/outbox/audit are transactional through the journal-aware promotion
+method. Candidate promotion dispatches through the typed candidate-store port;
+the service obtains evidence, timestamps, space ownership, and retry targets
+through the provider-neutral tenant-scoped candidate-detail projection. The
+reference runtime implements canonical, promotion, and in-memory journal
+admission for evaluation without pretending to materialize SQL evidence rows;
+both reference and production adapters fail closed on ambiguous candidate ids.
+Candidate list and retrieve HTTP paths use the same candidate-store boundary.
+Providers apply tenant/space filters, stable cursor ordering, and the page
+limit before returning provider-neutral summaries; service code never consumes
+Native SQL candidate row types. Native SQL uses ordered SQL queries with
+`LIMIT`; the reference provider maintains tenant and tenant/space `BTreeSet`
+indexes at write time so evaluation lists obey the same bounded-read contract.
+User-owned space creation dispatches through
+`MemorySpaceStorePort` and returns the same typed admitted-or-quota-exceeded
+shape. Native SQL locks the stable `ops_memory_schema_version` `0001` row,
+counts active owner spaces, inserts the new space, and commits in one
+transaction. PostgreSQL uses `FOR UPDATE`; SQLite performs a no-op update as
+the transaction's first write. This is multi-instance safe without a schema
+migration, but deliberately serializes all space creation until a reviewed
+per-owner quota ledger is introduced. Backend supersede uses the record-store
+serialization boundary and commits retained-record quota admission, the new
+record, both chain links, two mutation journals, and search-index changes
+atomically. Legacy direct administrative record-write helpers remain an
+explicit residual boundary and must not be described as globally
+quota-enforced.
 
 ### 7.2 Learning Ports
 
@@ -303,6 +370,28 @@ Core retrieval flow:
 8. Persist trace and hits.
 
 Retrievers must tolerate stale derived indexes but must not treat stale index entries as canonical truth.
+
+Rust Phase-1 narrows this contract through `MemoryRetrieverPort::search_scoped`:
+
+- every command carries explicit tenant/space scope, a total candidate limit, selected retriever
+  kinds, memory-type filters, and a typed sensitivity read scope;
+- `supports_bounded_scoped_search` is required by production HTTP preflight;
+- candidate projections are scored only after their ids are rehydrated through the canonical
+  record port, so stale or deleted index entries cannot become response truth;
+- multi-space retrieval traces retain a typed `space_id` per hit and recheck current access,
+  sensitivity, and deletion state when a trace is read; the API projection drops no-longer-readable
+  hits and recomputes visible ranks and counts without changing stored audit evidence;
+- trace, hit, and optional context-pack persistence is one adapter transaction, so a failed hit or
+  context-pack insert cannot leave a partial retrieval trace;
+- deterministic full-text fallback is allowed only for recognized missing FTS capabilities;
+  permission, connection, syntax, and other database failures remain fail-closed;
+- the legacy `retrieve_scoped` method remains source-compatible but is not the production rich
+  retrieval contract.
+
+Governance access follows the same production preflight rule through
+`supports_bounded_governance_access`. The native SQL implementation bounds each
+fact category at `32`; the service rejects `complete=false` and performs all
+authorization decisions after receiving the facts.
 
 ### 7.4 Index Ports
 
@@ -440,6 +529,10 @@ Example:
     {
       "port": "MemoryOutboxStorePort",
       "builder": "build_native_sql_outbox_store"
+    },
+    {
+      "port": "MemorySpaceStorePort",
+      "builder": "build_native_sql_space_store"
     }
   ],
   "providerKinds": [],
@@ -531,6 +624,9 @@ Purpose:
 Ports:
 
 - Required core stores.
+- Bounded `MemoryGovernanceAccessPort` facts for tenant-scoped space access and
+  capability resolution.
+- Atomic `MemorySpaceStorePort` user-space quota admission and creation.
 - SQL, keyword, dictionary, time, and event retrievers.
 - Basic index maintenance.
 - Audit and outbox stores.
@@ -754,6 +850,11 @@ Conformance groups:
 - Required port presence.
 - Store CRUD and optimistic concurrency.
 - Tenant, organization, user, owner, and data-scope isolation.
+- Bounded governance fact resolution, completeness overflow, and fail-closed
+  authorization behavior.
+- Non-negative quota count observations, typed canonical per-space admission,
+  and typed atomic user-space creation admission are covered separately;
+  direct-write record residual boundaries remain explicit.
 - Event append idempotency.
 - Candidate lifecycle and decision state transitions.
 - Habit signal, promotion, rejection, and decay behavior.

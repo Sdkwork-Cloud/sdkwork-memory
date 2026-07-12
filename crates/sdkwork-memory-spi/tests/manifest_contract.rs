@@ -88,6 +88,10 @@ fn phase1_baseline_manifests_cover_all_implementation_families() {
     }
 
     for manifest in manifests {
+        assert!(manifest
+            .port_exports
+            .iter()
+            .any(|export| export.port == "MemoryGovernanceAccessPort"));
         assert!(manifest.validate().is_ok());
     }
 }
@@ -119,6 +123,21 @@ fn manifest_rejects_enabled_capabilities_without_required_ports() {
         .port_exports
         .retain(|export| export.port != "MemoryOutboxStorePort");
 
+    assert!(manifest.validate().is_err());
+}
+
+#[test]
+fn manifest_retriever_kinds_require_role_and_executable_port() {
+    let mut manifest = MemoryPluginManifest::native_sql_for_test();
+    manifest
+        .port_exports
+        .retain(|export| export.port != "MemoryRetrieverPort");
+    assert!(manifest.validate().is_err());
+
+    let mut manifest = MemoryPluginManifest::native_sql_for_test();
+    manifest
+        .plugin_roles
+        .retain(|role| role != &MemoryPluginRole::Retriever);
     assert!(manifest.validate().is_err());
 }
 

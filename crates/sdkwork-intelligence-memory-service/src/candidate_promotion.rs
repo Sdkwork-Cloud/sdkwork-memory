@@ -1,13 +1,13 @@
 use sdkwork_memory_contract::{MemoryCandidate, MemoryServiceError, MemoryServiceResult};
-use sdkwork_memory_plugin_native_sql::{
-    NativeSqlCandidateDetailRow, PromoteApprovedCandidateCommand,
+use sdkwork_memory_spi::{
+    MemoryCandidateEvidenceLink, MemoryMutationJournal, MemoryScopeContext,
+    PromoteMemoryCandidateAtomicCommand, PromoteMemoryCandidateAtomicWithJournalCommand,
+    RetrieveMemoryCandidateDetailQuery,
 };
-use sdkwork_memory_spi::{MemoryScopeContext};
 use sdkwork_utils_rust::is_blank;
 use serde_json::Value;
 
 use crate::open_api::OpenMemoryService;
-use crate::platform;
 
 pub(crate) fn parse_evidence_event_ids(evidence_json: Option<&str>) -> Vec<String> {
     let Some(raw) = evidence_json.filter(|value| !is_blank(Some(value))) else {
@@ -50,101 +50,97 @@ impl OpenMemoryService {
         decided_by: Option<u64>,
     ) -> MemoryServiceResult<MemoryCandidate> {
         let detail = self
-            .store
-            .retrieve_candidate_detail_for_tenant(tenant_id, &candidate_id.to_string())
-            .await
-            .map_err(OpenMemoryService::map_store_error)?
+            .runtime_data_plane
+            .retrieve_candidate_detail(RetrieveMemoryCandidateDetailQuery {
+                tenant_id,
+                candidate_id: candidate_id.to_string(),
+            })
+            .await?
             .ok_or_else(|| MemoryServiceError::not_found("candidate not found"))?;
+        if detail.space_id != scope.space_id {
+            return Err(MemoryServiceError::forbidden(
+                "candidate does not belong to the requested memory space",
+            ));
+        }
 
         if detail.decision_state == "approved" {
-            return Self::map_candidate_detail(detail);
-        }
-
-        let memory_uuid = if let Some(memory_uuid) = detail.target_memory_uuid.clone() {
-            memory_uuid
-        } else {
-            let memory_uuid = self.next_id()?.to_string();
-            crate::tenant_quota::assert_space_record_quota(
-                &self.store,
-                &scope,
-                crate::tenant_quota::MemoryQuotaLimits::from_env(),
-            )
-            .await?;
-
-            let event_ids = parse_evidence_event_ids(detail.evidence_json.as_deref());
-            let mut evidence_links = Vec::with_capacity(event_ids.len());
-            for event_id in event_ids {
-                evidence_links.push((
-                    self.next_id()?.to_string(),
-                    event_id,
-                    Some(detail.confidence),
+            if detail.target_memory_id.is_none() {
+                return Err(MemoryServiceError::storage(
+                    "approved candidate is missing its promoted memory",
                 ));
             }
-
-            self.store
-                .promote_and_approve_candidate(PromoteApprovedCandidateCommand {
-                    scope: &scope,
-                    tenant_id,
-                    candidate_id: &candidate_id.to_string(),
-                    memory_uuid: &memory_uuid,
-                    memory_type: &detail.memory_type,
-                    proposed_text: &detail.proposed_text,
-                    evidence_links: &evidence_links,
-                    decided_by: decided_by.map(|value| value as i64),
-                    create_record: true,
-                })
-                .await
-                .map_err(OpenMemoryService::map_store_error)?;
-
-            memory_uuid
-        };
-
-        if detail.target_memory_uuid.is_some() {
-            self.store
-                .promote_and_approve_candidate(PromoteApprovedCandidateCommand {
-                    scope: &scope,
-                    tenant_id,
-                    candidate_id: &candidate_id.to_string(),
-                    memory_uuid: &memory_uuid,
-                    memory_type: &detail.memory_type,
-                    proposed_text: &detail.proposed_text,
-                    evidence_links: &[],
-                    decided_by: decided_by.map(|value| value as i64),
-                    create_record: false,
-                })
-                .await
-                .map_err(OpenMemoryService::map_store_error)?;
+            return Self::map_candidate_api_detail(detail);
         }
 
+        let requested_memory_id = match detail.target_memory_id.clone() {
+            Some(memory_id) => memory_id,
+            None => self.next_id()?.to_string(),
+        };
+        let event_ids = parse_evidence_event_ids(detail.evidence_json.as_deref());
+        let mut evidence_links = Vec::with_capacity(event_ids.len());
+        for event_id in event_ids {
+            evidence_links.push(MemoryCandidateEvidenceLink {
+                source_id: self.next_id()?.to_string(),
+                event_id,
+                confidence_delta: Some(detail.confidence),
+            });
+        }
+        let journal_memory_id = requested_memory_id.clone();
+        let journal = MemoryMutationJournal {
+            outbox_id: self.next_id()?.to_string(),
+            aggregate_type: "memory_record".to_string(),
+            aggregate_id: journal_memory_id.clone(),
+            event_type: "memory.candidate.promoted".to_string(),
+            event_version: "1.0".to_string(),
+            payload_json: serde_json::json!({
+                "candidateId": candidate_id,
+                "memoryId": journal_memory_id,
+            })
+            .to_string(),
+            audit_id: self.next_id()?.to_string(),
+            audit_action: "memory.candidate.promoted".to_string(),
+            audit_resource_type: "memory_record".to_string(),
+            audit_resource_id: requested_memory_id.clone(),
+            audit_result: "accepted".to_string(),
+        };
+        let quota_limits = crate::tenant_quota::MemoryQuotaLimits::from_env();
+        let admission = self
+            .runtime_data_plane
+            .promote_candidate_atomic_with_quota_and_journal(
+                PromoteMemoryCandidateAtomicWithJournalCommand {
+                    promotion: PromoteMemoryCandidateAtomicCommand {
+                        scope: scope.clone(),
+                        candidate_id: candidate_id.to_string(),
+                        memory_id: requested_memory_id,
+                        memory_type: detail.memory_type.clone(),
+                        proposed_text: detail.proposed_text.clone(),
+                        evidence_links,
+                        decided_by: decided_by.map(|value| value as i64),
+                    },
+                    journal,
+                },
+                quota_limits.max_records_per_space,
+            )
+            .await?;
+        let promotion =
+            crate::tenant_quota::resolve_space_record_quota_admission(&scope, admission)?;
+        let memory_uuid = promotion.memory_id;
+
         let refreshed = self
-            .store
-            .retrieve_candidate_detail_for_tenant(tenant_id, &candidate_id.to_string())
-            .await
-            .map_err(OpenMemoryService::map_store_error)?
+            .runtime_data_plane
+            .retrieve_candidate_detail(RetrieveMemoryCandidateDetailQuery {
+                tenant_id,
+                candidate_id: candidate_id.to_string(),
+            })
+            .await?
             .ok_or_else(|| MemoryServiceError::not_found("candidate not found"))?;
 
-        if refreshed.target_memory_uuid.as_deref() != Some(memory_uuid.as_str()) {
+        if refreshed.target_memory_id.as_deref() != Some(memory_uuid.as_str()) {
             return Err(MemoryServiceError::storage(
                 "approved candidate did not retain promoted memory",
             ));
         }
 
-        Self::map_candidate_detail(refreshed)
-    }
-
-    fn map_candidate_detail(
-        row: NativeSqlCandidateDetailRow,
-    ) -> MemoryServiceResult<MemoryCandidate> {
-        Ok(MemoryCandidate {
-            candidate_id: platform::parse_required_numeric_id(&row.candidate_id, "candidateId")?,
-            space_id: platform::non_negative_i64_as_u64(row.space_id, "spaceId")?,
-            candidate_type: row.candidate_type,
-            memory_type: OpenMemoryService::memory_type_from_db(&row.memory_type),
-            proposed_text: row.proposed_text,
-            confidence: row.confidence,
-            decision_state: row.decision_state,
-            created_at: row.created_at,
-            updated_at: row.updated_at,
-        })
+        Self::map_candidate_api_detail(refreshed)
     }
 }

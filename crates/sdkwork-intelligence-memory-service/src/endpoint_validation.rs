@@ -23,11 +23,7 @@ pub fn validate_outbound_url(url: &str) -> Result<(), String> {
         .ok_or_else(|| "URL must have a host".to_string())?;
 
     if let Ok(ip) = host.parse::<std::net::IpAddr>() {
-        if ip.is_loopback()
-            || ip.is_unspecified()
-            || is_private_ip(&ip)
-            || is_link_local_ip(&ip)
-        {
+        if ip.is_loopback() || ip.is_unspecified() || is_private_ip(&ip) || is_link_local_ip(&ip) {
             return Err(format!(
                 "private or loopback IP addresses are not allowed: {host}"
             ));

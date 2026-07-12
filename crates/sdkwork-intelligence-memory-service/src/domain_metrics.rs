@@ -45,19 +45,23 @@ impl MemoryDomainMetrics {
     }
 
     pub fn record_outbox_publish_failed(&self) {
-        self.outbox_publish_failed_total.fetch_add(1, Ordering::Relaxed);
+        self.outbox_publish_failed_total
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     pub fn record_outbox_delivery_failed(&self) {
-        self.outbox_delivery_failed_total.fetch_add(1, Ordering::Relaxed);
+        self.outbox_delivery_failed_total
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     pub fn record_outbox_dead_letter(&self) {
-        self.outbox_dead_letter_total.fetch_add(1, Ordering::Relaxed);
+        self.outbox_dead_letter_total
+            .fetch_add(1, Ordering::Relaxed);
     }
 
     pub fn set_serving(&self, serving: bool) {
-        self.serving.store(if serving { 1 } else { 0 }, Ordering::Relaxed);
+        self.serving
+            .store(if serving { 1 } else { 0 }, Ordering::Relaxed);
     }
 
     pub fn render_prometheus(

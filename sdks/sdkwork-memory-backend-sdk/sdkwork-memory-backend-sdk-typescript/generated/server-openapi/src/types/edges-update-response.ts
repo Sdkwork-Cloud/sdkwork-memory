@@ -1,6 +1,6 @@
-import type { MemoryLearningJob } from './memory-learning-job';
+import type { MemoryEdge } from './memory-edge';
 
-export interface IndexesRebuildResponse201 {
+export interface EdgesUpdateResponse {
   code: 0;
   data: unknown & Record<string, unknown>;
   /** Server-owned request correlation id. */

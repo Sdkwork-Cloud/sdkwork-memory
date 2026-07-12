@@ -69,6 +69,22 @@ pub fn build_native_sql_retrieval_trace_store() -> NativeSqlPortBuilder {
     }
 }
 
+pub fn build_native_sql_governance_access() -> NativeSqlPortBuilder {
+    NativeSqlPortBuilder {
+        port_name: "MemoryGovernanceAccessPort",
+        builder_name: "build_native_sql_governance_access",
+        ready: true,
+    }
+}
+
+pub fn build_native_sql_space_store() -> NativeSqlPortBuilder {
+    NativeSqlPortBuilder {
+        port_name: "MemorySpaceStorePort",
+        builder_name: "build_native_sql_space_store",
+        ready: true,
+    }
+}
+
 pub fn build_native_sql_retriever() -> NativeSqlPortBuilder {
     NativeSqlPortBuilder {
         port_name: "MemoryRetrieverPort",
@@ -77,7 +93,7 @@ pub fn build_native_sql_retriever() -> NativeSqlPortBuilder {
     }
 }
 
-pub fn native_sql_phase1_port_builders() -> [NativeSqlPortBuilder; 8] {
+pub fn native_sql_phase1_port_builders() -> [NativeSqlPortBuilder; 10] {
     [
         build_native_sql_record_store(),
         build_native_sql_event_store(),
@@ -86,6 +102,8 @@ pub fn native_sql_phase1_port_builders() -> [NativeSqlPortBuilder; 8] {
         build_native_sql_candidate_store(),
         build_native_sql_habit_store(),
         build_native_sql_retrieval_trace_store(),
+        build_native_sql_governance_access(),
+        build_native_sql_space_store(),
         build_native_sql_retriever(),
     ]
 }
@@ -96,19 +114,16 @@ pub fn validate_native_sql_port_builders(manifest: &MemoryPluginManifest) -> Res
         if !builder.ready {
             return Err(format!(
                 "native sql port builder {} is not ready for {}",
-                builder.builder_name,
-                builder.port_name
+                builder.builder_name, builder.port_name
             ));
         }
-        let declared = manifest
-            .port_exports
-            .iter()
-            .any(|export| export.port == builder.port_name && export.builder == builder.builder_name);
+        let declared = manifest.port_exports.iter().any(|export| {
+            export.port == builder.port_name && export.builder == builder.builder_name
+        });
         if !declared {
             return Err(format!(
                 "native sql manifest must declare {} via {}",
-                builder.port_name,
-                builder.builder_name
+                builder.port_name, builder.builder_name
             ));
         }
     }

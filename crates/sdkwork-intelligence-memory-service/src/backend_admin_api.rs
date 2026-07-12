@@ -1,19 +1,20 @@
 use sdkwork_memory_contract::{
-    ListAdminResourcesQuery, MemoryBackendRequestContext,
-    MemoryEvalRun, MemoryEvalRunList, MemoryEvalRunRequest, MemoryExtractionRequest,
-    MemoryImplementationProfile, MemoryImplementationProfileList,
-    MemoryImplementationProfileRequest, MemoryIndex, MemoryIndexList, MemoryIndexRequest,
-    MemoryLearningJob, MemoryMigrationJobRequest, MemoryOpenApi, PageInfo,
-    MemoryProviderBinding, MemoryProviderBindingList, MemoryProviderBindingRequest,
+    ListAdminResourcesQuery, MemoryBackendRequestContext, MemoryEvalRun, MemoryEvalRunList,
+    MemoryEvalRunRequest, MemoryExtractionRequest, MemoryImplementationProfile,
+    MemoryImplementationProfileList, MemoryImplementationProfileRequest, MemoryIndex,
+    MemoryIndexList, MemoryIndexRequest, MemoryLearningJob, MemoryMigrationJobRequest,
+    MemoryOpenApi, MemoryProviderBinding, MemoryProviderBindingList, MemoryProviderBindingRequest,
     MemoryRecordRequest, MemoryRetentionJobRequest, MemoryRetrievalProfile,
     MemoryRetrievalProfileList, MemoryRetrievalProfileRequest, MemoryServiceError,
-    MemoryServiceResult,
+    MemoryServiceResult, PageInfo,
 };
 use sdkwork_memory_plugin_native_sql::{
     NativeSqlEvalRunRow, NativeSqlImplementationProfileRow, NativeSqlMemoryIndexRow,
     NativeSqlProviderBindingRow, NativeSqlRetrievalProfileRow,
 };
-use sdkwork_memory_spi::{MemoryImplementationKind, MemoryScopeContext};
+use sdkwork_memory_spi::{
+    MemoryImplementationKind, MemoryScopeContext, SupersedeCanonicalMemoryAtomicCommand,
+};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -35,9 +36,9 @@ impl OpenMemoryService {
                 "implementation profile name must not be empty",
             ));
         }
-        serde_json::from_value::<MemoryImplementationKind>(
-            Value::String(request.implementation_kind.clone()),
-        )
+        serde_json::from_value::<MemoryImplementationKind>(Value::String(
+            request.implementation_kind.clone(),
+        ))
         .map_err(|_| {
             MemoryServiceError::validation(format!(
                 "unsupported implementationKind: {}",
@@ -50,8 +51,10 @@ impl OpenMemoryService {
             ));
         }
         if let Some(status) = request.status.as_deref() {
-            if !matches!(status, "active" | "disabled" | "migrating" | "deprecated" | "deleted")
-            {
+            if !matches!(
+                status,
+                "active" | "disabled" | "migrating" | "deprecated" | "deleted"
+            ) {
                 return Err(MemoryServiceError::validation(
                     "implementation profile status is invalid",
                 ));
@@ -73,10 +76,7 @@ impl OpenMemoryService {
         Ok(())
     }
 
-    fn reject_literal_profile_secret(
-        value: &Value,
-        path: &str,
-    ) -> MemoryServiceResult<()> {
+    fn reject_literal_profile_secret(value: &Value, path: &str) -> MemoryServiceResult<()> {
         match value {
             Value::Object(object) => {
                 for (key, child) in object {
@@ -202,12 +202,11 @@ impl OpenMemoryService {
     fn map_implementation_profile(
         row: &NativeSqlImplementationProfileRow,
     ) -> MemoryServiceResult<MemoryImplementationProfile> {
-        let capabilities: Value =
-            serde_json::from_str(&row.capability_json).map_err(|error| {
-                MemoryServiceError::storage(format!(
-                    "implementation profile capabilities decode failed: {error}"
-                ))
-            })?;
+        let capabilities: Value = serde_json::from_str(&row.capability_json).map_err(|error| {
+            MemoryServiceError::storage(format!(
+                "implementation profile capabilities decode failed: {error}"
+            ))
+        })?;
         Ok(MemoryImplementationProfile {
             implementation_profile_id: Self::parse_row_id(&row.profile_uuid)?,
             name: row.name.clone(),
@@ -224,12 +223,13 @@ impl OpenMemoryService {
     }
 
     pub(crate) fn parse_json_value(raw: &str, field: &str) -> MemoryServiceResult<Value> {
-        serde_json::from_str(raw).map_err(|error| {
-            MemoryServiceError::storage(format!("{field} decode failed: {error}"))
-        })
+        serde_json::from_str(raw)
+            .map_err(|error| MemoryServiceError::storage(format!("{field} decode failed: {error}")))
     }
 
-    pub(crate) fn map_provider_binding(row: &NativeSqlProviderBindingRow) -> MemoryServiceResult<MemoryProviderBinding> {
+    pub(crate) fn map_provider_binding(
+        row: &NativeSqlProviderBindingRow,
+    ) -> MemoryServiceResult<MemoryProviderBinding> {
         Ok(MemoryProviderBinding {
             provider_binding_id: Self::parse_row_id(&row.binding_uuid)?,
             provider_kind: row.provider_kind.clone(),
@@ -238,7 +238,10 @@ impl OpenMemoryService {
             endpoint_ref: row.endpoint_ref.clone(),
             secret_ref: row.secret_ref.clone(),
             model_ref: row.model_ref.clone(),
-            capabilities: Self::parse_json_value(&row.capabilities_json, "provider binding capabilities")?,
+            capabilities: Self::parse_json_value(
+                &row.capabilities_json,
+                "provider binding capabilities",
+            )?,
             config: Self::decode_optional_json(row.config_json.as_deref()),
             health_state: row.health_state.clone(),
             last_health_at: row.last_health_at.clone(),
@@ -452,7 +455,9 @@ impl OpenMemoryService {
                 request.status.as_deref(),
                 config_json.as_deref(),
                 None,
-                Some(Self::optional_u64_as_i64(request.implementation_profile_id)?),
+                Some(Self::optional_u64_as_i64(
+                    request.implementation_profile_id,
+                )?),
                 Some(Self::optional_u64_as_i64(request.provider_binding_id)?),
             )
             .await
@@ -500,7 +505,8 @@ impl OpenMemoryService {
         };
         let job_id = self.next_id()?;
         let finished_at = platform::current_timestamp();
-        let mut job = Self::new_learning_job(job_id, "index_rebuild", "succeeded", index.space_id, &index)?;
+        let mut job =
+            Self::new_learning_job(job_id, "index_rebuild", "succeeded", index.space_id, &index)?;
         job.result = Some(serde_json::json!({
             "indexId": index_id,
             "lastRebuiltAt": row.last_rebuilt_at,
@@ -631,12 +637,8 @@ impl OpenMemoryService {
                 Some(request.name.as_str()),
                 Some(request.strategy.as_str()),
                 retrievers_json.as_deref(),
-                fusion_policy_json
-                    .as_ref()
-                    .map(|value| value.as_deref()),
-                rerank_policy_json
-                    .as_ref()
-                    .map(|value| value.as_deref()),
+                fusion_policy_json.as_ref().map(|value| value.as_deref()),
+                rerank_policy_json.as_ref().map(|value| value.as_deref()),
                 Some(request.top_k),
                 Some(request.context_budget_tokens),
                 request.status.as_deref(),
@@ -774,11 +776,7 @@ impl OpenMemoryService {
         let page_size = Self::page_size_from_query(&query);
         let rows = self
             .store
-            .list_mem_provider_bindings_for_tenant(
-                tenant_id,
-                page_size,
-                query.cursor.as_deref(),
-            )
+            .list_mem_provider_bindings_for_tenant(tenant_id, page_size, query.cursor.as_deref())
             .await
             .map_err(OpenMemoryService::map_store_error)?;
         let has_more = rows.len() > page_size as usize;
@@ -947,13 +945,8 @@ impl OpenMemoryService {
         )
         .await?;
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        self.save_governance_entity(
-            tenant_id,
-            RT_EXTRACTION_JOB,
-            &job.job_id.to_string(),
-            &job,
-        )
-        .await?;
+        self.save_governance_entity(tenant_id, RT_EXTRACTION_JOB, &job.job_id.to_string(), &job)
+            .await?;
         Ok(job)
     }
 
@@ -1047,13 +1040,8 @@ impl OpenMemoryService {
             .map_err(OpenMemoryService::map_store_error)?;
         let job_id = self.next_id()?;
         let finished_at = platform::current_timestamp();
-        let mut job = Self::new_learning_job(
-            job_id,
-            "retention",
-            "succeeded",
-            request.space_id,
-            &request,
-        )?;
+        let mut job =
+            Self::new_learning_job(job_id, "retention", "succeeded", request.space_id, &request)?;
         job.result = Some(serde_json::json!({
             "deletedRecords": deleted,
             "dryRun": dry_run,
@@ -1079,13 +1067,14 @@ impl OpenMemoryService {
         request: MemoryMigrationJobRequest,
     ) -> MemoryServiceResult<MemoryLearningJob> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let migration_result = crate::implementation_migration::execute_implementation_profile_migration(
-            &self.store,
-            tenant_id,
-            &request,
-            &self.core_runtime.profile().profile_id,
-        )
-        .await?;
+        let migration_result =
+            crate::implementation_migration::execute_implementation_profile_migration(
+                &self.store,
+                tenant_id,
+                &request,
+                &self.core_runtime.profile().profile_id,
+            )
+            .await?;
         let job_id = self.next_id()?;
         let finished_at = platform::current_timestamp();
         let mut job = Self::new_learning_job(job_id, "migration", "succeeded", None, &request)?;
@@ -1121,7 +1110,7 @@ impl OpenMemoryService {
     ) -> MemoryServiceResult<sdkwork_memory_contract::MemoryRecord> {
         let open_context = Self::to_open_context_backend(&context);
         crate::access::assert_actor_can_access_space_for_write(
-            &self.store,
+            &self.runtime_data_plane,
             &open_context,
             request.space_id,
         )
@@ -1133,60 +1122,59 @@ impl OpenMemoryService {
         let object_text = request
             .object_text
             .unwrap_or_else(|| request.canonical_text.clone());
-        let sensitivity =
-            Self::normalize_sensitivity_level(request.sensitivity_level.as_deref())?;
+        let sensitivity = Self::normalize_sensitivity_level(request.sensitivity_level.as_deref())?;
+        crate::sensitive_content::assert_memory_text_is_safe(&[
+            ("canonicalText", &request.canonical_text),
+            ("objectText", &object_text),
+            ("subject", request.subject.as_deref().unwrap_or("")),
+            ("predicate", request.predicate.as_deref().unwrap_or("")),
+        ])?;
 
-        self.store
-            .supersede_record_open_api(
-                &scope,
-                &old_uuid,
-                &new_uuid,
-                &request.scope,
-                Self::memory_type_to_db(request.memory_type),
-                request.subject.as_deref(),
-                request.predicate.as_deref(),
-                &object_text,
-                &request.canonical_text,
-                sensitivity,
-            )
-            .await
-            .map_err(Self::map_store_error)?;
-
-        let record = self
-            .store
-            .retrieve_record_detail(&scope, &new_uuid)
-            .await
-            .map_err(Self::map_store_error)?
-            .map(Self::map_record)
-            .transpose()?
-            .ok_or_else(|| MemoryServiceError::storage("superseded memory could not be loaded"))?;
-
-        self.publish_domain_event(
-            &scope,
-            "memory.record.superseded",
-            "memory_record",
+        let superseded_journal = self.memory_mutation_journal(
             &old_uuid,
+            "memory.record.superseded",
+            "memory.record.supersede",
             serde_json::json!({
                 "memoryId": old_uuid,
                 "supersededByMemoryId": new_uuid,
                 "spaceId": request.space_id,
             }),
-        )
-        .await?;
-        self.publish_domain_event(
-            &scope,
-            "memory.record.created",
-            "memory_record",
+        )?;
+        let created_journal = self.memory_mutation_journal(
             &new_uuid,
+            "memory.record.created",
+            "memory.record.create",
             serde_json::json!({
                 "memoryId": new_uuid,
                 "supersedesMemoryId": old_uuid,
                 "spaceId": request.space_id,
             }),
-        )
-        .await?;
-
-        Ok(record)
+        )?;
+        let quota_limits = crate::tenant_quota::MemoryQuotaLimits::from_env();
+        let quota_scope = scope.clone();
+        let admission = self
+            .runtime_data_plane
+            .supersede_canonical_memory_atomic_with_quota(
+                SupersedeCanonicalMemoryAtomicCommand {
+                    scope,
+                    old_memory_id: old_uuid,
+                    new_memory_id: new_uuid,
+                    scope_label: request.scope,
+                    memory_type: Self::memory_type_to_db(request.memory_type).to_string(),
+                    subject: request.subject,
+                    predicate: request.predicate,
+                    object_text,
+                    canonical_text: request.canonical_text,
+                    sensitivity_level: sensitivity.to_string(),
+                    created_journal,
+                    superseded_journal,
+                },
+                quota_limits.max_records_per_space,
+            )
+            .await?;
+        let record =
+            crate::tenant_quota::resolve_space_record_quota_admission(&quota_scope, admission)?;
+        Self::map_canonical_record(record)
     }
 }
 
@@ -1219,7 +1207,10 @@ mod implementation_profile_validation_tests {
         value.implementation_kind = "made_up_store".to_string();
         let error = OpenMemoryService::validate_implementation_profile_request(&value)
             .expect_err("unknown implementation kinds must fail closed");
-        assert_eq!(error.kind, sdkwork_memory_contract::MemoryServiceErrorKind::Validation);
+        assert_eq!(
+            error.kind,
+            sdkwork_memory_contract::MemoryServiceErrorKind::Validation
+        );
     }
 
     #[test]
@@ -1228,7 +1219,10 @@ mod implementation_profile_validation_tests {
         value.config = Some(serde_json::json!({ "token": "literal-token" }));
         let error = OpenMemoryService::validate_implementation_profile_request(&value)
             .expect_err("literal provider tokens must not be persisted");
-        assert_eq!(error.kind, sdkwork_memory_contract::MemoryServiceErrorKind::Validation);
+        assert_eq!(
+            error.kind,
+            sdkwork_memory_contract::MemoryServiceErrorKind::Validation
+        );
     }
 
     #[test]
@@ -1237,6 +1231,9 @@ mod implementation_profile_validation_tests {
         value.role = "active-primary".to_string();
         let error = OpenMemoryService::validate_implementation_profile_request(&value)
             .expect_err("unknown profile roles must fail closed");
-        assert_eq!(error.kind, sdkwork_memory_contract::MemoryServiceErrorKind::Validation);
+        assert_eq!(
+            error.kind,
+            sdkwork_memory_contract::MemoryServiceErrorKind::Validation
+        );
     }
 }

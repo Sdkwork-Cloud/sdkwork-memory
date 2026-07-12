@@ -14,122 +14,140 @@ use sdkwork_memory_test_support::web_auth::{
 };
 use tower::util::ServiceExt;
 
-#[tokio::test]
-async fn app_api_rejects_unauthenticated_requests() {
-    let _env = lock_integration_test_env();
-    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
-    let app = wrap_router_with_iam_database_web_framework(
-        IamWebRequestContextResolver::new(None),
-        build_router_with_app_api(OpenMemoryService::new(store)),
-    );
-
-    let response = app
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri("/app/v3/api/memory/learning_settings")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+fn block_on<T>(future: impl std::future::Future<Output = T>) -> T {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("test runtime must initialize")
+        .block_on(future)
 }
 
-#[tokio::test]
-async fn app_api_rejects_auth_token_without_access_token() {
+#[test]
+fn app_api_rejects_unauthenticated_requests() {
     let _env = lock_integration_test_env();
-    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
-    let app = wrap_router_with_iam_database_web_framework(
-        IamWebRequestContextResolver::new(None),
-        build_router_with_app_api(OpenMemoryService::new(store)),
-    );
+    block_on(async {
+        let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
+        let app = wrap_router_with_iam_database_web_framework(
+            IamWebRequestContextResolver::new(None),
+            build_router_with_app_api(OpenMemoryService::new(store)),
+        );
 
-    let response = app
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri("/app/v3/api/memory/learning_settings")
-                .header("Authorization", memory_auth_token_bearer("2001"))
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/app/v3/api/memory/learning_settings")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
 
-    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    });
 }
 
-#[tokio::test]
-async fn app_api_accepts_dual_token_context() {
+#[test]
+fn app_api_rejects_auth_token_without_access_token() {
     let _env = lock_integration_test_env();
-    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
-    let app = wrap_router_with_iam_database_web_framework(
-        IamWebRequestContextResolver::new(None),
-        build_router_with_app_api(OpenMemoryService::new(store)),
-    );
+    block_on(async {
+        let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
+        let app = wrap_router_with_iam_database_web_framework(
+            IamWebRequestContextResolver::new(None),
+            build_router_with_app_api(OpenMemoryService::new(store)),
+        );
 
-    let response = app
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri("/app/v3/api/memory/learning_settings")
-                .header("Authorization", memory_auth_token_bearer("2001"))
-                .header("Access-Token", memory_access_token("2001"))
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/app/v3/api/memory/learning_settings")
+                    .header("Authorization", memory_auth_token_bearer("2001"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    });
 }
 
-#[tokio::test]
-async fn backend_api_rejects_unauthenticated_requests() {
+#[test]
+fn app_api_accepts_dual_token_context() {
     let _env = lock_integration_test_env();
-    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
-    let app = wrap_backend_router(
-        IamWebRequestContextResolver::new(None),
-        build_router_with_backend_api(OpenMemoryService::new(store)),
-    );
+    block_on(async {
+        let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
+        let app = wrap_router_with_iam_database_web_framework(
+            IamWebRequestContextResolver::new(None),
+            build_router_with_app_api(OpenMemoryService::new(store)),
+        );
 
-    let response = app
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri("/backend/v3/api/memory/provider_health")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/app/v3/api/memory/learning_settings")
+                    .header("Authorization", memory_auth_token_bearer("2001"))
+                    .header("Access-Token", memory_access_token("2001"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
 
-    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(response.status(), StatusCode::OK);
+    });
 }
 
-#[tokio::test]
-async fn backend_api_accepts_dual_token_context() {
+#[test]
+fn backend_api_rejects_unauthenticated_requests() {
     let _env = lock_integration_test_env();
-    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
-    let app = wrap_backend_router(
-        IamWebRequestContextResolver::new(None),
-        build_router_with_backend_api(OpenMemoryService::new(store)),
-    );
+    block_on(async {
+        let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
+        let app = wrap_backend_router(
+            IamWebRequestContextResolver::new(None),
+            build_router_with_backend_api(OpenMemoryService::new(store)),
+        );
 
-    let response = app
-        .oneshot(
-            Request::builder()
-                .method("GET")
-                .uri("/backend/v3/api/memory/provider_health")
-                .header("Authorization", memory_auth_token_bearer("2001"))
-                .header("Access-Token", memory_access_token("2001"))
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/backend/v3/api/memory/provider_health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
 
-    assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    });
+}
+
+#[test]
+fn backend_api_accepts_dual_token_context() {
+    let _env = lock_integration_test_env();
+    block_on(async {
+        let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
+        let app = wrap_backend_router(
+            IamWebRequestContextResolver::new(None),
+            build_router_with_backend_api(OpenMemoryService::new(store)),
+        );
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/backend/v3/api/memory/provider_health")
+                    .header("Authorization", memory_auth_token_bearer("2001"))
+                    .header("Access-Token", memory_access_token("2001"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+    });
 }

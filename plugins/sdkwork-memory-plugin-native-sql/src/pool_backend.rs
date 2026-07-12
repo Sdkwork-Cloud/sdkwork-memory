@@ -28,16 +28,26 @@ pub fn normalize_memory_database_url(url: &str) -> String {
 
 pub fn normalize_memory_database_config(mut config: DatabaseConfig) -> DatabaseConfig {
     config.url = normalize_memory_database_url(&config.url);
-    if config.url.contains("memory:") {
+    if matches!(config.engine, DatabaseEngine::Sqlite) {
+        // sqlx AnyPool cannot carry SQLite's connection-level FK pragma through
+        // its URL parser. Native SQL enables it immediately after pool creation,
+        // so one connection keeps that invariant for every operation.
         config.max_connections = 1;
     }
     config
 }
 
-pub async fn connect_any_pool(config: &DatabaseConfig) -> Result<(AnyPool, MemorySqlDialect), NativeSqlStoreError> {
+pub async fn connect_any_pool(
+    config: &DatabaseConfig,
+) -> Result<(AnyPool, MemorySqlDialect), NativeSqlStoreError> {
     sqlx::any::install_default_drivers();
     let config = normalize_memory_database_config(config.clone());
     let dialect = MemorySqlDialect::from_config(&config);
     let pool = create_any_pool(&config).await?;
+    if matches!(dialect, MemorySqlDialect::Sqlite) {
+        sqlx::query("PRAGMA foreign_keys = ON")
+            .execute(&pool)
+            .await?;
+    }
     Ok((pool, dialect))
 }

@@ -2,18 +2,40 @@ use sdkwork_memory_plugin_reference_profiles::ReferenceMemoryRuntime;
 use sdkwork_memory_spi::{
     AppendMemoryAuditCommand, AppendMemoryEventCommand, AppendMemoryOutboxCommand,
     AppendMemoryRetrievalTraceCommand, ApproveMemoryCandidateCommand, AssembleMemoryContextCommand,
-    CreateMemoryCandidateCommand, CreateMemoryRecordCommand, DecayMemoryHabitCommand,
-    ExternalMemoryBridgePort, ExternalMemoryImportCommand, ListMemoryRetrievalTracesQuery,
-    ListPendingMemoryOutboxQuery, MarkMemoryOutboxPublishedCommand, MemoryAuditStorePort,
+    CreateCanonicalMemoryCommand, CreateMemoryCandidateCommand, CreateMemoryRecordCommand,
+    DecayMemoryHabitCommand, DeleteCanonicalMemoryCommand, ExternalMemoryBridgePort,
+    ExternalMemoryImportCommand, ListMemoryRetrievalTracesQuery, ListPendingMemoryOutboxQuery,
+    MarkMemoryOutboxPublishedCommand, MemoryAuditStorePort, MemoryCandidateEvidenceLink,
     MemoryCandidateStorePort, MemoryContextAssemblerPort, MemoryContextPackSnapshot,
     MemoryEvaluationPort, MemoryEventStorePort, MemoryHabitStorePort, MemoryIndexPort,
-    MemoryOutboxStorePort, MemoryRecordStorePort, MemoryRetrievalHitDraft,
-    MemoryRetrievalTraceStorePort, MemoryRetrieverPort, MemoryScopeContext,
-    PromoteMemoryHabitCommand, RejectMemoryCandidateCommand, RetrieveMemoryAuditQuery,
-    RetrieveMemoryCandidateQuery, RetrieveMemoryCandidatesCommand, RetrieveMemoryEventQuery,
-    RetrieveMemoryHabitQuery, RetrieveMemoryRecordQuery, RetrieveMemoryRetrievalTraceQuery,
-    RunMemoryEvalCommand, UpsertMemoryHabitCommand,
+    MemoryMutationJournal, MemoryOutboxStorePort, MemoryRecordQuotaAdmission,
+    MemoryRecordStorePort, MemoryRetrievalHitDraft, MemoryRetrievalTraceStorePort,
+    MemoryRetrieverKind, MemoryRetrieverPort, MemoryScopeContext, MemorySensitivityReadScope,
+    MemorySpiError, PromoteMemoryCandidateAtomicCommand,
+    PromoteMemoryCandidateAtomicWithJournalCommand, PromoteMemoryHabitCommand,
+    RejectMemoryCandidateCommand, RetrieveCanonicalMemoryQuery, RetrieveMemoryAuditQuery,
+    RetrieveMemoryCandidateDetailQuery, RetrieveMemoryCandidateQuery,
+    RetrieveMemoryCandidatesCommand, RetrieveMemoryEventQuery, RetrieveMemoryHabitQuery,
+    RetrieveMemoryOutboxQuery, RetrieveMemoryRecordQuery, RetrieveMemoryRetrievalTraceQuery,
+    RunMemoryEvalCommand, SearchMemoryCandidatesQuery, SupersedeCanonicalMemoryAtomicCommand,
+    UpsertMemoryHabitCommand, MAX_MEMORY_RETRIEVAL_CANDIDATES,
 };
+
+fn mutation_journal(memory_id: &str, action: &str) -> MemoryMutationJournal {
+    MemoryMutationJournal {
+        outbox_id: format!("outbox-{memory_id}-{action}"),
+        aggregate_type: "memory_record".to_string(),
+        aggregate_id: memory_id.to_string(),
+        event_type: format!("memory.record.{action}"),
+        event_version: "1.0".to_string(),
+        payload_json: "{}".to_string(),
+        audit_id: format!("audit-{memory_id}-{action}"),
+        audit_action: format!("memory.record.{action}"),
+        audit_resource_type: "memory_record".to_string(),
+        audit_resource_id: memory_id.to_string(),
+        audit_result: "accepted".to_string(),
+    }
+}
 
 #[tokio::test]
 async fn reference_runtime_round_trips_core_ports_and_retrieves_by_keyword() {
@@ -548,4 +570,994 @@ async fn reference_retrieval_and_context_assembly_are_isolated_by_tenant_and_spa
     assert!(unscoped_context_error
         .to_string()
         .contains("use assemble_scoped"));
+}
+
+#[tokio::test]
+async fn reference_record_quota_admission_is_atomic_and_releases_deleted_slots() {
+    let runtime = ReferenceMemoryRuntime::new();
+    let scope = MemoryScopeContext::for_test(10, 100);
+    let first = CreateCanonicalMemoryCommand {
+        scope: scope.clone(),
+        memory_id: "quota-first".to_string(),
+        scope_label: "user".to_string(),
+        memory_type: "semantic".to_string(),
+        subject: None,
+        predicate: None,
+        object_text: "first".to_string(),
+        canonical_text: "first".to_string(),
+        sensitivity_level: "internal".to_string(),
+        journal: mutation_journal("quota-first", "created"),
+    };
+    assert!(matches!(
+        MemoryRecordStorePort::create_canonical_atomic_with_quota(&runtime, first, 1)
+            .await
+            .unwrap(),
+        MemoryRecordQuotaAdmission::Admitted(_)
+    ));
+
+    let rejected = MemoryRecordStorePort::create_canonical_atomic_with_quota(
+        &runtime,
+        CreateCanonicalMemoryCommand {
+            scope: scope.clone(),
+            memory_id: "quota-rejected".to_string(),
+            scope_label: "user".to_string(),
+            memory_type: "semantic".to_string(),
+            subject: None,
+            predicate: None,
+            object_text: "rejected".to_string(),
+            canonical_text: "rejected".to_string(),
+            sensitivity_level: "internal".to_string(),
+            journal: mutation_journal("quota-rejected", "created"),
+        },
+        1,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        rejected,
+        MemoryRecordQuotaAdmission::QuotaExceeded {
+            active_records: 1,
+            max_active_records: 1,
+        }
+    );
+    assert!(MemoryRecordStorePort::retrieve_canonical(
+        &runtime,
+        RetrieveCanonicalMemoryQuery {
+            scope: scope.clone(),
+            memory_id: "quota-rejected".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .is_none());
+    assert!(MemoryOutboxStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryOutboxQuery {
+            scope: scope.clone(),
+            outbox_id: "outbox-quota-rejected-created".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .is_none());
+    assert!(MemoryAuditStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryAuditQuery {
+            scope: scope.clone(),
+            audit_id: "audit-quota-rejected-created".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .is_none());
+
+    MemoryRecordStorePort::delete_canonical_atomic(
+        &runtime,
+        DeleteCanonicalMemoryCommand {
+            scope: scope.clone(),
+            memory_id: "quota-first".to_string(),
+            journal: mutation_journal("quota-first", "deleted"),
+        },
+    )
+    .await
+    .unwrap();
+    let admitted = MemoryRecordStorePort::create_canonical_atomic_with_quota(
+        &runtime,
+        CreateCanonicalMemoryCommand {
+            scope,
+            memory_id: "quota-reused".to_string(),
+            scope_label: "user".to_string(),
+            memory_type: "semantic".to_string(),
+            subject: None,
+            predicate: None,
+            object_text: "reused".to_string(),
+            canonical_text: "reused".to_string(),
+            sensitivity_level: "internal".to_string(),
+            journal: mutation_journal("quota-reused", "created"),
+        },
+        1,
+    )
+    .await
+    .unwrap();
+    assert!(matches!(admitted, MemoryRecordQuotaAdmission::Admitted(_)));
+}
+
+#[tokio::test]
+async fn reference_candidate_promotion_is_quota_atomic_and_retry_idempotent() {
+    let runtime = ReferenceMemoryRuntime::new();
+    let scope = MemoryScopeContext::for_test(10, 100);
+    for candidate_id in ["candidate-first", "candidate-second"] {
+        MemoryCandidateStorePort::create(
+            &runtime,
+            CreateMemoryCandidateCommand {
+                scope: scope.clone(),
+                candidate_id: candidate_id.to_string(),
+                candidate_type: "observation".to_string(),
+                memory_type: "semantic".to_string(),
+                proposed_text: format!("proposal for {candidate_id}"),
+                proposed_payload_json: None,
+                evidence_json: None,
+                confidence: 0.9,
+            },
+        )
+        .await
+        .unwrap();
+    }
+
+    let promoted = MemoryCandidateStorePort::promote_atomic_with_quota_and_journal(
+        &runtime,
+        PromoteMemoryCandidateAtomicWithJournalCommand {
+            promotion: PromoteMemoryCandidateAtomicCommand {
+                scope: scope.clone(),
+                candidate_id: "candidate-first".to_string(),
+                memory_id: "promoted-first".to_string(),
+                memory_type: "semantic".to_string(),
+                proposed_text: "promoted reference memory".to_string(),
+                evidence_links: vec![MemoryCandidateEvidenceLink {
+                    source_id: "source-first".to_string(),
+                    event_id: "event-first".to_string(),
+                    confidence_delta: Some(0.9),
+                }],
+                decided_by: Some(7),
+            },
+            journal: mutation_journal("promoted-first", "candidate-promoted"),
+        },
+        1,
+    )
+    .await
+    .unwrap();
+    let MemoryRecordQuotaAdmission::Admitted(promoted) = promoted else {
+        panic!("first candidate promotion must be admitted");
+    };
+    assert_eq!(promoted.memory_id, "promoted-first");
+    assert!(MemoryOutboxStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryOutboxQuery {
+            scope: scope.clone(),
+            outbox_id: "outbox-promoted-first-candidate-promoted".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .is_some());
+    assert!(MemoryAuditStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryAuditQuery {
+            scope: scope.clone(),
+            audit_id: "audit-promoted-first-candidate-promoted".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .is_some());
+
+    let retry = MemoryCandidateStorePort::promote_atomic_with_quota_and_journal(
+        &runtime,
+        PromoteMemoryCandidateAtomicWithJournalCommand {
+            promotion: PromoteMemoryCandidateAtomicCommand {
+                scope: scope.clone(),
+                candidate_id: "candidate-first".to_string(),
+                memory_id: "promoted-duplicate".to_string(),
+                memory_type: "semantic".to_string(),
+                proposed_text: "retry payload".to_string(),
+                evidence_links: Vec::new(),
+                decided_by: Some(8),
+            },
+            journal: mutation_journal("promoted-duplicate", "candidate-retry"),
+        },
+        1,
+    )
+    .await
+    .unwrap();
+    let MemoryRecordQuotaAdmission::Admitted(retry) = retry else {
+        panic!("candidate retry must return its existing target");
+    };
+    assert_eq!(retry.memory_id, "promoted-first");
+    assert!(MemoryOutboxStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryOutboxQuery {
+            scope: scope.clone(),
+            outbox_id: "outbox-promoted-duplicate-candidate-retry".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .is_none());
+
+    let rejected = MemoryCandidateStorePort::promote_atomic_with_quota_and_journal(
+        &runtime,
+        PromoteMemoryCandidateAtomicWithJournalCommand {
+            promotion: PromoteMemoryCandidateAtomicCommand {
+                scope: scope.clone(),
+                candidate_id: "candidate-second".to_string(),
+                memory_id: "promoted-second".to_string(),
+                memory_type: "semantic".to_string(),
+                proposed_text: "second reference memory".to_string(),
+                evidence_links: Vec::new(),
+                decided_by: Some(9),
+            },
+            journal: mutation_journal("promoted-second", "candidate-rejected-by-quota"),
+        },
+        1,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        rejected,
+        MemoryRecordQuotaAdmission::QuotaExceeded {
+            active_records: 1,
+            max_active_records: 1,
+        }
+    );
+    let pending = MemoryCandidateStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryCandidateQuery {
+            scope: scope.clone(),
+            candidate_id: "candidate-second".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(pending.decision_state, "pending");
+    assert!(MemoryOutboxStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryOutboxQuery {
+            scope: scope.clone(),
+            outbox_id: "outbox-promoted-second-candidate-rejected-by-quota".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .is_none());
+    assert!(MemoryRecordStorePort::retrieve_canonical(
+        &runtime,
+        RetrieveCanonicalMemoryQuery {
+            scope,
+            memory_id: "promoted-second".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .is_none());
+}
+
+#[tokio::test]
+async fn reference_candidate_detail_preserves_timestamps_target_and_tenant_scope() {
+    let runtime = ReferenceMemoryRuntime::new();
+    let scope = MemoryScopeContext::for_test(21, 210);
+    MemoryCandidateStorePort::create(
+        &runtime,
+        CreateMemoryCandidateCommand {
+            scope: scope.clone(),
+            candidate_id: "candidate-detail".to_string(),
+            candidate_type: "observation".to_string(),
+            memory_type: "semantic".to_string(),
+            proposed_text: "Reference detail candidate".to_string(),
+            proposed_payload_json: Some(r#"{"preference":"detail"}"#.to_string()),
+            evidence_json: Some(r#"{"eventId":"event-detail"}"#.to_string()),
+            confidence: 0.93,
+        },
+    )
+    .await
+    .unwrap();
+
+    let initial = MemoryCandidateStorePort::retrieve_detail(
+        &runtime,
+        RetrieveMemoryCandidateDetailQuery {
+            tenant_id: scope.tenant_id,
+            candidate_id: "candidate-detail".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(initial.space_id, scope.space_id);
+    assert_eq!(
+        initial.evidence_json.as_deref(),
+        Some(r#"{"eventId":"event-detail"}"#)
+    );
+    assert!(initial.created_at.ends_with('Z'));
+    assert_eq!(initial.updated_at, initial.created_at);
+    assert!(initial.target_memory_id.is_none());
+
+    let promoted = MemoryCandidateStorePort::promote_atomic_with_quota_and_journal(
+        &runtime,
+        PromoteMemoryCandidateAtomicWithJournalCommand {
+            promotion: PromoteMemoryCandidateAtomicCommand {
+                scope: scope.clone(),
+                candidate_id: "candidate-detail".to_string(),
+                memory_id: "candidate-detail-target".to_string(),
+                memory_type: "semantic".to_string(),
+                proposed_text: "Reference detail candidate".to_string(),
+                evidence_links: Vec::new(),
+                decided_by: Some(7),
+            },
+            journal: mutation_journal("candidate-detail-target", "promoted"),
+        },
+        10,
+    )
+    .await
+    .unwrap();
+    assert!(matches!(promoted, MemoryRecordQuotaAdmission::Admitted(_)));
+
+    let updated = MemoryCandidateStorePort::retrieve_detail(
+        &runtime,
+        RetrieveMemoryCandidateDetailQuery {
+            tenant_id: scope.tenant_id,
+            candidate_id: "candidate-detail".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    let candidate = MemoryCandidateStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryCandidateQuery {
+            scope: scope.clone(),
+            candidate_id: "candidate-detail".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(updated.created_at, initial.created_at);
+    assert!(updated.updated_at.ends_with('Z'));
+    assert!(updated.updated_at >= updated.created_at);
+    assert_eq!(
+        candidate.decided_at.as_deref(),
+        Some(updated.updated_at.as_str())
+    );
+    assert_eq!(
+        updated.target_memory_id.as_deref(),
+        Some("candidate-detail-target")
+    );
+
+    let cross_tenant = MemoryCandidateStorePort::retrieve_detail(
+        &runtime,
+        RetrieveMemoryCandidateDetailQuery {
+            tenant_id: scope.tenant_id + 1,
+            candidate_id: "candidate-detail".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    assert!(cross_tenant.is_none());
+
+    let duplicate = MemoryCandidateStorePort::create(
+        &runtime,
+        CreateMemoryCandidateCommand {
+            scope: scope.clone(),
+            candidate_id: "candidate-detail".to_string(),
+            candidate_type: "observation".to_string(),
+            memory_type: "semantic".to_string(),
+            proposed_text: "must not overwrite the promoted candidate".to_string(),
+            proposed_payload_json: None,
+            evidence_json: None,
+            confidence: 0.1,
+        },
+    )
+    .await
+    .expect_err("same-space duplicate candidate must be rejected");
+    assert!(matches!(
+        duplicate,
+        MemorySpiError::IdempotencyConflict { ref idempotency_key }
+            if idempotency_key == "candidate-detail"
+    ));
+    let after_duplicate = MemoryCandidateStorePort::retrieve_detail(
+        &runtime,
+        RetrieveMemoryCandidateDetailQuery {
+            tenant_id: scope.tenant_id,
+            candidate_id: "candidate-detail".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(after_duplicate.decision_state, "approved");
+    assert_eq!(
+        after_duplicate.target_memory_id.as_deref(),
+        Some("candidate-detail-target")
+    );
+
+    MemoryRecordStorePort::delete_canonical_atomic(
+        &runtime,
+        DeleteCanonicalMemoryCommand {
+            scope: scope.clone(),
+            memory_id: "candidate-detail-target".to_string(),
+            journal: mutation_journal("candidate-detail-target", "deleted"),
+        },
+    )
+    .await
+    .unwrap();
+    let after_delete = MemoryCandidateStorePort::retrieve_detail(
+        &runtime,
+        RetrieveMemoryCandidateDetailQuery {
+            tenant_id: scope.tenant_id,
+            candidate_id: "candidate-detail".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(after_delete.target_memory_id, None);
+    assert!(matches!(
+        MemoryCandidateStorePort::promote_atomic_with_quota(
+            &runtime,
+            PromoteMemoryCandidateAtomicCommand {
+                scope,
+                candidate_id: "candidate-detail".to_string(),
+                memory_id: "candidate-detail-target".to_string(),
+                memory_type: "semantic".to_string(),
+                proposed_text: "Reference detail candidate".to_string(),
+                evidence_links: Vec::new(),
+                decided_by: Some(7),
+            },
+            10,
+        )
+        .await,
+        Err(MemorySpiError::PortOperationFailed { ref port, ref message })
+            if port == "MemoryCandidateStorePort" && message.contains("missing or deleted target")
+    ));
+}
+
+#[tokio::test]
+async fn reference_candidate_detail_fails_closed_when_id_is_ambiguous_across_spaces() {
+    let runtime = ReferenceMemoryRuntime::new();
+    for space_id in [301, 302] {
+        MemoryCandidateStorePort::create(
+            &runtime,
+            CreateMemoryCandidateCommand {
+                scope: MemoryScopeContext::for_test(31, space_id),
+                candidate_id: "ambiguous-candidate".to_string(),
+                candidate_type: "observation".to_string(),
+                memory_type: "semantic".to_string(),
+                proposed_text: format!("candidate in space {space_id}"),
+                proposed_payload_json: None,
+                evidence_json: None,
+                confidence: 0.8,
+            },
+        )
+        .await
+        .unwrap();
+    }
+
+    let error = MemoryCandidateStorePort::retrieve_detail(
+        &runtime,
+        RetrieveMemoryCandidateDetailQuery {
+            tenant_id: 31,
+            candidate_id: "ambiguous-candidate".to_string(),
+        },
+    )
+    .await
+    .expect_err("ambiguous tenant candidate id must fail closed");
+    assert!(matches!(
+        error,
+        MemorySpiError::PortOperationFailed { ref port, ref message }
+            if port == "MemoryCandidateStorePort"
+                && message.contains("ambiguous across tenant spaces")
+    ));
+}
+
+#[tokio::test]
+async fn reference_rich_retrieval_is_bounded_filtered_and_fail_closed() {
+    let runtime = ReferenceMemoryRuntime::new();
+    let primary = MemoryScopeContext::for_test(10, 100);
+    let other_space = MemoryScopeContext::for_test(10, 101);
+    let other_tenant = MemoryScopeContext::for_test(11, 100);
+
+    for (scope, memory_id, memory_type, sensitivity) in [
+        (primary.clone(), "999-allowed", "semantic", "internal"),
+        (primary.clone(), "000-sensitive", "semantic", "sensitive"),
+        (primary.clone(), "001-wrong-type", "episodic", "internal"),
+        (other_space, "002-other-space", "semantic", "internal"),
+        (other_tenant, "003-other-tenant", "semantic", "internal"),
+    ] {
+        MemoryRecordStorePort::create_canonical_atomic(
+            &runtime,
+            CreateCanonicalMemoryCommand {
+                scope,
+                memory_id: memory_id.to_string(),
+                scope_label: "user".to_string(),
+                memory_type: memory_type.to_string(),
+                subject: Some("retrieval".to_string()),
+                predicate: Some("matches".to_string()),
+                object_text: "needle reference memory".to_string(),
+                canonical_text: "needle reference memory".to_string(),
+                sensitivity_level: sensitivity.to_string(),
+                journal: mutation_journal(memory_id, "created"),
+            },
+        )
+        .await
+        .unwrap();
+    }
+
+    let result = MemoryRetrieverPort::search_scoped(
+        &runtime,
+        SearchMemoryCandidatesQuery {
+            scope: primary.clone(),
+            query: "needle".to_string(),
+            limit: 1,
+            retriever_kinds: vec![MemoryRetrieverKind::Keyword],
+            memory_types: vec!["semantic".to_string()],
+            read_scope: MemorySensitivityReadScope::Public,
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(result.records.len(), 1);
+    assert_eq!(result.records[0].memory_id, "999-allowed");
+
+    let degraded = MemoryRetrieverPort::search_scoped(
+        &runtime,
+        SearchMemoryCandidatesQuery {
+            scope: primary.clone(),
+            query: "needle".to_string(),
+            limit: 10,
+            retriever_kinds: vec![MemoryRetrieverKind::Keyword, MemoryRetrieverKind::Event],
+            memory_types: vec!["semantic".to_string()],
+            read_scope: MemorySensitivityReadScope::Owner,
+        },
+    )
+    .await
+    .unwrap();
+    assert!(degraded.degraded);
+    assert_eq!(
+        degraded.unavailable_retriever_kinds,
+        vec![MemoryRetrieverKind::Event]
+    );
+    assert_eq!(
+        degraded.degradation_codes,
+        vec!["retriever_kind_unavailable"]
+    );
+    assert_eq!(degraded.records.len(), 2);
+
+    MemoryRecordStorePort::delete_canonical_atomic(
+        &runtime,
+        DeleteCanonicalMemoryCommand {
+            scope: primary.clone(),
+            memory_id: "999-allowed".to_string(),
+            journal: mutation_journal("999-allowed", "deleted"),
+        },
+    )
+    .await
+    .unwrap();
+    let after_delete = MemoryRetrieverPort::search_scoped(
+        &runtime,
+        SearchMemoryCandidatesQuery {
+            scope: primary.clone(),
+            query: "needle".to_string(),
+            limit: 10,
+            retriever_kinds: vec![MemoryRetrieverKind::Keyword],
+            memory_types: vec!["semantic".to_string()],
+            read_scope: MemorySensitivityReadScope::Public,
+        },
+    )
+    .await
+    .unwrap();
+    assert!(after_delete.records.is_empty());
+
+    for query in [
+        SearchMemoryCandidatesQuery {
+            scope: primary.clone(),
+            query: "   ".to_string(),
+            limit: 1,
+            retriever_kinds: vec![MemoryRetrieverKind::Keyword],
+            memory_types: Vec::new(),
+            read_scope: MemorySensitivityReadScope::Owner,
+        },
+        SearchMemoryCandidatesQuery {
+            scope: primary.clone(),
+            query: "needle".to_string(),
+            limit: 0,
+            retriever_kinds: vec![MemoryRetrieverKind::Keyword],
+            memory_types: Vec::new(),
+            read_scope: MemorySensitivityReadScope::Owner,
+        },
+        SearchMemoryCandidatesQuery {
+            scope: primary,
+            query: "needle".to_string(),
+            limit: MAX_MEMORY_RETRIEVAL_CANDIDATES + 1,
+            retriever_kinds: Vec::new(),
+            memory_types: Vec::new(),
+            read_scope: MemorySensitivityReadScope::Owner,
+        },
+    ] {
+        assert!(MemoryRetrieverPort::search_scoped(&runtime, query)
+            .await
+            .is_err());
+    }
+}
+
+#[tokio::test]
+async fn reference_supersede_atomic_chain_persists_dual_journals_and_retry_is_idempotent() {
+    let runtime = ReferenceMemoryRuntime::new();
+    let scope = MemoryScopeContext::for_test(1, 1);
+    MemoryRecordStorePort::create_canonical_atomic(
+        &runtime,
+        CreateCanonicalMemoryCommand {
+            scope: scope.clone(),
+            memory_id: "supersede-old".to_string(),
+            scope_label: "user".to_string(),
+            memory_type: "semantic".to_string(),
+            subject: Some("account".to_string()),
+            predicate: Some("prefers".to_string()),
+            object_text: "old canonical value".to_string(),
+            canonical_text: "User prefers the old canonical value".to_string(),
+            sensitivity_level: "internal".to_string(),
+            journal: mutation_journal("supersede-old", "created"),
+        },
+    )
+    .await
+    .unwrap();
+
+    let command = SupersedeCanonicalMemoryAtomicCommand {
+        scope: scope.clone(),
+        old_memory_id: "supersede-old".to_string(),
+        new_memory_id: "supersede-new".to_string(),
+        scope_label: "user".to_string(),
+        memory_type: "semantic".to_string(),
+        subject: Some("account".to_string()),
+        predicate: Some("prefers".to_string()),
+        object_text: "new canonical value".to_string(),
+        canonical_text: "User prefers the new canonical value".to_string(),
+        sensitivity_level: "internal".to_string(),
+        created_journal: mutation_journal("supersede-new", "supersede-created"),
+        superseded_journal: mutation_journal("supersede-old", "supersede-superseded"),
+    };
+
+    let first =
+        MemoryRecordStorePort::supersede_canonical_atomic_with_quota(&runtime, command.clone(), 2)
+            .await
+            .unwrap();
+    let admitted = match first {
+        MemoryRecordQuotaAdmission::Admitted(record) => record,
+        MemoryRecordQuotaAdmission::QuotaExceeded { .. } => {
+            panic!("supersede unexpectedly rejected with available capacity")
+        }
+    };
+    assert_eq!(admitted.memory_id, "supersede-new");
+    assert_eq!(
+        admitted.supersedes_memory_id.as_deref(),
+        Some("supersede-old")
+    );
+    assert_eq!(admitted.status, "active");
+
+    let old = MemoryRecordStorePort::retrieve_canonical(
+        &runtime,
+        RetrieveCanonicalMemoryQuery {
+            scope: scope.clone(),
+            memory_id: "supersede-old".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .expect("superseded source remains readable for lifecycle inspection");
+    assert_eq!(old.status, "superseded");
+    assert_eq!(
+        old.superseded_by_memory_id.as_deref(),
+        Some("supersede-new")
+    );
+
+    let new = MemoryRecordStorePort::retrieve_canonical(
+        &runtime,
+        RetrieveCanonicalMemoryQuery {
+            scope: scope.clone(),
+            memory_id: "supersede-new".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .expect("superseding target must be readable");
+    assert_eq!(new.status, "active");
+    assert_eq!(new.supersedes_memory_id.as_deref(), Some("supersede-old"));
+    assert_eq!(new.superseded_by_memory_id, None);
+
+    let superseded_outbox = MemoryOutboxStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryOutboxQuery {
+            scope: scope.clone(),
+            outbox_id: "outbox-supersede-old-supersede-superseded".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .expect("superseded journal outbox must commit with the chain");
+    assert_eq!(superseded_outbox.aggregate_id, "supersede-old");
+    let superseded_audit = MemoryAuditStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryAuditQuery {
+            scope: scope.clone(),
+            audit_id: "audit-supersede-old-supersede-superseded".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .expect("superseded journal audit must commit with the chain");
+    assert_eq!(superseded_audit.resource_id, "supersede-old");
+
+    let created_outbox = MemoryOutboxStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryOutboxQuery {
+            scope: scope.clone(),
+            outbox_id: "outbox-supersede-new-supersede-created".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .expect("created journal outbox must commit with the chain");
+    assert_eq!(created_outbox.aggregate_id, "supersede-new");
+    let created_audit = MemoryAuditStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryAuditQuery {
+            scope: scope.clone(),
+            audit_id: "audit-supersede-new-supersede-created".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .expect("created journal audit must commit with the chain");
+    assert_eq!(created_audit.resource_id, "supersede-new");
+
+    let retry = MemoryRecordStorePort::supersede_canonical_atomic_with_quota(&runtime, command, 2)
+        .await
+        .unwrap();
+    assert_eq!(retry, MemoryRecordQuotaAdmission::Admitted(admitted));
+
+    let superseded_outbox_retry = MemoryOutboxStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryOutboxQuery {
+            scope: scope.clone(),
+            outbox_id: "outbox-supersede-old-supersede-superseded".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    assert!(superseded_outbox_retry.is_some());
+    let created_audit_retry = MemoryAuditStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryAuditQuery {
+            scope,
+            audit_id: "audit-supersede-new-supersede-created".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    assert!(created_audit_retry.is_some());
+
+    let changed_payload = SupersedeCanonicalMemoryAtomicCommand {
+        scope: MemoryScopeContext::for_test(1, 1),
+        old_memory_id: "supersede-old".to_string(),
+        new_memory_id: "supersede-new".to_string(),
+        scope_label: "user".to_string(),
+        memory_type: "semantic".to_string(),
+        subject: Some("account".to_string()),
+        predicate: Some("prefers".to_string()),
+        object_text: "new canonical value".to_string(),
+        canonical_text: "different retry payload".to_string(),
+        sensitivity_level: "internal".to_string(),
+        created_journal: mutation_journal("supersede-new", "supersede-created"),
+        superseded_journal: mutation_journal("supersede-old", "supersede-superseded"),
+    };
+    assert!(matches!(
+        MemoryRecordStorePort::supersede_canonical_atomic_with_quota(
+            &runtime,
+            changed_payload,
+            2,
+        )
+        .await,
+        Err(MemorySpiError::IdempotencyConflict { ref idempotency_key })
+            if idempotency_key == "supersede-new"
+    ));
+
+    let changed_journal = SupersedeCanonicalMemoryAtomicCommand {
+        scope: MemoryScopeContext::for_test(1, 1),
+        old_memory_id: "supersede-old".to_string(),
+        new_memory_id: "supersede-new".to_string(),
+        scope_label: "user".to_string(),
+        memory_type: "semantic".to_string(),
+        subject: Some("account".to_string()),
+        predicate: Some("prefers".to_string()),
+        object_text: "new canonical value".to_string(),
+        canonical_text: "User prefers the new canonical value".to_string(),
+        sensitivity_level: "internal".to_string(),
+        created_journal: mutation_journal("supersede-new", "different-journal"),
+        superseded_journal: mutation_journal("supersede-old", "supersede-superseded"),
+    };
+    assert!(matches!(
+        MemoryRecordStorePort::supersede_canonical_atomic_with_quota(
+            &runtime,
+            changed_journal,
+            2,
+        )
+        .await,
+        Err(MemorySpiError::IdempotencyConflict { ref idempotency_key })
+            if idempotency_key == "supersede-new"
+    ));
+
+    let unchanged = MemoryRecordStorePort::retrieve_canonical(
+        &runtime,
+        RetrieveCanonicalMemoryQuery {
+            scope: MemoryScopeContext::for_test(1, 1),
+            memory_id: "supersede-new".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        unchanged.canonical_text,
+        "User prefers the new canonical value"
+    );
+    assert!(MemoryOutboxStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryOutboxQuery {
+            scope: MemoryScopeContext::for_test(1, 1),
+            outbox_id: "outbox-supersede-new-different-journal".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .is_none());
+    assert!(MemoryAuditStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryAuditQuery {
+            scope: MemoryScopeContext::for_test(1, 1),
+            audit_id: "audit-supersede-new-different-journal".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .is_none());
+}
+
+#[tokio::test]
+async fn reference_supersede_quota_rejection_keeps_chain_and_journals_unchanged() {
+    let runtime = ReferenceMemoryRuntime::new();
+    let scope = MemoryScopeContext::for_test(1, 1);
+    for (memory_id, text) in [
+        ("supersede-quota-old", "old value"),
+        ("supersede-quota-blocker", "blocking value"),
+    ] {
+        MemoryRecordStorePort::create_canonical_atomic(
+            &runtime,
+            CreateCanonicalMemoryCommand {
+                scope: scope.clone(),
+                memory_id: memory_id.to_string(),
+                scope_label: "user".to_string(),
+                memory_type: "semantic".to_string(),
+                subject: Some("account".to_string()),
+                predicate: Some("prefers".to_string()),
+                object_text: text.to_string(),
+                canonical_text: text.to_string(),
+                sensitivity_level: "internal".to_string(),
+                journal: mutation_journal(memory_id, "created"),
+            },
+        )
+        .await
+        .unwrap();
+    }
+
+    let admission = MemoryRecordStorePort::supersede_canonical_atomic_with_quota(
+        &runtime,
+        SupersedeCanonicalMemoryAtomicCommand {
+            scope: scope.clone(),
+            old_memory_id: "supersede-quota-old".to_string(),
+            new_memory_id: "supersede-quota-new".to_string(),
+            scope_label: "user".to_string(),
+            memory_type: "semantic".to_string(),
+            subject: Some("account".to_string()),
+            predicate: Some("prefers".to_string()),
+            object_text: "must not be written".to_string(),
+            canonical_text: "must not be written".to_string(),
+            sensitivity_level: "internal".to_string(),
+            created_journal: mutation_journal("supersede-quota-new", "quota-created"),
+            superseded_journal: mutation_journal("supersede-quota-old", "quota-superseded"),
+        },
+        2,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        admission,
+        MemoryRecordQuotaAdmission::QuotaExceeded {
+            active_records: 2,
+            max_active_records: 2,
+        }
+    );
+
+    let old = MemoryRecordStorePort::retrieve_canonical(
+        &runtime,
+        RetrieveCanonicalMemoryQuery {
+            scope: scope.clone(),
+            memory_id: "supersede-quota-old".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .expect("quota rejection must preserve source record");
+    assert_eq!(old.status, "active");
+    assert_eq!(old.superseded_by_memory_id, None);
+    let blocker = MemoryRecordStorePort::retrieve_canonical(
+        &runtime,
+        RetrieveCanonicalMemoryQuery {
+            scope: scope.clone(),
+            memory_id: "supersede-quota-blocker".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .expect("quota rejection must preserve the record occupying the final slot");
+    assert_eq!(blocker.status, "active");
+    assert_eq!(blocker.superseded_by_memory_id, None);
+    assert!(MemoryRecordStorePort::retrieve_canonical(
+        &runtime,
+        RetrieveCanonicalMemoryQuery {
+            scope: scope.clone(),
+            memory_id: "supersede-quota-new".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .is_none());
+    assert!(MemoryOutboxStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryOutboxQuery {
+            scope: scope.clone(),
+            outbox_id: "outbox-supersede-quota-new-quota-created".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .is_none());
+    assert!(MemoryOutboxStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryOutboxQuery {
+            scope: scope.clone(),
+            outbox_id: "outbox-supersede-quota-old-quota-superseded".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .is_none());
+    assert!(MemoryAuditStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryAuditQuery {
+            scope: scope.clone(),
+            audit_id: "audit-supersede-quota-new-quota-created".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .is_none());
+    assert!(MemoryAuditStorePort::retrieve(
+        &runtime,
+        RetrieveMemoryAuditQuery {
+            scope,
+            audit_id: "audit-supersede-quota-old-quota-superseded".to_string(),
+        },
+    )
+    .await
+    .unwrap()
+    .is_none());
 }

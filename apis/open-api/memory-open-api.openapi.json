@@ -8041,7 +8041,8 @@
       "MemoryResolvedCapabilityList": {
         "type": "object",
         "required": [
-          "items"
+          "items",
+          "pageInfo"
         ],
         "properties": {
           "items": {
@@ -8049,8 +8050,29 @@
             "items": {
               "$ref": "#/components/schemas/MemoryResolvedCapability"
             }
+          },
+          "pageInfo": {
+            "$ref": "#/components/schemas/PageInfo"
           }
         }
+      },
+      "MemoryResolvedCapabilityListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SdkWorkApiResponse"
+          },
+          {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MemoryResolvedCapabilityList"
+              }
+            }
+          }
+        ]
       },
       "MemoryResolveCapabilitiesRequest": {
         "type": "object",

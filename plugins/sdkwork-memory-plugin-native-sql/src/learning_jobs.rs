@@ -50,12 +50,7 @@ impl NativeSqlMemoryStore {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             "#,
         )
-        .bind(
-            command
-                .job_uuid
-                .parse::<i64>()
-                .unwrap_or(command.tenant_id),
-        )
+        .bind(command.job_uuid.parse::<i64>().unwrap_or(command.tenant_id))
         .bind(command.job_uuid)
         .bind(command.tenant_id)
         .bind(command.space_id)
@@ -79,8 +74,7 @@ impl NativeSqlMemoryStore {
         let cutoff_ms =
             sdkwork_utils_rust::to_unix_millis(sdkwork_utils_rust::now()) - stale_seconds * 1_000;
         let cutoff = sdkwork_utils_rust::format_datetime(
-            sdkwork_utils_rust::from_unix_millis(cutoff_ms)
-                .unwrap_or_else(sdkwork_utils_rust::now),
+            sdkwork_utils_rust::from_unix_millis(cutoff_ms).unwrap_or_else(sdkwork_utils_rust::now),
             None,
         );
         let result = sqlx::query(
@@ -260,8 +254,7 @@ impl NativeSqlMemoryStore {
         let cutoff_ms =
             sdkwork_utils_rust::to_unix_millis(sdkwork_utils_rust::now()) - stale_seconds * 1_000;
         let cutoff = sdkwork_utils_rust::format_datetime(
-            sdkwork_utils_rust::from_unix_millis(cutoff_ms)
-                .unwrap_or_else(sdkwork_utils_rust::now),
+            sdkwork_utils_rust::from_unix_millis(cutoff_ms).unwrap_or_else(sdkwork_utils_rust::now),
             None,
         );
         let result = sqlx::query(
@@ -351,13 +344,7 @@ impl NativeSqlMemoryStore {
         .await?;
         Ok(rows
             .into_iter()
-            .map(|row| {
-                (
-                    row.get("tenant_id"),
-                    row.get("uuid"),
-                    row.get("eval_type"),
-                )
-            })
+            .map(|row| (row.get("tenant_id"), row.get("uuid"), row.get("eval_type")))
             .collect())
     }
 

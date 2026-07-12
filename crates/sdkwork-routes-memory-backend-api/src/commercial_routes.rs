@@ -17,8 +17,8 @@ use sdkwork_memory_contract::{
     UpdateEntityCommand, UpdatePolicyAssignmentCommand, UpdatePolicyCommand, UpdateSubjectCommand,
 };
 use sdkwork_routes_memory_support::{
-    parse_principal_u64, success_created_page_response, success_created_resource_response,
-    success_no_content_response, success_page_response, success_resource_response,
+    parse_principal_u64, success_created_resource_response, success_no_content_response,
+    success_page_response, success_resource_response,
 };
 use sdkwork_intelligence_memory_service::OpenMemoryService;
 use serde::Deserialize;
@@ -435,7 +435,7 @@ async fn resolve_capabilities(
         return forbidden("tenantId mismatch");
     }
     match product.resolve_capabilities(req).await {
-        Ok(page) => success_created_page_response(page),
+        Ok(page) => success_page_response(page),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
 }
@@ -988,7 +988,7 @@ async fn rebuild_commercial_readiness(
         return forbidden("tenantId mismatch");
     }
     match product.rebuild_commercial_readiness(cmd).await {
-        Ok(readiness) => success_created_resource_response(readiness),
+        Ok(readiness) => success_resource_response(readiness),
         Err(error) => BackendApiProblem::from(error).into_response(),
     }
 }

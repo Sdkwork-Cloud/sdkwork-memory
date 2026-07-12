@@ -170,9 +170,12 @@ async fn app_api_memory_sources_list_returns_linked_event_sources() {
         .await
         .unwrap();
     let memory_json: serde_json::Value = serde_json::from_slice(&memory_body).unwrap();
-    let memory_id = api_envelope::item(&memory_json)["memoryId"].as_str().unwrap();
+    let memory_id = api_envelope::item(&memory_json)["memoryId"]
+        .as_str()
+        .unwrap();
 
-    let seed_store = NativeSqlMemoryStore::from_any_pool(pool, MemorySqlDialect::Sqlite).await;
+    let seed_store =
+        NativeSqlMemoryStore::from_any_pool(pool.clone(), MemorySqlDialect::Sqlite).await;
     let scope = MemoryScopeContext::for_test(100_001, space_id.parse().unwrap());
     seed_store
         .append_open_api_event(
@@ -220,7 +223,8 @@ async fn app_api_candidate_approve_promotes_memory_and_links_event_sources() {
         build_router_with_open_memory_service(service),
     );
 
-    let seed_store = NativeSqlMemoryStore::from_any_pool(pool, MemorySqlDialect::Sqlite).await;
+    let seed_store =
+        NativeSqlMemoryStore::from_any_pool(pool.clone(), MemorySqlDialect::Sqlite).await;
     let scope = MemoryScopeContext::for_test(100_001, space_id.parse().unwrap());
     seed_store
         .append_open_api_event(
@@ -267,7 +271,10 @@ async fn app_api_candidate_approve_promotes_memory_and_links_event_sources() {
             .as_array()
             .expect("candidates list must return items array");
         if !items.is_empty() {
-            candidate_id = items[0]["candidateId"].as_str().expect("candidate id").to_string();
+            candidate_id = items[0]["candidateId"]
+                .as_str()
+                .expect("candidate id")
+                .to_string();
             break;
         }
     }
@@ -288,7 +295,10 @@ async fn app_api_candidate_approve_promotes_memory_and_links_event_sources() {
     assert_eq!(approve.status(), StatusCode::OK);
     let approve_body = to_bytes(approve.into_body(), usize::MAX).await.unwrap();
     let approve_json: serde_json::Value = serde_json::from_slice(&approve_body).unwrap();
-    assert_eq!(api_envelope::item(&approve_json)["decisionState"], "approved");
+    assert_eq!(
+        api_envelope::item(&approve_json)["decisionState"],
+        "approved"
+    );
 
     let memories = app
         .clone()
@@ -300,7 +310,25 @@ async fn app_api_candidate_approve_promotes_memory_and_links_event_sources() {
     assert_eq!(memories.status(), StatusCode::OK);
     let memories_body = to_bytes(memories.into_body(), usize::MAX).await.unwrap();
     let memories_json: serde_json::Value = serde_json::from_slice(&memories_body).unwrap();
-    let memory_id = api_envelope::items(&memories_json)[0]["memoryId"].as_str().unwrap();
+    let memory_id = api_envelope::items(&memories_json)[0]["memoryId"]
+        .as_str()
+        .unwrap();
+    let promotion_outbox_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_outbox_event WHERE aggregate_id = ? AND event_type = 'memory.candidate.promoted'",
+    )
+    .bind(memory_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let promotion_audit_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_audit_log WHERE resource_id = ? AND action = 'memory.candidate.promoted'",
+    )
+    .bind(memory_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(promotion_outbox_count, 1);
+    assert_eq!(promotion_audit_count, 1);
 
     let sources = app
         .oneshot(authed_get_request(&format!(
@@ -312,5 +340,8 @@ async fn app_api_candidate_approve_promotes_memory_and_links_event_sources() {
     let sources_body = to_bytes(sources.into_body(), usize::MAX).await.unwrap();
     let sources_json: serde_json::Value = serde_json::from_slice(&sources_body).unwrap();
     assert_eq!(api_envelope::items(&sources_json)[0]["eventId"], "7001");
-    assert_eq!(api_envelope::items(&sources_json)[0]["sourceRole"], "evidence");
+    assert_eq!(
+        api_envelope::items(&sources_json)[0]["sourceRole"],
+        "evidence"
+    );
 }

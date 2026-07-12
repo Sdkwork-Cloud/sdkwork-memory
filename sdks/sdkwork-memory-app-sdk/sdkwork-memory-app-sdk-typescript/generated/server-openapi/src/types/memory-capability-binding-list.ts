@@ -1,7 +1,7 @@
 import type { MemoryCapabilityBinding } from './memory-capability-binding';
-import type { MemoryPageInfo } from './memory-page-info';
+import type { PageInfo } from './page-info';
 
 export interface MemoryCapabilityBindingList {
   items: MemoryCapabilityBinding[];
-  pageInfo: MemoryPageInfo;
+  pageInfo: PageInfo;
 }

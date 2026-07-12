@@ -191,7 +191,10 @@ impl NativeSqlMemoryStore {
         Ok(())
     }
 
-    pub async fn count_subjects_for_tenant(&self, tenant_id: i64) -> Result<i64, NativeSqlStoreError> {
+    pub async fn count_subjects_for_tenant(
+        &self,
+        tenant_id: i64,
+    ) -> Result<i64, NativeSqlStoreError> {
         let row = sqlx::query(
             r#"
             SELECT COUNT(*) AS total
@@ -205,7 +208,10 @@ impl NativeSqlMemoryStore {
         Ok(row.get("total"))
     }
 
-    pub async fn count_bindings_for_tenant(&self, tenant_id: i64) -> Result<i64, NativeSqlStoreError> {
+    pub async fn count_bindings_for_tenant(
+        &self,
+        tenant_id: i64,
+    ) -> Result<i64, NativeSqlStoreError> {
         let row = sqlx::query(
             r#"
             SELECT COUNT(*) AS total

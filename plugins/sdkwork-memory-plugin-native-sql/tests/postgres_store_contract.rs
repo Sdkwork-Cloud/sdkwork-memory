@@ -184,7 +184,10 @@ async fn postgres_store_persists_retrieval_trace_boolean_fields() {
     .expect("retrieve retrieval trace on postgres")
     .expect("retrieval trace must exist");
 
-    assert!(retrieved.degraded, "postgres degraded boolean must roundtrip as true");
+    assert!(
+        retrieved.degraded,
+        "postgres degraded boolean must roundtrip as true"
+    );
     assert!(
         retrieved
             .context_pack

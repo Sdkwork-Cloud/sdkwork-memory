@@ -1,6 +1,7 @@
 use sdkwork_memory_contract::{MemoryServiceError, MemoryServiceResult};
-use sdkwork_memory_plugin_native_sql::NativeSqlMemoryStore;
-use sdkwork_memory_spi::MemoryScopeContext;
+use sdkwork_memory_spi::{
+    MemoryRecordQuotaAdmission, MemoryScopeContext, MemorySpaceQuotaAdmission,
+};
 
 use crate::platform;
 
@@ -13,60 +14,48 @@ pub struct MemoryQuotaLimits {
 impl MemoryQuotaLimits {
     pub fn from_env() -> Self {
         Self {
-            max_records_per_space: platform::read_env_u64("SDKWORK_MEMORY_MAX_RECORDS_PER_SPACE", 100_000),
+            max_records_per_space: platform::read_env_u64(
+                "SDKWORK_MEMORY_MAX_RECORDS_PER_SPACE",
+                100_000,
+            ),
             max_spaces_per_user: platform::read_env_u64("SDKWORK_MEMORY_MAX_SPACES_PER_USER", 100),
         }
     }
 }
 
-pub async fn assert_space_record_quota(
-    store: &NativeSqlMemoryStore,
+pub fn resolve_space_record_quota_admission<T>(
     scope: &MemoryScopeContext,
-    limits: MemoryQuotaLimits,
-) -> MemoryServiceResult<()> {
-    let limit = limits.max_records_per_space;
-    if limit == 0 {
-        return Ok(());
+    admission: MemoryRecordQuotaAdmission<T>,
+) -> MemoryServiceResult<T> {
+    match admission {
+        MemoryRecordQuotaAdmission::Admitted(value) => Ok(value),
+        MemoryRecordQuotaAdmission::QuotaExceeded {
+            max_active_records, ..
+        } => {
+            crate::domain_metrics::memory_domain_metrics().record_quota_exceeded();
+            Err(MemoryServiceError::quota_exceeded(format!(
+                "memory space {space_id} reached the maximum of {max_active_records} active records",
+                space_id = scope.space_id
+            )))
+        }
     }
-    let count = store
-        .count_active_records_for_scope(scope)
-        .await
-        .map_err(crate::store_error::map_native_sql_store_error)?;
-    if count >= i64::try_from(limit).unwrap_or(i64::MAX) {
-        crate::domain_metrics::memory_domain_metrics().record_quota_exceeded();
-        return Err(MemoryServiceError::quota_exceeded(format!(
-            "memory space {space_id} reached the maximum of {limit} active records",
-            space_id = scope.space_id
-        )));
-    }
-    Ok(())
 }
 
-pub async fn assert_user_space_quota(
-    store: &NativeSqlMemoryStore,
-    tenant_id: i64,
-    owner_subject_type: &str,
+pub fn resolve_user_space_quota_admission<T>(
     owner_subject_id: &str,
-    limits: MemoryQuotaLimits,
-) -> MemoryServiceResult<()> {
-    if owner_subject_type != "user" {
-        return Ok(());
+    admission: MemorySpaceQuotaAdmission<T>,
+) -> MemoryServiceResult<T> {
+    match admission {
+        MemorySpaceQuotaAdmission::Admitted(value) => Ok(value),
+        MemorySpaceQuotaAdmission::QuotaExceeded {
+            max_active_spaces, ..
+        } => {
+            crate::domain_metrics::memory_domain_metrics().record_quota_exceeded();
+            Err(MemoryServiceError::quota_exceeded(format!(
+                "user {owner_subject_id} reached the maximum of {max_active_spaces} memory spaces for this tenant"
+            )))
+        }
     }
-    let limit = limits.max_spaces_per_user;
-    if limit == 0 {
-        return Ok(());
-    }
-    let count = store
-        .count_user_owned_spaces_for_tenant(tenant_id, owner_subject_id)
-        .await
-        .map_err(crate::store_error::map_native_sql_store_error)?;
-    if count >= i64::try_from(limit).unwrap_or(i64::MAX) {
-        crate::domain_metrics::memory_domain_metrics().record_quota_exceeded();
-        return Err(MemoryServiceError::quota_exceeded(format!(
-            "user {owner_subject_id} reached the maximum of {limit} memory spaces for this tenant"
-        )));
-    }
-    Ok(())
 }
 
 #[cfg(test)]

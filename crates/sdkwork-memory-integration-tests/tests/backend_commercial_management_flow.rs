@@ -145,6 +145,24 @@ async fn backend_commercial_entity_edge_policy_and_readiness_flow() {
         .unwrap();
     assert_eq!(assignment.status(), StatusCode::CREATED);
 
+    let resolved = app
+        .clone()
+        .oneshot(authed_json(
+            "POST",
+            "/backend/v3/api/memory/capabilities/resolve",
+            json!({
+                "tenantId": "100001",
+                "targetType": "space",
+                "targetId": "1"
+            }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resolved.status(), StatusCode::OK);
+    let resolved_body = to_bytes(resolved.into_body(), usize::MAX).await.unwrap();
+    let resolved_json: serde_json::Value = serde_json::from_slice(&resolved_body).unwrap();
+    api_envelope::assert_cursor_page_info(&resolved_json);
+
     let rebuild = app
         .clone()
         .oneshot(authed_json(
@@ -154,7 +172,7 @@ async fn backend_commercial_entity_edge_policy_and_readiness_flow() {
         ))
         .await
         .unwrap();
-    assert_eq!(rebuild.status(), StatusCode::CREATED);
+    assert_eq!(rebuild.status(), StatusCode::OK);
     let rebuild_body = to_bytes(rebuild.into_body(), usize::MAX).await.unwrap();
     let rebuild_json: serde_json::Value = serde_json::from_slice(&rebuild_body).unwrap();
     let readiness_item = api_envelope::item(&rebuild_json);

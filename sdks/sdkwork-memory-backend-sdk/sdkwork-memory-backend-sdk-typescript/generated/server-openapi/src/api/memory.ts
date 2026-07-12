@@ -1,8 +1,339 @@
 import { backendApiPath } from './paths';
 import type { HttpClient } from '../http/client';
 
-import type { MemoryAuditLog, MemoryBinding, MemoryBindingRequest, MemoryCandidate, MemoryCapabilityBinding, MemoryCapabilityBindingRequest, MemoryEvalRun, MemoryEvalRunRequest, MemoryEvent, MemoryExtractionRequest, MemoryImplementationProfile, MemoryImplementationProfileRequest, MemoryIndex, MemoryIndexRequest, MemoryLearningJob, MemoryMigrationJobRequest, MemoryProviderBinding, MemoryProviderBindingRequest, MemoryProviderHealth, MemoryRecord, MemoryRecordRequest, MemoryResolveCapabilitiesRequest, MemoryResolvedCapability, MemoryRetentionJobRequest, MemoryRetrievalProfile, MemoryRetrievalProfileRequest, MemoryRetrievalTrace, MemoryReviewRequest, MemorySpace, MemorySpaceRequest, MemorySubject, MemorySubjectPatch, MemorySubjectRequest, PageInfo } from '../types';
+import type { MemoryAuditLog, MemoryBinding, MemoryBindingRequest, MemoryCandidate, MemoryCapabilityBinding, MemoryCapabilityBindingRequest, MemoryCommercialReadiness, MemoryCommercialReadinessRequest, MemoryEdge, MemoryEdgePatch, MemoryEdgeRequest, MemoryEntity, MemoryEntityPatch, MemoryEntityRequest, MemoryEvalRun, MemoryEvalRunRequest, MemoryEvent, MemoryExtractionRequest, MemoryImplementationProfile, MemoryImplementationProfileRequest, MemoryIndex, MemoryIndexRequest, MemoryLearningJob, MemoryMigrationJobRequest, MemoryPolicy, MemoryPolicyAssignment, MemoryPolicyAssignmentPatch, MemoryPolicyAssignmentRequest, MemoryPolicyPatch, MemoryPolicyRequest, MemoryProviderBinding, MemoryProviderBindingRequest, MemoryProviderHealth, MemoryRecord, MemoryRecordRequest, MemoryResolveCapabilitiesRequest, MemoryResolvedCapabilityList, MemoryRetentionJobRequest, MemoryRetrievalProfile, MemoryRetrievalProfileRequest, MemoryRetrievalTrace, MemoryReviewRequest, MemorySpace, MemorySpaceRequest, MemorySubject, MemorySubjectPatch, MemorySubjectRequest, PageInfo } from '../types';
 
+
+export interface MemoryCommercialReadinessRetrieveParams {
+  tenantId: string;
+}
+
+export interface MemoryCommercialReadinessRebuildParams {
+  idempotencyKey?: string;
+}
+
+export class MemoryCommercialReadinessApi {
+  private client: HttpClient;
+
+  constructor(client: HttpClient) {
+    this.client = client;
+  }
+
+
+async retrieve(params: MemoryCommercialReadinessRetrieveParams): Promise<MemoryCommercialReadiness> {
+    const query = buildQueryString([
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<MemoryCommercialReadiness>(appendQueryString(backendApiPath(`/memory/commercial_readiness`), query));
+  }
+
+async rebuild(body: MemoryCommercialReadinessRequest, params?: MemoryCommercialReadinessRebuildParams): Promise<MemoryCommercialReadiness> {
+    const requestHeaders = buildRequestHeaders(
+      {
+        'Idempotency-Key': { value: params?.idempotencyKey, style: 'simple', explode: false },
+      },
+      {}
+    );
+    return this.client.post<MemoryCommercialReadiness>(backendApiPath(`/memory/commercial_readiness/rebuild`), body, undefined, requestHeaders, 'application/json');
+  }
+}
+
+export interface MemoryPolicyAssignmentsListParams {
+  q?: string;
+  cursor?: string;
+  pageSize?: number;
+  tenantId: string;
+}
+
+export interface MemoryPolicyAssignmentsCreateParams {
+  idempotencyKey?: string;
+}
+
+export interface MemoryPolicyAssignmentsRetrieveParams {
+  tenantId: string;
+}
+
+export interface MemoryPolicyAssignmentsUpdateParams {
+  tenantId: string;
+}
+
+export interface MemoryPolicyAssignmentsDeleteParams {
+  tenantId: string;
+}
+
+export class MemoryPolicyAssignmentsApi {
+  private client: HttpClient;
+
+  constructor(client: HttpClient) {
+    this.client = client;
+  }
+
+
+async list(params: MemoryPolicyAssignmentsListParams): Promise<Record<string, unknown>> {
+    const query = buildQueryString([
+      { name: 'q', value: params.q, style: 'form', explode: true, allowReserved: false },
+      { name: 'cursor', value: params.cursor, style: 'form', explode: true, allowReserved: false },
+      { name: 'page_size', value: params.pageSize, style: 'form', explode: true, allowReserved: false },
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<Record<string, unknown>>(appendQueryString(backendApiPath(`/memory/policy_assignments`), query));
+  }
+
+async create(body: MemoryPolicyAssignmentRequest, params?: MemoryPolicyAssignmentsCreateParams): Promise<MemoryPolicyAssignment> {
+    const requestHeaders = buildRequestHeaders(
+      {
+        'Idempotency-Key': { value: params?.idempotencyKey, style: 'simple', explode: false },
+      },
+      {}
+    );
+    return this.client.post<MemoryPolicyAssignment>(backendApiPath(`/memory/policy_assignments`), body, undefined, requestHeaders, 'application/json');
+  }
+
+async retrieve(policyAssignmentId: string, params: MemoryPolicyAssignmentsRetrieveParams): Promise<MemoryPolicyAssignment> {
+    const query = buildQueryString([
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<MemoryPolicyAssignment>(appendQueryString(backendApiPath(`/memory/policy_assignments/${serializePathParameter(policyAssignmentId, { name: 'policyAssignmentId', style: 'simple', explode: false })}`), query));
+  }
+
+async update(policyAssignmentId: string, body: MemoryPolicyAssignmentPatch, params: MemoryPolicyAssignmentsUpdateParams): Promise<MemoryPolicyAssignment> {
+    const query = buildQueryString([
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.patch<MemoryPolicyAssignment>(appendQueryString(backendApiPath(`/memory/policy_assignments/${serializePathParameter(policyAssignmentId, { name: 'policyAssignmentId', style: 'simple', explode: false })}`), query), body, undefined, undefined, 'application/json');
+  }
+
+async delete(policyAssignmentId: string, params: MemoryPolicyAssignmentsDeleteParams): Promise<void> {
+    const query = buildQueryString([
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.delete<void>(appendQueryString(backendApiPath(`/memory/policy_assignments/${serializePathParameter(policyAssignmentId, { name: 'policyAssignmentId', style: 'simple', explode: false })}`), query));
+  }
+}
+
+export interface MemoryPoliciesListParams {
+  q?: string;
+  cursor?: string;
+  pageSize?: number;
+  tenantId: string;
+  policyType?: string;
+  scope?: string;
+}
+
+export interface MemoryPoliciesCreateParams {
+  idempotencyKey?: string;
+}
+
+export interface MemoryPoliciesRetrieveParams {
+  tenantId: string;
+}
+
+export interface MemoryPoliciesUpdateParams {
+  tenantId: string;
+}
+
+export interface MemoryPoliciesDeleteParams {
+  tenantId: string;
+}
+
+export class MemoryPoliciesApi {
+  private client: HttpClient;
+
+  constructor(client: HttpClient) {
+    this.client = client;
+  }
+
+
+async list(params: MemoryPoliciesListParams): Promise<Record<string, unknown>> {
+    const query = buildQueryString([
+      { name: 'q', value: params.q, style: 'form', explode: true, allowReserved: false },
+      { name: 'cursor', value: params.cursor, style: 'form', explode: true, allowReserved: false },
+      { name: 'page_size', value: params.pageSize, style: 'form', explode: true, allowReserved: false },
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+      { name: 'policyType', value: params.policyType, style: 'form', explode: true, allowReserved: false },
+      { name: 'scope', value: params.scope, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<Record<string, unknown>>(appendQueryString(backendApiPath(`/memory/policies`), query));
+  }
+
+async create(body: MemoryPolicyRequest, params?: MemoryPoliciesCreateParams): Promise<MemoryPolicy> {
+    const requestHeaders = buildRequestHeaders(
+      {
+        'Idempotency-Key': { value: params?.idempotencyKey, style: 'simple', explode: false },
+      },
+      {}
+    );
+    return this.client.post<MemoryPolicy>(backendApiPath(`/memory/policies`), body, undefined, requestHeaders, 'application/json');
+  }
+
+async retrieve(policyId: string, params: MemoryPoliciesRetrieveParams): Promise<MemoryPolicy> {
+    const query = buildQueryString([
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<MemoryPolicy>(appendQueryString(backendApiPath(`/memory/policies/${serializePathParameter(policyId, { name: 'policyId', style: 'simple', explode: false })}`), query));
+  }
+
+async update(policyId: string, body: MemoryPolicyPatch, params: MemoryPoliciesUpdateParams): Promise<MemoryPolicy> {
+    const query = buildQueryString([
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.patch<MemoryPolicy>(appendQueryString(backendApiPath(`/memory/policies/${serializePathParameter(policyId, { name: 'policyId', style: 'simple', explode: false })}`), query), body, undefined, undefined, 'application/json');
+  }
+
+async delete(policyId: string, params: MemoryPoliciesDeleteParams): Promise<void> {
+    const query = buildQueryString([
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.delete<void>(appendQueryString(backendApiPath(`/memory/policies/${serializePathParameter(policyId, { name: 'policyId', style: 'simple', explode: false })}`), query));
+  }
+}
+
+export interface MemoryEdgesListParams {
+  q?: string;
+  cursor?: string;
+  pageSize?: number;
+  tenantId: string;
+  spaceId?: string;
+  sourceEntityId?: string;
+  relationType?: string;
+}
+
+export interface MemoryEdgesCreateParams {
+  idempotencyKey?: string;
+}
+
+export interface MemoryEdgesRetrieveParams {
+  tenantId: string;
+}
+
+export interface MemoryEdgesUpdateParams {
+  tenantId: string;
+}
+
+export interface MemoryEdgesDeleteParams {
+  tenantId: string;
+}
+
+export class MemoryEdgesApi {
+  private client: HttpClient;
+
+  constructor(client: HttpClient) {
+    this.client = client;
+  }
+
+
+async list(params: MemoryEdgesListParams): Promise<Record<string, unknown>> {
+    const query = buildQueryString([
+      { name: 'q', value: params.q, style: 'form', explode: true, allowReserved: false },
+      { name: 'cursor', value: params.cursor, style: 'form', explode: true, allowReserved: false },
+      { name: 'page_size', value: params.pageSize, style: 'form', explode: true, allowReserved: false },
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+      { name: 'spaceId', value: params.spaceId, style: 'form', explode: true, allowReserved: false },
+      { name: 'sourceEntityId', value: params.sourceEntityId, style: 'form', explode: true, allowReserved: false },
+      { name: 'relationType', value: params.relationType, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<Record<string, unknown>>(appendQueryString(backendApiPath(`/memory/edges`), query));
+  }
+
+async create(body: MemoryEdgeRequest, params?: MemoryEdgesCreateParams): Promise<MemoryEdge> {
+    const requestHeaders = buildRequestHeaders(
+      {
+        'Idempotency-Key': { value: params?.idempotencyKey, style: 'simple', explode: false },
+      },
+      {}
+    );
+    return this.client.post<MemoryEdge>(backendApiPath(`/memory/edges`), body, undefined, requestHeaders, 'application/json');
+  }
+
+async retrieve(edgeId: string, params: MemoryEdgesRetrieveParams): Promise<MemoryEdge> {
+    const query = buildQueryString([
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<MemoryEdge>(appendQueryString(backendApiPath(`/memory/edges/${serializePathParameter(edgeId, { name: 'edgeId', style: 'simple', explode: false })}`), query));
+  }
+
+async update(edgeId: string, body: MemoryEdgePatch, params: MemoryEdgesUpdateParams): Promise<MemoryEdge> {
+    const query = buildQueryString([
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.patch<MemoryEdge>(appendQueryString(backendApiPath(`/memory/edges/${serializePathParameter(edgeId, { name: 'edgeId', style: 'simple', explode: false })}`), query), body, undefined, undefined, 'application/json');
+  }
+
+async delete(edgeId: string, params: MemoryEdgesDeleteParams): Promise<void> {
+    const query = buildQueryString([
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.delete<void>(appendQueryString(backendApiPath(`/memory/edges/${serializePathParameter(edgeId, { name: 'edgeId', style: 'simple', explode: false })}`), query));
+  }
+}
+
+export interface MemoryEntitiesListParams {
+  q?: string;
+  cursor?: string;
+  pageSize?: number;
+  tenantId: string;
+  spaceId?: string;
+  entityType?: string;
+  status?: string;
+}
+
+export interface MemoryEntitiesCreateParams {
+  idempotencyKey?: string;
+}
+
+export interface MemoryEntitiesRetrieveParams {
+  tenantId: string;
+}
+
+export interface MemoryEntitiesUpdateParams {
+  tenantId: string;
+}
+
+export class MemoryEntitiesApi {
+  private client: HttpClient;
+
+  constructor(client: HttpClient) {
+    this.client = client;
+  }
+
+
+async list(params: MemoryEntitiesListParams): Promise<Record<string, unknown>> {
+    const query = buildQueryString([
+      { name: 'q', value: params.q, style: 'form', explode: true, allowReserved: false },
+      { name: 'cursor', value: params.cursor, style: 'form', explode: true, allowReserved: false },
+      { name: 'page_size', value: params.pageSize, style: 'form', explode: true, allowReserved: false },
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+      { name: 'spaceId', value: params.spaceId, style: 'form', explode: true, allowReserved: false },
+      { name: 'entityType', value: params.entityType, style: 'form', explode: true, allowReserved: false },
+      { name: 'status', value: params.status, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<Record<string, unknown>>(appendQueryString(backendApiPath(`/memory/entities`), query));
+  }
+
+async create(body: MemoryEntityRequest, params?: MemoryEntitiesCreateParams): Promise<MemoryEntity> {
+    const requestHeaders = buildRequestHeaders(
+      {
+        'Idempotency-Key': { value: params?.idempotencyKey, style: 'simple', explode: false },
+      },
+      {}
+    );
+    return this.client.post<MemoryEntity>(backendApiPath(`/memory/entities`), body, undefined, requestHeaders, 'application/json');
+  }
+
+async retrieve(entityId: string, params: MemoryEntitiesRetrieveParams): Promise<MemoryEntity> {
+    const query = buildQueryString([
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<MemoryEntity>(appendQueryString(backendApiPath(`/memory/entities/${serializePathParameter(entityId, { name: 'entityId', style: 'simple', explode: false })}`), query));
+  }
+
+async update(entityId: string, body: MemoryEntityPatch, params: MemoryEntitiesUpdateParams): Promise<MemoryEntity> {
+    const query = buildQueryString([
+      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.patch<MemoryEntity>(appendQueryString(backendApiPath(`/memory/entities/${serializePathParameter(entityId, { name: 'entityId', style: 'simple', explode: false })}`), query), body, undefined, undefined, 'application/json');
+  }
+}
 
 export interface MemoryCapabilitiesResolveParams {
   idempotencyKey?: string;
@@ -16,14 +347,14 @@ export class MemoryCapabilitiesApi {
   }
 
 
-async resolve(body: MemoryResolveCapabilitiesRequest, params?: MemoryCapabilitiesResolveParams): Promise<Record<string, unknown>> {
+async resolve(body: MemoryResolveCapabilitiesRequest, params?: MemoryCapabilitiesResolveParams): Promise<MemoryResolvedCapabilityList> {
     const requestHeaders = buildRequestHeaders(
       {
         'Idempotency-Key': { value: params?.idempotencyKey, style: 'simple', explode: false },
       },
       {}
     );
-    return this.client.post<Record<string, unknown>>(backendApiPath(`/memory/capabilities/resolve`), body, undefined, requestHeaders, 'application/json');
+    return this.client.post<MemoryResolvedCapabilityList>(backendApiPath(`/memory/capabilities/resolve`), body, undefined, requestHeaders, 'application/json');
   }
 }
 
@@ -787,6 +1118,11 @@ export class MemoryApi {
   public readonly bindings: MemoryBindingsApi;
   public readonly capabilityBindings: MemoryCapabilityBindingsApi;
   public readonly capabilities: MemoryCapabilitiesApi;
+  public readonly entities: MemoryEntitiesApi;
+  public readonly edges: MemoryEdgesApi;
+  public readonly policies: MemoryPoliciesApi;
+  public readonly policyAssignments: MemoryPolicyAssignmentsApi;
+  public readonly commercialReadiness: MemoryCommercialReadinessApi;
 
   constructor(client: HttpClient) {
     this.client = client;
@@ -809,6 +1145,11 @@ export class MemoryApi {
     this.bindings = new MemoryBindingsApi(client);
     this.capabilityBindings = new MemoryCapabilityBindingsApi(client);
     this.capabilities = new MemoryCapabilitiesApi(client);
+    this.entities = new MemoryEntitiesApi(client);
+    this.edges = new MemoryEdgesApi(client);
+    this.policies = new MemoryPoliciesApi(client);
+    this.policyAssignments = new MemoryPolicyAssignmentsApi(client);
+    this.commercialReadiness = new MemoryCommercialReadinessApi(client);
   }
 
 

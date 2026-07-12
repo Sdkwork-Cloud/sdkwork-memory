@@ -326,7 +326,7 @@ async fn rebuild_index(
     Path(index_id): Path<u64>,
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
-    created_resource_json(state.api.rebuild_index(context, index_id).await)
+    ok_resource_json(state.api.rebuild_index(context, index_id).await)
 }
 
 async fn list_retrieval_profiles(

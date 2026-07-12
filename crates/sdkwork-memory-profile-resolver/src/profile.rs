@@ -167,6 +167,9 @@ fn native_sql_store_ports() -> Vec<String> {
         "MemoryCandidateStorePort".to_string(),
         "MemoryHabitStorePort".to_string(),
         "MemoryRetrievalTraceStorePort".to_string(),
+        "MemoryGovernanceAccessPort".to_string(),
+        "MemorySpaceStorePort".to_string(),
+        "MemoryRetrieverPort".to_string(),
     ]
     .to_vec()
 }

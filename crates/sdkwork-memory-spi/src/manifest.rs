@@ -141,6 +141,22 @@ impl MemoryPluginManifest {
             "MemoryRetrievalTraceStorePort",
             "retrievalTrace",
         )?;
+        if !self.retriever_kinds.is_empty() {
+            if !self.plugin_roles.contains(&MemoryPluginRole::Retriever) {
+                return Err(MemorySpiError::ManifestInvalid(
+                    "retrieverKinds requires the retriever plugin role".to_string(),
+                ));
+            }
+            if !self
+                .port_exports
+                .iter()
+                .any(|export| export.port == "MemoryRetrieverPort")
+            {
+                return Err(MemorySpiError::ManifestInvalid(
+                    "retrieverKinds requires MemoryRetrieverPort".to_string(),
+                ));
+            }
+        }
 
         Ok(())
     }
@@ -218,6 +234,14 @@ impl MemoryPluginManifest {
                 MemoryPluginPortExport {
                     port: "MemoryRetrievalTraceStorePort".to_string(),
                     builder: "build_native_sql_retrieval_trace_store".to_string(),
+                },
+                MemoryPluginPortExport {
+                    port: "MemoryGovernanceAccessPort".to_string(),
+                    builder: "build_native_sql_governance_access".to_string(),
+                },
+                MemoryPluginPortExport {
+                    port: "MemorySpaceStorePort".to_string(),
+                    builder: "build_native_sql_space_store".to_string(),
                 },
                 MemoryPluginPortExport {
                     port: "MemoryRetrieverPort".to_string(),
@@ -328,6 +352,14 @@ impl MemoryPluginManifest {
                     builder: "build_reference_retrieval_trace_store".to_string(),
                 },
                 MemoryPluginPortExport {
+                    port: "MemoryGovernanceAccessPort".to_string(),
+                    builder: "build_reference_governance_access".to_string(),
+                },
+                MemoryPluginPortExport {
+                    port: "MemorySpaceStorePort".to_string(),
+                    builder: "build_reference_space_store".to_string(),
+                },
+                MemoryPluginPortExport {
                     port: "MemoryRetrieverPort".to_string(),
                     builder: "build_reference_retriever".to_string(),
                 },
@@ -354,12 +386,9 @@ impl MemoryPluginManifest {
                 MemoryProviderKind::ExternalMemory,
             ],
             retriever_kinds: vec![
-                MemoryRetrieverKind::Sql,
                 MemoryRetrieverKind::Keyword,
+                MemoryRetrieverKind::Dictionary,
                 MemoryRetrieverKind::Time,
-                MemoryRetrieverKind::Event,
-                MemoryRetrieverKind::Graph,
-                MemoryRetrieverKind::External,
             ],
             index_kinds: vec![
                 MemoryIndexKind::Sql,

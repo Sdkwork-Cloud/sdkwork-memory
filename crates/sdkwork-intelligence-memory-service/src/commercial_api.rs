@@ -7,23 +7,23 @@
 use sdkwork_memory_contract::{
     BindingKind, CapabilityMode, CapabilityTargetType, CreateBindingCommand,
     CreateCapabilityBindingCommand, CreateEdgeCommand, CreateEntityCommand,
-    CreatePolicyAssignmentCommand, CreatePolicyCommand, CreateSubjectCommand,
-    ListBindingsQuery, ListCapabilityBindingsQuery, ListEdgesQuery, ListEntitiesQuery,
-    ListPoliciesQuery, ListPolicyAssignmentsQuery, ListSubjectsQuery, MemoryBinding,
-    MemoryBindingList, MemoryCapabilityBinding, MemoryCapabilityBindingList,
-    MemoryCommercialReadiness, MemoryEdge, MemoryEdgeList, MemoryEntity, MemoryEntityList,
-    MemoryOpenApiRequestContext, MemoryPolicy, MemoryPolicyAssignment, MemoryPolicyAssignmentList,
-    MemoryPolicyList, MemoryServiceError, MemoryServiceResult, MemorySubject, MemorySubjectList,
-    MemoryResolvedCapabilityList, PolicyAssignmentTargetType, PolicyInheritanceMode,
-    RebuildCommercialReadinessCommand, ResolveCapabilitiesQuery, ResolvedCapability,
-    SubjectType, UpdateEdgeCommand, UpdateEntityCommand,
-    UpdatePolicyAssignmentCommand, UpdatePolicyCommand, UpdateSubjectCommand,
+    CreatePolicyAssignmentCommand, CreatePolicyCommand, CreateSubjectCommand, ListBindingsQuery,
+    ListCapabilityBindingsQuery, ListEdgesQuery, ListEntitiesQuery, ListPoliciesQuery,
+    ListPolicyAssignmentsQuery, ListSubjectsQuery, MemoryBinding, MemoryBindingList,
+    MemoryCapabilityBinding, MemoryCapabilityBindingList, MemoryCommercialReadiness, MemoryEdge,
+    MemoryEdgeList, MemoryEntity, MemoryEntityList, MemoryOpenApiRequestContext, MemoryPolicy,
+    MemoryPolicyAssignment, MemoryPolicyAssignmentList, MemoryPolicyList,
+    MemoryResolvedCapabilityList, MemoryServiceError, MemoryServiceResult, MemorySubject,
+    MemorySubjectList, PolicyAssignmentTargetType, PolicyInheritanceMode,
+    RebuildCommercialReadinessCommand, ResolveCapabilitiesQuery, ResolvedCapability, SubjectType,
+    UpdateEdgeCommand, UpdateEntityCommand, UpdatePolicyAssignmentCommand, UpdatePolicyCommand,
+    UpdateSubjectCommand,
 };
 use sdkwork_memory_plugin_native_sql::{
-    InsertEdgeCommand as StoreInsertEdgeCommand, InsertEntityCommand as StoreInsertEntityCommand,
+    InsertCommercialReadinessCommand, InsertEdgeCommand as StoreInsertEdgeCommand,
+    InsertEntityCommand as StoreInsertEntityCommand,
     InsertPolicyAssignmentCommand as StoreInsertPolicyAssignmentCommand,
-    InsertPolicyCommand as StoreInsertPolicyCommand,
-    InsertCommercialReadinessCommand, InsertSubjectCommand, NativeSqlBindingRow,
+    InsertPolicyCommand as StoreInsertPolicyCommand, InsertSubjectCommand, NativeSqlBindingRow,
     NativeSqlCapabilityBindingRow, NativeSqlCommercialReadinessRow, NativeSqlEdgeRow,
     NativeSqlEntityRow, NativeSqlPolicyAssignmentRow, NativeSqlPolicyRow, NativeSqlSubjectRow,
     UpdateEdgeCommand as StoreUpdateEdgeCommand, UpdateEntityCommand as StoreUpdateEntityCommand,
@@ -54,7 +54,9 @@ impl super::open_api::OpenMemoryService {
             .as_ref()
             .map(serde_json::to_string)
             .transpose()
-            .map_err(|error| MemoryServiceError::storage(format!("metadata serialization failed: {error}")))?;
+            .map_err(|error| {
+                MemoryServiceError::storage(format!("metadata serialization failed: {error}"))
+            })?;
 
         self.store
             .insert_subject(InsertSubjectCommand {
@@ -145,7 +147,9 @@ impl super::open_api::OpenMemoryService {
             .as_ref()
             .map(serde_json::to_string)
             .transpose()
-            .map_err(|error| MemoryServiceError::storage(format!("metadata serialization failed: {error}")))?;
+            .map_err(|error| {
+                MemoryServiceError::storage(format!("metadata serialization failed: {error}"))
+            })?;
 
         let updated = self
             .store
@@ -211,13 +215,19 @@ impl super::open_api::OpenMemoryService {
             .as_ref()
             .map(serde_json::to_string)
             .transpose()
-            .map_err(|error| MemoryServiceError::storage(format!("capability_codes serialization failed: {error}")))?;
+            .map_err(|error| {
+                MemoryServiceError::storage(format!(
+                    "capability_codes serialization failed: {error}"
+                ))
+            })?;
         let metadata_json = cmd
             .metadata
             .as_ref()
             .map(serde_json::to_string)
             .transpose()
-            .map_err(|error| MemoryServiceError::storage(format!("metadata serialization failed: {error}")))?;
+            .map_err(|error| {
+                MemoryServiceError::storage(format!("metadata serialization failed: {error}"))
+            })?;
 
         self.store
             .insert_binding(
@@ -339,7 +349,9 @@ impl super::open_api::OpenMemoryService {
             .as_ref()
             .map(serde_json::to_string)
             .transpose()
-            .map_err(|error| MemoryServiceError::storage(format!("metadata serialization failed: {error}")))?;
+            .map_err(|error| {
+                MemoryServiceError::storage(format!("metadata serialization failed: {error}"))
+            })?;
 
         self.store
             .insert_capability_binding(
@@ -437,7 +449,9 @@ impl super::open_api::OpenMemoryService {
             .map_err(Self::map_store_error)?;
 
         if !deleted {
-            return Err(MemoryServiceError::not_found("capability binding not found"));
+            return Err(MemoryServiceError::not_found(
+                "capability binding not found",
+            ));
         }
         Ok(())
     }
@@ -497,11 +511,18 @@ impl super::open_api::OpenMemoryService {
         context: MemoryOpenApiRequestContext,
         cmd: CreateEntityCommand,
     ) -> MemoryServiceResult<MemoryEntity> {
-        access::assert_actor_can_access_space_for_write(&self.store, &context, cmd.space_id).await?;
+        access::assert_actor_can_access_space_for_write(
+            &self.runtime_data_plane,
+            &context,
+            cmd.space_id,
+        )
+        .await?;
         let tenant_id = platform::tenant_id_i64(cmd.tenant_id)?;
         let space_id = platform::space_id_i64(cmd.space_id)?;
         if cmd.entity_type.trim().is_empty() || cmd.canonical_name.trim().is_empty() {
-            return Err(MemoryServiceError::validation("entityType and canonicalName are required"));
+            return Err(MemoryServiceError::validation(
+                "entityType and canonicalName are required",
+            ));
         }
         assert_memory_text_is_safe(&[("canonicalName", &cmd.canonical_name)])?;
         if let Some(ref aliases) = cmd.aliases {
@@ -553,13 +574,13 @@ impl super::open_api::OpenMemoryService {
             .ok_or_else(|| MemoryServiceError::not_found("entity not found"))?;
         let space_id = u64::try_from(row.space_id.max(0))
             .map_err(|_| MemoryServiceError::storage("space id must be non-negative"))?;
-        access::assert_actor_can_access_space(&self.store, &context, space_id).await?;
-        let actual_owner =
-            access::actual_actor_is_space_owner(&self.store, &context, space_id).await?;
+        let authorization =
+            access::authorize_actor_for_space_access(&self.runtime_data_plane, &context, space_id)
+                .await?;
         access::assert_actor_may_read_entity_sensitivity(
             &context,
             &row.sensitivity_level,
-            actual_owner,
+            authorization.actor_is_space_owner,
         )
         .await?;
         Ok(map_entity_row_to_dto(row))
@@ -572,14 +593,21 @@ impl super::open_api::OpenMemoryService {
     ) -> MemoryServiceResult<MemoryEntityList> {
         let tenant_id = platform::tenant_id_i64(query.tenant_id)?;
         let space_filter = access::require_commercial_list_space_id(&context, query.space_id)?;
-        if let Some(space_id) = space_filter {
-            access::assert_actor_can_access_space(&self.store, &context, space_id).await?;
-        }
+        let authorization = if let Some(space_id) = space_filter {
+            Some(
+                access::authorize_actor_for_space_access(
+                    &self.runtime_data_plane,
+                    &context,
+                    space_id,
+                )
+                .await?,
+            )
+        } else {
+            None
+        };
         let page_size = platform::clamp_page_size(query.page_size);
-        let sensitivity_scope = if let Some(space_id) = space_filter {
-            let actual_owner =
-                access::actual_actor_is_space_owner(&self.store, &context, space_id).await?;
-            access::sensitivity_read_scope(&context, actual_owner)
+        let sensitivity_scope = if let Some(authorization) = authorization {
+            access::sensitivity_read_scope(&context, authorization.actor_is_space_owner)
         } else {
             use sdkwork_memory_plugin_native_sql::{
                 SENSITIVITY_READ_ELEVATED, SENSITIVITY_READ_PUBLIC,
@@ -632,8 +660,12 @@ impl super::open_api::OpenMemoryService {
         let existing = self
             .retrieve_entity(context.clone(), tenant_id, entity_id)
             .await?;
-        access::assert_actor_can_access_space_for_write(&self.store, &context, existing.space_id)
-            .await?;
+        access::assert_actor_can_access_space_for_write(
+            &self.runtime_data_plane,
+            &context,
+            existing.space_id,
+        )
+        .await?;
         let tenant_id_i64 = platform::tenant_id_i64(tenant_id)?;
         if let Some(ref name) = cmd.canonical_name {
             assert_memory_text_is_safe(&[("canonicalName", name)])?;
@@ -684,7 +716,12 @@ impl super::open_api::OpenMemoryService {
         context: MemoryOpenApiRequestContext,
         cmd: CreateEdgeCommand,
     ) -> MemoryServiceResult<MemoryEdge> {
-        access::assert_actor_can_access_space_for_write(&self.store, &context, cmd.space_id).await?;
+        access::assert_actor_can_access_space_for_write(
+            &self.runtime_data_plane,
+            &context,
+            cmd.space_id,
+        )
+        .await?;
         let tenant_id = platform::tenant_id_i64(cmd.tenant_id)?;
         let space_id = platform::space_id_i64(cmd.space_id)?;
         if cmd.relation_type.trim().is_empty() {
@@ -741,7 +778,7 @@ impl super::open_api::OpenMemoryService {
             .ok_or_else(|| MemoryServiceError::not_found("edge not found"))?;
         let space_id = u64::try_from(row.space_id.max(0))
             .map_err(|_| MemoryServiceError::storage("space id must be non-negative"))?;
-        access::assert_actor_can_access_space(&self.store, &context, space_id).await?;
+        access::assert_actor_can_access_space(&self.runtime_data_plane, &context, space_id).await?;
         Ok(map_edge_row_to_dto(row))
     }
 
@@ -753,7 +790,8 @@ impl super::open_api::OpenMemoryService {
         let tenant_id = platform::tenant_id_i64(query.tenant_id)?;
         let space_filter = access::require_commercial_list_space_id(&context, query.space_id)?;
         if let Some(space_id) = space_filter {
-            access::assert_actor_can_access_space(&self.store, &context, space_id).await?;
+            access::assert_actor_can_access_space(&self.runtime_data_plane, &context, space_id)
+                .await?;
         }
         let page_size = platform::clamp_page_size(query.page_size);
         let rows = self
@@ -794,9 +832,15 @@ impl super::open_api::OpenMemoryService {
         edge_id: &str,
         cmd: UpdateEdgeCommand,
     ) -> MemoryServiceResult<MemoryEdge> {
-        let existing = self.retrieve_edge(context.clone(), tenant_id, edge_id).await?;
-        access::assert_actor_can_access_space_for_write(&self.store, &context, existing.space_id)
+        let existing = self
+            .retrieve_edge(context.clone(), tenant_id, edge_id)
             .await?;
+        access::assert_actor_can_access_space_for_write(
+            &self.runtime_data_plane,
+            &context,
+            existing.space_id,
+        )
+        .await?;
         let tenant_id_i64 = platform::tenant_id_i64(tenant_id)?;
         let metadata_json = optional_json_value(cmd.metadata)?;
 
@@ -830,9 +874,15 @@ impl super::open_api::OpenMemoryService {
         tenant_id: u64,
         edge_id: &str,
     ) -> MemoryServiceResult<()> {
-        let existing = self.retrieve_edge(context.clone(), tenant_id, edge_id).await?;
-        access::assert_actor_can_access_space_for_write(&self.store, &context, existing.space_id)
+        let existing = self
+            .retrieve_edge(context.clone(), tenant_id, edge_id)
             .await?;
+        access::assert_actor_can_access_space_for_write(
+            &self.runtime_data_plane,
+            &context,
+            existing.space_id,
+        )
+        .await?;
         let tenant_id_i64 = platform::tenant_id_i64(tenant_id)?;
         let deleted = self
             .store
@@ -855,7 +905,9 @@ impl super::open_api::OpenMemoryService {
     ) -> MemoryServiceResult<MemoryPolicy> {
         let tenant_id = platform::tenant_id_i64(cmd.tenant_id)?;
         if cmd.policy_type.trim().is_empty() || cmd.scope.trim().is_empty() {
-            return Err(MemoryServiceError::validation("policyType and scope are required"));
+            return Err(MemoryServiceError::validation(
+                "policyType and scope are required",
+            ));
         }
         let policy_json = serde_json::to_string(&cmd.policy).map_err(|error| {
             MemoryServiceError::storage(format!("policy serialization failed: {error}"))
@@ -1061,9 +1113,7 @@ impl super::open_api::OpenMemoryService {
             .map(map_policy_assignment_row_to_dto)
             .collect();
         let next_cursor = if has_more {
-            items
-                .last()
-                .map(|item| item.policy_assignment_id.clone())
+            items.last().map(|item| item.policy_assignment_id.clone())
         } else {
             None
         };
@@ -1088,9 +1138,7 @@ impl super::open_api::OpenMemoryService {
                 assignment_id,
                 StoreUpdatePolicyAssignmentCommand {
                     priority: cmd.priority,
-                    inheritance_mode: cmd
-                        .inheritance_mode
-                        .map(policy_inheritance_mode_str),
+                    inheritance_mode: cmd.inheritance_mode.map(policy_inheritance_mode_str),
                     status: cmd.status.as_deref(),
                     valid_from: cmd.valid_from.as_deref(),
                     valid_to: cmd.valid_to.as_deref(),
@@ -1258,14 +1306,18 @@ impl super::open_api::OpenMemoryService {
             policy_count > 0,
             assignment_count > 0,
         ];
-        let contract_score =
-            contract_checks.iter().filter(|&&value| value).count() as f64 / contract_checks.len() as f64;
+        let contract_score = contract_checks.iter().filter(|&&value| value).count() as f64
+            / contract_checks.len() as f64;
         let populated_layers = [subject_count, binding_count, entity_count, edge_count]
             .iter()
             .filter(|&&count| count > 0)
             .count() as f64;
         let data_score = populated_layers / 4.0;
-        let mut runtime_score: f64 = if platform::is_production_like_environment() { 1.0 } else { 0.8 };
+        let mut runtime_score: f64 = if platform::is_production_like_environment() {
+            1.0
+        } else {
+            0.8
+        };
         if platform::is_production_like_environment() {
             if !snowflake_initialized {
                 runtime_score -= 0.5;
@@ -1334,24 +1386,32 @@ impl super::open_api::OpenMemoryService {
             None
         } else {
             Some(serde_json::to_string(&blocking_findings).map_err(|error| {
-                MemoryServiceError::storage(format!("blocking findings serialization failed: {error}"))
+                MemoryServiceError::storage(format!(
+                    "blocking findings serialization failed: {error}"
+                ))
             })?)
         };
         let warning_json = if warning_findings.is_empty() {
             None
         } else {
             Some(serde_json::to_string(&warning_findings).map_err(|error| {
-                MemoryServiceError::storage(format!("warning findings serialization failed: {error}"))
+                MemoryServiceError::storage(format!(
+                    "warning findings serialization failed: {error}"
+                ))
             })?)
         };
         let management_json = serde_json::to_string(&management_coverage).map_err(|error| {
-            MemoryServiceError::storage(format!("management coverage serialization failed: {error}"))
+            MemoryServiceError::storage(format!(
+                "management coverage serialization failed: {error}"
+            ))
         })?;
         let contract_json = serde_json::to_string(&contract_coverage).map_err(|error| {
             MemoryServiceError::storage(format!("contract coverage serialization failed: {error}"))
         })?;
         let runtime_json = serde_json::to_string(&runtime_conformance).map_err(|error| {
-            MemoryServiceError::storage(format!("runtime conformance serialization failed: {error}"))
+            MemoryServiceError::storage(format!(
+                "runtime conformance serialization failed: {error}"
+            ))
         })?;
         let privacy_json = serde_json::to_string(&privacy_coverage).map_err(|error| {
             MemoryServiceError::storage(format!("privacy coverage serialization failed: {error}"))
@@ -1363,11 +1423,16 @@ impl super::open_api::OpenMemoryService {
             MemoryServiceError::storage(format!("sdk coverage serialization failed: {error}"))
         })?;
         let evaluation_json = serde_json::to_string(&evaluation_coverage).map_err(|error| {
-            MemoryServiceError::storage(format!("evaluation coverage serialization failed: {error}"))
+            MemoryServiceError::storage(format!(
+                "evaluation coverage serialization failed: {error}"
+            ))
         })?;
-        let observability_json = serde_json::to_string(&observability_coverage).map_err(|error| {
-            MemoryServiceError::storage(format!("observability coverage serialization failed: {error}"))
-        })?;
+        let observability_json =
+            serde_json::to_string(&observability_coverage).map_err(|error| {
+                MemoryServiceError::storage(format!(
+                    "observability coverage serialization failed: {error}"
+                ))
+            })?;
         let migration_json = serde_json::to_string(&migration_coverage).map_err(|error| {
             MemoryServiceError::storage(format!("migration coverage serialization failed: {error}"))
         })?;
@@ -1452,7 +1517,9 @@ fn map_binding_row_to_dto(row: NativeSqlBindingRow) -> MemoryBinding {
     }
 }
 
-fn map_capability_binding_row_to_dto(row: NativeSqlCapabilityBindingRow) -> MemoryCapabilityBinding {
+fn map_capability_binding_row_to_dto(
+    row: NativeSqlCapabilityBindingRow,
+) -> MemoryCapabilityBinding {
     MemoryCapabilityBinding {
         capability_binding_id: row.uuid,
         tenant_id: row.tenant_id as u64,
@@ -1476,18 +1543,18 @@ fn map_capability_binding_row_to_dto(row: NativeSqlCapabilityBindingRow) -> Memo
 
 fn optional_json_value(value: Option<serde_json::Value>) -> MemoryServiceResult<Option<String>> {
     match value {
-        Some(json) => serde_json::to_string(&json)
-            .map(Some)
-            .map_err(|error| MemoryServiceError::storage(format!("json serialization failed: {error}"))),
+        Some(json) => serde_json::to_string(&json).map(Some).map_err(|error| {
+            MemoryServiceError::storage(format!("json serialization failed: {error}"))
+        }),
         None => Ok(None),
     }
 }
 
 fn optional_json_array(values: Option<Vec<String>>) -> MemoryServiceResult<Option<String>> {
     match values {
-        Some(items) => serde_json::to_string(&items)
-            .map(Some)
-            .map_err(|error| MemoryServiceError::storage(format!("json serialization failed: {error}"))),
+        Some(items) => serde_json::to_string(&items).map(Some).map_err(|error| {
+            MemoryServiceError::storage(format!("json serialization failed: {error}"))
+        }),
         None => Ok(None),
     }
 }

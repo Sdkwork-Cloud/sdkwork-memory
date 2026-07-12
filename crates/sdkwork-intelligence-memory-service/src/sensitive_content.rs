@@ -71,11 +71,8 @@ mod tests {
 
     #[test]
     fn allows_normal_memory_text() {
-        assert_memory_text_is_safe(&[(
-            "canonicalText",
-            "User prefers dark mode in the IDE.",
-        )])
-        .expect("normal text should be accepted");
+        assert_memory_text_is_safe(&[("canonicalText", "User prefers dark mode in the IDE.")])
+            .expect("normal text should be accepted");
     }
 
     #[test]

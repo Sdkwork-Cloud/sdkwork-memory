@@ -421,7 +421,10 @@ impl NativeSqlMemoryStore {
         Ok(result.rows_affected() > 0)
     }
 
-    pub async fn count_policies_for_tenant(&self, tenant_id: i64) -> Result<i64, NativeSqlStoreError> {
+    pub async fn count_policies_for_tenant(
+        &self,
+        tenant_id: i64,
+    ) -> Result<i64, NativeSqlStoreError> {
         let row = sqlx::query(
             r#"
             SELECT COUNT(*) AS total

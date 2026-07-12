@@ -1,6 +1,6 @@
-import type { MemoryRecord } from './memory-record';
+import type { MemoryEdge } from './memory-edge';
 
-export interface MemoriesSupersedeResponse201 {
+export interface EdgesRetrieveResponse {
   code: 0;
   data: unknown & Record<string, unknown>;
   /** Server-owned request correlation id. */

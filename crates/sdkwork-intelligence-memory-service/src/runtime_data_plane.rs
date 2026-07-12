@@ -3,20 +3,26 @@ use std::sync::Arc;
 use sdkwork_memory_contract::{MemoryServiceError, MemoryServiceResult};
 use sdkwork_memory_spi::{
     AppendMemoryAuditCommand, AppendMemoryOutboxCommand, AppendMemoryRetrievalTraceCommand,
-    ApproveMemoryCandidateCommand, AssembleMemoryContextCommand, CreateCanonicalMemoryCommand,
-    CreateMemoryCandidateCommand, CreateMemoryRecordCommand, DecayMemoryHabitCommand,
-    DeleteCanonicalMemoryCommand, DeleteMemoryRecordCommand,
-    ExternalMemoryBridgePort, ListMemoryRetrievalTracesQuery, ListPendingMemoryOutboxQuery,
+    ApproveMemoryCandidateCommand, AssembleMemoryContextCommand, CountActiveMemoryRecordsQuery,
+    CountUserOwnedMemorySpacesQuery, CreateCanonicalMemoryCommand, CreateMemoryCandidateCommand,
+    CreateMemoryRecordCommand, CreateMemorySpaceCommand, DecayMemoryHabitCommand,
+    DeleteCanonicalMemoryCommand, DeleteMemoryRecordCommand, ExternalMemoryBridgePort,
+    ListMemoryCandidatesQuery, ListMemoryRetrievalTracesQuery, ListPendingMemoryOutboxQuery,
     MarkMemoryOutboxFailedCommand, MarkMemoryOutboxPublishedCommand, MemoryAuditRecord,
-    MemoryCandidate, MemoryCanonicalRecord, MemoryContextAssemblerPort, MemoryContextPackDraft,
-    MemoryCoreRuntime, MemoryDeletionReceipt, MemoryHabit, MemoryOutboxEvent, MemoryRecord,
-    MemoryRetrieverPort, MemoryRetrieverResult, MemoryRetrieverSearchResult,
-    MemoryRuntimeProfileMetadata, MemorySpiError,
-    PromoteMemoryHabitCommand, RejectMemoryCandidateCommand, RetrieveCanonicalMemoryQuery,
-    RetrieveMemoryAuditQuery, RetrieveMemoryCandidateQuery, RetrieveMemoryCandidatesCommand,
-    RetrieveMemoryHabitQuery, RetrieveMemoryOutboxQuery, RetrieveMemoryRecordQuery,
-    RetrieveMemoryRetrievalTraceQuery, SearchMemoryCandidatesQuery, UpdateCanonicalMemoryCommand,
-    UpsertMemoryHabitCommand,
+    MemoryCandidate, MemoryCandidateDetail, MemoryCandidatePage, MemoryCandidatePromotion,
+    MemoryCanonicalRecord, MemoryContextAssemblerPort, MemoryContextPackDraft, MemoryCoreRuntime,
+    MemoryDeletionReceipt, MemoryGovernanceAccessPort, MemoryHabit, MemoryOutboxEvent,
+    MemoryRecord, MemoryRecordQuotaAdmission, MemoryRetrieverPort, MemoryRetrieverResult,
+    MemoryRetrieverSearchResult, MemoryRuntimeProfileMetadata, MemorySpaceGovernanceFacts,
+    MemorySpaceQuotaAdmission, MemorySpaceRecord, MemorySpaceStorePort, MemorySpiError,
+    PromoteMemoryCandidateAtomicCommand, PromoteMemoryCandidateAtomicWithJournalCommand,
+    PromoteMemoryHabitCommand, RejectMemoryCandidateCommand, ResolveMemorySpaceGovernanceQuery,
+    RetrieveCanonicalMemoryQuery, RetrieveMemoryAuditQuery, RetrieveMemoryCandidateDetailQuery,
+    RetrieveMemoryCandidateQuery, RetrieveMemoryCandidatesCommand, RetrieveMemoryHabitQuery,
+    RetrieveMemoryOutboxQuery, RetrieveMemoryRecordQuery,
+    RetrieveMemoryRetrievalTraceForTenantQuery, RetrieveMemoryRetrievalTraceQuery,
+    ScopedMemoryRetrievalTrace, SearchMemoryCandidatesQuery, SupersedeCanonicalMemoryAtomicCommand,
+    UpdateCanonicalMemoryCommand, UpsertMemoryHabitCommand,
 };
 use thiserror::Error;
 
@@ -30,6 +36,8 @@ pub const PHASE1_HTTP_DATA_PLANE_PORTS: &[&str] = &[
     "MemoryCandidateStorePort",
     "MemoryHabitStorePort",
     "MemoryRetrievalTraceStorePort",
+    "MemoryGovernanceAccessPort",
+    "MemorySpaceStorePort",
     "MemoryRetrieverPort",
 ];
 
@@ -37,8 +45,13 @@ pub const PHASE1_HTTP_DATA_PLANE_PORTS: &[&str] = &[
 pub enum MemoryRuntimeDataPlaneError {
     #[error("memory runtime profile {profile_id} is missing required data-plane port {port}")]
     MissingRequiredPort { profile_id: String, port: String },
-    #[error("memory runtime profile {profile_id} does not support required capability {capability}")]
-    RequiredCapabilityMissing { profile_id: String, capability: String },
+    #[error(
+        "memory runtime profile {profile_id} does not support required capability {capability}"
+    )]
+    RequiredCapabilityMissing {
+        profile_id: String,
+        capability: String,
+    },
 }
 
 /// Service-facing facade over the typed executable ports selected by a runtime profile.
@@ -77,11 +90,77 @@ impl MemoryRuntimeDataPlane {
                 capability: "canonical_memory_atomic_mutation".to_string(),
             });
         }
+        if !record_store.supports_atomic_record_quota_admission() {
+            return Err(MemoryRuntimeDataPlaneError::RequiredCapabilityMissing {
+                profile_id: runtime.profile().profile_id.clone(),
+                capability: "canonical_memory_atomic_quota_admission".to_string(),
+            });
+        }
+        if !record_store.supports_atomic_supersede() {
+            return Err(MemoryRuntimeDataPlaneError::RequiredCapabilityMissing {
+                profile_id: runtime.profile().profile_id.clone(),
+                capability: "atomic_canonical_supersede".to_string(),
+            });
+        }
+        let candidate_store = runtime
+            .candidate_store()
+            .expect("candidate store was checked above");
+        if !candidate_store.supports_atomic_candidate_promotion() {
+            return Err(MemoryRuntimeDataPlaneError::RequiredCapabilityMissing {
+                profile_id: runtime.profile().profile_id.clone(),
+                capability: "atomic_candidate_promotion".to_string(),
+            });
+        }
+        if !candidate_store.supports_candidate_detail_lookup() {
+            return Err(MemoryRuntimeDataPlaneError::RequiredCapabilityMissing {
+                profile_id: runtime.profile().profile_id.clone(),
+                capability: "tenant_scoped_candidate_detail_lookup".to_string(),
+            });
+        }
+        if !candidate_store.supports_candidate_listing() {
+            return Err(MemoryRuntimeDataPlaneError::RequiredCapabilityMissing {
+                profile_id: runtime.profile().profile_id.clone(),
+                capability: "tenant_scoped_candidate_listing".to_string(),
+            });
+        }
+        if !candidate_store.supports_atomic_candidate_promotion_journal() {
+            return Err(MemoryRuntimeDataPlaneError::RequiredCapabilityMissing {
+                profile_id: runtime.profile().profile_id.clone(),
+                capability: "atomic_candidate_promotion_journal".to_string(),
+            });
+        }
         let retriever = runtime.retriever().expect("retriever was checked above");
         if !retriever.supports_bounded_scoped_search() {
             return Err(MemoryRuntimeDataPlaneError::RequiredCapabilityMissing {
                 profile_id: runtime.profile().profile_id.clone(),
                 capability: "bounded_scope_aware_retrieval".to_string(),
+            });
+        }
+        let trace_store = runtime
+            .retrieval_trace_store()
+            .expect("retrieval trace store was checked above");
+        if !trace_store.supports_tenant_trace_lookup() {
+            return Err(MemoryRuntimeDataPlaneError::RequiredCapabilityMissing {
+                profile_id: runtime.profile().profile_id.clone(),
+                capability: "tenant_scoped_retrieval_trace_lookup".to_string(),
+            });
+        }
+        let governance_access = runtime
+            .governance_access()
+            .expect("governance access port was checked above");
+        if !governance_access.supports_bounded_governance_access() {
+            return Err(MemoryRuntimeDataPlaneError::RequiredCapabilityMissing {
+                profile_id: runtime.profile().profile_id.clone(),
+                capability: "bounded_tenant_scoped_governance_access".to_string(),
+            });
+        }
+        let space_store = runtime
+            .space_store()
+            .expect("space store was checked above");
+        if !space_store.supports_atomic_user_space_quota_admission() {
+            return Err(MemoryRuntimeDataPlaneError::RequiredCapabilityMissing {
+                profile_id: runtime.profile().profile_id.clone(),
+                capability: "atomic_user_space_quota_admission".to_string(),
             });
         }
         Ok(Self { runtime })
@@ -131,6 +210,28 @@ impl MemoryRuntimeDataPlane {
     ) -> MemoryServiceResult<MemoryCanonicalRecord> {
         self.require_record_store()?
             .create_canonical_atomic(command)
+            .await
+            .map_err(map_memory_spi_error)
+    }
+
+    pub async fn create_canonical_memory_atomic_with_quota(
+        &self,
+        command: CreateCanonicalMemoryCommand,
+        max_active_records: u64,
+    ) -> MemoryServiceResult<MemoryRecordQuotaAdmission<MemoryCanonicalRecord>> {
+        self.require_record_store()?
+            .create_canonical_atomic_with_quota(command, max_active_records)
+            .await
+            .map_err(map_memory_spi_error)
+    }
+
+    pub async fn supersede_canonical_memory_atomic_with_quota(
+        &self,
+        command: SupersedeCanonicalMemoryAtomicCommand,
+        max_active_records: u64,
+    ) -> MemoryServiceResult<MemoryRecordQuotaAdmission<MemoryCanonicalRecord>> {
+        self.require_record_store()?
+            .supersede_canonical_atomic_with_quota(command, max_active_records)
             .await
             .map_err(map_memory_spi_error)
     }
@@ -255,6 +356,48 @@ impl MemoryRuntimeDataPlane {
             .map_err(map_memory_spi_error)
     }
 
+    pub async fn retrieve_candidate_detail(
+        &self,
+        query: RetrieveMemoryCandidateDetailQuery,
+    ) -> MemoryServiceResult<Option<MemoryCandidateDetail>> {
+        self.require_candidate_store()?
+            .retrieve_detail(query)
+            .await
+            .map_err(map_memory_spi_error)
+    }
+
+    pub async fn list_candidates(
+        &self,
+        query: ListMemoryCandidatesQuery,
+    ) -> MemoryServiceResult<MemoryCandidatePage> {
+        self.require_candidate_store()?
+            .list_candidates(query)
+            .await
+            .map_err(map_memory_spi_error)
+    }
+
+    pub async fn promote_candidate_atomic_with_quota(
+        &self,
+        command: PromoteMemoryCandidateAtomicCommand,
+        max_active_records: u64,
+    ) -> MemoryServiceResult<MemoryRecordQuotaAdmission<MemoryCandidatePromotion>> {
+        self.require_candidate_store()?
+            .promote_atomic_with_quota(command, max_active_records)
+            .await
+            .map_err(map_memory_spi_error)
+    }
+
+    pub async fn promote_candidate_atomic_with_quota_and_journal(
+        &self,
+        command: PromoteMemoryCandidateAtomicWithJournalCommand,
+        max_active_records: u64,
+    ) -> MemoryServiceResult<MemoryRecordQuotaAdmission<MemoryCandidatePromotion>> {
+        self.require_candidate_store()?
+            .promote_atomic_with_quota_and_journal(command, max_active_records)
+            .await
+            .map_err(map_memory_spi_error)
+    }
+
     pub async fn approve_candidate(
         &self,
         command: ApproveMemoryCandidateCommand,
@@ -335,12 +478,63 @@ impl MemoryRuntimeDataPlane {
             .map_err(map_memory_spi_error)
     }
 
+    pub async fn retrieve_retrieval_trace_for_tenant(
+        &self,
+        query: RetrieveMemoryRetrievalTraceForTenantQuery,
+    ) -> MemoryServiceResult<Option<ScopedMemoryRetrievalTrace>> {
+        self.require_retrieval_trace_store()?
+            .retrieve_for_tenant(query)
+            .await
+            .map_err(map_memory_spi_error)
+    }
+
     pub async fn list_recent_retrieval_traces(
         &self,
         query: ListMemoryRetrievalTracesQuery,
     ) -> MemoryServiceResult<Vec<sdkwork_memory_spi::MemoryRetrievalTrace>> {
         self.require_retrieval_trace_store()?
             .list_recent(query)
+            .await
+            .map_err(map_memory_spi_error)
+    }
+
+    pub async fn resolve_space_governance(
+        &self,
+        query: ResolveMemorySpaceGovernanceQuery,
+    ) -> MemoryServiceResult<MemorySpaceGovernanceFacts> {
+        self.require_governance_access()?
+            .resolve_space_governance(query)
+            .await
+            .map_err(map_memory_spi_error)
+    }
+
+    pub async fn count_active_records(
+        &self,
+        query: CountActiveMemoryRecordsQuery,
+    ) -> MemoryServiceResult<u64> {
+        self.require_governance_access()?
+            .count_active_records(query)
+            .await
+            .map_err(map_memory_spi_error)
+    }
+
+    pub async fn count_user_owned_spaces(
+        &self,
+        query: CountUserOwnedMemorySpacesQuery,
+    ) -> MemoryServiceResult<u64> {
+        self.require_governance_access()?
+            .count_user_owned_spaces(query)
+            .await
+            .map_err(map_memory_spi_error)
+    }
+
+    pub async fn create_space_atomic_with_quota(
+        &self,
+        command: CreateMemorySpaceCommand,
+        max_active_spaces: u64,
+    ) -> MemoryServiceResult<MemorySpaceQuotaAdmission<MemorySpaceRecord>> {
+        self.require_space_store()?
+            .create_space_atomic_with_quota(command, max_active_spaces)
             .await
             .map_err(map_memory_spi_error)
     }
@@ -377,12 +571,10 @@ impl MemoryRuntimeDataPlane {
             .map_err(map_memory_spi_error)
     }
 
-    pub fn external_memory_bridge(
-        &self,
-    ) -> MemoryServiceResult<Arc<dyn ExternalMemoryBridgePort>> {
-        self.runtime.external_memory_bridge().ok_or_else(|| {
-            self.missing_runtime_port("ExternalMemoryBridgePort")
-        })
+    pub fn external_memory_bridge(&self) -> MemoryServiceResult<Arc<dyn ExternalMemoryBridgePort>> {
+        self.runtime
+            .external_memory_bridge()
+            .ok_or_else(|| self.missing_runtime_port("ExternalMemoryBridgePort"))
     }
 
     fn require_record_store(
@@ -437,6 +629,20 @@ impl MemoryRuntimeDataPlane {
         self.runtime
             .retriever()
             .ok_or_else(|| self.missing_runtime_port("MemoryRetrieverPort"))
+    }
+
+    fn require_governance_access(
+        &self,
+    ) -> MemoryServiceResult<Arc<dyn MemoryGovernanceAccessPort>> {
+        self.runtime
+            .governance_access()
+            .ok_or_else(|| self.missing_runtime_port("MemoryGovernanceAccessPort"))
+    }
+
+    fn require_space_store(&self) -> MemoryServiceResult<Arc<dyn MemorySpaceStorePort>> {
+        self.runtime
+            .space_store()
+            .ok_or_else(|| self.missing_runtime_port("MemorySpaceStorePort"))
     }
 
     fn require_context_assembler(
