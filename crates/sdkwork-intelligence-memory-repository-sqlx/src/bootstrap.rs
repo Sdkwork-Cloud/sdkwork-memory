@@ -139,7 +139,7 @@ pub async fn bootstrap_memory_data_plane_from_env() -> Result<MemoryDataPlane, S
 /// in dev/test environments without a persistent database).
 async fn allocate_and_init_snowflake_node(pool: &MemoryDatabasePool) -> Result<(), String> {
     let config = NodeAllocatorConfig::from_service_name("memory-service");
-    match SnowflakeNodeAllocator::allocate_generator(pool, &config).await {
+    match SnowflakeNodeAllocator::allocate_process_generator(pool, &config).await {
         Ok((generator, lease)) => {
             let node_id = generator.node_id();
             tracing::info!(
@@ -153,7 +153,7 @@ async fn allocate_and_init_snowflake_node(pool: &MemoryDatabasePool) -> Result<(
             Ok(())
         }
         Err(error) => {
-            if sdkwork_memory_contract::memory_is_production_like_environment() {
+            if sdkwork_intelligence_memory_service::platform::memory_id_fallback_is_forbidden() {
                 Err(format!(
                     "memory snowflake database node_id allocation failed in production-like environment: {error}"
                 ))

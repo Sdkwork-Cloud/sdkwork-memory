@@ -68,11 +68,11 @@ fn resolve_snowflake_node_id() -> u16 {
     }
 
     // Random node_id to avoid collisions between processes on the same host.
-    rand::thread_rng().gen::<u16>() % max_snowflake_node_id()
+    rand::thread_rng().gen_range(0..=max_snowflake_node_id())
 }
 
 fn id_generator() -> MemoryServiceResult<&'static SnowflakeIdGenerator> {
-    if is_production_like_environment() && ID_GENERATOR.get().is_none() {
+    if memory_id_fallback_is_forbidden() && ID_GENERATOR.get().is_none() {
         return Err(MemoryServiceError::storage(
             "snowflake ID generator is not initialized; database bootstrap must allocate a node_id in production-like environments",
         ));
@@ -116,6 +116,46 @@ pub fn current_timestamp() -> String {
 /// Returns true when the runtime is configured for a production-like environment.
 pub fn is_production_like_environment() -> bool {
     sdkwork_memory_contract::memory_is_production_like_environment()
+}
+
+/// ID generation is stricter than legacy feature environment detection:
+/// unknown or absent release configuration must never enable a random node.
+pub fn memory_id_fallback_is_forbidden() -> bool {
+    let lifecycle = [
+        "SDKWORK_MEMORY_ENVIRONMENT",
+        "SDKWORK_MEMORY_CONFIG_PROFILE",
+        "SDKWORK_CLAW_ENVIRONMENT",
+    ]
+    .into_iter()
+    .find_map(|key| {
+        std::env::var(key)
+            .ok()
+            .map(|value| value.trim().to_ascii_lowercase())
+    });
+    let deployment_is_explicit = [
+        "SDKWORK_MEMORY_DEPLOYMENT_PROFILE",
+        "SDKWORK_CLAW_DEPLOYMENT_PROFILE",
+        "SDKWORK_MEMORY_RUNTIME_TARGET",
+        "SDKWORK_CLAW_RUNTIME_TARGET",
+    ]
+    .into_iter()
+    .any(|key| std::env::var(key).is_ok());
+    memory_id_fallback_policy(
+        lifecycle.as_deref(),
+        deployment_is_explicit,
+        cfg!(debug_assertions),
+    )
+}
+
+fn memory_id_fallback_policy(
+    lifecycle: Option<&str>,
+    deployment_is_explicit: bool,
+    debug_build: bool,
+) -> bool {
+    if let Some(value) = lifecycle {
+        return !matches!(value, "development" | "dev" | "test");
+    }
+    deployment_is_explicit || !debug_build
 }
 
 pub fn deployment_environment_label() -> &'static str {
@@ -174,6 +214,21 @@ pub use sdkwork_utils_rust::{
     cursor_window_page_info, PageInfo, DEFAULT_LIST_PAGE_SIZE as DEFAULT_PAGE_SIZE,
     MAX_LIST_PAGE_SIZE as MAX_PAGE_SIZE,
 };
+
+#[cfg(test)]
+mod id_policy_tests {
+    use super::memory_id_fallback_policy;
+
+    #[test]
+    fn id_fallback_policy_is_explicit_and_release_safe() {
+        assert!(!memory_id_fallback_policy(Some("dev"), true, false));
+        assert!(memory_id_fallback_policy(Some("production"), false, true));
+        assert!(memory_id_fallback_policy(Some("unknown"), false, true));
+        assert!(memory_id_fallback_policy(None, true, true));
+        assert!(memory_id_fallback_policy(None, false, false));
+        assert!(!memory_id_fallback_policy(None, false, true));
+    }
+}
 
 /// Clamps a page size to the platform range \[1, `MAX_PAGE_SIZE`\], defaulting to
 /// `DEFAULT_PAGE_SIZE` when `None`.
