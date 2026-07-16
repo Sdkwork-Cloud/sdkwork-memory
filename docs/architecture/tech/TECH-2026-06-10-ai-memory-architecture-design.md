@@ -1806,7 +1806,7 @@ sdkwork-memory/
     sdkwork-memory-plugin-reference-profiles/
   sdks/
     sdkwork-memory-sdk/
-      .sdkwork-assembly.json
+      sdk-manifest.json
       sdk-manifest.json
       specs/component.spec.json
       openapi/
@@ -1816,7 +1816,7 @@ sdkwork-memory/
         generated/server-openapi/
         composed/
     sdkwork-memory-app-sdk/
-      .sdkwork-assembly.json
+      sdk-manifest.json
       sdk-manifest.json
       specs/component.spec.json
       openapi/
@@ -1826,7 +1826,7 @@ sdkwork-memory/
         generated/server-openapi/
         composed/
     sdkwork-memory-backend-sdk/
-      .sdkwork-assembly.json
+      sdk-manifest.json
       sdk-manifest.json
       specs/component.spec.json
       openapi/
