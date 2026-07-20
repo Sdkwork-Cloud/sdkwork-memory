@@ -87,14 +87,21 @@ async fn remembers_retrieves_and_builds_context_without_embeddings() {
         .await
         .expect("retrieve");
 
-    assert!(retrieval
-        .hits
-        .iter()
-        .any(|hit| hit.retriever_name == "keyword"));
-    assert!(!retrieval
-        .hits
-        .iter()
-        .any(|hit| hit.retriever_name == "vector"));
+    assert!(!retrieval.hits.is_empty());
+    assert!(retrieval.hits.iter().any(|hit| {
+        hit.explanation
+            .as_ref()
+            .and_then(|explanation| explanation["contributingRetrievers"].as_array())
+            .is_some_and(|retrievers| retrievers.iter().any(|name| name == "keyword"))
+    }));
+    assert!(!retrieval.hits.iter().any(|hit| {
+        hit.retriever_name == "vector"
+            || hit
+                .explanation
+                .as_ref()
+                .and_then(|explanation| explanation["contributingRetrievers"].as_array())
+                .is_some_and(|retrievers| retrievers.iter().any(|name| name == "vector"))
+    }));
 
     let pack = service
         .create_context_pack(

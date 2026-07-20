@@ -118,6 +118,7 @@
       "sdkwork_memory_plugin_native_sql::build_native_sql_habit_store",
       "sdkwork_memory_plugin_native_sql::build_native_sql_retrieval_trace_store",
       "sdkwork_memory_plugin_native_sql::build_native_sql_governance_access",
+      "sdkwork_memory_plugin_native_sql::build_native_sql_space_store",
       "sdkwork_memory_plugin_native_sql::build_native_sql_retriever"
     ],
     "routeManifest": null,

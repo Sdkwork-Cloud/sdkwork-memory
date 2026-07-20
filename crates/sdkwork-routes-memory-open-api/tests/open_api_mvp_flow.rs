@@ -65,11 +65,15 @@ async fn open_api_mvp_flow_memory_retrieval_and_context_pack_without_embeddings(
     assert_eq!(retrieval.status(), StatusCode::CREATED);
     let retrieval_body = to_bytes(retrieval.into_body(), usize::MAX).await.unwrap();
     let retrieval_json: serde_json::Value = serde_json::from_slice(&retrieval_body).unwrap();
-    assert!(api_envelope::item(&retrieval_json)["hits"]
+    let hits = api_envelope::item(&retrieval_json)["hits"]
         .as_array()
-        .unwrap()
-        .iter()
-        .any(|hit| hit["retrieverName"] == "keyword"));
+        .expect("retrieval response must contain a hit array");
+    assert!(!hits.is_empty(), "exact lexical query must retrieve memory");
+    assert!(hits.iter().any(|hit| {
+        hit["explanation"]["contributingRetrievers"]
+            .as_array()
+            .is_some_and(|retrievers| retrievers.iter().any(|name| name == "keyword"))
+    }));
 
     let context_pack = app
         .oneshot(

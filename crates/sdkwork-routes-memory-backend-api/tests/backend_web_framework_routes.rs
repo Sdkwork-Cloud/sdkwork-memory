@@ -4,24 +4,24 @@ use axum::http::{Request, StatusCode};
 use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
 use sdkwork_memory_contract::{
     ListAdminResourcesQuery, ListAuditLogsQuery, ListCandidatesQuery, ListEventsQuery,
-    ListMemoriesQuery, ListRetrievalTracesQuery, ListSpacesQuery, MemoryAuditLogList,
-    MemoryBackendApi, MemoryBackendRequestContext, MemoryCandidate, MemoryCandidateList,
-    MemoryEvalRun, MemoryEvalRunList, MemoryEvalRunRequest, MemoryEvent, MemoryEventList,
-    MemoryExtractionRequest, MemoryImplementationProfile, MemoryImplementationProfileList,
-    MemoryImplementationProfileRequest, MemoryIndex, MemoryIndexList, MemoryIndexRequest,
-    MemoryLearningJob, MemoryMigrationJobRequest, MemoryProviderBinding,
-    MemoryProviderBindingList, MemoryProviderBindingRequest, MemoryProviderHealth,
-    MemoryProviderHealthStatus, MemoryRecord, MemoryRecordList, MemoryRecordPatch,
-    MemoryRecordRequest, MemoryRetentionJobRequest, MemoryRetrievalProfile,
-    MemoryRetrievalProfileList, MemoryRetrievalProfileRequest, MemoryRetrievalTrace,
-    MemoryRetrievalTraceList, MemoryReviewRequest, MemoryServiceResult, MemorySpace,
-    MemorySpaceList, MemorySpaceRequest,
-};
-use sdkwork_routes_memory_backend_api::{
-    build_router_with_shared_backend_api, wrap_router_with_iam_database_web_framework,
+    ListJobsQuery, ListMemoriesQuery, ListRetrievalTracesQuery, ListSpacesQuery,
+    MemoryAuditLogList, MemoryBackendApi, MemoryBackendRequestContext, MemoryCandidate,
+    MemoryCandidateList, MemoryEvalRun, MemoryEvalRunList, MemoryEvalRunRequest, MemoryEvent,
+    MemoryEventList, MemoryExtractionRequest, MemoryImplementationProfile,
+    MemoryImplementationProfileList, MemoryImplementationProfileRequest, MemoryIndex,
+    MemoryIndexList, MemoryIndexRequest, MemoryLearningJob, MemoryLearningJobList,
+    MemoryMigrationJobRequest, MemoryProviderBinding, MemoryProviderBindingList,
+    MemoryProviderBindingRequest, MemoryProviderHealth, MemoryProviderHealthStatus, MemoryRecord,
+    MemoryRecordList, MemoryRecordPatch, MemoryRecordRequest, MemoryRetentionJobRequest,
+    MemoryRetrievalProfile, MemoryRetrievalProfileList, MemoryRetrievalProfileRequest,
+    MemoryRetrievalTrace, MemoryRetrievalTraceList, MemoryReviewRequest, MemoryServiceResult,
+    MemorySpace, MemorySpaceList, MemorySpaceRequest,
 };
 use sdkwork_memory_test_support::web_auth::{
     lock_integration_test_env, memory_access_token, memory_auth_token_bearer,
+};
+use sdkwork_routes_memory_backend_api::{
+    build_router_with_shared_backend_api, wrap_router_with_iam_database_web_framework,
 };
 use std::sync::{Arc, Mutex};
 use tower::util::ServiceExt;
@@ -196,6 +196,14 @@ impl MemoryBackendApi for RecordingBackendApi {
         unimplemented!("stub -- not called in web-framework test")
     }
 
+    async fn list_extraction_jobs(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _q: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryLearningJobList> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
     async fn retrieve_extraction_job(
         &self,
         _c: MemoryBackendRequestContext,
@@ -208,6 +216,22 @@ impl MemoryBackendApi for RecordingBackendApi {
         &self,
         _c: MemoryBackendRequestContext,
         _r: MemoryExtractionRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn list_consolidation_jobs(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _q: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryLearningJobList> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn retrieve_consolidation_job(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
     ) -> MemoryServiceResult<MemoryLearningJob> {
         unimplemented!("stub -- not called in web-framework test")
     }
@@ -412,11 +436,35 @@ impl MemoryBackendApi for RecordingBackendApi {
         unimplemented!("stub -- not called in web-framework test")
     }
 
+    async fn list_retention_jobs(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _q: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryLearningJobList> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn retrieve_retention_job(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
     async fn create_migration_job(
         &self,
         _c: MemoryBackendRequestContext,
         _r: MemoryMigrationJobRequest,
     ) -> MemoryServiceResult<MemoryLearningJob> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn list_migration_jobs(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _q: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryLearningJobList> {
         unimplemented!("stub -- not called in web-framework test")
     }
 

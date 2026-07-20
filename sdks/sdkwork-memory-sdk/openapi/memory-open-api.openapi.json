@@ -2441,16 +2441,6 @@
             }
           },
           {
-            "name": "tenantId",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9]+$",
-              "x-sdkwork-int64-string": true
-            }
-          },
-          {
             "name": "spaceId",
             "in": "query",
             "required": false,
@@ -2757,16 +2747,6 @@
               "pattern": "^[0-9]+$",
               "x-sdkwork-int64-string": true
             }
-          },
-          {
-            "name": "tenantId",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9]+$",
-              "x-sdkwork-int64-string": true
-            }
           }
         ],
         "responses": {
@@ -2891,16 +2871,6 @@
           {
             "name": "entityId",
             "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9]+$",
-              "x-sdkwork-int64-string": true
-            }
-          },
-          {
-            "name": "tenantId",
-            "in": "query",
             "required": true,
             "schema": {
               "type": "string",
@@ -3066,16 +3036,6 @@
               "format": "int32",
               "minimum": 1,
               "maximum": 200
-            }
-          },
-          {
-            "name": "tenantId",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9]+$",
-              "x-sdkwork-int64-string": true
             }
           },
           {
@@ -3387,16 +3347,6 @@
               "pattern": "^[0-9]+$",
               "x-sdkwork-int64-string": true
             }
-          },
-          {
-            "name": "tenantId",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9]+$",
-              "x-sdkwork-int64-string": true
-            }
           }
         ],
         "responses": {
@@ -3521,16 +3471,6 @@
           {
             "name": "edgeId",
             "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9]+$",
-              "x-sdkwork-int64-string": true
-            }
-          },
-          {
-            "name": "tenantId",
-            "in": "query",
             "required": true,
             "schema": {
               "type": "string",
@@ -3672,16 +3612,6 @@
           {
             "name": "edgeId",
             "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9]+$",
-              "x-sdkwork-int64-string": true
-            }
-          },
-          {
-            "name": "tenantId",
-            "in": "query",
             "required": true,
             "schema": {
               "type": "string",
@@ -5212,6 +5142,24 @@
           }
         }
       },
+      "MemoryLearningJobList": {
+        "type": "object",
+        "required": [
+          "items",
+          "pageInfo"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryLearningJob"
+            }
+          },
+          "pageInfo": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        }
+      },
       "MemoryRetrievalRequest": {
         "type": "object",
         "required": [
@@ -5887,6 +5835,24 @@
           }
         }
       },
+      "MemoryForgetJobList": {
+        "type": "object",
+        "required": [
+          "items",
+          "pageInfo"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryForgetJob"
+            }
+          },
+          "pageInfo": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        }
+      },
       "MemoryExportRequest": {
         "type": "object",
         "required": [
@@ -5985,6 +5951,24 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "MemoryExportJobList": {
+        "type": "object",
+        "required": [
+          "items",
+          "pageInfo"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryExportJob"
+            }
+          },
+          "pageInfo": {
+            "$ref": "#/components/schemas/PageInfo"
           }
         }
       },
@@ -7203,11 +7187,17 @@
       "MemoryRetentionJobRequest": {
         "type": "object",
         "required": [
-          "scope"
+          "scope",
+          "reason"
         ],
         "properties": {
           "scope": {
             "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
           },
           "spaceId": {
             "anyOf": [
@@ -7252,7 +7242,8 @@
         "required": [
           "sourceImplementationProfileId",
           "targetImplementationProfileId",
-          "mode"
+          "mode",
+          "reason"
         ],
         "properties": {
           "sourceImplementationProfileId": {
@@ -7274,6 +7265,11 @@
               "cutover",
               "rollback"
             ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
           },
           "spaceIds": {
             "anyOf": [
@@ -7402,17 +7398,11 @@
       "MemorySubjectRequest": {
         "type": "object",
         "required": [
-          "tenantId",
           "subjectType",
           "subjectRef",
           "displayName"
         ],
         "properties": {
-          "tenantId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
           "organizationId": {
             "anyOf": [
               {
@@ -7669,16 +7659,10 @@
       "MemoryBindingRequest": {
         "type": "object",
         "required": [
-          "tenantId",
           "bindingKind",
           "bindingRole"
         ],
         "properties": {
-          "tenantId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
           "spaceId": {
             "anyOf": [
               {
@@ -7915,18 +7899,12 @@
       "MemoryCapabilityBindingRequest": {
         "type": "object",
         "required": [
-          "tenantId",
           "capabilityCode",
           "targetType",
           "targetId",
           "mode"
         ],
         "properties": {
-          "tenantId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
           "capabilityCode": {
             "type": "string"
           },
@@ -8077,16 +8055,10 @@
       "MemoryResolveCapabilitiesRequest": {
         "type": "object",
         "required": [
-          "tenantId",
           "targetType",
           "targetId"
         ],
         "properties": {
-          "tenantId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
           "targetType": {
             "type": "string",
             "enum": [
@@ -8181,17 +8153,11 @@
       "MemoryEntityRequest": {
         "type": "object",
         "required": [
-          "tenantId",
           "spaceId",
           "entityType",
           "canonicalName"
         ],
         "properties": {
-          "tenantId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
           "spaceId": {
             "type": "string",
             "pattern": "^[0-9]+$",
@@ -8389,18 +8355,12 @@
       "MemoryEdgeRequest": {
         "type": "object",
         "required": [
-          "tenantId",
           "spaceId",
           "sourceEntityId",
           "targetEntityId",
           "relationType"
         ],
         "properties": {
-          "tenantId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
           "spaceId": {
             "type": "string",
             "pattern": "^[0-9]+$",
@@ -8608,17 +8568,11 @@
       "MemoryPolicyRequest": {
         "type": "object",
         "required": [
-          "tenantId",
           "policyType",
           "scope",
           "policy"
         ],
         "properties": {
-          "tenantId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
           "policyType": {
             "type": "string"
           },
@@ -8804,18 +8758,12 @@
       "MemoryPolicyAssignmentRequest": {
         "type": "object",
         "required": [
-          "tenantId",
           "policyId",
           "targetType",
           "targetId",
           "inheritanceMode"
         ],
         "properties": {
-          "tenantId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
           "policyId": {
             "type": "string",
             "pattern": "^[0-9]+$",
@@ -9106,15 +9054,7 @@
       },
       "MemoryCommercialReadinessRequest": {
         "type": "object",
-        "required": [
-          "tenantId"
-        ],
         "properties": {
-          "tenantId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
           "implementationProfileId": {
             "anyOf": [
               {

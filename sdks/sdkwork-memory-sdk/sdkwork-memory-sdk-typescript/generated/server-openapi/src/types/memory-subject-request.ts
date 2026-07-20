@@ -1,5 +1,4 @@
 export interface MemorySubjectRequest {
-  tenantId: string;
   organizationId?: string | null;
   subjectType: 'tenant' | 'organization' | 'user' | 'application' | 'service';
   subjectRef: string;

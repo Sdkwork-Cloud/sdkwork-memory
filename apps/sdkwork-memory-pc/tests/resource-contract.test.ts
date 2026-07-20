@@ -26,6 +26,35 @@ describe("Memory resource contracts", () => {
     await source?.load({ q: "policy", cursor: "opaque", pageSize: 20 });
     expect(list).toHaveBeenCalledWith({ q: "policy", cursor: "opaque", pageSize: 20 });
   });
+
+  it("exposes guarded Console mutations through the App SDK registry", async () => {
+    const create = vi.fn().mockResolvedValue({ spaceId: "space-1" });
+    const client = { memory: { spaces: { create, list: vi.fn() } } } as unknown as MemoryConsoleSdkClient;
+    const actions = createMemoryConsoleResourceRegistry(client).spaces?.actions ?? [];
+    const createAction = actions.find((action) => action.id === "create");
+    expect(createAction?.requireIdempotencyKey).toBe(true);
+    await createAction?.execute({ body: { ownerSubjectType: "user", ownerSubjectId: "u1", spaceType: "personal", displayName: "Personal" }, idempotencyKey: "request-1" });
+    expect(create).toHaveBeenCalledWith(expect.not.objectContaining({ tenantId: expect.anything() }), { idempotencyKey: "request-1" });
+  });
+
+  it("marks DELETE mutations as selection and confirmation guarded without fake audit input", () => {
+    const client = { memory: { subjects: { list: vi.fn() } } } as unknown as MemoryAdminSdkClient;
+    const actions = createMemoryAdminResourceRegistry(client).subjects?.actions ?? [];
+    const deleteAction = actions.find((action) => action.id === "delete");
+    expect(deleteAction).toMatchObject({ dangerous: true, requiresSelection: true });
+    expect(deleteAction?.requireAuditReason).not.toBe(true);
+  });
+
+  it("binds destructive command audit reasons to the typed request field", () => {
+    const client = { memory: { retentionJobs: { list: vi.fn(), create: vi.fn() } } } as unknown as MemoryAdminSdkClient;
+    const actions = createMemoryAdminResourceRegistry(client).retentionJobs?.actions ?? [];
+    expect(actions.find((action) => action.id === "create")).toMatchObject({
+      auditReasonField: "reason",
+      dangerous: true,
+      requireAuditReason: true,
+      requireIdempotencyKey: true,
+    });
+  });
 });
 
 describe("Memory route permission hints", () => {

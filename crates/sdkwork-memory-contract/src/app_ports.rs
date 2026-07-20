@@ -1,10 +1,11 @@
 use async_trait::async_trait;
 
 use crate::dto::{
-    ListCandidatesQuery, ListHabitsQuery, ListMemoriesQuery, ListMemorySourcesQuery, MemoryCandidate, MemoryCandidateList,
-    MemoryContextPack, MemoryContextPackRequest, MemoryEvent, MemoryEventRequest, MemoryExportJob,
-    MemoryExportRequest, MemoryExtractionRequest, MemoryFeedback, MemoryFeedbackRequest,
-    MemoryForgetJob, MemoryForgetRequest, MemoryHabit, MemoryHabitList, MemoryHabitRequest,
+    ListCandidatesQuery, ListHabitsQuery, ListJobsQuery, ListMemoriesQuery, ListMemorySourcesQuery,
+    MemoryCandidate, MemoryCandidateList, MemoryContextPack, MemoryContextPackRequest, MemoryEvent,
+    MemoryEventRequest, MemoryExportJob, MemoryExportJobList, MemoryExportRequest,
+    MemoryExtractionRequest, MemoryFeedback, MemoryFeedbackRequest, MemoryForgetJob,
+    MemoryForgetJobList, MemoryForgetRequest, MemoryHabit, MemoryHabitList, MemoryHabitRequest,
     MemoryLearningJob, MemoryLearningSettings, MemoryLearningSettingsPatch, MemoryRecord,
     MemoryRecordList, MemoryRecordPatch, MemoryRecordRequest, MemoryRecordSourceList,
     MemoryRetrievalRequest, MemoryRetrievalResult, MemoryReviewRequest,
@@ -106,6 +107,12 @@ pub trait MemoryAppApi: Send + Sync + 'static {
         context: MemoryAppRequestContext,
         request: MemoryForgetRequest,
     ) -> MemoryServiceResult<MemoryForgetJob>;
+
+    async fn list_forget_requests(
+        &self,
+        context: MemoryAppRequestContext,
+        query: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryForgetJobList>;
 
     async fn retrieve_forget_request(
         &self,
@@ -213,6 +220,12 @@ pub trait MemoryAppApi: Send + Sync + 'static {
         context: MemoryAppRequestContext,
         request: MemoryExportRequest,
     ) -> MemoryServiceResult<MemoryExportJob>;
+
+    async fn list_export_jobs(
+        &self,
+        context: MemoryAppRequestContext,
+        query: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryExportJobList>;
 
     async fn retrieve_export_job(
         &self,

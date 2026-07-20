@@ -9,10 +9,10 @@ use crate::admin_dto::{
     MemoryRetrievalProfileRequest,
 };
 use crate::dto::{
-    ListAuditLogsQuery, ListCandidatesQuery, ListEventsQuery, ListMemoriesQuery,
+    ListAuditLogsQuery, ListCandidatesQuery, ListEventsQuery, ListJobsQuery, ListMemoriesQuery,
     ListRetrievalTracesQuery, MemoryCandidate, MemoryCandidateList, MemoryEvent, MemoryEventList,
-    MemoryExtractionRequest, MemoryLearningJob, MemoryProviderHealth, MemoryRecord,
-    MemoryRecordList, MemoryRecordPatch, MemoryRecordRequest, MemoryRetrievalTrace,
+    MemoryExtractionRequest, MemoryLearningJob, MemoryLearningJobList, MemoryProviderHealth,
+    MemoryRecord, MemoryRecordList, MemoryRecordPatch, MemoryRecordRequest, MemoryRetrievalTrace,
     MemoryRetrievalTraceList, MemoryReviewRequest,
 };
 use crate::ports::MemoryServiceResult;
@@ -112,6 +112,12 @@ pub trait MemoryBackendApi: Send + Sync + 'static {
         request: MemoryExtractionRequest,
     ) -> MemoryServiceResult<MemoryLearningJob>;
 
+    async fn list_extraction_jobs(
+        &self,
+        context: MemoryBackendRequestContext,
+        query: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryLearningJobList>;
+
     async fn retrieve_extraction_job(
         &self,
         context: MemoryBackendRequestContext,
@@ -122,6 +128,18 @@ pub trait MemoryBackendApi: Send + Sync + 'static {
         &self,
         context: MemoryBackendRequestContext,
         request: MemoryExtractionRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob>;
+
+    async fn list_consolidation_jobs(
+        &self,
+        context: MemoryBackendRequestContext,
+        query: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryLearningJobList>;
+
+    async fn retrieve_consolidation_job(
+        &self,
+        context: MemoryBackendRequestContext,
+        job_id: u64,
     ) -> MemoryServiceResult<MemoryLearningJob>;
 
     async fn list_indexes(
@@ -271,11 +289,29 @@ pub trait MemoryBackendApi: Send + Sync + 'static {
         request: MemoryRetentionJobRequest,
     ) -> MemoryServiceResult<MemoryLearningJob>;
 
+    async fn list_retention_jobs(
+        &self,
+        context: MemoryBackendRequestContext,
+        query: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryLearningJobList>;
+
+    async fn retrieve_retention_job(
+        &self,
+        context: MemoryBackendRequestContext,
+        retention_job_id: u64,
+    ) -> MemoryServiceResult<MemoryLearningJob>;
+
     async fn create_migration_job(
         &self,
         context: MemoryBackendRequestContext,
         request: MemoryMigrationJobRequest,
     ) -> MemoryServiceResult<MemoryLearningJob>;
+
+    async fn list_migration_jobs(
+        &self,
+        context: MemoryBackendRequestContext,
+        query: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryLearningJobList>;
 
     async fn retrieve_migration_job(
         &self,

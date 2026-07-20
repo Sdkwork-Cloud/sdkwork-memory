@@ -47,11 +47,18 @@
   "runtime": {
     "family": "web",
     "framework": "react",
-    "runtimes": ["WEB", "BROWSER"],
-    "deliveryModes": ["WEB_URL"],
+    "runtimes": [
+      "WEB",
+      "BROWSER"
+    ],
+    "deliveryModes": [
+      "WEB_URL"
+    ],
     "defaultPlatform": "WEB",
     "defaultArchitecture": "universal",
-    "supportedDeploymentProfiles": ["cloud"],
+    "supportedDeploymentProfiles": [
+      "cloud"
+    ],
     "defaultDeploymentProfile": "cloud"
   },
   "media": {
@@ -90,33 +97,48 @@
         "caption": "SDKWork Memory operations workspace.",
         "sortOrder": 0,
         "enabled": true,
-        "metadata": { "altText": "SDKWork Memory console and admin workspace." }
+        "metadata": {
+          "altText": "SDKWork Memory console and admin workspace."
+        }
       }
     ],
-    "metadata": { "assetVersion": "0.1.0", "defaultLocale": "en-US" }
+    "metadata": {
+      "assetVersion": "0.1.0",
+      "defaultLocale": "en-US"
+    }
   },
   "publish": {
     "status": "DRAFT",
-    "installSkill": { "name": "sdkwork-skills-app" },
-    "platforms": ["WEB"],
-    "installPlatforms": ["WEB"],
-    "defaultPackageId": "web-universal-cloud-browser-other",
+    "installSkill": {
+      "name": "sdkwork-skills-app"
+    },
+    "platforms": [
+      "WEB"
+    ],
+    "installPlatforms": [
+      "WEB"
+    ],
+    "defaultPackageId": "web-universal-cloud-browser-zip",
     "storeUrl": "https://sdkwork.com/apps/sdkwork-memory-pc",
     "stores": [],
-    "config": { "workspaceRoot": "apps/sdkwork-memory-pc", "framework": "react", "managedBy": "sdkwork-memory" }
+    "config": {
+      "workspaceRoot": "apps/sdkwork-memory-pc",
+      "framework": "react",
+      "managedBy": "sdkwork-memory"
+    }
   },
   "artifacts": {
     "installConfig": {
-      "defaultPackageId": "web-universal-cloud-browser-other",
+      "defaultPackageId": "web-universal-cloud-browser-zip",
       "installCommand": "sdkwork install sdkwork-memory-pc",
       "launchCommand": "sdkwork open sdkwork-memory-pc",
       "uninstallCommand": "sdkwork uninstall sdkwork-memory-pc",
       "packages": [
         {
-          "id": "web-universal-cloud-browser-other",
-          "name": "SDKWork Memory PC Web",
-          "sourceType": "WEB_URL",
-          "packageFormat": "OTHER",
+          "id": "web-universal-cloud-browser-zip",
+          "name": "SDKWork Memory PC Web Release",
+          "sourceType": "BINARY_URL",
+          "packageFormat": "ZIP",
           "platform": "WEB",
           "architecture": "universal",
           "profileBinding": "fixed",
@@ -124,18 +146,33 @@
           "runtimeTarget": "browser",
           "targetPlatform": "web",
           "clientArchitecture": "pc-web",
-          "url": "https://memory.sdkwork.com",
-          "enabled": false,
-          "metadata": { "releaseBuildDeferred": true }
+          "url": "https://github.com/Sdkwork-Cloud/sdkwork-memory/releases/download/v0.1.0/sdkwork-memory-pc-0.1.0-web-universal-cloud-browser.zip",
+          "enabled": true,
+          "metadata": {
+            "signatureState": "pending-ci-attestation",
+            "publicationState": "reserved-release-url",
+            "artifactFileName": "sdkwork-memory-pc-0.1.0-web-universal-cloud-browser.zip",
+            "sbomPath": "deployments/artifacts/pc/sdkwork-memory-pc-0.1.0-web-universal-cloud-browser.zip.sbom.spdx.json",
+            "provenancePath": "deployments/artifacts/pc/sdkwork-memory-pc-0.1.0-web-universal-cloud-browser.zip.provenance.json"
+          },
+          "checksumAlgorithm": "SHA-256",
+          "checksum": "87a7bcf580aa3a08e96b21e033b430c67e0251229726e55fb62a18ab7bece3c5",
+          "sizeBytes": 284944
         }
       ],
-      "metadata": { "workspaceRoot": "apps/sdkwork-memory-pc", "framework": "react", "packageManager": "pnpm@10.33.0" }
+      "metadata": {
+        "workspaceRoot": "apps/sdkwork-memory-pc",
+        "framework": "react",
+        "packageManager": "pnpm@10.33.0"
+      }
     }
   },
   "release": {
     "currentVersion": "0.1.0",
     "defaultChannel": "DEV",
-    "latest": { "DEV": "0.1.0" },
+    "latest": {
+      "DEV": "0.1.0"
+    },
     "notes": [
       {
         "version": "0.1.0",
@@ -143,21 +180,56 @@
         "title": "SDKWork Memory PC 0.1.0",
         "summary": "Initial Memory Console and backend-admin PC application.",
         "content": "Introduces isolated user console and internal operations surfaces for SDKWork Memory.",
-        "highlights": ["User-owned memory controls", "Operator governance and observability", "Strict App SDK and Backend SDK isolation"],
-        "packageIds": ["web-universal-cloud-browser-other"],
+        "highlights": [
+          "User-owned memory controls",
+          "Operator governance and observability",
+          "Strict App SDK and Backend SDK isolation"
+        ],
+        "packageIds": [
+          "web-universal-cloud-browser-zip"
+        ],
         "publishedAt": "2026-07-20T00:00:00Z",
         "current": true,
         "forceUpdate": false,
         "minSupportedVersion": "0.1.0",
-        "metadata": { "releaseState": "development" }
+        "metadata": {
+          "releaseState": "development"
+        }
       }
     ]
   },
-  "security": { "checksumRequired": true, "signatureRequired": true, "sbomRequired": true },
+  "security": {
+    "checksumRequired": true,
+    "signatureRequired": true,
+    "sbomRequired": true
+  },
   "devApp": {
     "enabled": true,
-    "sourceRoot": "apps/sdkwork-memory-pc",
-    "build": { "targets": [{ "id": "web-production", "command": "pnpm build", "outputs": ["dist"] }] }
+    "sourceRoot": ".",
+    "build": {
+      "targets": [
+        {
+          "id": "web-production",
+          "command": "pnpm build",
+          "cwd": ".",
+          "packageId": "web-universal-cloud-browser-zip",
+          "outputs": [
+            {
+              "path": "dist",
+              "type": "directory",
+              "archive": "zip",
+              "fileName": "sdkwork-memory-pc-0.1.0-web-universal-cloud-browser.zip"
+            }
+          ]
+        }
+      ]
+    }
   },
-  "metadata": { "standardOwner": "sdkwork-platform", "component": "sdkwork-memory-pc", "surface": "pc", "initializedAt": "2026-07-20T00:00:00Z", "deploymentConfig": "etc/sdkwork.deployment.config.json" }
+  "metadata": {
+    "standardOwner": "sdkwork-platform",
+    "component": "sdkwork-memory-pc",
+    "surface": "pc",
+    "initializedAt": "2026-07-20T00:00:00Z",
+    "deploymentConfig": "etc/sdkwork.deployment.config.json"
+  }
 }

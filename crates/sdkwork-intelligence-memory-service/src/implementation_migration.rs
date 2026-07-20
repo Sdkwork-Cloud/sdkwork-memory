@@ -179,6 +179,7 @@ mod tests {
             source_implementation_profile_id: 1,
             target_implementation_profile_id: 2,
             mode: mode.to_string(),
+            reason: "migration contract test".to_string(),
             space_ids: None,
             dry_run: None,
             metadata: None,

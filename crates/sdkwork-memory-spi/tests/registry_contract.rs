@@ -15,7 +15,7 @@ fn registry_registers_plugins_and_finds_implementation_kinds() {
 }
 
 #[test]
-fn registry_registers_phase1_baseline_plugins_for_every_implementation_kind() {
+fn registry_registers_only_materialized_phase1_implementation_kinds() {
     let mut registry = MemoryPluginRegistry::default();
     for manifest in MemoryPluginManifest::phase1_baseline_manifests_for_test() {
         registry.register(manifest).unwrap();
@@ -24,8 +24,19 @@ fn registry_registers_phase1_baseline_plugins_for_every_implementation_kind() {
     for implementation_kind in [
         MemoryImplementationKind::NativeSql,
         MemoryImplementationKind::LocalEmbedded,
-        MemoryImplementationKind::EventSourced,
         MemoryImplementationKind::SearchFirst,
+    ] {
+        assert_eq!(
+            registry
+                .plugins_for_implementation(implementation_kind.clone())
+                .len(),
+            1,
+            "expected exactly one phase1 baseline plugin for {implementation_kind:?}"
+        );
+    }
+
+    for implementation_kind in [
+        MemoryImplementationKind::EventSourced,
         MemoryImplementationKind::GraphTemporal,
         MemoryImplementationKind::ExternalProviderBridge,
         MemoryImplementationKind::HybridPlatform,
@@ -34,8 +45,8 @@ fn registry_registers_phase1_baseline_plugins_for_every_implementation_kind() {
             registry
                 .plugins_for_implementation(implementation_kind.clone())
                 .len(),
-            1,
-            "expected exactly one phase1 baseline plugin for {implementation_kind:?}"
+            0,
+            "unimplemented family {implementation_kind:?} must not resolve to a baseline plugin"
         );
     }
 }

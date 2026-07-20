@@ -1,5 +1,4 @@
 export interface MemoryCapabilityBindingRequest {
-  tenantId: string;
   capabilityCode: string;
   targetType: 'subject' | 'space' | 'binding' | 'memory';
   targetId: string;

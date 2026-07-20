@@ -1768,6 +1768,155 @@
       }
     },
     "/app/v3/api/memory/forget_requests": {
+      "get": {
+        "operationId": "forgetRequests.list",
+        "tags": [
+          "memory"
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SdkWorkApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "data"
+                      ],
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "items",
+                            "pageInfo"
+                          ],
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/MemoryForgetJob"
+                              }
+                            },
+                            "pageInfo": {
+                              "$ref": "#/components/schemas/PageInfo"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem detail",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem detail",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem detail",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem detail",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem detail",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Problem detail",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AuthToken": [],
+            "AccessToken": []
+          }
+        ],
+        "x-sdkwork-owner": "sdkwork-memory",
+        "x-sdkwork-api-authority": "sdkwork-memory.app",
+        "x-sdkwork-api-surface": "app-api",
+        "x-sdkwork-request-context": "WebRequestContext",
+        "x-sdkwork-domain": "intelligence",
+        "x-sdkwork-resource": "forgetRequests",
+        "x-sdkwork-permission": "memory.forget.read",
+        "x-sdkwork-tenant-scope": "tenant",
+        "x-sdkwork-data-scope": "owner",
+        "x-sdkwork-auth-mode": "dual-token",
+        "x-sdkwork-audit-event": "memory.forget.list",
+        "x-sdkwork-idempotent": false
+      },
       "post": {
         "operationId": "forgetRequests.create",
         "tags": [
@@ -4241,6 +4390,155 @@
       }
     },
     "/app/v3/api/memory/export_jobs": {
+      "get": {
+        "operationId": "exportJobs.list",
+        "tags": [
+          "memory"
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/SdkWorkApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "data"
+                      ],
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "items",
+                            "pageInfo"
+                          ],
+                          "properties": {
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "$ref": "#/components/schemas/MemoryExportJob"
+                              }
+                            },
+                            "pageInfo": {
+                              "$ref": "#/components/schemas/PageInfo"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Problem detail",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Problem detail",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Problem detail",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Problem detail",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Problem detail",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Problem detail",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "AuthToken": [],
+            "AccessToken": []
+          }
+        ],
+        "x-sdkwork-owner": "sdkwork-memory",
+        "x-sdkwork-api-authority": "sdkwork-memory.app",
+        "x-sdkwork-api-surface": "app-api",
+        "x-sdkwork-request-context": "WebRequestContext",
+        "x-sdkwork-domain": "intelligence",
+        "x-sdkwork-resource": "exportJobs",
+        "x-sdkwork-permission": "memory.exports.read",
+        "x-sdkwork-tenant-scope": "tenant",
+        "x-sdkwork-data-scope": "owner",
+        "x-sdkwork-auth-mode": "dual-token",
+        "x-sdkwork-audit-event": "memory.export.list",
+        "x-sdkwork-idempotent": false
+      },
       "post": {
         "operationId": "exportJobs.create",
         "tags": [
@@ -4805,16 +5103,6 @@
             }
           },
           {
-            "name": "tenantId",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9]+$",
-              "x-sdkwork-int64-string": true
-            }
-          },
-          {
             "name": "spaceId",
             "in": "query",
             "required": false,
@@ -5114,16 +5402,6 @@
               "pattern": "^[0-9]+$",
               "x-sdkwork-int64-string": true
             }
-          },
-          {
-            "name": "tenantId",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9]+$",
-              "x-sdkwork-int64-string": true
-            }
           }
         ],
         "responses": {
@@ -5249,16 +5527,6 @@
           {
             "name": "entityId",
             "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9]+$",
-              "x-sdkwork-int64-string": true
-            }
-          },
-          {
-            "name": "tenantId",
-            "in": "query",
             "required": true,
             "schema": {
               "type": "string",
@@ -5424,16 +5692,6 @@
               "format": "int32",
               "minimum": 1,
               "maximum": 200
-            }
-          },
-          {
-            "name": "tenantId",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9]+$",
-              "x-sdkwork-int64-string": true
             }
           }
         ],
@@ -5712,16 +5970,6 @@
           {
             "name": "policyAssignmentId",
             "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "pattern": "^[0-9]+$",
-              "x-sdkwork-int64-string": true
-            }
-          },
-          {
-            "name": "tenantId",
-            "in": "query",
             "required": true,
             "schema": {
               "type": "string",
@@ -7292,6 +7540,24 @@
           }
         }
       },
+      "MemoryLearningJobList": {
+        "type": "object",
+        "required": [
+          "items",
+          "pageInfo"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryLearningJob"
+            }
+          },
+          "pageInfo": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        }
+      },
       "MemoryRetrievalRequest": {
         "type": "object",
         "required": [
@@ -7967,6 +8233,24 @@
           }
         }
       },
+      "MemoryForgetJobList": {
+        "type": "object",
+        "required": [
+          "items",
+          "pageInfo"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryForgetJob"
+            }
+          },
+          "pageInfo": {
+            "$ref": "#/components/schemas/PageInfo"
+          }
+        }
+      },
       "MemoryExportRequest": {
         "type": "object",
         "required": [
@@ -8065,6 +8349,24 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "MemoryExportJobList": {
+        "type": "object",
+        "required": [
+          "items",
+          "pageInfo"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MemoryExportJob"
+            }
+          },
+          "pageInfo": {
+            "$ref": "#/components/schemas/PageInfo"
           }
         }
       },
@@ -9283,11 +9585,17 @@
       "MemoryRetentionJobRequest": {
         "type": "object",
         "required": [
-          "scope"
+          "scope",
+          "reason"
         ],
         "properties": {
           "scope": {
             "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
           },
           "spaceId": {
             "anyOf": [
@@ -9332,7 +9640,8 @@
         "required": [
           "sourceImplementationProfileId",
           "targetImplementationProfileId",
-          "mode"
+          "mode",
+          "reason"
         ],
         "properties": {
           "sourceImplementationProfileId": {
@@ -9354,6 +9663,11 @@
               "cutover",
               "rollback"
             ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
           },
           "spaceIds": {
             "anyOf": [
@@ -9482,17 +9796,11 @@
       "MemorySubjectRequest": {
         "type": "object",
         "required": [
-          "tenantId",
           "subjectType",
           "subjectRef",
           "displayName"
         ],
         "properties": {
-          "tenantId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
           "organizationId": {
             "anyOf": [
               {
@@ -9749,16 +10057,10 @@
       "MemoryBindingRequest": {
         "type": "object",
         "required": [
-          "tenantId",
           "bindingKind",
           "bindingRole"
         ],
         "properties": {
-          "tenantId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
           "spaceId": {
             "anyOf": [
               {
@@ -9995,18 +10297,12 @@
       "MemoryCapabilityBindingRequest": {
         "type": "object",
         "required": [
-          "tenantId",
           "capabilityCode",
           "targetType",
           "targetId",
           "mode"
         ],
         "properties": {
-          "tenantId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
           "capabilityCode": {
             "type": "string"
           },
@@ -10157,16 +10453,10 @@
       "MemoryResolveCapabilitiesRequest": {
         "type": "object",
         "required": [
-          "tenantId",
           "targetType",
           "targetId"
         ],
         "properties": {
-          "tenantId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
           "targetType": {
             "type": "string",
             "enum": [
@@ -10261,17 +10551,11 @@
       "MemoryEntityRequest": {
         "type": "object",
         "required": [
-          "tenantId",
           "spaceId",
           "entityType",
           "canonicalName"
         ],
         "properties": {
-          "tenantId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
           "spaceId": {
             "type": "string",
             "pattern": "^[0-9]+$",
@@ -10469,18 +10753,12 @@
       "MemoryEdgeRequest": {
         "type": "object",
         "required": [
-          "tenantId",
           "spaceId",
           "sourceEntityId",
           "targetEntityId",
           "relationType"
         ],
         "properties": {
-          "tenantId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
           "spaceId": {
             "type": "string",
             "pattern": "^[0-9]+$",
@@ -10688,17 +10966,11 @@
       "MemoryPolicyRequest": {
         "type": "object",
         "required": [
-          "tenantId",
           "policyType",
           "scope",
           "policy"
         ],
         "properties": {
-          "tenantId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
           "policyType": {
             "type": "string"
           },
@@ -10884,18 +11156,12 @@
       "MemoryPolicyAssignmentRequest": {
         "type": "object",
         "required": [
-          "tenantId",
           "policyId",
           "targetType",
           "targetId",
           "inheritanceMode"
         ],
         "properties": {
-          "tenantId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
           "policyId": {
             "type": "string",
             "pattern": "^[0-9]+$",
@@ -11186,15 +11452,7 @@
       },
       "MemoryCommercialReadinessRequest": {
         "type": "object",
-        "required": [
-          "tenantId"
-        ],
         "properties": {
-          "tenantId": {
-            "type": "string",
-            "pattern": "^[0-9]+$",
-            "x-sdkwork-int64-string": true
-          },
           "implementationProfileId": {
             "anyOf": [
               {

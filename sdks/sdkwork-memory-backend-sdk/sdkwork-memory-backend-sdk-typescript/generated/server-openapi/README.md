@@ -15,10 +15,10 @@ pnpm add @sdkwork/memory-backend-sdk
 ## Quick Start
 
 ```typescript
-import { SdkworkBackendClient } from '@sdkwork/memory-backend-sdk';
+import { SdkworkMemoryBackendClient } from '@sdkwork/memory-backend-sdk';
 
-const client = new SdkworkBackendClient({
-  baseUrl: 'http://localhost:8080',
+const client = new SdkworkMemoryBackendClient({
+  baseUrl: 'https://api.sdkwork.com',
   timeout: 30000,
 });
 
@@ -41,10 +41,10 @@ Access-Token: <accessToken>
 ## Configuration (Non-Auth)
 
 ```typescript
-import { SdkworkBackendClient } from '@sdkwork/memory-backend-sdk';
+import { SdkworkMemoryBackendClient } from '@sdkwork/memory-backend-sdk';
 
-const client = new SdkworkBackendClient({
-  baseUrl: 'http://localhost:8080',
+const client = new SdkworkMemoryBackendClient({
+  baseUrl: 'https://api.sdkwork.com',
   timeout: 30000, // Request timeout in ms
   headers: {      // Custom headers
     'X-Custom-Header': 'value',
@@ -68,7 +68,7 @@ const result = await client.memory.providerHealth.retrieve();
 ## Error Handling
 
 ```typescript
-import { SdkworkBackendClient, NetworkError, TimeoutError, AuthenticationError } from '@sdkwork/memory-backend-sdk';
+import { SdkworkMemoryBackendClient, NetworkError, TimeoutError, AuthenticationError } from '@sdkwork/memory-backend-sdk';
 
 try {
   const result = await client.memory.providerHealth.retrieve();

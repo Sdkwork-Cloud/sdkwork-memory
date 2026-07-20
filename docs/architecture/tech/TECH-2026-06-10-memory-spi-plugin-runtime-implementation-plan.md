@@ -1,3 +1,5 @@
+> Status: archived implementation plan. It is not current capability or release authority; use `TECH_ARCHITECTURE.md`.
+>
 > Migrated from `docs/superpowers/plans/2026-06-10-memory-spi-plugin-runtime-implementation-plan.md` on 2026-06-24.
 > Owner: SDKWork maintainers
 
@@ -507,4 +509,3 @@ backend-admin plugin list APIs
 external bridge provider review
 dynamic plugin loading and signing policy
 ```
-

@@ -1,3 +1,5 @@
+> Status: archived design record. It is not current capability or release authority; use `TECH_ARCHITECTURE.md`.
+>
 > Migrated from `docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md` on 2026-06-24.
 > Owner: SDKWork maintainers
 
@@ -3369,4 +3371,3 @@ release and migration runbooks
 5. Whether OpenSearch is introduced in Phase 1 or keyword retrieval starts with PostgreSQL full-text and SQLite FTS only.
 6. Whether graph memory starts with relational `ai_entity`/`ai_edge` tables or an external graph provider behind the same port.
 7. Which implementation provider bridges are first-class in the standard: native SQL only, or native SQL plus one external bridge.
-

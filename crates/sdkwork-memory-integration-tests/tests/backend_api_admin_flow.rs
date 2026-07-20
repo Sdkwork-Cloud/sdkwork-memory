@@ -107,6 +107,7 @@ async fn backend_api_migration_job_round_trip_via_dual_token() {
                 "sourceImplementationProfileId": "1",
                 "targetImplementationProfileId": "1",
                 "mode": "shadow",
+                "reason": "verify the active implementation profile without cutover",
                 "dryRun": true
             }),
         ))
@@ -318,6 +319,7 @@ async fn backend_api_governance_jobs_consolidation_and_retention_succeed() {
             json!({
                 "scope": "space",
                 "spaceId": "1",
+                "reason": "verify retention eligibility without deletion",
                 "dryRun": true
             }),
         ))

@@ -8,16 +8,14 @@ use axum::{
 use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_contract::{
     ListAdminResourcesQuery, ListAuditLogsQuery, ListCandidatesQuery, ListEventsQuery,
-    ListMemoriesQuery, ListRetrievalTracesQuery, ListSpacesQuery, MemoryBackendApi,
+    ListJobsQuery, ListMemoriesQuery, ListRetrievalTracesQuery, ListSpacesQuery, MemoryBackendApi,
     MemoryBackendRequestContext, MemoryEvalRunRequest, MemoryExtractionRequest,
     MemoryImplementationProfileRequest, MemoryIndexRequest, MemoryMigrationJobRequest,
     MemoryProviderBindingRequest, MemoryRecordPatch, MemoryRecordRequest,
     MemoryRetentionJobRequest, MemoryRetrievalProfileRequest, MemoryReviewRequest,
     MemorySpaceRequest, MemorySpaceScopeQuery,
 };
-use sdkwork_routes_memory_support::{
-    created_resource_json, ok_page_json, ok_resource_json,
-};
+use sdkwork_routes_memory_support::{created_resource_json, ok_page_json, ok_resource_json};
 use std::sync::Arc;
 
 use crate::{auth::require_backend_context, paths, BackendApiProblem};
@@ -70,9 +68,16 @@ fn build_backend_router(state: BackendState) -> Router {
         .route(paths::CANDIDATES, get(list_candidates))
         .route(paths::CANDIDATE_APPROVE, post(approve_candidate))
         .route(paths::CANDIDATE_REJECT, post(reject_candidate))
-        .route(paths::EXTRACTION_JOBS, post(create_extraction_job))
+        .route(
+            paths::EXTRACTION_JOBS,
+            get(list_extraction_jobs).post(create_extraction_job),
+        )
         .route(paths::EXTRACTION_JOB, get(retrieve_extraction_job))
-        .route(paths::CONSOLIDATION_JOBS, post(create_consolidation_job))
+        .route(
+            paths::CONSOLIDATION_JOBS,
+            get(list_consolidation_jobs).post(create_consolidation_job),
+        )
+        .route(paths::CONSOLIDATION_JOB, get(retrieve_consolidation_job))
         .route(paths::INDEXES, get(list_indexes).post(create_index))
         .route(paths::INDEX, get(retrieve_index).patch(update_index))
         .route(paths::INDEX_REBUILD, post(rebuild_index))
@@ -103,8 +108,15 @@ fn build_backend_router(state: BackendState) -> Router {
         .route(paths::RETRIEVAL_TRACES, get(list_retrieval_traces))
         .route(paths::RETRIEVAL_TRACE, get(retrieve_retrieval_trace))
         .route(paths::AUDIT_LOGS, get(list_audit_logs))
-        .route(paths::RETENTION_JOBS, post(create_retention_job))
-        .route(paths::MIGRATION_JOBS, post(create_migration_job))
+        .route(
+            paths::RETENTION_JOBS,
+            get(list_retention_jobs).post(create_retention_job),
+        )
+        .route(paths::RETENTION_JOB, get(retrieve_retention_job))
+        .route(
+            paths::MIGRATION_JOBS,
+            get(list_migration_jobs).post(create_migration_job),
+        )
         .route(paths::MIGRATION_JOB, get(retrieve_migration_job))
         .merge(crate::commercial_routes::commercial_routes())
         .layer(Extension(state))
@@ -265,6 +277,15 @@ async fn create_extraction_job(
     created_resource_json(state.api.create_extraction_job(context, request).await)
 }
 
+async fn list_extraction_jobs(
+    Extension(state): Extension<BackendState>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Query(query): Query<ListJobsQuery>,
+) -> Result<Response, BackendApiProblem> {
+    let context = require_backend_context(context)?;
+    ok_page_json(state.api.list_extraction_jobs(context, query).await)
+}
+
 async fn retrieve_extraction_job(
     Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
@@ -281,6 +302,24 @@ async fn create_consolidation_job(
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     created_resource_json(state.api.create_consolidation_job(context, request).await)
+}
+
+async fn list_consolidation_jobs(
+    Extension(state): Extension<BackendState>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Query(query): Query<ListJobsQuery>,
+) -> Result<Response, BackendApiProblem> {
+    let context = require_backend_context(context)?;
+    ok_page_json(state.api.list_consolidation_jobs(context, query).await)
+}
+
+async fn retrieve_consolidation_job(
+    Extension(state): Extension<BackendState>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Path(job_id): Path<u64>,
+) -> Result<Response, BackendApiProblem> {
+    let context = require_backend_context(context)?;
+    ok_resource_json(state.api.retrieve_consolidation_job(context, job_id).await)
 }
 
 async fn list_indexes(
@@ -532,6 +571,29 @@ async fn create_retention_job(
     created_resource_json(state.api.create_retention_job(context, request).await)
 }
 
+async fn list_retention_jobs(
+    Extension(state): Extension<BackendState>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Query(query): Query<ListJobsQuery>,
+) -> Result<Response, BackendApiProblem> {
+    let context = require_backend_context(context)?;
+    ok_page_json(state.api.list_retention_jobs(context, query).await)
+}
+
+async fn retrieve_retention_job(
+    Extension(state): Extension<BackendState>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Path(retention_job_id): Path<u64>,
+) -> Result<Response, BackendApiProblem> {
+    let context = require_backend_context(context)?;
+    ok_resource_json(
+        state
+            .api
+            .retrieve_retention_job(context, retention_job_id)
+            .await,
+    )
+}
+
 async fn create_migration_job(
     Extension(state): Extension<BackendState>,
     context: Option<Extension<MemoryBackendRequestContext>>,
@@ -539,6 +601,15 @@ async fn create_migration_job(
 ) -> Result<Response, BackendApiProblem> {
     let context = require_backend_context(context)?;
     created_resource_json(state.api.create_migration_job(context, request).await)
+}
+
+async fn list_migration_jobs(
+    Extension(state): Extension<BackendState>,
+    context: Option<Extension<MemoryBackendRequestContext>>,
+    Query(query): Query<ListJobsQuery>,
+) -> Result<Response, BackendApiProblem> {
+    let context = require_backend_context(context)?;
+    ok_page_json(state.api.list_migration_jobs(context, query).await)
 }
 
 async fn retrieve_migration_job(

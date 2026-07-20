@@ -65,7 +65,7 @@ fn native_sql_manifest_deserializes_and_declares_no_embedding_baseline() {
 }
 
 #[test]
-fn phase1_baseline_manifests_cover_all_implementation_families() {
+fn phase1_baseline_manifests_expose_only_materialized_implementation_families() {
     let manifests = MemoryPluginManifest::phase1_baseline_manifests_for_test();
     let covered_kinds = manifests
         .iter()
@@ -75,15 +75,23 @@ fn phase1_baseline_manifests_cover_all_implementation_families() {
     for implementation_kind in [
         MemoryImplementationKind::NativeSql,
         MemoryImplementationKind::LocalEmbedded,
-        MemoryImplementationKind::EventSourced,
         MemoryImplementationKind::SearchFirst,
+    ] {
+        assert!(
+            covered_kinds.contains(&&implementation_kind),
+            "phase1 baseline manifests must cover {implementation_kind:?}"
+        );
+    }
+
+    for implementation_kind in [
+        MemoryImplementationKind::EventSourced,
         MemoryImplementationKind::GraphTemporal,
         MemoryImplementationKind::ExternalProviderBridge,
         MemoryImplementationKind::HybridPlatform,
     ] {
         assert!(
-            covered_kinds.contains(&&implementation_kind),
-            "phase1 baseline manifests must cover {implementation_kind:?}"
+            !covered_kinds.contains(&&implementation_kind),
+            "unimplemented family {implementation_kind:?} must not be advertised by a baseline manifest"
         );
     }
 

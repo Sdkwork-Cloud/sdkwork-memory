@@ -76,6 +76,12 @@ const HTTP_ROUTES: &[HttpRoute] = &[
         "candidates.reject",
     ).with_required_permission("memory.backend.candidates.write").with_idempotent(true),
     HttpRoute::dual_token(
+        HttpMethod::Get,
+        "/backend/v3/api/memory/extraction_jobs",
+        "memory",
+        "extractionJobs.list",
+    ).with_required_permission("memory.backend.learning.read"),
+    HttpRoute::dual_token(
         HttpMethod::Post,
         "/backend/v3/api/memory/extraction_jobs",
         "memory",
@@ -88,11 +94,23 @@ const HTTP_ROUTES: &[HttpRoute] = &[
         "extractionJobs.retrieve",
     ).with_required_permission("memory.backend.learning.read"),
     HttpRoute::dual_token(
+        HttpMethod::Get,
+        "/backend/v3/api/memory/consolidation_jobs",
+        "memory",
+        "consolidationJobs.list",
+    ).with_required_permission("memory.backend.learning.read"),
+    HttpRoute::dual_token(
         HttpMethod::Post,
         "/backend/v3/api/memory/consolidation_jobs",
         "memory",
         "consolidationJobs.create",
     ).with_required_permission("memory.backend.learning.write").with_idempotent(true),
+    HttpRoute::dual_token(
+        HttpMethod::Get,
+        "/backend/v3/api/memory/consolidation_jobs/{jobId}",
+        "memory",
+        "consolidationJobs.retrieve",
+    ).with_required_permission("memory.backend.learning.read"),
     HttpRoute::dual_token(
         HttpMethod::Get,
         "/backend/v3/api/memory/indexes",
@@ -232,11 +250,29 @@ const HTTP_ROUTES: &[HttpRoute] = &[
         "auditLogs.list",
     ).with_required_permission("memory.backend.auditLogs.read"),
     HttpRoute::dual_token(
+        HttpMethod::Get,
+        "/backend/v3/api/memory/retention_jobs",
+        "memory",
+        "retentionJobs.list",
+    ).with_required_permission("memory.backend.retention.read"),
+    HttpRoute::dual_token(
         HttpMethod::Post,
         "/backend/v3/api/memory/retention_jobs",
         "memory",
         "retentionJobs.create",
     ).with_required_permission("memory.backend.retention.write").with_idempotent(true).with_rate_limit_tier(RateLimitTier::AuthCritical),
+    HttpRoute::dual_token(
+        HttpMethod::Get,
+        "/backend/v3/api/memory/retention_jobs/{retentionJobId}",
+        "memory",
+        "retentionJobs.retrieve",
+    ).with_required_permission("memory.backend.retention.read"),
+    HttpRoute::dual_token(
+        HttpMethod::Get,
+        "/backend/v3/api/memory/migration_jobs",
+        "memory",
+        "migrationJobs.list",
+    ).with_required_permission("memory.backend.migrations.read"),
     HttpRoute::dual_token(
         HttpMethod::Post,
         "/backend/v3/api/memory/migration_jobs",

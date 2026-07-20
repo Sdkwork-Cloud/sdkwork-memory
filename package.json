@@ -41,7 +41,7 @@
     "db:postgres:plan": "node ../sdkwork-specs/tools/postgres/postgres-db-cli.mjs --mode plan --config .env.postgres --app-root . --dry-run",
     "release:sbom": "node scripts/generate-release-sbom.mjs",
     "release:evidence": "cargo build --release -p sdkwork-api-memory-standalone-gateway && node scripts/generate-release-sbom.mjs",
-    "release:package": "node scripts/package-release-artifact.mjs",
+    "release:package": "pnpm release:package:cloud",
     "release:readiness": "node tools/check_sdkwork_memory_release_readiness.mjs",
     "test:contract:database": "node ../sdkwork-specs/tools/check-database-framework-standard.mjs --root .",
     "topology:plan": "node ../sdkwork-app-topology/scripts/sdkwork-topology.mjs plan --root . --spec specs/topology.spec.json",
@@ -56,7 +56,8 @@
     "dev:standalone": "pnpm exec sdkwork-app dev --deployment-profile standalone",
     "dev:cloud": "pnpm exec sdkwork-app dev --deployment-profile cloud",
     "release:package:standalone": "pnpm exec sdkwork-app release:package --deployment-profile standalone",
-    "release:package:cloud": "pnpm exec sdkwork-app release:package --deployment-profile cloud"
+    "release:package:cloud": "pnpm exec sdkwork-app release:package --deployment-profile cloud",
+    "_sdkwork:release:package": "node scripts/package-release-artifact.mjs"
   },
   "exports": {
     ".": {

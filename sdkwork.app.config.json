@@ -104,7 +104,7 @@
     }
   },
   "publish": {
-    "status": "ACTIVE",
+    "status": "INTERNAL",
     "installSkill": {
       "name": "sdkwork-skills-app"
     },
@@ -114,7 +114,7 @@
     "installPlatforms": [
       "API"
     ],
-    "defaultPackageId": "container-x64-cloud-container-docker-image",
+    "defaultPackageId": "container-x64-cloud-container-oci",
     "storeUrl": "https://sdkwork.com/apps/sdkwork-memory",
     "stores": [],
     "config": {
@@ -125,55 +125,53 @@
   },
   "artifacts": {
     "installConfig": {
-      "defaultPackageId": "container-x64-cloud-container-docker-image",
+      "defaultPackageId": "container-x64-cloud-container-oci",
       "installCommand": "sdkwork install sdkwork-memory",
       "launchCommand": "sdkwork open sdkwork-memory",
       "uninstallCommand": "sdkwork uninstall sdkwork-memory",
       "packages": [
         {
-          "id": "container-x64-standalone-container-docker-image",
+          "id": "container-x64-standalone-container-oci",
           "name": "SDKWork Memory standalone Server Container",
           "sourceType": "CONTAINER_IMAGE",
           "packageFormat": "DOCKER_IMAGE",
           "platform": "API",
-          "url": "https://registry.sdkwork.com/apps/sdkwork-memory@sha256:4865e4e05087d554a131636247b4582bd681af1e6a17aa0512fe92ba6c625651",
-          "enabled": true,
-          "metadata": {
-            "image": "registry.sdkwork.com/apps/sdkwork-memory:0.1.0",
-            "digestRequiredBeforeRelease": true
-          },
+          "url": "oci://registry.sdkwork.com/apps/sdkwork-memory:0.1.0-rc.1",
+          "enabled": false,
           "architecture": "x64",
           "profileBinding": "fixed",
           "deploymentProfile": "standalone",
           "runtimeTarget": "container",
-          "checksumAlgorithm": "SHA-256",
-          "checksum": "4865e4e05087d554a131636247b4582bd681af1e6a17aa0512fe92ba6c625651"
+          "metadata": {
+            "image": "registry.sdkwork.com/apps/sdkwork-memory:0.1.0-rc.1",
+            "digestRequiredBeforeRelease": true,
+            "releaseEvidenceState": "pending-ci"
+          }
         },
         {
-          "id": "container-x64-cloud-container-docker-image",
+          "id": "container-x64-cloud-container-oci",
           "name": "SDKWork Memory cloud Server Container",
           "sourceType": "CONTAINER_IMAGE",
           "packageFormat": "DOCKER_IMAGE",
           "platform": "API",
-          "url": "https://registry.sdkwork.com/apps/sdkwork-memory@sha256:4865e4e05087d554a131636247b4582bd681af1e6a17aa0512fe92ba6c625651",
-          "enabled": true,
-          "metadata": {
-            "image": "registry.sdkwork.com/apps/sdkwork-memory:0.1.0",
-            "digestRequiredBeforeRelease": true
-          },
+          "url": "oci://registry.sdkwork.com/apps/sdkwork-memory:0.1.0-rc.1",
+          "enabled": false,
           "architecture": "x64",
           "profileBinding": "fixed",
           "deploymentProfile": "cloud",
           "runtimeTarget": "container",
-          "checksumAlgorithm": "SHA-256",
-          "checksum": "4865e4e05087d554a131636247b4582bd681af1e6a17aa0512fe92ba6c625651"
+          "metadata": {
+            "image": "registry.sdkwork.com/apps/sdkwork-memory:0.1.0-rc.1",
+            "digestRequiredBeforeRelease": true,
+            "releaseEvidenceState": "pending-ci"
+          }
         }
       ],
       "metadata": {
         "workspaceRoot": "sdkwork-memory",
         "framework": "rust-service",
         "packageManager": "cargo",
-        "contractState": "production-ready"
+        "contractState": "release-candidate"
       }
     }
   },
@@ -187,26 +185,25 @@
       {
         "version": "0.1.0",
         "releaseChannel": "DEV",
-        "title": "SDKWork Memory 0.1.0 Production Ready",
-        "summary": "Production-ready Memory service and PC operations foundation with security, privacy, observability, and release supply-chain gates.",
-        "content": "SDKWork Memory delivers embedding-optional retrieval, tenant-scoped governance, isolated Console and Admin SDK boundaries, Kubernetes rollout assets, Prometheus metrics, and SPDX SBOM release evidence.",
+        "title": "SDKWork Memory 0.1.0 Internal Release Candidate",
+        "summary": "Internal validation candidate for the Memory service and PC operations surfaces; production publication remains blocked until immutable container, migration, PostgreSQL, load, recovery, and security evidence is complete.",
+        "content": "SDKWork Memory currently provides an embedding-optional native SQL baseline, tenant-scoped governance, isolated Console and Admin SDK boundaries, and draft Kubernetes assets. It is not approved for production publication.",
         "highlights": [
           "Space-isolated memory access with fail-closed production auth",
-          "Inline and Drive-backed privacy export with outbox handoff",
-          "Kubernetes migration Job, HPA, PDB, and Prometheus scraping",
-          "SPDX SBOM and SHA-256 release checksum pipeline"
+          "Privacy export and outbox flows under production hardening",
+          "Draft Kubernetes migration, autoscaling, disruption, and monitoring descriptors",
+          "Release evidence pipeline pending immutable OCI publication and signing"
         ],
         "packageIds": [
-          "container-x64-standalone-container-docker-image",
-          "container-x64-cloud-container-docker-image"
+          "container-x64-standalone-container-oci",
+          "container-x64-cloud-container-oci"
         ],
-        "publishedAt": "2026-06-23T00:00:00Z",
         "current": true,
         "forceUpdate": false,
         "minSupportedVersion": "0.1.0",
         "metadata": {
-          "draft": false,
-          "contractState": "production-ready"
+          "draft": true,
+          "contractState": "release-candidate"
         }
       }
     ]

@@ -3,9 +3,9 @@
 use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
 use sdkwork_intelligence_memory_service::OpenMemoryService;
+use sdkwork_memory_test_support::api_envelope;
 use sdkwork_memory_test_support::space_fixtures::seed_user_space;
 use sdkwork_routes_memory_open_api::build_router_with_shared_open_api;
-use sdkwork_memory_test_support::api_envelope;
 use serde_json::json;
 use std::sync::Arc;
 use tower::util::ServiceExt;
@@ -19,10 +19,16 @@ async fn list_and_retrieve_hide_private_memories_from_non_owner_tenant_actors() 
     let service = Arc::new(OpenMemoryService::new(store));
     let app = build_router_with_shared_open_api(service);
 
-    let owner_context =
-        sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface("key-owner", 100_001, Some(2001));
-    let peer_context =
-        sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface("key-peer", 100_001, Some(9001));
+    let owner_context = sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
+        "key-owner",
+        100_001,
+        Some(2001),
+    );
+    let peer_context = sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
+        "key-peer",
+        100_001,
+        Some(9001),
+    );
 
     let create = app
         .clone()
@@ -49,7 +55,9 @@ async fn list_and_retrieve_hide_private_memories_from_non_owner_tenant_actors() 
     assert_eq!(create.status(), StatusCode::CREATED);
     let create_body = to_bytes(create.into_body(), usize::MAX).await.unwrap();
     let create_json: serde_json::Value = serde_json::from_slice(&create_body).unwrap();
-    let memory_id = api_envelope::item(&create_json)["memoryId"].as_str().unwrap();
+    let memory_id = api_envelope::item(&create_json)["memoryId"]
+        .as_str()
+        .unwrap();
 
     let list = app
         .clone()
@@ -73,7 +81,9 @@ async fn list_and_retrieve_hide_private_memories_from_non_owner_tenant_actors() 
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(format!("/mem/v3/api/memory/memories/{memory_id}?spaceId=10"))
+                .uri(format!(
+                    "/mem/v3/api/memory/memories/{memory_id}?spaceId=10"
+                ))
                 .extension(peer_context)
                 .body(Body::empty())
                 .unwrap(),

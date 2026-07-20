@@ -2,6 +2,11 @@ use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
 use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
 use sdkwork_intelligence_memory_service::OpenMemoryService;
+use sdkwork_memory_test_support::api_envelope;
+use sdkwork_memory_test_support::web_auth::{
+    lock_integration_test_env, memory_access_token, memory_auth_token_bearer,
+    MEMORY_TEST_IDEMPOTENCY_KEY,
+};
 use sdkwork_routes_memory_app_api::{
     build_router_with_app_api, wrap_router_with_iam_database_web_framework,
 };
@@ -10,11 +15,6 @@ use sdkwork_routes_memory_backend_api::{
     wrap_router_with_iam_database_web_framework as wrap_backend_router,
 };
 use sdkwork_routes_memory_open_api::build_router_with_open_memory_service as build_open_router_with_product;
-use sdkwork_memory_test_support::api_envelope;
-use sdkwork_memory_test_support::web_auth::{
-    lock_integration_test_env, memory_access_token, memory_auth_token_bearer,
-    MEMORY_TEST_IDEMPOTENCY_KEY,
-};
 use serde_json::json;
 use std::sync::Arc;
 use tower::util::ServiceExt;
@@ -29,7 +29,12 @@ fn authed_get(user_id: &str, uri: &str) -> Request<Body> {
         .unwrap()
 }
 
-fn authed_json_request(user_id: &str, method: &str, uri: &str, body: serde_json::Value) -> Request<Body> {
+fn authed_json_request(
+    user_id: &str,
+    method: &str,
+    uri: &str,
+    body: serde_json::Value,
+) -> Request<Body> {
     let idempotency_key = format!("{MEMORY_TEST_IDEMPOTENCY_KEY}:{method}:{uri}");
     Request::builder()
         .method(method)
@@ -150,7 +155,8 @@ async fn app_api_forget_and_export_jobs_round_trip_via_dual_token() {
     let stored_export_body = to_bytes(retrieve_export.into_body(), usize::MAX)
         .await
         .unwrap();
-    let stored_export_json: serde_json::Value = serde_json::from_slice(&stored_export_body).unwrap();
+    let stored_export_json: serde_json::Value =
+        serde_json::from_slice(&stored_export_body).unwrap();
     let stored_export_item = api_envelope::item(&stored_export_json);
     assert!(stored_export_item["result"]["exportRef"].is_string());
     assert!(stored_export_item["result"].get("exportPayload").is_none());
@@ -162,9 +168,11 @@ async fn app_api_drive_export_job_uploads_through_drive() {
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamWebRequestContextResolver::new(None),
-        build_router_with_app_api(sdkwork_memory_test_support::drive_export::open_memory_service_with_drive(
-            store.clone(),
-        )),
+        build_router_with_app_api(
+            sdkwork_memory_test_support::drive_export::open_memory_service_with_drive(
+                store.clone(),
+            ),
+        ),
     );
 
     let create_memory = app
@@ -211,7 +219,10 @@ async fn app_api_drive_export_job_uploads_through_drive() {
     let export_job_id = export_item["exportJobId"].as_str().unwrap();
 
     let pending = store
-        .list_pending_outbox_events(&sdkwork_memory_spi::MemoryScopeContext::for_test(100_001, 1), 10)
+        .list_pending_outbox_events(
+            &sdkwork_memory_spi::MemoryScopeContext::for_test(100_001, 1),
+            10,
+        )
         .await
         .unwrap();
     assert!(
@@ -247,11 +258,13 @@ async fn backend_api_lists_audit_logs_after_open_api_feedback() {
                 .method("POST")
                 .uri("/mem/v3/api/memory/memories")
                 .header("content-type", "application/json")
-                .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
-                    "key-1",
-                    100_001,
-                    Some(2001),
-                ))
+                .extension(
+                    sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
+                        "key-1",
+                        100_001,
+                        Some(2001),
+                    ),
+                )
                 .body(Body::from(
                     json!({
                         "spaceId": "2",
@@ -279,11 +292,13 @@ async fn backend_api_lists_audit_logs_after_open_api_feedback() {
                 .method("POST")
                 .uri("/mem/v3/api/memory/feedback")
                 .header("content-type", "application/json")
-                .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
-                    "key-1",
-                    100_001,
-                    Some(2001),
-                ))
+                .extension(
+                    sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
+                        "key-1",
+                        100_001,
+                        Some(2001),
+                    ),
+                )
                 .body(Body::from(
                     json!({
                         "targetType": "memory",

@@ -146,3 +146,27 @@ test("backend TypeScript capability resolution returns the named page type", () 
     /async resolve\(body: MemoryResolveCapabilitiesRequest, params\?: MemoryCapabilitiesResolveParams\): Promise<MemoryResolvedCapabilityList>/,
   );
 });
+
+test("generated TypeScript SDK methods do not expose current tenant input", () => {
+  const generatedApiFiles = [
+    ["sdkwork-memory-sdk", "sdkwork-memory-sdk-typescript"],
+    ["sdkwork-memory-app-sdk", "sdkwork-memory-app-sdk-typescript"],
+    ["sdkwork-memory-backend-sdk", "sdkwork-memory-backend-sdk-typescript"],
+  ];
+  const generatedMethods = generatedApiFiles
+    .map(([family, workspace]) =>
+      readFileSync(
+        path.join(
+          workspaceRoot,
+          "sdks",
+          family,
+          workspace,
+          "generated/server-openapi/src/api/memory.ts",
+        ),
+        "utf8",
+      ),
+    )
+    .join("\n");
+
+  assert.doesNotMatch(generatedMethods, /\btenantId\b/);
+});

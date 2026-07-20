@@ -53,8 +53,11 @@ deliberate fail-closed boundary until a reviewed dataset provider exists.
     ],
     "thresholds": {
       "minRecallAtK": 0.9,
+      "minPrecisionAtK": 0.8,
+      "minMeanNdcgAtK": 0.85,
       "minHitRateAtK": 0.95,
       "minMeanReciprocalRank": 0.8,
+      "maxP95LatencyMs": 250,
       "maxDegradedRate": 0.01
     }
   }
@@ -62,10 +65,19 @@ deliberate fail-closed boundary until a reviewed dataset provider exists.
 ```
 
 The worker runs the selected profile through the production retrieval path and
-stores macro Recall@K, Hit Rate@K, MRR, degraded rate, per-case hashed query
-identity, and `qualityGatePassed`. A false gate means the evaluation completed
-but the profile is not qualified; it is not rewritten as a successful quality
-claim. A malformed dataset or missing profile moves the run to `failed` with a
-reason and no fabricated metrics.
+stores macro Recall@K, Precision@K, Hit Rate@K, MRR, mean binary nDCG@K,
+degraded rate, and nearest-rank p95 retrieval latency. Per-case output includes
+the unique returned count, each rank metric, monotonic-clock latency, and a
+hashed query identity rather than query text. Precision uses the number of
+unique returned hits as its denominator; nDCG uses binary relevant/not-relevant
+judgments because the current golden-case contract does not accept graded
+relevance.
+
+Every configured threshold participates in `qualityGatePassed`. A false gate
+means the evaluation completed but the profile is not qualified; it is not
+rewritten as a successful quality claim. A malformed dataset or missing profile
+moves the run to `failed` with a reason and no fabricated metrics. Provider
+billing cost, provider-attributed error rate, graded relevance, and external
+dataset resolution are not emitted until real sources for those values exist.
 
 See `DOCUMENTATION_SPEC.md` section 2.

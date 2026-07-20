@@ -1,5 +1,4 @@
 export interface MemoryEdgeRequest {
-  tenantId: string;
   spaceId: string;
   sourceEntityId: string;
   targetEntityId: string;

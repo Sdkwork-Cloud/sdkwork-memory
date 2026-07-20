@@ -1,8 +1,116 @@
 import { customApiPath } from './paths';
 import type { HttpClient } from '../http/client';
 
-import type { MemoryCandidate, MemoryCapabilities, MemoryContextPack, MemoryContextPackRequest, MemoryEvent, MemoryEventRequest, MemoryExtractionRequest, MemoryFeedback, MemoryFeedbackRequest, MemoryLearningJob, MemoryProviderHealth, MemoryRecord, MemoryRecordRequest, MemoryRetrievalRequest, MemoryRetrievalResult, PageInfo } from '../types';
+import type { MemoryCandidate, MemoryCapabilities, MemoryContextPack, MemoryContextPackRequest, MemoryEdge, MemoryEdgePatch, MemoryEdgeRequest, MemoryEntity, MemoryEntityPatch, MemoryEntityRequest, MemoryEvent, MemoryEventRequest, MemoryExtractionRequest, MemoryFeedback, MemoryFeedbackRequest, MemoryLearningJob, MemoryProviderHealth, MemoryRecord, MemoryRecordRequest, MemoryRetrievalRequest, MemoryRetrievalResult, PageInfo } from '../types';
 
+
+export interface MemoryEdgesListParams {
+  q?: string;
+  cursor?: string;
+  pageSize?: number;
+  spaceId?: string;
+  sourceEntityId?: string;
+  relationType?: string;
+}
+
+export interface MemoryEdgesCreateParams {
+  idempotencyKey?: string;
+}
+
+export class MemoryEdgesApi {
+  private client: HttpClient;
+
+  constructor(client: HttpClient) {
+    this.client = client;
+  }
+
+
+async list(params?: MemoryEdgesListParams): Promise<Record<string, unknown>> {
+    const query = buildQueryString([
+      { name: 'q', value: params?.q, style: 'form', explode: true, allowReserved: false },
+      { name: 'cursor', value: params?.cursor, style: 'form', explode: true, allowReserved: false },
+      { name: 'page_size', value: params?.pageSize, style: 'form', explode: true, allowReserved: false },
+      { name: 'spaceId', value: params?.spaceId, style: 'form', explode: true, allowReserved: false },
+      { name: 'sourceEntityId', value: params?.sourceEntityId, style: 'form', explode: true, allowReserved: false },
+      { name: 'relationType', value: params?.relationType, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<Record<string, unknown>>(appendQueryString(customApiPath(`/memory/edges`), query));
+  }
+
+async create(body: MemoryEdgeRequest, params?: MemoryEdgesCreateParams): Promise<MemoryEdge> {
+    const requestHeaders = buildRequestHeaders(
+      {
+        'Idempotency-Key': { value: params?.idempotencyKey, style: 'simple', explode: false },
+      },
+      {}
+    );
+    return this.client.post<MemoryEdge>(customApiPath(`/memory/edges`), body, undefined, requestHeaders, 'application/json');
+  }
+
+async retrieve(edgeId: string): Promise<MemoryEdge> {
+    return this.client.get<MemoryEdge>(customApiPath(`/memory/edges/${serializePathParameter(edgeId, { name: 'edgeId', style: 'simple', explode: false })}`));
+  }
+
+async update(edgeId: string, body: MemoryEdgePatch): Promise<MemoryEdge> {
+    return this.client.patch<MemoryEdge>(customApiPath(`/memory/edges/${serializePathParameter(edgeId, { name: 'edgeId', style: 'simple', explode: false })}`), body, undefined, undefined, 'application/json');
+  }
+
+async delete(edgeId: string): Promise<void> {
+    return this.client.delete<void>(customApiPath(`/memory/edges/${serializePathParameter(edgeId, { name: 'edgeId', style: 'simple', explode: false })}`));
+  }
+}
+
+export interface MemoryEntitiesListParams {
+  q?: string;
+  cursor?: string;
+  pageSize?: number;
+  spaceId?: string;
+  entityType?: string;
+  status?: string;
+}
+
+export interface MemoryEntitiesCreateParams {
+  idempotencyKey?: string;
+}
+
+export class MemoryEntitiesApi {
+  private client: HttpClient;
+
+  constructor(client: HttpClient) {
+    this.client = client;
+  }
+
+
+async list(params?: MemoryEntitiesListParams): Promise<Record<string, unknown>> {
+    const query = buildQueryString([
+      { name: 'q', value: params?.q, style: 'form', explode: true, allowReserved: false },
+      { name: 'cursor', value: params?.cursor, style: 'form', explode: true, allowReserved: false },
+      { name: 'page_size', value: params?.pageSize, style: 'form', explode: true, allowReserved: false },
+      { name: 'spaceId', value: params?.spaceId, style: 'form', explode: true, allowReserved: false },
+      { name: 'entityType', value: params?.entityType, style: 'form', explode: true, allowReserved: false },
+      { name: 'status', value: params?.status, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<Record<string, unknown>>(appendQueryString(customApiPath(`/memory/entities`), query));
+  }
+
+async create(body: MemoryEntityRequest, params?: MemoryEntitiesCreateParams): Promise<MemoryEntity> {
+    const requestHeaders = buildRequestHeaders(
+      {
+        'Idempotency-Key': { value: params?.idempotencyKey, style: 'simple', explode: false },
+      },
+      {}
+    );
+    return this.client.post<MemoryEntity>(customApiPath(`/memory/entities`), body, undefined, requestHeaders, 'application/json');
+  }
+
+async retrieve(entityId: string): Promise<MemoryEntity> {
+    return this.client.get<MemoryEntity>(customApiPath(`/memory/entities/${serializePathParameter(entityId, { name: 'entityId', style: 'simple', explode: false })}`));
+  }
+
+async update(entityId: string, body: MemoryEntityPatch): Promise<MemoryEntity> {
+    return this.client.patch<MemoryEntity>(customApiPath(`/memory/entities/${serializePathParameter(entityId, { name: 'entityId', style: 'simple', explode: false })}`), body, undefined, undefined, 'application/json');
+  }
+}
 
 export class MemoryProviderHealthApi {
   private client: HttpClient;
@@ -229,6 +337,8 @@ export class MemoryApi {
   public readonly extractions: MemoryExtractionsApi;
   public readonly candidates: MemoryCandidatesApi;
   public readonly providerHealth: MemoryProviderHealthApi;
+  public readonly entities: MemoryEntitiesApi;
+  public readonly edges: MemoryEdgesApi;
 
   constructor(client: HttpClient) {
     this.client = client;
@@ -240,6 +350,8 @@ export class MemoryApi {
     this.extractions = new MemoryExtractionsApi(client);
     this.candidates = new MemoryCandidatesApi(client);
     this.providerHealth = new MemoryProviderHealthApi(client);
+    this.entities = new MemoryEntitiesApi(client);
+    this.edges = new MemoryEdgesApi(client);
   }
 
 

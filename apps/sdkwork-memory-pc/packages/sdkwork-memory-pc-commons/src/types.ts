@@ -70,8 +70,28 @@ export interface MemoryListQuery {
 }
 
 export interface MemoryResourceDataSource {
+  actions?: readonly MemoryResourceAction[];
   kind: "list" | "retrieve";
   load(query: MemoryListQuery, signal?: AbortSignal): Promise<MemoryPageResult>;
+}
+
+export interface MemoryResourceActionContext {
+  auditReason?: string;
+  body: Record<string, unknown>;
+  idempotencyKey?: string;
+  selectedItem?: Record<string, unknown>;
+}
+
+export interface MemoryResourceAction {
+  auditReasonField?: string;
+  bodyTemplate: Record<string, unknown>;
+  dangerous?: boolean;
+  execute(context: MemoryResourceActionContext): Promise<unknown>;
+  id: string;
+  label: string;
+  requireAuditReason?: boolean;
+  requireIdempotencyKey?: boolean;
+  requiresSelection?: boolean;
 }
 
 export type MemoryResourceRegistry = Partial<Record<MemoryPcResourceKey, MemoryResourceDataSource>>;

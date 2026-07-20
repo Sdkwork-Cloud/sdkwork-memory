@@ -5,9 +5,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use sdkwork_database_config::{DatabaseConfig, DatabaseEngine};
 use sdkwork_memory_plugin_native_sql::{
     build_native_sql_candidate_store, build_native_sql_habit_store,
-    build_native_sql_retrieval_trace_store, InsertMemoryEvalRunCommand,
-    NativeSqlAppendOutboxEventCommand, NativeSqlCreateSpaceCommand, NativeSqlMemoryStore,
-    NativeSqlStoreError, PromoteApprovedCandidateCommand,
+    build_native_sql_retrieval_trace_store, ConsolidateDuplicateRecordsCommand,
+    InsertLearningJobCommand, InsertMemoryEvalRunCommand, NativeSqlAppendOutboxEventCommand,
+    NativeSqlCreateSpaceCommand, NativeSqlMemoryStore, NativeSqlStoreError,
+    PromoteApprovedCandidateCommand,
 };
 use sdkwork_memory_spi::{
     AppendMemoryAuditCommand, AppendMemoryEventCommand, AppendMemoryOutboxCommand,
@@ -44,6 +45,142 @@ fn mutation_journal(memory_id: &str, suffix: &str) -> MemoryMutationJournal {
         audit_resource_id: memory_id.to_string(),
         audit_result: "accepted".to_string(),
     }
+}
+
+#[tokio::test]
+async fn sqlite_job_history_uses_store_level_cursor_and_tenant_filters() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    for (tenant_id, space_id) in [(77, 10), (77, 20), (88, 30)] {
+        let admitted = MemorySpaceStorePort::create_space_atomic_with_quota(
+            &store,
+            CreateMemorySpaceCommand {
+                tenant_id,
+                space_id,
+                organization_id: None,
+                owner_subject_type: "user".to_string(),
+                owner_subject_id: format!("owner-{tenant_id}-{space_id}"),
+                space_type: "personal".to_string(),
+                display_name: format!("Space {space_id}"),
+                default_scope: "user".to_string(),
+            },
+            10,
+        )
+        .await
+        .unwrap();
+        assert!(matches!(admitted, MemorySpaceQuotaAdmission::Admitted(_)));
+    }
+    for (job_uuid, tenant_id, job_type, space_id) in [
+        ("101", 77, "extraction", Some(10)),
+        ("102", 77, "extraction", Some(10)),
+        ("103", 77, "extraction", Some(20)),
+        ("104", 77, "consolidation", Some(10)),
+        ("105", 88, "extraction", Some(30)),
+    ] {
+        store
+            .insert_learning_job(InsertLearningJobCommand {
+                tenant_id,
+                job_uuid,
+                space_id,
+                job_type,
+                state: "queued",
+                priority: 0,
+                idempotency_key: None,
+                input_json: None,
+            })
+            .await
+            .unwrap();
+    }
+
+    let first = store
+        .list_learning_jobs_for_tenant(77, "extraction", None, 2, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        first
+            .iter()
+            .map(|row| row.job_uuid.as_str())
+            .collect::<Vec<_>>(),
+        vec!["103", "102", "101"]
+    );
+
+    let second = store
+        .list_learning_jobs_for_tenant(77, "extraction", None, 2, Some("102"))
+        .await
+        .unwrap();
+    assert_eq!(
+        second
+            .iter()
+            .map(|row| row.job_uuid.as_str())
+            .collect::<Vec<_>>(),
+        vec!["101"]
+    );
+
+    let scoped = store
+        .list_learning_jobs_for_tenant(77, "extraction", Some(10), 20, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        scoped
+            .iter()
+            .map(|row| row.job_uuid.as_str())
+            .collect::<Vec<_>>(),
+        vec!["102", "101"]
+    );
+}
+
+#[tokio::test]
+async fn sqlite_governance_job_history_filters_actor_before_pagination() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    let scope = MemoryScopeContext {
+        tenant_id: 77,
+        space_id: 1,
+        organization_id: None,
+        user_id: Some(501),
+    };
+    for (job_id, resource_type, actor_id) in [
+        ("201", "forget_job", Some("501")),
+        ("202", "forget_job", Some("999")),
+        ("203", "export_job", Some("501")),
+        ("204", "forget_job", Some("501")),
+    ] {
+        store
+            .append_audit_with_metadata(
+                &scope,
+                job_id,
+                "job.create",
+                resource_type,
+                job_id,
+                "accepted",
+                r#"{"state":"succeeded"}"#,
+                actor_id,
+            )
+            .await
+            .unwrap();
+    }
+
+    let first = store
+        .list_governance_jobs_for_tenant(77, "forget_job", Some("501"), 1, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        first
+            .iter()
+            .map(|row| row.job_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["204", "201"]
+    );
+
+    let second = store
+        .list_governance_jobs_for_tenant(77, "forget_job", Some("501"), 1, Some("204"))
+        .await
+        .unwrap();
+    assert_eq!(
+        second
+            .iter()
+            .map(|row| row.job_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["201"]
+    );
 }
 
 #[tokio::test]
@@ -129,7 +266,7 @@ async fn sqlite_eval_run_persists_dataset_profile_config_and_lifecycle_timestamp
 }
 
 #[tokio::test]
-async fn sqlite_consolidation_supersedes_duplicates_without_cross_user_merges() {
+async fn sqlite_consolidation_atomically_preserves_evidence_journals_and_identity_boundaries() {
     let store = new_contract_store().await;
     let user_one = MemoryScopeContext {
         tenant_id: 1,
@@ -142,8 +279,8 @@ async fn sqlite_consolidation_supersedes_duplicates_without_cross_user_merges() 
         ..user_one.clone()
     };
     for (scope, memory_id) in [
-        (&user_one, "consolidate-user-one-a"),
-        (&user_one, "consolidate-user-one-b"),
+        (&user_one, "consolidation-winner"),
+        (&user_one, "consolidation-loser"),
         (&user_two, "consolidate-user-two"),
     ] {
         store
@@ -162,38 +299,193 @@ async fn sqlite_consolidation_supersedes_duplicates_without_cross_user_merges() 
             .unwrap();
     }
 
+    sqlx::query("UPDATE ai_record SET evidence_count = 10 WHERE tenant_id = ? AND uuid = ?")
+        .bind(user_one.tenant_id)
+        .bind("consolidation-winner")
+        .execute(store.pool())
+        .await
+        .unwrap();
+    for event_id in [
+        "consolidation-shared",
+        "consolidation-winner-only",
+        "consolidation-loser-only",
+    ] {
+        store
+            .append_open_api_event(
+                &user_one,
+                event_id,
+                "memory.evidence.observed",
+                "contract_test",
+                "2026-07-20T00:00:00Z",
+                &serde_json::json!({ "content": event_id }),
+                "internal",
+            )
+            .await
+            .unwrap();
+    }
+    for (source_id, memory_id, event_id) in [
+        (
+            "consolidation-source-winner-shared",
+            "consolidation-winner",
+            "consolidation-shared",
+        ),
+        (
+            "consolidation-source-winner-only",
+            "consolidation-winner",
+            "consolidation-winner-only",
+        ),
+        (
+            "consolidation-source-loser-shared",
+            "consolidation-loser",
+            "consolidation-shared",
+        ),
+        (
+            "consolidation-source-loser-only",
+            "consolidation-loser",
+            "consolidation-loser-only",
+        ),
+    ] {
+        store
+            .append_record_source_for_tenant(
+                user_one.tenant_id,
+                source_id,
+                memory_id,
+                event_id,
+                "supporting",
+                Some(0.1),
+            )
+            .await
+            .unwrap();
+    }
+    store
+        .rebuild_record_search_indexes_for_space(user_one.tenant_id, user_one.space_id)
+        .await
+        .unwrap();
+
+    let all_users_scope = MemoryScopeContext {
+        user_id: None,
+        ..user_one.clone()
+    };
+    let operation_id = "consolidation-contract-operation";
     let consolidated = store
-        .consolidate_duplicate_records_in_scope(&MemoryScopeContext {
-            user_id: None,
-            ..user_one.clone()
+        .consolidate_duplicate_records_in_scope_detailed(ConsolidateDuplicateRecordsCommand {
+            scope: &all_users_scope,
+            operation_id,
         })
         .await
         .unwrap();
-    assert_eq!(consolidated, 1);
+    assert_eq!(consolidated.superseded_records, 1);
+    assert_eq!(consolidated.transferred_sources, 1);
+    assert_eq!(consolidated.deduplicated_sources, 1);
 
-    let first = store
-        .retrieve_record_detail(&user_one, "consolidate-user-one-a")
+    let winner = store
+        .retrieve_record_detail(&user_one, "consolidation-winner")
         .await
         .unwrap()
         .unwrap();
-    let second = store
-        .retrieve_record_detail(&user_one, "consolidate-user-one-b")
+    let superseded = store
+        .retrieve_record_detail(&user_one, "consolidation-loser")
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(
-        [first.status.as_str(), second.status.as_str()]
-            .into_iter()
-            .filter(|status| *status == "superseded")
-            .count(),
-        1
-    );
-    let superseded = if first.status == "superseded" {
-        &first
-    } else {
-        &second
-    };
+    assert_eq!(winner.status, "active");
+    assert_eq!(winner.evidence_count, Some(3));
+    assert_eq!(superseded.status, "superseded");
     assert!(superseded.superseded_by_memory_id.is_some());
+
+    let winner_source_count: i64 = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(*)
+        FROM ai_record_source source
+        JOIN ai_record record ON record.id = source.memory_id
+        WHERE source.tenant_id = ? AND record.uuid = ?
+        "#,
+    )
+    .bind(user_one.tenant_id)
+    .bind("consolidation-winner")
+    .fetch_one(store.pool())
+    .await
+    .unwrap();
+    assert_eq!(winner_source_count, 3);
+    let loser_source_count: i64 = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(*)
+        FROM ai_record_source source
+        JOIN ai_record record ON record.id = source.memory_id
+        WHERE source.tenant_id = ? AND record.uuid = ?
+        "#,
+    )
+    .bind(user_one.tenant_id)
+    .bind("consolidation-loser")
+    .fetch_one(store.pool())
+    .await
+    .unwrap();
+    assert_eq!(loser_source_count, 0);
+
+    let stale_fts_rows: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_record_fts WHERE tenant_id = ? AND space_id = ? AND memory_uuid = ?",
+    )
+    .bind(user_one.tenant_id)
+    .bind(user_one.space_id)
+    .bind("consolidation-loser")
+    .fetch_one(store.pool())
+    .await
+    .unwrap();
+    assert_eq!(stale_fts_rows, 0);
+
+    let outbox_payload: String = sqlx::query_scalar(
+        "SELECT payload_json FROM ai_outbox_event WHERE tenant_id = ? AND event_type = ?",
+    )
+    .bind(user_one.tenant_id)
+    .bind("memory.record.superseded")
+    .fetch_one(store.pool())
+    .await
+    .unwrap();
+    let outbox_payload: serde_json::Value = serde_json::from_str(&outbox_payload).unwrap();
+    assert_eq!(outbox_payload["operationId"], operation_id);
+    assert_eq!(outbox_payload["memoryId"], "consolidation-loser");
+    assert_eq!(
+        outbox_payload["supersededByMemoryId"],
+        "consolidation-winner"
+    );
+    assert_eq!(outbox_payload["transferredSources"], 1);
+    assert_eq!(outbox_payload["deduplicatedSources"], 1);
+    let pending_outbox: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_outbox_event WHERE tenant_id = ? AND event_type = ? AND publish_state = 'pending'",
+    )
+    .bind(user_one.tenant_id)
+    .bind("memory.record.superseded")
+    .fetch_one(store.pool())
+    .await
+    .unwrap();
+    assert_eq!(pending_outbox, 1);
+    let audit_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_audit_log WHERE tenant_id = ? AND action = ? AND resource_id = ?",
+    )
+    .bind(user_one.tenant_id)
+    .bind("memory.record.consolidate")
+    .bind("consolidation-loser")
+    .fetch_one(store.pool())
+    .await
+    .unwrap();
+    assert_eq!(audit_count, 1);
+
+    let retried = store
+        .consolidate_duplicate_records_in_scope_detailed(ConsolidateDuplicateRecordsCommand {
+            scope: &all_users_scope,
+            operation_id,
+        })
+        .await
+        .unwrap();
+    assert_eq!(retried, consolidated);
+    let new_operation = store
+        .consolidate_duplicate_records_in_scope_detailed(ConsolidateDuplicateRecordsCommand {
+            scope: &all_users_scope,
+            operation_id: "consolidation-contract-noop",
+        })
+        .await
+        .unwrap();
+    assert_eq!(new_operation.superseded_records, 0);
 
     let isolated = store
         .retrieve_record_detail(&user_two, "consolidate-user-two")
@@ -202,6 +494,109 @@ async fn sqlite_consolidation_supersedes_duplicates_without_cross_user_merges() 
         .unwrap();
     assert_eq!(isolated.status, "active");
     assert!(isolated.superseded_by_memory_id.is_none());
+}
+
+#[tokio::test]
+async fn sqlite_consolidation_rolls_back_supersession_sources_and_outbox_on_journal_failure() {
+    let store = new_contract_store().await;
+    let scope = MemoryScopeContext::for_test(1, 1);
+    for memory_id in ["rollback-winner", "rollback-loser"] {
+        store
+            .create_record_open_api(
+                &scope,
+                memory_id,
+                "user",
+                "semantic",
+                Some("editor"),
+                Some("prefers"),
+                "uses a modal editor",
+                "editor prefers modal",
+                "internal",
+            )
+            .await
+            .unwrap();
+    }
+    sqlx::query("UPDATE ai_record SET evidence_count = 10 WHERE tenant_id = ? AND uuid = ?")
+        .bind(scope.tenant_id)
+        .bind("rollback-winner")
+        .execute(store.pool())
+        .await
+        .unwrap();
+    store
+        .append_open_api_event(
+            &scope,
+            "rollback-event",
+            "memory.evidence.observed",
+            "contract_test",
+            "2026-07-20T00:00:00Z",
+            &serde_json::json!({ "content": "rollback evidence" }),
+            "internal",
+        )
+        .await
+        .unwrap();
+    store
+        .append_record_source_for_tenant(
+            scope.tenant_id,
+            "rollback-source",
+            "rollback-loser",
+            "rollback-event",
+            "supporting",
+            Some(0.1),
+        )
+        .await
+        .unwrap();
+    sqlx::query(
+        r#"
+        CREATE TRIGGER fail_consolidation_audit
+        BEFORE INSERT ON ai_audit_log
+        WHEN NEW.action = 'memory.record.consolidate'
+        BEGIN
+          SELECT RAISE(ABORT, 'forced consolidation journal failure');
+        END
+        "#,
+    )
+    .execute(store.pool())
+    .await
+    .unwrap();
+
+    let result = store
+        .consolidate_duplicate_records_in_scope_detailed(ConsolidateDuplicateRecordsCommand {
+            scope: &scope,
+            operation_id: "rollback-operation",
+        })
+        .await;
+    assert!(result.is_err());
+
+    let loser = store
+        .retrieve_record_detail(&scope, "rollback-loser")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(loser.status, "active");
+    assert!(loser.superseded_by_memory_id.is_none());
+    let loser_sources: i64 = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(*)
+        FROM ai_record_source source
+        JOIN ai_record record ON record.id = source.memory_id
+        WHERE source.tenant_id = ? AND record.uuid = ?
+        "#,
+    )
+    .bind(scope.tenant_id)
+    .bind("rollback-loser")
+    .fetch_one(store.pool())
+    .await
+    .unwrap();
+    assert_eq!(loser_sources, 1);
+    let outbox_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_outbox_event WHERE tenant_id = ? AND event_type = ?",
+    )
+    .bind(scope.tenant_id)
+    .bind("memory.record.superseded")
+    .fetch_one(store.pool())
+    .await
+    .unwrap();
+    assert_eq!(outbox_count, 0);
 }
 
 fn assert_utc_timestamp(value: Option<&str>) {

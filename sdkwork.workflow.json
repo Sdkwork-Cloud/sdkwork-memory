@@ -81,7 +81,7 @@
     ],
     "build": [
       {
-        "name": "Run SDKWork Memory Phase 1 verification",
+        "name": "Run SDKWork Memory contract verification",
         "shell": "pwsh",
         "run": "powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1"
       },
@@ -89,6 +89,11 @@
         "name": "Run architecture alignment check",
         "shell": "pwsh",
         "run": "node tools/check_sdkwork_memory_architecture_alignment.mjs"
+      },
+      {
+        "name": "Build and verify Memory PC",
+        "shell": "pwsh",
+        "run": "pnpm --dir apps/sdkwork-memory-pc check"
       }
     ],
     "package": [
@@ -96,6 +101,11 @@
         "name": "Package Memory server release artifact",
         "shell": "pwsh",
         "run": "node scripts/package-release-artifact.mjs"
+      },
+      {
+        "name": "Package deterministic Memory PC browser artifact",
+        "shell": "pwsh",
+        "run": "pnpm --dir apps/sdkwork-memory-pc build:browser:cloud"
       }
     ],
     "validate": [
@@ -122,7 +132,7 @@
   },
   "targets": [
     {
-      "id": "linux-x64-cloud-container-server-tar-gz",
+      "id": "linux-x64-cloud-server-tar-gz",
       "profile": "server",
       "platform": "linux",
       "architecture": "x64",
@@ -130,7 +140,18 @@
       "runner": "ubuntu-24.04",
       "outputGlobs": ["target/release/sdkwork-api-memory-standalone-gateway*"],
       "deploymentProfile": "cloud",
-      "runtimeTarget": "container"
+      "runtimeTarget": "server"
+    },
+    {
+      "id": "web-universal-cloud-browser-zip",
+      "profile": "browser",
+      "platform": "web",
+      "architecture": "universal",
+      "formats": ["zip"],
+      "runner": "ubuntu-24.04",
+      "outputGlobs": ["deployments/artifacts/pc/sdkwork-memory-pc-*-web-universal-cloud-browser.zip*"],
+      "deploymentProfile": "cloud",
+      "runtimeTarget": "browser"
     }
   ],
   "security": {

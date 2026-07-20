@@ -1,5 +1,4 @@
 export interface MemoryBindingRequest {
-  tenantId: string;
   spaceId?: string | null;
   bindingKind: 'ownership' | 'access' | 'share' | 'reference' | 'provision';
   bindingRole: string;

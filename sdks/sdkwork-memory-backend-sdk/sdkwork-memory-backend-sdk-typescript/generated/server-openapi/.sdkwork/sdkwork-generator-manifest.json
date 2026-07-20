@@ -44,7 +44,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "2b471a3a19f6d19a1b3d4b2f010b7d9d61e701e75009d53dbc7e7e87aa55aabc"
+      "sha256": "e978c5e51573e31ed386c62eceb96efae7a8abd38a3fec91765482453a642694"
     },
     {
       "path": "sdkwork-sdk.json",
@@ -60,7 +60,7 @@
     },
     {
       "path": "src/api/memory.ts",
-      "sha256": "3635f4fb0ce92953f7768a123de47e2bab81ba2854ca501ca5d80f4c4f118b76"
+      "sha256": "e84779177b2fd6b43c24878ce503730e89fc19bb8ccac76e3fa1c7c832106f42"
     },
     {
       "path": "src/api/paths.ts",
@@ -80,11 +80,11 @@
     },
     {
       "path": "src/index.ts",
-      "sha256": "3a4a3f9c5ce1c5bf55baf261e7b648091cbef7ba2c30ea402dd15f3f37820956"
+      "sha256": "5592e08515f1a99f11d976f43d50bdec5399d52eb35ac7d88635eae38dd008b9"
     },
     {
       "path": "src/sdk.ts",
-      "sha256": "16d40c42173f222143e7b77791a4ce82b1a78660fdec5ddfccc9059b5af46599"
+      "sha256": "f0898e0e99585df7c78046cf3707d238af7a4e889f1aac79e82af9d0d92fca1a"
     },
     {
       "path": "src/types/audit-logs-list-response.ts",
@@ -143,6 +143,14 @@
       "sha256": "72c5ded398f478dd1b74dfb5727511c3af0c0bfbe91334c8b52ad7af00dadaf5"
     },
     {
+      "path": "src/types/consolidation-jobs-list-response.ts",
+      "sha256": "bb6eaa2054044f97269659b8aa2fdb428dc1a3b21f43bdd29c50d0954bd82bbb"
+    },
+    {
+      "path": "src/types/consolidation-jobs-retrieve-response.ts",
+      "sha256": "d68f8743bbd3676b389ca379c37921fa9c6d1895ac53143ad2b2123fb92bcff8"
+    },
+    {
       "path": "src/types/edges-create-response201.ts",
       "sha256": "4729ebd600a13fe6eacd4e215c6401fc1edfff19225f4fc55d8a2ca46fec0a97"
     },
@@ -199,6 +207,10 @@
       "sha256": "48cc9acde800e5a4e3268de0aeb089b4f907927cc2e13c6bb193829da51d4294"
     },
     {
+      "path": "src/types/extraction-jobs-list-response.ts",
+      "sha256": "185e11c30dcddaef444c0c1a3fab199fa18fc3ba8dbb3501d5c683a295469144"
+    },
+    {
       "path": "src/types/extraction-jobs-retrieve-response.ts",
       "sha256": "5451f96f832f1d825435591c11137ed2cadad342cb72b290df39fcfda6b2df9e"
     },
@@ -224,7 +236,7 @@
     },
     {
       "path": "src/types/index.ts",
-      "sha256": "8de3bd85b947e0232ea0e100c333d9b7450bab78709033f136c481f06f7f9052"
+      "sha256": "1f30c080fa95f8910539911f5499a9cc514ad46e09ad7cd435a73b91197d6b81"
     },
     {
       "path": "src/types/indexes-create-response201.ts",
@@ -276,7 +288,7 @@
     },
     {
       "path": "src/types/memory-binding-request.ts",
-      "sha256": "429c926185d783a55f1c6146a908e3c152eb2669427f9629ffc754811568b73c"
+      "sha256": "c35ced69183802ebc10592d74850d2f99f7e310f3988758ff9f45d11ff7e01ac"
     },
     {
       "path": "src/types/memory-binding.ts",
@@ -300,7 +312,7 @@
     },
     {
       "path": "src/types/memory-capability-binding-request.ts",
-      "sha256": "39371df8863a1cadb3b6be212ef2cb32417e002a047292751730c1dcfcf412fa"
+      "sha256": "2191548e2adf0b5b2ba1113e91a40db621ab9ff244b79636bea0cbb3bc8ebf2c"
     },
     {
       "path": "src/types/memory-capability-binding.ts",
@@ -308,7 +320,7 @@
     },
     {
       "path": "src/types/memory-commercial-readiness-request.ts",
-      "sha256": "781c9c2252e3b06bf487527ffbf336fadc7c80e05b403af3d55a47f5345d660b"
+      "sha256": "1ac7a75c7f179c01d129d652ea3a8ab02fb00af563c89a86728693ab6998c3f8"
     },
     {
       "path": "src/types/memory-commercial-readiness.ts",
@@ -332,7 +344,7 @@
     },
     {
       "path": "src/types/memory-edge-request.ts",
-      "sha256": "d8076532d5327cd3e0a19cb6d5c099b06637d13da166209b084a97492ae02da1"
+      "sha256": "663ba1de2bef89b477b7ba373646f768cbd331e8d46870ce83432afa635241eb"
     },
     {
       "path": "src/types/memory-edge.ts",
@@ -348,7 +360,7 @@
     },
     {
       "path": "src/types/memory-entity-request.ts",
-      "sha256": "8dbfb461caeb10702b78c03599f83195b121c0857477d65bca9814ba44bf49c3"
+      "sha256": "e8f902ca91370de027536c7822189cbd2b42c745262c14206751ffdc94f80b5f"
     },
     {
       "path": "src/types/memory-entity.ts",
@@ -379,6 +391,10 @@
       "sha256": "c2a7fc741b1dfcbe6b2415efea5b60fd5591fc6ee4f16b66f66df796a1ca15dd"
     },
     {
+      "path": "src/types/memory-export-job-list.ts",
+      "sha256": "5916a240f73409024a9a9a8d8815ef1c9feaab9f8019a175bbe8bd7402d8baf2"
+    },
+    {
       "path": "src/types/memory-export-job.ts",
       "sha256": "b20dac770c637f3fd2a1b009c41d3da5a370e3ffb92b75fa28046eb39a11a7f3"
     },
@@ -397,6 +413,10 @@
     {
       "path": "src/types/memory-feedback.ts",
       "sha256": "e8a367a718953d24dcf8b1f0e231396dca16cf03fbffe3b61a3ff1eb12e754a0"
+    },
+    {
+      "path": "src/types/memory-forget-job-list.ts",
+      "sha256": "9e304b6f1e15115de80ecf63a06a154513adb491d402b40fc4fc076878104533"
     },
     {
       "path": "src/types/memory-forget-job.ts",
@@ -443,6 +463,10 @@
       "sha256": "4bd3b2cd08d174eb6ff19b04c4726ea047e2e6b9db29cab9885cfaa8046c36a8"
     },
     {
+      "path": "src/types/memory-learning-job-list.ts",
+      "sha256": "e2fc48faf91bf99c2829783dafc3e39abe2b22f9efecf970ec615c9164494028"
+    },
+    {
       "path": "src/types/memory-learning-job.ts",
       "sha256": "e4316dc9108d08715f75514778b3c5a3e660ab986513c854707aa45d61cd6ba0"
     },
@@ -456,7 +480,7 @@
     },
     {
       "path": "src/types/memory-migration-job-request.ts",
-      "sha256": "b1a7da9b218251e83bf857e2751c004df629e6242d8bb96aea20864803cba4e5"
+      "sha256": "685aca5dd9a5aebd41dda69e04e673fcfee6ff4881d8df05de28d5a71715970d"
     },
     {
       "path": "src/types/memory-policy-assignment-list.ts",
@@ -468,7 +492,7 @@
     },
     {
       "path": "src/types/memory-policy-assignment-request.ts",
-      "sha256": "c1918f2045e151218abf0b0f98533915f5f6b3a63d03e8a505e68a7f07bad290"
+      "sha256": "8614f3f8fdff7d5121342b0317675960f737ef8c3fb79899ea94fc4bfd04a46e"
     },
     {
       "path": "src/types/memory-policy-assignment.ts",
@@ -484,7 +508,7 @@
     },
     {
       "path": "src/types/memory-policy-request.ts",
-      "sha256": "15a13e2948ef4090a176eaa730d75de1a11308024099c54caf042c028a8f7f81"
+      "sha256": "c90c838d6c5a4dd15dd1d822925e7ecf2486e1f2a1f01fcd62c680369e7de0b5"
     },
     {
       "path": "src/types/memory-policy.ts",
@@ -528,7 +552,7 @@
     },
     {
       "path": "src/types/memory-resolve-capabilities-request.ts",
-      "sha256": "b6a7a029c8ab7d6dcb4097be3966246ca558b7ad612384afb8c9e61bfd018c32"
+      "sha256": "f04d442e4706e5b17879e667417bd8f0f8c5004669f181813a1d3b7e422b514c"
     },
     {
       "path": "src/types/memory-resolved-capability-list-response.ts",
@@ -544,7 +568,7 @@
     },
     {
       "path": "src/types/memory-retention-job-request.ts",
-      "sha256": "f0a9952ea6232f689f374360686a49f0a95a47cd6b109b7093b57be96d8dacb8"
+      "sha256": "b9536fd73c2d2009013c149a4bbb2ee96547b5a5375ff85607799740bbd95977"
     },
     {
       "path": "src/types/memory-retrieval-hit.ts",
@@ -604,7 +628,7 @@
     },
     {
       "path": "src/types/memory-subject-request.ts",
-      "sha256": "980083851c7380417b472b8abd7e6628254aaaef482c2644ba626ecc2a2ff342"
+      "sha256": "b393aca0a6dc8508bfac6d3397b13b96582899ff2d8267c4bdc48b0419d1c246"
     },
     {
       "path": "src/types/memory-subject.ts",
@@ -613,6 +637,10 @@
     {
       "path": "src/types/migration-jobs-create-response201.ts",
       "sha256": "296e0fe8dcada30f1849d21a0dadea287839800221b43c5efc1d5596260a82e3"
+    },
+    {
+      "path": "src/types/migration-jobs-list-response.ts",
+      "sha256": "67e2dd8070a7b5afa867bf853a7c8dc64bde90a4f850020c8322e84af9e759c5"
     },
     {
       "path": "src/types/migration-jobs-retrieve-response.ts",
@@ -677,6 +705,14 @@
     {
       "path": "src/types/retention-jobs-create-response201.ts",
       "sha256": "37a844dc8dd752e11b52fef5d7aaf85b689298e0f33592651c7539b9ce7e617e"
+    },
+    {
+      "path": "src/types/retention-jobs-list-response.ts",
+      "sha256": "db58bfda4812e3d324c7c56738a79315438e70146b7468618df5059cf8d9c910"
+    },
+    {
+      "path": "src/types/retention-jobs-retrieve-response.ts",
+      "sha256": "6adf4211e2ab9c0670226e79524619314f86206ad92e0b9ae94fda0dcff4cc77"
     },
     {
       "path": "src/types/retrieval-profiles-create-response201.ts",

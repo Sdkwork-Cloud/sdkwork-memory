@@ -1,166 +1,90 @@
-# SDKWork Memory PRD
+# SDKWork Memory Product Requirements
 
-Status: active
-Owner: SDKWork maintainers
-Application: sdkwork-memory
-Updated: 2026-06-26
-Specs: REQUIREMENTS_SPEC.md, DOCUMENTATION_SPEC.md
+Status: active current-state Canon
 
-## Document Map
+Owner: SDKWork Memory maintainers
 
-- Add `PRD-<topic>.md` shards in this directory when the PRD grows beyond one reviewable screen.
+Updated: 2026-07-20
 
-## 1. Background And Problem
+## Product Intent
 
-Modern AI assistants suffer from session-scoped amnesia: every conversation starts cold,
-re-asking context the user already provided. Persistent memory frameworks exist but force
-embedding-vector databases, cloud-only deployment, or vendor-locked retrieval pipelines.
+SDKWork Memory is the tenant-isolated memory capability for SDKWork applications. It stores evidence, canonical memories, learned candidates and habits, retrieval traces, knowledge graph data, policies, and governance history without requiring an embedding provider. Provider integrations remain replaceable through SDKWork SPI contracts.
 
-SDKWork Memory solves this by providing an **embedding-optional, provider-switchable,
-tenant-isolated** memory service that:
+The repository also owns the Memory PC application:
 
-- Stores episodic events, canonical records, entities, and edges in a relational database.
-- Supports pluggable retrieval providers (native SQL FTS, Drive-backed, external embedding
-  services) via the SDKWork SPI.
-- Ships as a standalone Rust service deployable on Kubernetes, Docker, or bare metal.
-- Exposes three API surfaces (open / app / backend) with dual-token authentication.
+- Console serves customers, tenant owners, and end users managing memory within their authenticated tenant and subject scope.
+- Admin serves authorized internal operations, support, security, audit, and platform-management roles.
 
-The service is the memory backbone for the SDKWork application family and is designed for
-commercial multi-tenant deployment.
+## Audiences And Outcomes
 
-## 2. Target Users
+| Audience | Required outcome |
+| --- | --- |
+| Application developer | Stable Open/App SDKs, typed errors, idempotent commands, and no provider lock-in |
+| End user | Inspect, create, update, retrieve, export, and forget authorized memory data |
+| Tenant owner | Govern spaces, learning behavior, knowledge entities, and policy assignments |
+| Internal operator | Operate jobs, providers, indexes, evaluation, IAM bindings, audit, retention, and migration |
+| SRE/security | Deploy both standard profiles, observe health, investigate traces, rotate credentials, and roll back safely |
 
-| User | Description | Primary Need |
-|---|---|---|
-| SDKWork application developers | Teams building AI assistants on the SDKWork platform | Reliable, tenant-scoped memory API with SDK clients |
-| Platform operators | DevOps/SRE teams running SDKWork cloud or on-prem | Production-grade deployment, observability, and tenant isolation |
-| Integrators | Third-party vendors embedding memory into their products | Open API with stable contract, SDK generation, and provider extension |
-| End users | Users of AI assistants powered by SDKWork Memory | Privacy controls: view, export, delete, opt-out of learning |
+## Current Capability Contract
 
-## 3. Goals And Non-Goals
+| Capability | Current implementation authority |
+| --- | --- |
+| Spaces, events, records, sources | `ai_space`, `ai_event`, `ai_record`, `ai_record_source` plus contract/service/route crates |
+| Learning | Candidate, habit, extraction, consolidation, and SQL-backed learning job contracts |
+| Retrieval | Keyword and provider-backed retrieval, profiles, context packs, feedback, and traces |
+| Knowledge | Tenant-scoped entities and edges with App/Backend SDK operations |
+| Governance | Policies, assignments, audit logs, retention, migration, export, and forget workflows |
+| Commercial control plane | Subjects, bindings, capability bindings, resolution, and readiness snapshots |
+| PC Console | `/console/*`; consumes only `@sdkwork/memory-app-sdk` |
+| PC Admin | `/admin/*`; consumes only `@sdkwork/memory-backend-sdk` |
+| Deployment | `standalone.development`, `standalone.production`, `cloud.development`, `cloud.production` |
 
-### Goals
+Generated route manifests and authority OpenAPI files are the operation inventory; this document intentionally does not copy operation counts.
 
-- **G1**: Provide a multi-tenant memory service with space-isolated access and audit trails.
-- **G2**: Support embedding-optional retrieval — keyword FTS works without a vector backend.
-- **G3**: Enable provider switching (native SQL, Drive, external embedding) via SPI plugins
-  without recompiling the service.
-- **G4**: Deliver three API surfaces (open / app / backend) with generated SDK clients.
-- **G5**: Achieve production-grade security: dual-token auth, PII detection, hard delete,
-  tenant quotas, and fail-closed access control.
-- **G6**: Ship Kubernetes deployment assets (Deployment, HPA, PDB, migration Job,
-  ServiceMonitor, Ingress with TLS).
-- **G7**: Commercial memory management: subjects, bindings, capabilities, policy assignments,
-  and commercial readiness evaluation.
+## Product Rules
 
-### Non-Goals
+- Authentication context is the tenant authority. Business request bodies and list query parameters never select the current tenant.
+- Console cannot import or call Backend SDK operations. Admin cannot substitute raw HTTP for the composed Backend SDK.
+- Interactive lists use server pagination. High-volume histories use store-level keyset windows and never download all rows for client slicing.
+- SDKWork-owned HTTP success responses use the standard response envelope; errors use `application/problem+json` with numeric `code` and `traceId`.
+- Memory mutations preserve evidence and audit semantics. Destructive commands require typed reasons where the domain requires a reason; ordinary `DELETE` operations use explicit confirmation and no fictitious request body.
+- Embeddings are optional. Native SQL retrieval remains operational when external providers are absent or degraded.
+- Restricted and sensitive data access fails closed and is constrained before the store query or provider call.
+- Exports use approved Drive integration when a Drive target is requested. Credentials and provider secrets are references, never repository data.
 
-- **NG1**: Not building an embedding/vector database — embeddings are delegated to providers.
-- **NG2**: Not providing mobile or third-party embedded UI; the repository-owned PC application provides the supported Console and Admin experiences.
-- **NG3**: Not replacing IAM — authentication and tenant identity are delegated to SDKWork IAM.
-- **NG4**: Not supporting multi-region active-active in Phase 1 — single-region HA only.
+## Quality And Operations Targets
 
-## 4. Scope
+| Signal | Target |
+| --- | --- |
+| Monthly API availability | 99.9% |
+| p99 normal read latency | below 200 ms at the documented page bound |
+| p99 normal write latency | below 500 ms excluding explicitly asynchronous work |
+| Cross-tenant access | zero |
+| API/SDK contract drift | zero unreviewed drift |
+| Interactive list page size | default 20, maximum 200 |
+| Privacy request traceability | every accepted request has tenant, actor, audit record, state, and timestamps |
 
-### In Scope (Phase 1 — Production Ready)
+## Release State
 
-- Memory core: spaces, events, records, record sources, entities, edges.
-- Retrieval: keyword FTS (PostgreSQL tsvector + SQLite FTS5), context pack fusion.
-- Learning: candidate extraction, habit signals, async learning job queue.
-- Governance: audit log, outbox events, tenant preferences, tenant quotas.
-- Provider binding: native SQL plugin, reference profiles plugin, SPI registry.
-- API: open (17 ops), app (33 ops), backend (55 ops) with generated TypeScript SDK.
-- PC application: customer-facing Console and internal Admin surfaces with strict App SDK and Backend SDK isolation.
-- Deployment: Docker and Kubernetes through the standard `standalone` and `cloud` profiles.
-- Observability: Prometheus metrics, tracing, readiness/liveness probes, correlation IDs.
-- Privacy: soft delete, hard delete, forget requests, export jobs, sensitivity classification.
+The server release authority and deployment profiles are implemented and validated by the root manifest and workflow. The PC browser artifact is a reproducible release candidate with checksum, SBOM, and provenance generation. PC publication remains `DRAFT` until a formal release run produces the required OIDC attestation/signature, uploads the immutable artifact, and completes smoke checks. A draft package must not be represented as already deployed.
 
-### Out of Scope (Phase 2 — Commercial Extension)
+## Explicit Non-Goals
 
-- Commercial memory extensions beyond Phase 2a: policy assignments, entity/edge CRUD APIs,
-  relation rebuild jobs, and commercial readiness snapshots remain planned for a later release.
-  Phase 2a (subjects, bindings, capability bindings, capability resolution) is implemented
-  and exposed on the backend API with IAM route-manifest enforcement.
-- Plugin hot-loading and version negotiation.
-- Multi-region active-active deployment.
-- Embedding-backed semantic retrieval (provider contract defined, no reference implementation).
+- Building a proprietary vector database.
+- Replacing SDKWork IAM, Drive, secret management, or deployment frameworks.
+- Runtime loading of unreviewed plugin binaries.
+- Claiming multi-region active-active behavior without a separately approved architecture and operational evidence.
+- Maintaining pre-launch legacy request fields, raw HTTP fallbacks, numeric cursor aliases, or duplicate API authorities.
 
-## 5. User Scenarios
+## Acceptance Evidence
 
-### Scenario 1: Developer creates a memory and retrieves it
+```powershell
+pnpm check
+pnpm verify
+pnpm --dir apps/sdkwork-memory-pc check
+node ../sdkwork-specs/tools/check-pagination.mjs --workspace .
+node ../sdkwork-specs/tools/check-api-response-envelope.mjs --workspace .
+node ../sdkwork-specs/tools/check-app-sdk-consumer-imports.mjs --workspace .
+```
 
-1. Developer obtains an auth token and access token from SDKWork IAM.
-2. POST `/app/v3/api/memory/spaces.create` to create a space.
-3. POST `/app/v3/api/memory/memories.create` with event text to store a memory.
-4. POST `/app/v3/api/memory/retrievals.create` with a query to retrieve relevant memories.
-5. GET `/app/v3/api/memory/memories.list` to paginate through stored memories.
-
-### Scenario 2: End user exercises privacy controls
-
-1. User authenticates via the consuming app (which holds the auth token).
-2. POST `/app/v3/api/memory/forget-requests.create` to request deletion of their memories.
-3. POST `/app/v3/api/memory/export-jobs.create` to request an export of their data.
-4. The backend processes the forget request (hard delete + derivative cleanup) and writes
-   an audit event.
-
-### Scenario 3: Operator deploys to Kubernetes
-
-1. Operator runs the migration Job: `kubectl apply -f deployments/kubernetes/migration-job.yaml`.
-2. Operator applies the Deployment, Service, HPA, PDB, Ingress, ServiceMonitor.
-3. The startup probe waits for `/readyz` to return 200 (database + IAM readiness).
-4. The HPA scales based on CPU (70%) and memory (80%) utilization.
-5. Prometheus scrapes `/metrics` via the ServiceMonitor.
-
-### Scenario 4: Integrator extends with a custom retrieval provider
-
-1. Integrator implements the `MemoryRetrievalProviderPort` trait in a custom plugin crate.
-2. The plugin declares `sdkwork.memory.plugin.json` with `portExports` and `dataClasses`.
-3. The plugin is registered in the SPI registry at bootstrap.
-4. The service routes retrieval requests to the plugin based on provider binding configuration.
-
-## 6. Success Metrics
-
-| Metric | Target | Measurement |
-|---|---|---|
-| API availability | 99.9% monthly | Kubernetes liveness probe + uptime monitoring |
-| p99 read latency | < 200ms | Prometheus histogram on retrieval operations |
-| p99 write latency | < 500ms | Prometheus histogram on create operations |
-| Tenant isolation | 0 cross-tenant access events | Access control fail-closed + audit log review |
-| Migration rollback | 100% of migrations have paired down.sql | CI layout validation |
-| SDK contract drift | 0 breaking changes without SemVer bump | CI OpenAPI diff check |
-| Privacy SLA | Forget requests completed within 72h | Audit log timestamp delta |
-
-## 7. Phases
-
-| Phase | Name | Status | Scope |
-|---|---|---|---|
-| Phase 1 | Production Ready | Active | Memory core, FTS retrieval, governance, deployment, observability, privacy |
-| Phase 2 | Commercial Memory | Designed | Subjects, bindings, capabilities, policy assignments, commercial readiness |
-| Phase 3 | Semantic Retrieval | Planned | Embedding-backed retrieval via provider plugin, multi-region HA |
-
-## 8. Linked Requirements
-
-- REQ-MEM-001: Multi-tenant memory storage with space isolation
-- REQ-MEM-002: Embedding-optional keyword retrieval (PostgreSQL + SQLite)
-- REQ-MEM-003: SPI plugin architecture for provider switching
-- REQ-MEM-004: Three API surfaces with generated SDK (open / app / backend)
-- REQ-MEM-005: Dual-token authentication and fail-closed access control
-- REQ-MEM-006: Privacy controls (view, export, delete, opt-out)
-- REQ-MEM-007: Kubernetes deployment with HPA, PDB, migration Job
-- REQ-MEM-008: Prometheus metrics and structured tracing
-- REQ-MEM-009: Commercial memory management (Phase 2)
-- REQ-MEM-010: Hard delete and derivative cleanup for GDPR compliance
-
-> REQ-* records will be created in `docs/product/requirements/` as they are formalized.
-
-## 9. Open Questions
-
-- **OQ-1**: Should the Phase 2 commercial memory tables use the `ai_` prefix (consistent with
-  Phase 1) or introduce a `mem_commercial_` prefix? Current decision: use `ai_` prefix for
-  consistency.
-- **OQ-2**: Should plugin hot-loading be supported in Phase 2, or deferred to Phase 3?
-  Current decision: deferred — static registry only in Phase 1/2.
-- **OQ-3**: Should the outbox publisher use a lease-lock column for multi-instance
-  deduplication? Current decision: yes — add `locked_at`/`locked_by` columns.
-- **OQ-4**: Should the service support SQLite for production single-node deployments?
-  Current decision: no — production MUST use PostgreSQL per ENVIRONMENT_SPEC §7.1.
+Production publication additionally requires the release workflow, artifact attestation, immutable upload, deployment smoke test, and rollback record described in `docs/releases/README.md`.

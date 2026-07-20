@@ -1,8 +1,8 @@
-import { AlertTriangle, ChevronLeft, ChevronRight, Database, RefreshCw, Search, X } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight, Database, Play, RefreshCw, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { useMemoryI18n } from "../i18n/runtime.tsx";
-import type { MemoryListQuery, MemoryPageResult, MemoryPcModuleDefinition, MemoryPcResourceKey, MemoryResourceRegistry } from "../types.ts";
+import type { MemoryListQuery, MemoryPageResult, MemoryPcModuleDefinition, MemoryPcResourceKey, MemoryResourceAction, MemoryResourceRegistry } from "../types.ts";
 
 const DEFAULT_PAGE: MemoryPageResult = { items: [], pageInfo: { mode: "cursor", hasNext: false } };
 
@@ -12,7 +12,7 @@ export interface MemoryModulePageProps {
 }
 
 export function MemoryModulePage({ module, registry }: MemoryModulePageProps) {
-  const { translate } = useMemoryI18n();
+  const { locale, translate } = useMemoryI18n();
   const [resource, setResource] = useState<MemoryPcResourceKey>(module.resources[0] ?? "spaces");
   const [q, setQ] = useState("");
   const [spaceId, setSpaceId] = useState("");
@@ -24,12 +24,40 @@ export function MemoryModulePage({ module, registry }: MemoryModulePageProps) {
   const [selectedItem, setSelectedItem] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
+  const [activeAction, setActiveAction] = useState<MemoryResourceAction>();
+  const [actionBody, setActionBody] = useState("{}");
+  const [auditReason, setAuditReason] = useState("");
+  const [idempotencyKey, setIdempotencyKey] = useState("");
+  const [actionConfirmed, setActionConfirmed] = useState(false);
+  const [actionRunning, setActionRunning] = useState(false);
+  const [actionError, setActionError] = useState<string>();
   const dataSource = registry[resource];
+  const parsedActionBody = useMemo(() => parseActionBody(actionBody), [actionBody]);
+
+  function message(key: string, fallback: string): string {
+    const value = translate(key);
+    return value === key ? fallback : value;
+  }
+
+  function resourceLabel(value: string): string {
+    return message(`memory.resources.${value}`, formatResourceName(value));
+  }
+
+  function fieldLabel(value: string): string {
+    return message(`memory.fields.${value}`, formatResourceName(value));
+  }
+
+  function actionLabel(action: MemoryResourceAction): string {
+    const verb = message(`memory.actions.${action.id}`, action.label);
+    const target = resourceLabel(resource);
+    return locale === "zh-CN" ? `${target}${verb}` : `${verb} ${target}`;
+  }
 
   useEffect(() => {
     setCursor(undefined);
     setCursorHistory([]);
     setSelectedItem(null);
+    closeAction();
   }, [resource, q, spaceId, pageSize]);
 
   useEffect(() => {
@@ -51,7 +79,7 @@ export function MemoryModulePage({ module, registry }: MemoryModulePageProps) {
     void dataSource.load(query, controller.signal).then((result) => {
       if (!controller.signal.aborted) setPage(result);
     }).catch((reason: unknown) => {
-      if (!controller.signal.aborted) setError(readSafeError(reason));
+      if (!controller.signal.aborted) setError(readSafeError(reason, translate));
     }).finally(() => {
       if (!controller.signal.aborted) setLoading(false);
     });
@@ -75,6 +103,78 @@ export function MemoryModulePage({ module, registry }: MemoryModulePageProps) {
     });
   }
 
+  function openAction(action: MemoryResourceAction): void {
+    setActiveAction(action);
+    const body = { ...action.bodyTemplate };
+    if (selectedItem?.version !== undefined && Object.hasOwn(body, "version")) {
+      body.version = selectedItem.version;
+    }
+    setActionBody(JSON.stringify(body, null, 2));
+    setAuditReason("");
+    setIdempotencyKey(globalThis.crypto?.randomUUID?.() ?? "");
+    setActionConfirmed(false);
+    setActionError(undefined);
+  }
+
+  function closeAction(): void {
+    setActiveAction(undefined);
+    setActionRunning(false);
+    setActionError(undefined);
+  }
+
+  async function executeAction(): Promise<void> {
+    if (!activeAction || actionRunning) return;
+    if (activeAction.requiresSelection && !selectedItem) {
+      setActionError(translate("memory.commons.selectResourceError"));
+      return;
+    }
+    if (activeAction.requireAuditReason && !auditReason.trim()) {
+      setActionError(translate("memory.commons.auditReasonError"));
+      return;
+    }
+    if (activeAction.requireIdempotencyKey && !idempotencyKey.trim()) {
+      setActionError(translate("memory.commons.idempotencyKeyError"));
+      return;
+    }
+    if (activeAction.dangerous && !actionConfirmed) {
+      setActionError(translate("memory.commons.confirmationError"));
+      return;
+    }
+    let body: Record<string, unknown>;
+    try {
+      const parsed = JSON.parse(actionBody) as unknown;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
+      body = parsed as Record<string, unknown>;
+    } catch {
+      setActionError(translate("memory.commons.requestBodyError"));
+      return;
+    }
+    if (activeAction.auditReasonField && auditReason.trim()) {
+      body[activeAction.auditReasonField] = auditReason.trim();
+    }
+    setActionRunning(true);
+    setActionError(undefined);
+    try {
+      const result = await activeAction.execute({
+        body,
+        ...(selectedItem ? { selectedItem } : {}),
+        ...(auditReason.trim() ? { auditReason: auditReason.trim() } : {}),
+        ...(idempotencyKey.trim() ? { idempotencyKey: idempotencyKey.trim() } : {}),
+      });
+      if (result && typeof result === "object") setSelectedItem(result as Record<string, unknown>);
+      setRefreshVersion((version) => version + 1);
+      closeAction();
+    } catch (reason) {
+      setActionError(readSafeError(reason, translate) || translate("memory.commons.commandFailed"));
+      setActionRunning(false);
+    }
+  }
+
+  function updateActionField(key: string, value: unknown): void {
+    const body = parsedActionBody ?? { ...activeAction?.bodyTemplate };
+    setActionBody(JSON.stringify({ ...body, [key]: value }, null, 2));
+  }
+
   return (
     <section className="module-page" aria-labelledby="module-title">
       <header className="module-header">
@@ -90,7 +190,7 @@ export function MemoryModulePage({ module, registry }: MemoryModulePageProps) {
       <div className="resource-tabs" role="tablist" aria-label={translate(module.titleKey)}>
         {module.resources.map((candidate) => (
           <button key={candidate} type="button" role="tab" aria-selected={candidate === resource} className={candidate === resource ? "resource-tab active" : "resource-tab"} onClick={() => setResource(candidate)}>
-            {formatResourceName(candidate)}
+            {resourceLabel(candidate)}
           </button>
         ))}
       </div>
@@ -112,6 +212,15 @@ export function MemoryModulePage({ module, registry }: MemoryModulePageProps) {
             <option value={100}>100</option>
           </select>
         </label>
+        {dataSource?.actions?.length ? (
+          <div className="resource-actions" aria-label={translate("memory.commons.actions")}>
+            {dataSource.actions.map((action) => (
+              <button className={action.dangerous ? "command-button danger" : "command-button"} disabled={action.requiresSelection && !selectedItem} key={action.id} onClick={() => openAction(action)} type="button">
+                <Play size={15} aria-hidden="true" />{actionLabel(action)}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="resource-stage" aria-live="polite" aria-busy={loading}>
@@ -122,7 +231,7 @@ export function MemoryModulePage({ module, registry }: MemoryModulePageProps) {
         {dataSource && !loading && !error && page.items.length > 0 ? (
           <div className="table-scroll">
             <table>
-              <thead><tr>{columns.map((column) => <th key={column}>{formatResourceName(column)}</th>)}</tr></thead>
+              <thead><tr>{columns.map((column) => <th key={column}>{fieldLabel(column)}</th>)}</tr></thead>
               <tbody>{page.items.map((item, rowIndex) => (
                 <tr key={readRowKey(item, rowIndex)} tabIndex={0} onClick={() => setSelectedItem(item)} onKeyDown={(event) => { if (event.key === "Enter") setSelectedItem(item); }}>
                   {columns.map((column) => <td key={column}>{formatValue(item[column])}</td>)}
@@ -144,7 +253,23 @@ export function MemoryModulePage({ module, registry }: MemoryModulePageProps) {
       {selectedItem ? (
         <aside className="detail-drawer" aria-label={translate("memory.commons.details")}>
           <header><h2>{translate("memory.commons.details")}</h2><button className="icon-button" type="button" title={translate("memory.commons.close")} aria-label={translate("memory.commons.close")} onClick={() => setSelectedItem(null)}><X size={17} /></button></header>
-          <dl>{Object.entries(selectedItem).map(([key, value]) => <div key={key}><dt>{formatResourceName(key)}</dt><dd>{formatLongValue(value)}</dd></div>)}</dl>
+          <dl>{Object.entries(selectedItem).map(([key, value]) => <div key={key}><dt>{fieldLabel(key)}</dt><dd>{formatLongValue(value)}</dd></div>)}</dl>
+        </aside>
+      ) : null}
+
+      {activeAction ? (
+        <aside className="command-drawer" aria-label={actionLabel(activeAction)}>
+          <header><h2>{actionLabel(activeAction)}</h2><button className="icon-button" type="button" aria-label={translate("memory.commons.close")} title={translate("memory.commons.close")} onClick={closeAction}><X size={17} /></button></header>
+          {activeAction.requiresSelection ? <dl className="command-impact"><div><dt>{translate("memory.commons.resource")}</dt><dd>{resourceLabel(resource)}</dd></div><div><dt>{translate("memory.commons.resourceId")}</dt><dd>{formatValue(readSelectedId(selectedItem))}</dd></div><div><dt>{translate("memory.commons.operation")}</dt><dd>{message(`memory.actions.${activeAction.id}`, activeAction.label)}</dd></div>{spaceId.trim() ? <div><dt>{translate("memory.commons.spaceId")}</dt><dd>{spaceId.trim()}</dd></div> : null}</dl> : null}
+          <div className="command-fields">
+            {Object.entries(activeAction.bodyTemplate).filter(([key]) => key !== activeAction.auditReasonField).map(([key, template]) => <ActionField key={key} label={fieldLabel(key)} template={template} value={parsedActionBody?.[key] ?? template} onChange={(value) => updateActionField(key, value)} />)}
+          </div>
+          {activeAction.requireAuditReason ? <label className="field-control"><span>{translate("memory.commons.auditReason")}</span><input value={auditReason} onChange={(event) => setAuditReason(event.target.value)} /></label> : null}
+          {activeAction.requireIdempotencyKey ? <label className="field-control"><span>{translate("memory.commons.idempotencyKey")}</span><input value={idempotencyKey} onChange={(event) => setIdempotencyKey(event.target.value)} /></label> : null}
+          <details className="advanced-json"><summary>{translate("memory.commons.advancedJson")}</summary><label className="field-control"><span>{translate("memory.commons.requestBody")}</span><textarea rows={10} value={actionBody} onChange={(event) => setActionBody(event.target.value)} spellCheck={false} /></label></details>
+          {activeAction.dangerous ? <label className="confirm-control"><input type="checkbox" checked={actionConfirmed} onChange={(event) => setActionConfirmed(event.target.checked)} /><span>{translate("memory.commons.confirmAffectedScope")}</span></label> : null}
+          {actionError ? <p className="command-error">{actionError}</p> : null}
+          <footer><button className={activeAction.dangerous ? "command-button danger" : "command-button"} disabled={actionRunning} onClick={() => void executeAction()} type="button"><Play size={15} />{actionLabel(activeAction)}</button></footer>
         </aside>
       ) : null}
     </section>
@@ -153,6 +278,59 @@ export function MemoryModulePage({ module, registry }: MemoryModulePageProps) {
 
 function StatusState({ icon, message, tone = "neutral" }: { icon: React.ReactNode; message: string; tone?: "danger" | "neutral" }) {
   return <div className={`status-state ${tone}`}>{icon}<p>{message}</p></div>;
+}
+
+function ActionField({ label, onChange, template, value }: { label: string; onChange(value: unknown): void; template: unknown; value: unknown }) {
+  if (typeof template === "boolean") {
+    return <label className="confirm-control action-boolean"><input type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} /><span>{label}</span></label>;
+  }
+  if (typeof template === "number") {
+    return <label className="field-control"><span>{label}</span><input type="number" value={typeof value === "number" ? value : template} onChange={(event) => onChange(Number(event.target.value))} /></label>;
+  }
+  if (Array.isArray(template)) {
+    const items = Array.isArray(value) ? value : template;
+    return <label className="field-control"><span>{label}</span><input value={items.map(String).join(", ")} onChange={(event) => onChange(event.target.value.split(",").map((item) => item.trim()).filter(Boolean))} /></label>;
+  }
+  if (template && typeof template === "object") {
+    return <JsonActionField label={label} value={value} onChange={onChange} />;
+  }
+  return <label className="field-control"><span>{label}</span><input value={typeof value === "string" ? value : ""} onChange={(event) => onChange(event.target.value)} /></label>;
+}
+
+function JsonActionField({ label, onChange, value }: { label: string; onChange(value: unknown): void; value: unknown }) {
+  const [text, setText] = useState(() => JSON.stringify(value ?? {}, null, 2));
+  const [invalid, setInvalid] = useState(false);
+  useEffect(() => setText(JSON.stringify(value ?? {}, null, 2)), [value]);
+
+  function commit(): void {
+    try {
+      const parsed = JSON.parse(text) as unknown;
+      if (!parsed || typeof parsed !== "object") throw new Error();
+      setInvalid(false);
+      onChange(parsed);
+    } catch {
+      setInvalid(true);
+    }
+  }
+
+  return <label className="field-control"><span>{label}</span><textarea aria-invalid={invalid} rows={5} value={text} onBlur={commit} onChange={(event) => setText(event.target.value)} spellCheck={false} /></label>;
+}
+
+function parseActionBody(value: string): Record<string, unknown> | null {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
+}
+
+function readSelectedId(item: Record<string, unknown> | null): unknown {
+  if (!item) return "-";
+  for (const key of ["id", "uuid", "spaceId", "memoryId", "jobId", "candidateId", "habitId", "subjectId", "bindingId", "entityId", "edgeId", "policyId", "policyAssignmentId"]) {
+    if (item[key] !== undefined) return item[key];
+  }
+  return "-";
 }
 
 function resolveColumns(items: readonly Record<string, unknown>[]): string[] {
@@ -182,10 +360,10 @@ function formatLongValue(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
-function readSafeError(value: unknown): string {
+function readSafeError(value: unknown, translate: (key: string) => string): string {
   if (typeof value !== "object" || value === null) return "";
   const error = value as { code?: unknown; traceId?: unknown };
-  const code = typeof error.code === "number" ? `Code ${error.code}.` : "";
-  const trace = typeof error.traceId === "string" ? ` Trace ${error.traceId}.` : "";
+  const code = typeof error.code === "number" ? `${translate("memory.commons.errorCode")} ${error.code}.` : "";
+  const trace = typeof error.traceId === "string" ? ` ${translate("memory.commons.traceId")} ${error.traceId}.` : "";
   return `${code}${trace}`.trim();
 }

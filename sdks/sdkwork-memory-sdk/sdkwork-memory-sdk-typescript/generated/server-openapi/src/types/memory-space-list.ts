@@ -1,7 +1,7 @@
-import type { MemoryPageInfo } from './memory-page-info';
 import type { MemorySpace } from './memory-space';
+import type { PageInfo } from './page-info';
 
 export interface MemorySpaceList {
   items: MemorySpace[];
-  pageInfo: MemoryPageInfo;
+  pageInfo: PageInfo;
 }

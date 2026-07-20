@@ -76,6 +76,12 @@ const HTTP_ROUTES: &[HttpRoute] = &[
         "memories.sources.list",
     ).with_required_permission("memory.records.read"),
     HttpRoute::dual_token(
+        HttpMethod::Get,
+        "/app/v3/api/memory/forget_requests",
+        "memory",
+        "forgetRequests.list",
+    ).with_required_permission("memory.forget.read"),
+    HttpRoute::dual_token(
         HttpMethod::Post,
         "/app/v3/api/memory/forget_requests",
         "memory",
@@ -177,6 +183,12 @@ const HTTP_ROUTES: &[HttpRoute] = &[
         "memory",
         "feedback.create",
     ).with_required_permission("memory.feedback.write").with_idempotent(true),
+    HttpRoute::dual_token(
+        HttpMethod::Get,
+        "/app/v3/api/memory/export_jobs",
+        "memory",
+        "exportJobs.list",
+    ).with_required_permission("memory.exports.read"),
     HttpRoute::dual_token(
         HttpMethod::Post,
         "/app/v3/api/memory/export_jobs",

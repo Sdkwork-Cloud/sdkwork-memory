@@ -29,7 +29,7 @@ Legacy redirect stubs (do not edit content here):
 - `docs/superpowers/specs/2026-06-10-ai-memory-architecture-design.md`
 - `docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md`
 
-Draft contract artifacts:
+Canonical contract artifacts:
 
 - `docs/schema-registry/tables/*.yaml`
 - `sdks/sdkwork-memory-sdk/openapi/memory-open-api.openapi.json`
@@ -39,7 +39,7 @@ Draft contract artifacts:
 - `sdks/sdkwork-memory-app-sdk/sdk-manifest.json`
 - `sdks/sdkwork-memory-backend-sdk/sdk-manifest.json`
 
-Phase 1 verification:
+Contract verification:
 
 ```powershell
 node tools/materialize_phase1_contracts.mjs

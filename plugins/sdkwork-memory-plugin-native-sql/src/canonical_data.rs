@@ -574,7 +574,7 @@ pub(crate) async fn sync_record_fts_on_tx(
     Ok(())
 }
 
-async fn remove_record_fts_on_tx(
+pub(crate) async fn remove_record_fts_on_tx(
     dialect: MemorySqlDialect,
     tx: &mut sqlx::Transaction<'_, sqlx::Any>,
     scope: &sdkwork_memory_spi::MemoryScopeContext,

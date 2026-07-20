@@ -1,6 +1,6 @@
 import {
   createClient as createGeneratedBackendClient,
-  SdkworkBackendClient,
+  SdkworkMemoryBackendClient as SdkworkBackendClient,
 } from '../generated/server-openapi/src/index';
 import type { SdkworkBackendConfig } from '../generated/server-openapi/src/types/common';
 

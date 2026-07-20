@@ -63,6 +63,7 @@ pub struct MemorySubject {
 #[serde(rename_all = "camelCase")]
 pub struct CreateSubjectCommand {
     #[serde(
+        skip_deserializing,
         serialize_with = "serialize_u64_as_string",
         deserialize_with = "deserialize_u64_from_string_or_number"
     )]
@@ -108,6 +109,7 @@ pub struct UpdateSubjectCommand {
 #[serde(rename_all = "camelCase")]
 pub struct ListSubjectsQuery {
     #[serde(
+        skip_deserializing,
         serialize_with = "serialize_u64_as_string",
         deserialize_with = "deserialize_u64_from_string_or_number"
     )]
@@ -200,6 +202,7 @@ pub struct MemoryBinding {
 #[serde(rename_all = "camelCase")]
 pub struct CreateBindingCommand {
     #[serde(
+        skip_deserializing,
         serialize_with = "serialize_u64_as_string",
         deserialize_with = "deserialize_u64_from_string_or_number"
     )]
@@ -248,6 +251,7 @@ pub struct CreateBindingCommand {
 #[serde(rename_all = "camelCase")]
 pub struct ListBindingsQuery {
     #[serde(
+        skip_deserializing,
         serialize_with = "serialize_u64_as_string",
         deserialize_with = "deserialize_u64_from_string_or_number"
     )]
@@ -345,6 +349,7 @@ pub struct MemoryCapabilityBinding {
 #[serde(rename_all = "camelCase")]
 pub struct CreateCapabilityBindingCommand {
     #[serde(
+        skip_deserializing,
         serialize_with = "serialize_u64_as_string",
         deserialize_with = "deserialize_u64_from_string_or_number"
     )]
@@ -371,6 +376,7 @@ pub struct CreateCapabilityBindingCommand {
 #[serde(rename_all = "camelCase")]
 pub struct ListCapabilityBindingsQuery {
     #[serde(
+        skip_deserializing,
         serialize_with = "serialize_u64_as_string",
         deserialize_with = "deserialize_u64_from_string_or_number"
     )]
@@ -425,6 +431,7 @@ pub struct MemoryResolvedCapabilityList {
 #[serde(rename_all = "camelCase")]
 pub struct ResolveCapabilitiesQuery {
     #[serde(
+        skip_deserializing,
         serialize_with = "serialize_u64_as_string",
         deserialize_with = "deserialize_u64_from_string_or_number"
     )]
@@ -471,6 +478,7 @@ pub struct MemoryEntity {
 #[serde(rename_all = "camelCase")]
 pub struct CreateEntityCommand {
     #[serde(
+        skip_deserializing,
         serialize_with = "serialize_u64_as_string",
         deserialize_with = "deserialize_u64_from_string_or_number"
     )]
@@ -510,6 +518,7 @@ pub struct UpdateEntityCommand {
 #[serde(rename_all = "camelCase")]
 pub struct ListEntitiesQuery {
     #[serde(
+        skip_deserializing,
         serialize_with = "serialize_u64_as_string",
         deserialize_with = "deserialize_u64_from_string_or_number"
     )]
@@ -572,6 +581,7 @@ pub struct MemoryEdge {
 #[serde(rename_all = "camelCase")]
 pub struct CreateEdgeCommand {
     #[serde(
+        skip_deserializing,
         serialize_with = "serialize_u64_as_string",
         deserialize_with = "deserialize_u64_from_string_or_number"
     )]
@@ -613,6 +623,7 @@ pub struct UpdateEdgeCommand {
 #[serde(rename_all = "camelCase")]
 pub struct ListEdgesQuery {
     #[serde(
+        skip_deserializing,
         serialize_with = "serialize_u64_as_string",
         deserialize_with = "deserialize_u64_from_string_or_number"
     )]
@@ -671,6 +682,7 @@ pub struct MemoryPolicy {
 #[serde(rename_all = "camelCase")]
 pub struct CreatePolicyCommand {
     #[serde(
+        skip_deserializing,
         serialize_with = "serialize_u64_as_string",
         deserialize_with = "deserialize_u64_from_string_or_number"
     )]
@@ -698,6 +710,7 @@ pub struct UpdatePolicyCommand {
 #[serde(rename_all = "camelCase")]
 pub struct ListPoliciesQuery {
     #[serde(
+        skip_deserializing,
         serialize_with = "serialize_u64_as_string",
         deserialize_with = "deserialize_u64_from_string_or_number"
     )]
@@ -775,6 +788,7 @@ pub struct MemoryPolicyAssignment {
 #[serde(rename_all = "camelCase")]
 pub struct CreatePolicyAssignmentCommand {
     #[serde(
+        skip_deserializing,
         serialize_with = "serialize_u64_as_string",
         deserialize_with = "deserialize_u64_from_string_or_number"
     )]
@@ -811,6 +825,7 @@ pub struct UpdatePolicyAssignmentCommand {
 #[serde(rename_all = "camelCase")]
 pub struct ListPolicyAssignmentsQuery {
     #[serde(
+        skip_deserializing,
         serialize_with = "serialize_u64_as_string",
         deserialize_with = "deserialize_u64_from_string_or_number"
     )]
@@ -890,6 +905,7 @@ pub struct MemoryCommercialReadiness {
 #[serde(rename_all = "camelCase")]
 pub struct RebuildCommercialReadinessCommand {
     #[serde(
+        skip_deserializing,
         serialize_with = "serialize_u64_as_string",
         deserialize_with = "deserialize_u64_from_string_or_number"
     )]

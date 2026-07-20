@@ -1,3 +1,5 @@
+> Status: archived implementation plan. It is not current capability or release authority; use `TECH_ARCHITECTURE.md`.
+>
 > Migrated from `docs/superpowers/plans/2026-06-10-memory-open-api-and-no-embedding-mvp.md` on 2026-06-24.
 > Owner: SDKWork maintainers
 
@@ -1358,4 +1360,3 @@ Record any deferred items explicitly:
 - Any table or migration change needs human review before running against persistent databases.
 - This repository currently may not be initialized as a git repository; if `git status` fails, skip commit steps and report that limitation.
 - If implementation continues in the main agent, execute tasks in order and keep each task red-green before moving to the next one.
-

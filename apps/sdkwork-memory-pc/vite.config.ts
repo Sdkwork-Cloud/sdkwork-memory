@@ -16,7 +16,19 @@ export default defineConfig({
     port: 4910,
   },
   build: {
-    sourcemap: true,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: "react-runtime", test: /node_modules[\\/].*(?:react|react-dom|react-router)/ },
+            { name: "memory-app-sdk", test: /sdkwork-memory-app-sdk/ },
+            { name: "sdkwork-pc-runtime", test: /sdkwork-(?:appbase|auth|core-pc|iam|ui-pc)/ },
+            { name: "vendor", test: /node_modules/ },
+          ],
+        },
+      },
+    },
+    sourcemap: false,
     target: "es2022",
   },
 });

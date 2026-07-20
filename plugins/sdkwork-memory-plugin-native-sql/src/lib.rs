@@ -3,6 +3,7 @@
 pub mod admin_tables;
 pub mod canonical_data;
 pub mod commercial_store;
+pub mod consolidation;
 mod governance_access;
 pub mod graph_store;
 pub mod learning_jobs;
@@ -18,6 +19,7 @@ pub mod store;
 
 pub use admin_tables::*;
 pub use commercial_store::*;
+pub use consolidation::*;
 pub use graph_store::*;
 pub use learning_jobs::{InsertLearningJobCommand, NativeSqlLearningJobRow};
 pub use manifest::{

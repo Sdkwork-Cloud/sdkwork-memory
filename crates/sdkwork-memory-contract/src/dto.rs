@@ -573,6 +573,28 @@ pub struct MemoryLearningJob {
     pub version: Option<u64>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryLearningJobList {
+    pub items: Vec<MemoryLearningJob>,
+    pub page_info: PageInfo,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListJobsQuery {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_size: Option<i32>,
+    #[serde(
+        default,
+        serialize_with = "serialize_option_u64_as_string",
+        deserialize_with = "deserialize_option_u64_from_string_or_number"
+    )]
+    pub space_id: Option<u64>,
+}
+
 /// Legacy alias kept for app-api extraction responses that mirror learning jobs.
 pub type MemoryExtractionJob = MemoryLearningJob;
 
@@ -859,6 +881,13 @@ pub struct MemoryForgetJob {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct MemoryForgetJobList {
+    pub items: Vec<MemoryForgetJob>,
+    pub page_info: PageInfo,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MemoryExportRequest {
     #[serde(
         serialize_with = "serialize_vec_u64_as_string",
@@ -890,4 +919,11 @@ pub struct MemoryExportJob {
     pub result: Option<Value>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryExportJobList {
+    pub items: Vec<MemoryExportJob>,
+    pub page_info: PageInfo,
 }

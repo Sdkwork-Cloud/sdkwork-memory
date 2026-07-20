@@ -1,3 +1,5 @@
+> Status: archived implementation plan. It is not current capability or release authority; use `TECH_ARCHITECTURE.md`.
+>
 > Migrated from `docs/superpowers/plans/2026-06-10-memory-implementation-family-baseline.md` on 2026-06-24.
 > Owner: SDKWork maintainers
 
@@ -69,4 +71,3 @@
 - [ ] Run `node tools\materialize_phase1_contracts.mjs`.
 - [ ] Run `powershell -ExecutionPolicy Bypass -File tools\verify_phase1.ps1`.
 - [ ] Report exact evidence and remaining production gaps.
-

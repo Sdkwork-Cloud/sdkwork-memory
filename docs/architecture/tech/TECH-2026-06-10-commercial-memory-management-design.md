@@ -1,3 +1,5 @@
+> Status: archived design record. It is not current capability or release authority; use `TECH_ARCHITECTURE.md`.
+>
 > Migrated from `docs/superpowers/specs/2026-06-10-commercial-memory-management-design.md` on 2026-06-24.
 > Owner: SDKWork maintainers
 
@@ -1175,4 +1177,3 @@ They must not block the contract-first commercial memory management layer.
 - [ ] SDK resource method shape remains resource-oriented across all three surfaces.
 - [ ] Verification commands and runtime tests prove commercial readiness before release. (`pnpm verify`, pagination/envelope checks, SQLite contract suite, backend commercial flow, and opt-in Postgres contract tests pass; App/Open commercial integration tests and relation-rebuild worker remain.)
 - [ ] `relation_rebuild_jobs` route/worker surface (DDL exists).
-

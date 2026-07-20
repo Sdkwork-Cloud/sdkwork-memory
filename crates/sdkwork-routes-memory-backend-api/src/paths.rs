@@ -13,6 +13,7 @@ pub const CANDIDATE_REJECT: &str = "/backend/v3/api/memory/candidates/{candidate
 pub const EXTRACTION_JOBS: &str = "/backend/v3/api/memory/extraction_jobs";
 pub const EXTRACTION_JOB: &str = "/backend/v3/api/memory/extraction_jobs/{jobId}";
 pub const CONSOLIDATION_JOBS: &str = "/backend/v3/api/memory/consolidation_jobs";
+pub const CONSOLIDATION_JOB: &str = "/backend/v3/api/memory/consolidation_jobs/{jobId}";
 pub const INDEXES: &str = "/backend/v3/api/memory/indexes";
 pub const INDEX: &str = "/backend/v3/api/memory/indexes/{indexId}";
 pub const INDEX_REBUILD: &str = "/backend/v3/api/memory/indexes/{indexId}/rebuild";
@@ -30,10 +31,11 @@ pub const RETRIEVAL_TRACES: &str = "/backend/v3/api/memory/retrieval_traces";
 pub const RETRIEVAL_TRACE: &str = "/backend/v3/api/memory/retrieval_traces/{traceId}";
 pub const AUDIT_LOGS: &str = "/backend/v3/api/memory/audit_logs";
 pub const RETENTION_JOBS: &str = "/backend/v3/api/memory/retention_jobs";
+pub const RETENTION_JOB: &str = "/backend/v3/api/memory/retention_jobs/{retentionJobId}";
 pub const MIGRATION_JOBS: &str = "/backend/v3/api/memory/migration_jobs";
 pub const MIGRATION_JOB: &str = "/backend/v3/api/memory/migration_jobs/{migrationJobId}";
 
-// Commercial management paths (implemented in Phase 2a).
+// Commercial subject, binding, and capability-management paths.
 pub const SUBJECTS: &str = "/backend/v3/api/memory/subjects";
 pub const SUBJECT: &str = "/backend/v3/api/memory/subjects/{subjectId}";
 pub const BINDINGS: &str = "/backend/v3/api/memory/bindings";
@@ -43,7 +45,7 @@ pub const CAPABILITY_BINDING: &str =
     "/backend/v3/api/memory/capability_bindings/{capabilityBindingId}";
 pub const CAPABILITIES_RESOLVE: &str = "/backend/v3/api/memory/capabilities/resolve";
 
-// Commercial graph and policy paths (Phase 2b).
+// Commercial graph, policy, and readiness paths.
 pub const ENTITIES: &str = "/backend/v3/api/memory/entities";
 pub const ENTITY: &str = "/backend/v3/api/memory/entities/{entityId}";
 pub const EDGES: &str = "/backend/v3/api/memory/edges";

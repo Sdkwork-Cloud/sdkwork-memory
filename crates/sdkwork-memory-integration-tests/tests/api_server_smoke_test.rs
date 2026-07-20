@@ -98,10 +98,8 @@ async fn api_server_bootstrap_auth_and_healthz_contracts() {
     );
 
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
-    let production_open_router =
-        build_router_with_open_api(OpenMemoryService::new(store.clone()));
-    let production_app_router =
-        build_router_with_app_api(OpenMemoryService::new(store));
+    let production_open_router = build_router_with_open_api(OpenMemoryService::new(store.clone()));
+    let production_app_router = build_router_with_app_api(OpenMemoryService::new(store));
 
     let protected = production_open_router
         .clone()

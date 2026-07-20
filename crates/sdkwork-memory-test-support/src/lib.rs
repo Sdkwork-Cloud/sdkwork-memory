@@ -114,9 +114,15 @@ impl MemoryPluginConformanceHarness {
         ));
         checks.push(port_backed_check(
             manifest,
-            "retriever_and_index",
-            &["MemoryRetrieverPort", "MemoryIndexPort"],
-            "Retriever and index baseline requires retriever and index ports.",
+            "retriever",
+            &["MemoryRetrieverPort"],
+            "Retriever qualification requires an executable retriever port.",
+        ));
+        checks.push(port_backed_check(
+            manifest,
+            "index",
+            &["MemoryIndexPort"],
+            "Independent index qualification requires an executable index port.",
         ));
         checks.push(capability_port_check(
             manifest.capabilities.retrieval_trace,
@@ -150,7 +156,7 @@ impl MemoryPluginConformanceHarness {
             manifest,
             "external_bridge",
             &["ExternalMemoryBridgePort"],
-            "External bridge baseline requires an explicit fail-closed bridge port.",
+            "External bridge qualification requires an executable bridge port.",
         ));
 
         MemoryPluginConformanceReport {

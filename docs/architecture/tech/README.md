@@ -1,15 +1,7 @@
-# Technical Architecture Directory
+# Technical Architecture Documents
 
-This directory owns the technical architecture Canon for the repository.
+[TECH_ARCHITECTURE.md](TECH_ARCHITECTURE.md) is the only current-state technical architecture Canon in this directory.
 
-## Fixed Entry
+Dated `TECH-2026-*` files are design records, implementation plans, or bounded engineering evidence. Their checklists and phase language describe the state at the time written and must not be used as current capability, release, or operational authority. Current product state is in `docs/product/prd/PRD.md`; release state is in `docs/releases/README.md`.
 
-- [TECH_ARCHITECTURE.md](TECH_ARCHITECTURE.md) — required entry document. Keep summary, status, and links here.
-
-## Splitting Rules
-
-- Split large architecture content into sibling shards named `TECH-<kebab-topic>.md`.
-- Every shard `MUST` be linked from `TECH_ARCHITECTURE.md`.
-- Do not create competing architecture roots such as `docs/architecture/TECH_ARCHITECTURE.md`; that path is retired and redirect-only.
-
-See `DOCUMENTATION_SPEC.md` section 2.2.
+[TECH-topology-standard.md](TECH-topology-standard.md) redirects to the current topology Canon.

@@ -124,6 +124,7 @@
       "sdkwork_memory_plugin_reference_profiles::build_reference_habit_store",
       "sdkwork_memory_plugin_reference_profiles::build_reference_retrieval_trace_store",
       "sdkwork_memory_plugin_reference_profiles::build_reference_governance_access",
+      "sdkwork_memory_plugin_reference_profiles::build_reference_space_store",
       "sdkwork_memory_plugin_reference_profiles::build_reference_retriever",
       "sdkwork_memory_plugin_reference_profiles::build_reference_context_assembler"
     ],

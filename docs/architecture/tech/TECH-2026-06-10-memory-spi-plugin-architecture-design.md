@@ -1,3 +1,5 @@
+> Status: archived design record. It is not current capability or release authority; use `TECH_ARCHITECTURE.md`.
+>
 > Migrated from `docs/superpowers/specs/2026-06-10-memory-spi-plugin-architecture-design.md` on 2026-06-24.
 > Owner: SDKWork maintainers
 

@@ -212,6 +212,49 @@ impl NativeSqlMemoryStore {
         Ok(row.map(map_learning_job_row))
     }
 
+    pub async fn list_learning_jobs_for_tenant(
+        &self,
+        tenant_id: i64,
+        job_type: &str,
+        space_id: Option<i64>,
+        page_size: i32,
+        cursor: Option<&str>,
+    ) -> Result<Vec<NativeSqlLearningJobRow>, NativeSqlStoreError> {
+        let cursor = cursor.unwrap_or("");
+        let rows = sqlx::query(
+            r#"
+            SELECT uuid, tenant_id, space_id, job_type, state, priority,
+                   input_json, result_json, error_json,
+                   started_at, finished_at, created_at, updated_at, version
+            FROM ai_learning_job AS current
+            WHERE tenant_id = ?
+              AND job_type = ?
+              AND (? IS NULL OR space_id = ?)
+              AND (
+                ? = ''
+                OR current.id < COALESCE((
+                  SELECT cursor_row.id
+                  FROM ai_learning_job AS cursor_row
+                  WHERE cursor_row.tenant_id = current.tenant_id
+                    AND cursor_row.uuid = ?
+                ), 0)
+              )
+            ORDER BY current.id DESC
+            LIMIT ?
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(job_type)
+        .bind(space_id)
+        .bind(space_id)
+        .bind(cursor)
+        .bind(cursor)
+        .bind(i64::from(page_size.clamp(1, 200)) + 1)
+        .fetch_all(self.pool())
+        .await?;
+        Ok(rows.into_iter().map(map_learning_job_row).collect())
+    }
+
     pub async fn finish_learning_job(
         &self,
         tenant_id: i64,

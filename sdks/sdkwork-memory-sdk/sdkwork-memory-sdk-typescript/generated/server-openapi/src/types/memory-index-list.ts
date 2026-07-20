@@ -1,7 +1,7 @@
 import type { MemoryIndex } from './memory-index';
-import type { MemoryPageInfo } from './memory-page-info';
+import type { PageInfo } from './page-info';
 
 export interface MemoryIndexList {
   items: MemoryIndex[];
-  pageInfo: MemoryPageInfo;
+  pageInfo: PageInfo;
 }

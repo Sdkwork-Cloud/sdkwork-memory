@@ -1,6 +1,6 @@
 import {
   createClient as createGeneratedAppClient,
-  SdkworkAppClient,
+  SdkworkMemoryAppClient as SdkworkAppClient,
 } from '../generated/server-openapi/src/index';
 import type { SdkworkAppConfig } from '../generated/server-openapi/src/types/common';
 

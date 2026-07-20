@@ -3,11 +3,12 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
 use sdkwork_memory_contract::{
-    ListCandidatesQuery, ListHabitsQuery, ListMemoriesQuery, ListMemorySourcesQuery,
+    ListCandidatesQuery, ListHabitsQuery, ListJobsQuery, ListMemoriesQuery, ListMemorySourcesQuery,
     MemoryAppApi, MemoryAppRequestContext, MemoryCandidate, MemoryCandidateList, MemoryContextPack,
-    MemoryContextPackRequest, MemoryEvent, MemoryEventRequest, MemoryExportJob,
+    MemoryContextPackRequest, MemoryEvent, MemoryEventRequest, MemoryExportJob, MemoryExportJobList,
     MemoryExportRequest, MemoryExtractionRequest, MemoryFeedback, MemoryFeedbackRequest,
-    MemoryForgetJob, MemoryForgetRequest, MemoryHabit, MemoryHabitList, MemoryHabitRequest,
+    MemoryForgetJob, MemoryForgetJobList, MemoryForgetRequest, MemoryHabit, MemoryHabitList,
+    MemoryHabitRequest,
     MemoryLearningJob, MemoryLearningSettings, MemoryLearningSettingsPatch, MemoryRecord,
     MemoryRecordList, MemoryRecordPatch, MemoryRecordRequest, MemoryRecordSourceList,
     MemoryRetrievalRequest, MemoryRetrievalResult, MemoryReviewRequest, MemoryServiceResult,
@@ -204,6 +205,14 @@ impl MemoryAppApi for RecordingAppApi {
         unimplemented!("stub -- not called in web-framework test")
     }
 
+    async fn list_forget_requests(
+        &self,
+        _context: MemoryAppRequestContext,
+        _query: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryForgetJobList> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
     async fn retrieve_forget_request(
         &self,
         _context: MemoryAppRequestContext,
@@ -342,6 +351,14 @@ impl MemoryAppApi for RecordingAppApi {
         _context: MemoryAppRequestContext,
         _request: MemoryExportRequest,
     ) -> MemoryServiceResult<MemoryExportJob> {
+        unimplemented!("stub -- not called in web-framework test")
+    }
+
+    async fn list_export_jobs(
+        &self,
+        _context: MemoryAppRequestContext,
+        _query: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryExportJobList> {
         unimplemented!("stub -- not called in web-framework test")
     }
 

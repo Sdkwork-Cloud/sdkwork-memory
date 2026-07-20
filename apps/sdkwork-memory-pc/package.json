@@ -14,6 +14,7 @@
     "test": "vitest run",
     "check": "pnpm typecheck && pnpm test && pnpm build",
     "verify": "pnpm check",
+    "build:browser:cloud": "pnpm build && node scripts/package-web-release.mjs",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "dev:standalone": "pnpm exec sdkwork-app dev --root ../.. --deployment-profile standalone",
     "dev:cloud": "pnpm exec sdkwork-app dev --root ../.. --deployment-profile cloud",

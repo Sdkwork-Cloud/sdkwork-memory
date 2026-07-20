@@ -2,15 +2,15 @@ use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
 use sdkwork_intelligence_memory_service::OpenMemoryService;
+use sdkwork_memory_test_support::web_auth::{
+    lock_integration_test_env, memory_access_token, memory_auth_token_bearer,
+};
 use sdkwork_routes_memory_app_api::{
     build_router_with_app_api, wrap_router_with_iam_database_web_framework,
 };
 use sdkwork_routes_memory_backend_api::{
     build_router_with_backend_api,
     wrap_router_with_iam_database_web_framework as wrap_backend_router,
-};
-use sdkwork_memory_test_support::web_auth::{
-    lock_integration_test_env, memory_access_token, memory_auth_token_bearer,
 };
 use tower::util::ServiceExt;
 

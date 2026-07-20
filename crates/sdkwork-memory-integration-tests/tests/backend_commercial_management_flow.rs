@@ -2,13 +2,13 @@ use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
 use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
 use sdkwork_intelligence_memory_service::OpenMemoryService;
-use sdkwork_routes_memory_backend_api::{
-    build_router_with_backend_api, wrap_router_with_iam_database_web_framework,
-};
 use sdkwork_memory_test_support::api_envelope;
 use sdkwork_memory_test_support::web_auth::{
     lock_integration_test_env, memory_access_token, memory_auth_token_bearer,
     memory_content_sha256, memory_idempotency_key,
+};
+use sdkwork_routes_memory_backend_api::{
+    build_router_with_backend_api, wrap_router_with_iam_database_web_framework,
 };
 use sdkwork_web_core::CONTENT_SHA256_HEADER;
 use serde_json::json;
@@ -32,7 +32,10 @@ fn authed_json(method: &str, uri: &str, body: serde_json::Value) -> Request<Body
         .header("content-type", "application/json")
         .header("Authorization", memory_auth_token_bearer("9001"))
         .header("Access-Token", memory_access_token("9001"))
-        .header("Idempotency-Key", memory_idempotency_key(method, uri, &body_text))
+        .header(
+            "Idempotency-Key",
+            memory_idempotency_key(method, uri, &body_text),
+        )
         .header(CONTENT_SHA256_HEADER, memory_content_sha256(&body_text))
         .body(Body::from(body_text))
         .unwrap()

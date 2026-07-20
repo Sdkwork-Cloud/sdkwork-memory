@@ -1,16 +1,17 @@
 use sdkwork_memory_contract::{
-    ListAdminResourcesQuery, MemoryBackendRequestContext, MemoryEvalRun, MemoryEvalRunList,
-    MemoryEvalRunRequest, MemoryExtractionRequest, MemoryImplementationProfile,
+    ListAdminResourcesQuery, ListJobsQuery, MemoryBackendRequestContext, MemoryEvalRun,
+    MemoryEvalRunList, MemoryEvalRunRequest, MemoryExtractionRequest, MemoryImplementationProfile,
     MemoryImplementationProfileList, MemoryImplementationProfileRequest, MemoryIndex,
-    MemoryIndexList, MemoryIndexRequest, MemoryLearningJob, MemoryMigrationJobRequest,
-    MemoryOpenApi, MemoryProviderBinding, MemoryProviderBindingList, MemoryProviderBindingRequest,
-    MemoryRecordRequest, MemoryRetentionJobRequest, MemoryRetrievalProfile,
-    MemoryRetrievalProfileList, MemoryRetrievalProfileRequest, MemoryServiceError,
-    MemoryServiceResult, PageInfo,
+    MemoryIndexList, MemoryIndexRequest, MemoryLearningJob, MemoryLearningJobList,
+    MemoryMigrationJobRequest, MemoryOpenApi, MemoryProviderBinding, MemoryProviderBindingList,
+    MemoryProviderBindingRequest, MemoryRecordRequest, MemoryRetentionJobRequest,
+    MemoryRetrievalProfile, MemoryRetrievalProfileList, MemoryRetrievalProfileRequest,
+    MemoryServiceError, MemoryServiceResult, PageInfo,
 };
 use sdkwork_memory_plugin_native_sql::{
-    InsertMemoryEvalRunCommand, NativeSqlEvalRunRow, NativeSqlImplementationProfileRow,
-    NativeSqlMemoryIndexRow, NativeSqlProviderBindingRow, NativeSqlRetrievalProfileRow,
+    ConsolidateDuplicateRecordsCommand, InsertMemoryEvalRunCommand, NativeSqlEvalRunRow,
+    NativeSqlImplementationProfileRow, NativeSqlMemoryIndexRow, NativeSqlProviderBindingRow,
+    NativeSqlRetrievalProfileRow,
 };
 use sdkwork_memory_spi::{
     MemoryImplementationKind, MemoryScopeContext, SupersedeCanonicalMemoryAtomicCommand,
@@ -28,6 +29,52 @@ const RT_RETENTION_JOB: &str = "retention_job";
 const RT_MIGRATION_JOB: &str = "migration_job";
 
 impl OpenMemoryService {
+    pub(crate) async fn backend_list_governance_learning_jobs(
+        &self,
+        context: MemoryBackendRequestContext,
+        query: ListJobsQuery,
+        resource_type: &str,
+    ) -> MemoryServiceResult<MemoryLearningJobList> {
+        if query.space_id.is_some() {
+            return Err(MemoryServiceError::validation(
+                "spaceId is not supported for this job collection",
+            ));
+        }
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
+        let page_size = platform::clamp_page_size(query.page_size);
+        let rows = self
+            .store
+            .list_governance_jobs_for_tenant(
+                tenant_id,
+                resource_type,
+                None,
+                page_size,
+                query.cursor.as_deref(),
+            )
+            .await
+            .map_err(OpenMemoryService::map_store_error)?;
+        let has_more = rows.len() > page_size as usize;
+        let page_rows: Vec<_> = rows.into_iter().take(page_size as usize).collect();
+        let next_cursor = page_rows.last().map(|row| row.job_id.clone());
+        let items = page_rows
+            .into_iter()
+            .map(|row| {
+                let metadata = row.metadata_json.ok_or_else(|| {
+                    MemoryServiceError::storage("learning job metadata is missing")
+                })?;
+                serde_json::from_str(&metadata).map_err(|error| {
+                    MemoryServiceError::storage(format!(
+                        "learning job metadata decode failed: {error}"
+                    ))
+                })
+            })
+            .collect::<MemoryServiceResult<Vec<_>>>()?;
+        Ok(MemoryLearningJobList {
+            items,
+            page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),
+        })
+    }
+
     fn validate_implementation_profile_request(
         request: &MemoryImplementationProfileRequest,
     ) -> MemoryServiceResult<()> {
@@ -1047,6 +1094,38 @@ impl OpenMemoryService {
             .await
     }
 
+    pub(crate) async fn backend_list_extraction_jobs(
+        &self,
+        context: MemoryBackendRequestContext,
+        query: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryLearningJobList> {
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
+        let space_id = query.space_id.map(platform::space_id_i64).transpose()?;
+        let page_size = platform::clamp_page_size(query.page_size);
+        let rows = self
+            .store
+            .list_learning_jobs_for_tenant(
+                tenant_id,
+                "extraction",
+                space_id,
+                page_size,
+                query.cursor.as_deref(),
+            )
+            .await
+            .map_err(OpenMemoryService::map_store_error)?;
+        let has_more = rows.len() > page_size as usize;
+        let page_rows: Vec<_> = rows.into_iter().take(page_size as usize).collect();
+        let next_cursor = page_rows.last().map(|row| row.job_uuid.clone());
+        let items = page_rows
+            .iter()
+            .map(crate::job_worker::learning_job_from_row)
+            .collect::<MemoryServiceResult<Vec<_>>>()?;
+        Ok(MemoryLearningJobList {
+            items,
+            page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),
+        })
+    }
+
     pub(crate) async fn backend_create_consolidation_job(
         &self,
         context: MemoryBackendRequestContext,
@@ -1060,12 +1139,16 @@ impl OpenMemoryService {
             organization_id: None,
             user_id: None,
         };
-        let merged = self
+        let job_id = self.next_id()?;
+        let operation_id = job_id.to_string();
+        let consolidation = self
             .store
-            .consolidate_duplicate_records_in_scope(&scope)
+            .consolidate_duplicate_records_in_scope_detailed(ConsolidateDuplicateRecordsCommand {
+                scope: &scope,
+                operation_id: &operation_id,
+            })
             .await
             .map_err(OpenMemoryService::map_store_error)?;
-        let job_id = self.next_id()?;
         let finished_at = platform::current_timestamp();
         let mut job = Self::new_learning_job(
             job_id,
@@ -1075,8 +1158,10 @@ impl OpenMemoryService {
             &request,
         )?;
         job.result = Some(serde_json::json!({
-            "mergedDuplicates": merged,
-            "supersededDuplicates": merged,
+            "mergedDuplicates": consolidation.superseded_records,
+            "supersededDuplicates": consolidation.superseded_records,
+            "transferredSources": consolidation.transferred_sources,
+            "deduplicatedSources": consolidation.deduplicated_sources,
             "consolidationMode": "identity_bounded_supersession",
             "spaceId": request.space_id,
         }));
@@ -1094,11 +1179,25 @@ impl OpenMemoryService {
         Ok(job)
     }
 
+    pub(crate) async fn backend_retrieve_consolidation_job(
+        &self,
+        context: MemoryBackendRequestContext,
+        job_id: u64,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
+        Self::load_governance_job(self, tenant_id, job_id, RT_CONSOLIDATION_JOB).await
+    }
+
     pub(crate) async fn backend_create_retention_job(
         &self,
         context: MemoryBackendRequestContext,
         request: MemoryRetentionJobRequest,
     ) -> MemoryServiceResult<MemoryLearningJob> {
+        if request.reason.trim().is_empty() {
+            return Err(MemoryServiceError::validation(
+                "reason must not be empty for retention jobs",
+            ));
+        }
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let space_id = request
             .space_id
@@ -1142,11 +1241,25 @@ impl OpenMemoryService {
         Ok(job)
     }
 
+    pub(crate) async fn backend_retrieve_retention_job(
+        &self,
+        context: MemoryBackendRequestContext,
+        job_id: u64,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
+        Self::load_governance_job(self, tenant_id, job_id, RT_RETENTION_JOB).await
+    }
+
     pub(crate) async fn backend_create_migration_job(
         &self,
         context: MemoryBackendRequestContext,
         request: MemoryMigrationJobRequest,
     ) -> MemoryServiceResult<MemoryLearningJob> {
+        if request.reason.trim().is_empty() {
+            return Err(MemoryServiceError::validation(
+                "reason must not be empty for migration jobs",
+            ));
+        }
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let migration_result =
             crate::implementation_migration::execute_implementation_profile_migration(

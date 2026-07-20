@@ -281,6 +281,28 @@
       "apiSurface": "app-api"
     },
     {
+      "method": "GET",
+      "path": "/app/v3/api/memory/forget_requests",
+      "operationId": "forgetRequests.list",
+      "tags": [
+        "memory"
+      ],
+      "auth": {
+        "mode": "dual-token",
+        "required": true
+      },
+      "handler": {
+        "module": "crate::routes",
+        "name": null
+      },
+      "ownership": {
+        "owner": "sdkwork-memory",
+        "apiAuthority": "sdkwork-memory.app"
+      },
+      "requestContext": "WebRequestContext",
+      "apiSurface": "app-api"
+    },
+    {
       "method": "POST",
       "path": "/app/v3/api/memory/forget_requests",
       "operationId": "forgetRequests.create",
@@ -637,6 +659,28 @@
       "method": "POST",
       "path": "/app/v3/api/memory/feedback",
       "operationId": "feedback.create",
+      "tags": [
+        "memory"
+      ],
+      "auth": {
+        "mode": "dual-token",
+        "required": true
+      },
+      "handler": {
+        "module": "crate::routes",
+        "name": null
+      },
+      "ownership": {
+        "owner": "sdkwork-memory",
+        "apiAuthority": "sdkwork-memory.app"
+      },
+      "requestContext": "WebRequestContext",
+      "apiSurface": "app-api"
+    },
+    {
+      "method": "GET",
+      "path": "/app/v3/api/memory/export_jobs",
+      "operationId": "exportJobs.list",
       "tags": [
         "memory"
       ],

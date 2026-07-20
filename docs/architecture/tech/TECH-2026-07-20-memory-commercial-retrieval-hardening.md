@@ -41,11 +41,17 @@ canonical storage, or generated SDK contracts:
   placeholder graph, provider, index, and evaluation ports are no longer
   bindable, and direct legacy calls fail closed;
 - `retrieval_quality` runs execute the same retrieval path as production over
-  bounded inline golden cases and report macro Recall@K, Hit Rate@K, MRR,
-  degraded rate, per-case query hashes, and optional operator-defined gates;
+  bounded inline golden cases and report macro Recall@K, Precision@K, Hit
+  Rate@K, MRR, mean binary nDCG@K, degraded rate, nearest-rank p95 latency,
+  per-case query hashes, and optional operator-defined gates;
 - consolidation uses transactional, identity-bounded supersession instead of
   labeling soft deletion as a merge; records from different users, scopes,
   memory types, or sensitivity classes cannot be consolidated together;
+- exact duplicate consolidation transfers non-conflicting source evidence,
+  removes duplicate source links, recomputes the winner evidence count from
+  persisted rows, removes stale SQLite FTS projections, and writes one
+  `memory.record.superseded` outbox event plus audit record in the same
+  transaction; stable operation ids make committed results retry-recoverable;
 - retrieval trace query hashes use normalized SHA-256 rather than Rust's
   non-cryptographic, implementation-defined default hasher.
 
@@ -65,11 +71,12 @@ their production qualification and evaluation gates are complete.
 | Tenant authorization and sensitivity filtering | production | authorization snapshot, store-level sensitivity predicate, canonical recheck |
 | Retrieval trace and explanation | production | `ai_retrieval_trace`, `ai_retrieval_hit`, fusion explanation JSON |
 | Candidate learning, habits, feedback, audit, outbox, quota | production baseline | service and native SQL plugin ports with contract tests |
+| Exact canonical duplicate consolidation | hardened | identity-bounded supersession, source transfer/deduplication, persisted evidence recount, FTS cleanup, atomic outbox/audit, operation retry recovery |
 | Vector retrieval | contract only | SPI types and implementation profiles exist; no qualified provider is active |
 | Model reranking | contract only | `RerankModelPort` exists; production request/score contract is not sufficient yet |
 | Graph-temporal retrieval | data/control-plane partial | entity and edge management exists; no production graph retriever is active |
 | External memory bridge | evaluation only | reference profile is explicitly evaluation-only |
-| Offline retrieval quality evaluation | production baseline | bounded inline golden cases execute production retrieval and calculate Recall@K, Hit Rate@K, MRR, degradation, and optional gates |
+| Offline retrieval quality evaluation | production baseline | bounded inline golden cases execute production retrieval and calculate Recall@K, macro Precision@K, Hit Rate@K, MRR, mean binary nDCG@K, degradation, real monotonic-clock p95 latency, and optional gates |
 | Versioned dataset registry and release promotion gate | not implemented | `datasetRef` is persisted as identity metadata; external dataset resolution and automated release promotion remain fail-closed |
 
 ## 2.1 Commercial Scheme Catalog
@@ -155,9 +162,12 @@ then memory id for deterministic replay.
 - Resolve `datasetRef` through a reviewed dataset registry. Until that resolver
   exists, `retrieval_quality` requires bounded inline `config.cases` and fails
   rather than pretending that the reference was evaluated.
-- Extend the implemented Recall@K, Hit Rate@K, MRR, and degraded-rate metrics
-  with nDCG@10, context precision, p95
-  latency, provider error rate, and cost per retrieval.
+- Extend binary relevance cases to reviewed graded relevance judgments before
+  claiming graded nDCG; the current implementation reports honest binary
+  nDCG@K, macro returned-hit Precision@K, and nearest-rank p95 latency measured
+  around the production retrieval call.
+- Add provider-attributed error rate and cost per retrieval only after real
+  provider telemetry and billing sources exist; do not synthesize either value.
 - Add shadow evaluation and canary comparison before changing tenant defaults.
 - Record dataset version, profile version, provider/model version, seed, and
   code revision in every eval run.
@@ -192,8 +202,9 @@ or provider ownership and requires the corresponding human review.
 - Resolve entity aliases and maintain validity intervals for facts and edges.
 - Retrieve bounded graph neighborhoods with temporal predicates and provenance.
 - Extend the implemented exact canonical duplicate supersession with qualified
-  near-duplicate detection, source/evidence aggregation, contradiction policy,
-  and explicit audit/outbox journals.
+  near-duplicate detection and contradiction policy. Exact-match source
+  aggregation and explicit audit/outbox journals are already implemented;
+  they are not evidence of semantic duplicate or contradiction resolution.
 - Separate event time from ingestion time so late events do not rewrite history.
 
 ### P1: Context Optimization

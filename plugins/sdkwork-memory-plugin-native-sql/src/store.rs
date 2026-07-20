@@ -2475,6 +2475,58 @@ impl NativeSqlMemoryStore {
         }))
     }
 
+    pub async fn list_governance_jobs_for_tenant(
+        &self,
+        tenant_id: i64,
+        resource_type: &str,
+        actor_id: Option<&str>,
+        page_size: i32,
+        cursor: Option<&str>,
+    ) -> Result<Vec<NativeSqlGovernanceJobRow>, NativeSqlStoreError> {
+        let cursor = cursor.unwrap_or("");
+        let rows = sqlx::query(
+            r#"
+            SELECT uuid, actor_id, resource_type, result, metadata_json, created_at
+            FROM ai_audit_log AS current
+            WHERE tenant_id = ?
+              AND resource_type = ?
+              AND (? IS NULL OR actor_id = ?)
+              AND (
+                ? = ''
+                OR current.id < COALESCE((
+                  SELECT cursor_row.id
+                  FROM ai_audit_log AS cursor_row
+                  WHERE cursor_row.tenant_id = current.tenant_id
+                    AND cursor_row.uuid = ?
+                ), 0)
+              )
+            ORDER BY current.id DESC
+            LIMIT ?
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(resource_type)
+        .bind(actor_id)
+        .bind(actor_id)
+        .bind(cursor)
+        .bind(cursor)
+        .bind(clamp_list_page_size(page_size) + 1)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| NativeSqlGovernanceJobRow {
+                job_id: row.get("uuid"),
+                actor_id: row.get("actor_id"),
+                resource_type: row.get("resource_type"),
+                result: row.get("result"),
+                metadata_json: row.get("metadata_json"),
+                created_at: row.get("created_at"),
+            })
+            .collect())
+    }
+
     pub async fn save_admin_config_entity(
         &self,
         tenant_id: i64,
@@ -3010,97 +3062,6 @@ impl NativeSqlMemoryStore {
         .execute(&self.pool)
         .await?;
         Ok(())
-    }
-
-    pub async fn consolidate_duplicate_records_in_scope(
-        &self,
-        scope: &MemoryScopeContext,
-    ) -> Result<u32, NativeSqlStoreError> {
-        const BATCH_LIMIT: i64 = 500;
-        let mut consolidated = 0u32;
-        loop {
-            let mut transaction = self.pool.begin().await?;
-            let rows = sqlx::query(
-                r#"
-                SELECT duplicate_id, winner_id
-                FROM (
-                  SELECT id AS duplicate_id,
-                         FIRST_VALUE(id) OVER (
-                           PARTITION BY user_id, scope, memory_type,
-                                        sensitivity_level, canonical_text
-                           ORDER BY evidence_count DESC, confidence DESC,
-                                    updated_at DESC, id DESC
-                         ) AS winner_id,
-                         ROW_NUMBER() OVER (
-                           PARTITION BY user_id, scope, memory_type,
-                                        sensitivity_level, canonical_text
-                           ORDER BY evidence_count DESC, confidence DESC,
-                                    updated_at DESC, id DESC
-                         ) AS row_num
-                  FROM ai_record
-                  WHERE tenant_id = ? AND space_id = ?
-                    AND status NOT IN ('deleted', 'superseded')
-                ) ranked
-                WHERE row_num > 1
-                LIMIT ?
-                "#,
-            )
-            .bind(scope.tenant_id)
-            .bind(scope.space_id)
-            .bind(BATCH_LIMIT)
-            .fetch_all(&mut *transaction)
-            .await?;
-            if rows.is_empty() {
-                transaction.rollback().await?;
-                break;
-            }
-            let batch_len = rows.len();
-            let timestamp = now_text();
-            for row in rows {
-                let duplicate_id: i64 = row.get("duplicate_id");
-                let winner_id: i64 = row.get("winner_id");
-                let result = sqlx::query(
-                    r#"
-                    UPDATE ai_record
-                    SET status = 'superseded',
-                        superseded_by_memory_id = ?,
-                        deleted_at = NULL,
-                        updated_at = ?,
-                        version = version + 1
-                    WHERE tenant_id = ? AND space_id = ? AND id = ?
-                      AND status NOT IN ('deleted', 'superseded')
-                      AND id <> ?
-                      AND EXISTS (
-                        SELECT 1
-                        FROM ai_record winner
-                        WHERE winner.id = ?
-                          AND winner.tenant_id = ?
-                          AND winner.space_id = ?
-                          AND winner.status NOT IN ('deleted', 'superseded')
-                      )
-                    "#,
-                )
-                .bind(winner_id)
-                .bind(&timestamp)
-                .bind(scope.tenant_id)
-                .bind(scope.space_id)
-                .bind(duplicate_id)
-                .bind(winner_id)
-                .bind(winner_id)
-                .bind(scope.tenant_id)
-                .bind(scope.space_id)
-                .execute(&mut *transaction)
-                .await?;
-                if result.rows_affected() > 0 {
-                    consolidated += 1;
-                }
-            }
-            transaction.commit().await?;
-            if batch_len < BATCH_LIMIT as usize {
-                break;
-            }
-        }
-        Ok(consolidated)
     }
 
     pub async fn purge_expired_records_for_scope(

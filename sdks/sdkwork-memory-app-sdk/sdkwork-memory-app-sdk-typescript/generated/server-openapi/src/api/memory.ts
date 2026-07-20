@@ -8,15 +8,10 @@ export interface MemoryPolicyAssignmentsListParams {
   q?: string;
   cursor?: string;
   pageSize?: number;
-  tenantId: string;
 }
 
 export interface MemoryPolicyAssignmentsCreateParams {
   idempotencyKey?: string;
-}
-
-export interface MemoryPolicyAssignmentsUpdateParams {
-  tenantId: string;
 }
 
 export class MemoryPolicyAssignmentsApi {
@@ -27,12 +22,11 @@ export class MemoryPolicyAssignmentsApi {
   }
 
 
-async list(params: MemoryPolicyAssignmentsListParams): Promise<Record<string, unknown>> {
+async list(params?: MemoryPolicyAssignmentsListParams): Promise<Record<string, unknown>> {
     const query = buildQueryString([
-      { name: 'q', value: params.q, style: 'form', explode: true, allowReserved: false },
-      { name: 'cursor', value: params.cursor, style: 'form', explode: true, allowReserved: false },
-      { name: 'page_size', value: params.pageSize, style: 'form', explode: true, allowReserved: false },
-      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
+      { name: 'q', value: params?.q, style: 'form', explode: true, allowReserved: false },
+      { name: 'cursor', value: params?.cursor, style: 'form', explode: true, allowReserved: false },
+      { name: 'page_size', value: params?.pageSize, style: 'form', explode: true, allowReserved: false },
     ]);
     return this.client.get<Record<string, unknown>>(appendQueryString(appApiPath(`/memory/policy_assignments`), query));
   }
@@ -47,11 +41,8 @@ async create(body: MemoryPolicyAssignmentRequest, params?: MemoryPolicyAssignmen
     return this.client.post<MemoryPolicyAssignment>(appApiPath(`/memory/policy_assignments`), body, undefined, requestHeaders, 'application/json');
   }
 
-async update(policyAssignmentId: string, body: MemoryPolicyAssignmentPatch, params: MemoryPolicyAssignmentsUpdateParams): Promise<MemoryPolicyAssignment> {
-    const query = buildQueryString([
-      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
-    ]);
-    return this.client.patch<MemoryPolicyAssignment>(appendQueryString(appApiPath(`/memory/policy_assignments/${serializePathParameter(policyAssignmentId, { name: 'policyAssignmentId', style: 'simple', explode: false })}`), query), body, undefined, undefined, 'application/json');
+async update(policyAssignmentId: string, body: MemoryPolicyAssignmentPatch): Promise<MemoryPolicyAssignment> {
+    return this.client.patch<MemoryPolicyAssignment>(appApiPath(`/memory/policy_assignments/${serializePathParameter(policyAssignmentId, { name: 'policyAssignmentId', style: 'simple', explode: false })}`), body, undefined, undefined, 'application/json');
   }
 }
 
@@ -59,21 +50,12 @@ export interface MemoryEntitiesListParams {
   q?: string;
   cursor?: string;
   pageSize?: number;
-  tenantId: string;
   spaceId?: string;
   entityType?: string;
 }
 
 export interface MemoryEntitiesCreateParams {
   idempotencyKey?: string;
-}
-
-export interface MemoryEntitiesRetrieveParams {
-  tenantId: string;
-}
-
-export interface MemoryEntitiesUpdateParams {
-  tenantId: string;
 }
 
 export class MemoryEntitiesApi {
@@ -84,14 +66,13 @@ export class MemoryEntitiesApi {
   }
 
 
-async list(params: MemoryEntitiesListParams): Promise<Record<string, unknown>> {
+async list(params?: MemoryEntitiesListParams): Promise<Record<string, unknown>> {
     const query = buildQueryString([
-      { name: 'q', value: params.q, style: 'form', explode: true, allowReserved: false },
-      { name: 'cursor', value: params.cursor, style: 'form', explode: true, allowReserved: false },
-      { name: 'page_size', value: params.pageSize, style: 'form', explode: true, allowReserved: false },
-      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
-      { name: 'spaceId', value: params.spaceId, style: 'form', explode: true, allowReserved: false },
-      { name: 'entityType', value: params.entityType, style: 'form', explode: true, allowReserved: false },
+      { name: 'q', value: params?.q, style: 'form', explode: true, allowReserved: false },
+      { name: 'cursor', value: params?.cursor, style: 'form', explode: true, allowReserved: false },
+      { name: 'page_size', value: params?.pageSize, style: 'form', explode: true, allowReserved: false },
+      { name: 'spaceId', value: params?.spaceId, style: 'form', explode: true, allowReserved: false },
+      { name: 'entityType', value: params?.entityType, style: 'form', explode: true, allowReserved: false },
     ]);
     return this.client.get<Record<string, unknown>>(appendQueryString(appApiPath(`/memory/entities`), query));
   }
@@ -106,18 +87,12 @@ async create(body: MemoryEntityRequest, params?: MemoryEntitiesCreateParams): Pr
     return this.client.post<MemoryEntity>(appApiPath(`/memory/entities`), body, undefined, requestHeaders, 'application/json');
   }
 
-async retrieve(entityId: string, params: MemoryEntitiesRetrieveParams): Promise<MemoryEntity> {
-    const query = buildQueryString([
-      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
-    ]);
-    return this.client.get<MemoryEntity>(appendQueryString(appApiPath(`/memory/entities/${serializePathParameter(entityId, { name: 'entityId', style: 'simple', explode: false })}`), query));
+async retrieve(entityId: string): Promise<MemoryEntity> {
+    return this.client.get<MemoryEntity>(appApiPath(`/memory/entities/${serializePathParameter(entityId, { name: 'entityId', style: 'simple', explode: false })}`));
   }
 
-async update(entityId: string, body: MemoryEntityPatch, params: MemoryEntitiesUpdateParams): Promise<MemoryEntity> {
-    const query = buildQueryString([
-      { name: 'tenantId', value: params.tenantId, style: 'form', explode: true, allowReserved: false },
-    ]);
-    return this.client.patch<MemoryEntity>(appendQueryString(appApiPath(`/memory/entities/${serializePathParameter(entityId, { name: 'entityId', style: 'simple', explode: false })}`), query), body, undefined, undefined, 'application/json');
+async update(entityId: string, body: MemoryEntityPatch): Promise<MemoryEntity> {
+    return this.client.patch<MemoryEntity>(appApiPath(`/memory/entities/${serializePathParameter(entityId, { name: 'entityId', style: 'simple', explode: false })}`), body, undefined, undefined, 'application/json');
   }
 }
 
@@ -138,6 +113,11 @@ async update(body: MemoryLearningSettingsRequest): Promise<MemoryLearningSetting
   }
 }
 
+export interface MemoryExportJobsListParams {
+  cursor?: string;
+  pageSize?: number;
+}
+
 export interface MemoryExportJobsCreateParams {
   idempotencyKey?: string;
 }
@@ -149,6 +129,14 @@ export class MemoryExportJobsApi {
     this.client = client;
   }
 
+
+async list(params?: MemoryExportJobsListParams): Promise<Record<string, unknown>> {
+    const query = buildQueryString([
+      { name: 'cursor', value: params?.cursor, style: 'form', explode: true, allowReserved: false },
+      { name: 'page_size', value: params?.pageSize, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<Record<string, unknown>>(appendQueryString(appApiPath(`/memory/export_jobs`), query));
+  }
 
 async create(body: MemoryExportRequest, params?: MemoryExportJobsCreateParams): Promise<MemoryExportJob> {
     const requestHeaders = buildRequestHeaders(
@@ -385,6 +373,11 @@ async create(body: MemoryExtractionRequest, params?: MemoryExtractionsCreatePara
   }
 }
 
+export interface MemoryForgetRequestsListParams {
+  cursor?: string;
+  pageSize?: number;
+}
+
 export interface MemoryForgetRequestsCreateParams {
   idempotencyKey?: string;
 }
@@ -396,6 +389,14 @@ export class MemoryForgetRequestsApi {
     this.client = client;
   }
 
+
+async list(params?: MemoryForgetRequestsListParams): Promise<Record<string, unknown>> {
+    const query = buildQueryString([
+      { name: 'cursor', value: params?.cursor, style: 'form', explode: true, allowReserved: false },
+      { name: 'page_size', value: params?.pageSize, style: 'form', explode: true, allowReserved: false },
+    ]);
+    return this.client.get<Record<string, unknown>>(appendQueryString(appApiPath(`/memory/forget_requests`), query));
+  }
 
 async create(body: MemoryForgetRequest, params?: MemoryForgetRequestsCreateParams): Promise<MemoryForgetJob> {
     const requestHeaders = buildRequestHeaders(

@@ -1,7 +1,7 @@
 //! Background workers: learning job queue, eval runs, provider health probes.
 
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use sdkwork_memory_contract::{
     MemoryExtractionRequest, MemoryLearningJob, MemoryMigrationJobRequest, MemoryOpenApi,
@@ -9,7 +9,8 @@ use sdkwork_memory_contract::{
     MemoryServiceError,
 };
 use sdkwork_memory_plugin_native_sql::{
-    InsertLearningJobCommand, NativeSqlEvalRunRow, NativeSqlLearningJobRow, NativeSqlMemoryStore,
+    ConsolidateDuplicateRecordsCommand, InsertLearningJobCommand, NativeSqlEvalRunRow,
+    NativeSqlLearningJobRow, NativeSqlMemoryStore,
 };
 use sdkwork_memory_spi::MemoryScopeContext;
 use sdkwork_utils_rust::is_blank;
@@ -225,14 +226,21 @@ async fn execute_learning_job(
                 organization_id: None,
                 user_id: None,
             };
-            let merged = service
+            let consolidation = service
                 .store
-                .consolidate_duplicate_records_in_scope(&scope)
+                .consolidate_duplicate_records_in_scope_detailed(
+                    ConsolidateDuplicateRecordsCommand {
+                        scope: &scope,
+                        operation_id: &job.job_uuid,
+                    },
+                )
                 .await
                 .map_err(|error| error.to_string())?;
             serde_json::json!({
-                "mergedDuplicates": merged,
-                "supersededDuplicates": merged,
+                "mergedDuplicates": consolidation.superseded_records,
+                "supersededDuplicates": consolidation.superseded_records,
+                "transferredSources": consolidation.transferred_sources,
+                "deduplicatedSources": consolidation.deduplicated_sources,
                 "consolidationMode": "identity_bounded_supersession",
                 "spaceId": request.space_id
             })
@@ -450,6 +458,7 @@ async fn run_retrieval_quality_eval(
             .map(|value| parse_json_id(value, "cases[].expectedMemoryIds[]"))
             .collect::<Result<std::collections::BTreeSet<_>, _>>()?;
         let top_k = case.top_k.unwrap_or(10);
+        let started_at = Instant::now();
         let retrieval = MemoryOpenApi::create_retrieval(
             service,
             MemoryOpenApiRequestContext::for_backend_surface(tenant_id, None),
@@ -473,20 +482,31 @@ async fn run_retrieval_quality_eval(
                 error.detail
             )
         })?;
+        let latency_ms = u64::try_from(started_at.elapsed().as_millis()).unwrap_or(u64::MAX);
         let retrieved_ids = retrieval
             .hits
             .iter()
             .filter_map(|hit| hit.memory_id)
             .collect::<Vec<_>>();
-        let score = score_retrieval_case(&expected_memory_ids, &retrieved_ids, retrieval.degraded);
+        let score = score_retrieval_case(
+            &expected_memory_ids,
+            &retrieved_ids,
+            usize::try_from(top_k).unwrap_or(usize::MAX),
+            retrieval.degraded,
+            latency_ms,
+        );
         case_results.push(serde_json::json!({
             "queryHash": platform::stable_query_hash(&case.query),
             "spaceId": space_id.to_string(),
             "topK": top_k,
             "expectedCount": expected_memory_ids.len(),
+            "retrievedCount": score.retrieved_count,
             "retrievedRelevantCount": score.retrieved_relevant_count,
             "recallAtK": score.recall_at_k,
+            "precisionAtK": score.precision_at_k,
+            "ndcgAtK": score.ndcg_at_k,
             "reciprocalRank": score.reciprocal_rank,
+            "latencyMs": score.latency_ms,
             "degraded": score.degraded,
         }));
         scores.push(score);
@@ -494,6 +514,8 @@ async fn run_retrieval_quality_eval(
 
     let case_count = scores.len() as f64;
     let recall_at_k = scores.iter().map(|score| score.recall_at_k).sum::<f64>() / case_count;
+    let precision_at_k = scores.iter().map(|score| score.precision_at_k).sum::<f64>() / case_count;
+    let mean_ndcg_at_k = scores.iter().map(|score| score.ndcg_at_k).sum::<f64>() / case_count;
     let hit_rate_at_k = scores
         .iter()
         .filter(|score| score.retrieved_relevant_count > 0)
@@ -506,6 +528,12 @@ async fn run_retrieval_quality_eval(
         / case_count;
     let degraded_case_count = scores.iter().filter(|score| score.degraded).count();
     let degraded_rate = degraded_case_count as f64 / case_count;
+    let p95_latency_ms = percentile_95_nearest_rank(
+        &scores
+            .iter()
+            .map(|score| score.latency_ms)
+            .collect::<Vec<_>>(),
+    );
     let quality_gate_passed = config.thresholds.as_ref().map(|thresholds| {
         thresholds
             .min_recall_at_k
@@ -517,14 +545,26 @@ async fn run_retrieval_quality_eval(
                 .min_mean_reciprocal_rank
                 .is_none_or(|minimum| mean_reciprocal_rank >= minimum)
             && thresholds
+                .min_precision_at_k
+                .is_none_or(|minimum| precision_at_k >= minimum)
+            && thresholds
+                .min_mean_ndcg_at_k
+                .is_none_or(|minimum| mean_ndcg_at_k >= minimum)
+            && thresholds
                 .max_degraded_rate
                 .is_none_or(|maximum| degraded_rate <= maximum)
+            && thresholds
+                .max_p95_latency_ms
+                .is_none_or(|maximum| p95_latency_ms <= maximum)
     });
     let metrics = serde_json::json!({
         "caseCount": scores.len(),
         "recallAtK": recall_at_k,
+        "precisionAtK": precision_at_k,
+        "meanNdcgAtK": mean_ndcg_at_k,
         "hitRateAtK": hit_rate_at_k,
         "meanReciprocalRank": mean_reciprocal_rank,
+        "p95LatencyMs": p95_latency_ms,
         "degradedCaseCount": degraded_case_count,
         "degradedRate": degraded_rate,
         "qualityGatePassed": quality_gate_passed,
@@ -576,7 +616,13 @@ struct RetrievalQualityThresholds {
     #[serde(default)]
     min_mean_reciprocal_rank: Option<f64>,
     #[serde(default)]
+    min_precision_at_k: Option<f64>,
+    #[serde(default)]
+    min_mean_ndcg_at_k: Option<f64>,
+    #[serde(default)]
     max_degraded_rate: Option<f64>,
+    #[serde(default)]
+    max_p95_latency_ms: Option<u64>,
 }
 
 struct RetrievalQualityEvalOutput {
@@ -586,9 +632,13 @@ struct RetrievalQualityEvalOutput {
 
 #[derive(Debug, PartialEq)]
 struct RetrievalCaseScore {
+    retrieved_count: usize,
     retrieved_relevant_count: usize,
     recall_at_k: f64,
+    precision_at_k: f64,
+    ndcg_at_k: f64,
     reciprocal_rank: f64,
+    latency_ms: u64,
     degraded: bool,
 }
 
@@ -633,9 +683,11 @@ fn validate_retrieval_quality_config(config: &RetrievalQualityEvalConfig) -> Res
             thresholds.min_recall_at_k,
             thresholds.min_hit_rate_at_k,
             thresholds.min_mean_reciprocal_rank,
+            thresholds.min_precision_at_k,
+            thresholds.min_mean_ndcg_at_k,
             thresholds.max_degraded_rate,
         ];
-        if values.iter().all(Option::is_none) {
+        if values.iter().all(Option::is_none) && thresholds.max_p95_latency_ms.is_none() {
             return Err("retrieval quality thresholds must define at least one gate".to_string());
         }
         if values
@@ -646,6 +698,9 @@ fn validate_retrieval_quality_config(config: &RetrievalQualityEvalConfig) -> Res
             return Err(
                 "retrieval quality thresholds must be finite values from 0 to 1".to_string(),
             );
+        }
+        if thresholds.max_p95_latency_ms == Some(0) {
+            return Err("retrieval quality maxP95LatencyMs must be greater than 0".to_string());
         }
     }
     Ok(())
@@ -680,26 +735,64 @@ fn parse_json_id(value: &Value, field: &str) -> Result<u64, String> {
 fn score_retrieval_case(
     expected_memory_ids: &std::collections::BTreeSet<u64>,
     retrieved_memory_ids: &[u64],
+    top_k: usize,
     degraded: bool,
+    latency_ms: u64,
 ) -> RetrievalCaseScore {
     let mut seen = std::collections::BTreeSet::new();
     let mut retrieved_relevant_count = 0usize;
     let mut first_relevant_rank = None;
-    for (index, memory_id) in retrieved_memory_ids.iter().enumerate() {
-        if !seen.insert(*memory_id) || !expected_memory_ids.contains(memory_id) {
+    let mut discounted_cumulative_gain = 0.0;
+    for memory_id in retrieved_memory_ids {
+        if !seen.insert(*memory_id) {
+            continue;
+        }
+        let rank = seen.len();
+        if rank > top_k {
+            break;
+        }
+        if !expected_memory_ids.contains(memory_id) {
             continue;
         }
         retrieved_relevant_count += 1;
-        first_relevant_rank.get_or_insert(index + 1);
+        first_relevant_rank.get_or_insert(rank);
+        discounted_cumulative_gain += 1.0 / ((rank + 1) as f64).log2();
     }
+    let retrieved_count = seen.len().min(top_k);
+    let ideal_relevant_count = expected_memory_ids.len().min(top_k);
+    let ideal_discounted_cumulative_gain = (1..=ideal_relevant_count)
+        .map(|rank| 1.0 / ((rank + 1) as f64).log2())
+        .sum::<f64>();
     RetrievalCaseScore {
+        retrieved_count,
         retrieved_relevant_count,
         recall_at_k: retrieved_relevant_count as f64 / expected_memory_ids.len() as f64,
+        precision_at_k: if retrieved_count == 0 {
+            0.0
+        } else {
+            retrieved_relevant_count as f64 / retrieved_count as f64
+        },
+        ndcg_at_k: if ideal_discounted_cumulative_gain == 0.0 {
+            0.0
+        } else {
+            discounted_cumulative_gain / ideal_discounted_cumulative_gain
+        },
         reciprocal_rank: first_relevant_rank
             .map(|rank| 1.0 / rank as f64)
             .unwrap_or(0.0),
+        latency_ms,
         degraded,
     }
+}
+
+fn percentile_95_nearest_rank(latencies_ms: &[u64]) -> u64 {
+    if latencies_ms.is_empty() {
+        return 0;
+    }
+    let mut sorted = latencies_ms.to_vec();
+    sorted.sort_unstable();
+    let rank = sorted.len().saturating_mul(95).div_ceil(100).max(1);
+    sorted[rank - 1]
 }
 
 async fn probe_provider_bindings(service: &OpenMemoryService) -> Result<(), String> {
@@ -853,6 +946,9 @@ mod eval_tests {
             }],
             "thresholds": {
                 "minRecallAtK": 0.8,
+                "minPrecisionAtK": 0.7,
+                "minMeanNdcgAtK": 0.75,
+                "maxP95LatencyMs": 500,
                 "maxDegradedRate": 0.0
             }
         }))
@@ -868,14 +964,51 @@ mod eval_tests {
     }
 
     #[test]
-    fn retrieval_quality_scoring_deduplicates_hits_and_computes_recall_and_mrr() {
+    fn retrieval_quality_scoring_deduplicates_hits_and_computes_rank_metrics() {
         let expected = [20_u64, 30_u64].into_iter().collect();
-        let score = score_retrieval_case(&expected, &[10, 20, 20, 30], false);
+        let score = score_retrieval_case(&expected, &[10, 20, 20, 30], 4, false, 17);
+        let expected_ndcg =
+            (1.0 / 3_f64.log2() + 1.0 / 4_f64.log2()) / (1.0 / 2_f64.log2() + 1.0 / 3_f64.log2());
 
+        assert_eq!(score.retrieved_count, 3);
         assert_eq!(score.retrieved_relevant_count, 2);
         assert_eq!(score.recall_at_k, 1.0);
+        assert_eq!(score.precision_at_k, 2.0 / 3.0);
+        assert!((score.ndcg_at_k - expected_ndcg).abs() < f64::EPSILON);
         assert_eq!(score.reciprocal_rank, 0.5);
+        assert_eq!(score.latency_ms, 17);
         assert!(!score.degraded);
+    }
+
+    #[test]
+    fn retrieval_quality_scoring_does_not_reward_duplicate_relevant_hits() {
+        let expected = [20_u64, 30_u64].into_iter().collect();
+        let score_with_duplicates = score_retrieval_case(&expected, &[20, 20, 30], 3, false, 1);
+        let score_without_duplicates = score_retrieval_case(&expected, &[20, 30], 3, false, 1);
+
+        assert_eq!(score_with_duplicates, score_without_duplicates);
+        assert_eq!(score_with_duplicates.ndcg_at_k, 1.0);
+    }
+
+    #[test]
+    fn retrieval_quality_scoring_handles_empty_results_without_fabricated_scores() {
+        let expected = [20_u64].into_iter().collect();
+        let score = score_retrieval_case(&expected, &[], 10, true, 9);
+
+        assert_eq!(score.retrieved_count, 0);
+        assert_eq!(score.retrieved_relevant_count, 0);
+        assert_eq!(score.recall_at_k, 0.0);
+        assert_eq!(score.precision_at_k, 0.0);
+        assert_eq!(score.ndcg_at_k, 0.0);
+        assert_eq!(score.reciprocal_rank, 0.0);
+        assert!(score.degraded);
+    }
+
+    #[test]
+    fn p95_latency_uses_nearest_rank() {
+        assert_eq!(percentile_95_nearest_rank(&[]), 0);
+        assert_eq!(percentile_95_nearest_rank(&[10]), 10);
+        assert_eq!(percentile_95_nearest_rank(&[100, 1, 2, 3, 4]), 100);
     }
 
     #[test]
@@ -890,18 +1023,33 @@ mod eval_tests {
         }));
         assert!(unknown.is_err());
 
-        let invalid_gate: RetrievalQualityEvalConfig = serde_json::from_value(serde_json::json!({
-            "cases": [{
-                "spaceId": "7",
-                "query": "q",
-                "expectedMemoryIds": ["11"]
-            }],
-            "thresholds": {"minRecallAtK": 1.1}
-        }))
-        .expect("gate decodes before semantic validation");
-        assert!(validate_retrieval_quality_config(&invalid_gate)
+        let invalid_quality_gate: RetrievalQualityEvalConfig =
+            serde_json::from_value(serde_json::json!({
+                "cases": [{
+                    "spaceId": "7",
+                    "query": "q",
+                    "expectedMemoryIds": ["11"]
+                }],
+                "thresholds": {"minPrecisionAtK": 1.1}
+            }))
+            .expect("gate decodes before semantic validation");
+        assert!(validate_retrieval_quality_config(&invalid_quality_gate)
             .unwrap_err()
             .contains("from 0 to 1"));
+
+        let invalid_latency_gate: RetrievalQualityEvalConfig =
+            serde_json::from_value(serde_json::json!({
+                "cases": [{
+                    "spaceId": "7",
+                    "query": "q",
+                    "expectedMemoryIds": ["11"]
+                }],
+                "thresholds": {"maxP95LatencyMs": 0}
+            }))
+            .expect("latency gate decodes before semantic validation");
+        assert!(validate_retrieval_quality_config(&invalid_latency_gate)
+            .unwrap_err()
+            .contains("greater than 0"));
     }
 
     #[tokio::test]
@@ -972,11 +1120,14 @@ mod eval_tests {
                         "spaceId": "7",
                         "query": "modal editor",
                         "expectedMemoryIds": ["11"],
-                        "topK": 5
+                        "topK": 1
                     }],
                     "thresholds": {
                         "minRecallAtK": 1.0,
+                        "minPrecisionAtK": 1.0,
+                        "minMeanNdcgAtK": 1.0,
                         "minMeanReciprocalRank": 1.0,
+                        "maxP95LatencyMs": 600000,
                         "maxDegradedRate": 0.0
                     }
                 })
@@ -994,9 +1145,16 @@ mod eval_tests {
         let metrics: Value = serde_json::from_str(&output.metrics).expect("metrics json");
         let result: Value = serde_json::from_str(&output.result).expect("result json");
         assert_eq!(metrics["recallAtK"], 1.0);
+        assert_eq!(metrics["precisionAtK"], 1.0);
+        assert_eq!(metrics["meanNdcgAtK"], 1.0);
         assert_eq!(metrics["meanReciprocalRank"], 1.0);
+        assert!(metrics["p95LatencyMs"].as_u64().is_some());
         assert_eq!(metrics["qualityGatePassed"], true);
         assert_eq!(result["status"], "completed");
+        assert_eq!(result["cases"][0]["retrievedCount"], 1);
+        assert_eq!(result["cases"][0]["precisionAtK"], 1.0);
+        assert_eq!(result["cases"][0]["ndcgAtK"], 1.0);
+        assert!(result["cases"][0]["latencyMs"].as_u64().is_some());
         assert!(result["cases"][0]["queryHash"]
             .as_str()
             .is_some_and(|value| !value.is_empty() && value != "modal editor"));

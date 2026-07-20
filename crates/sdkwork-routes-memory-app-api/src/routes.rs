@@ -7,11 +7,12 @@ use axum::{
 };
 use sdkwork_intelligence_memory_service::OpenMemoryService;
 use sdkwork_memory_contract::{
-    ListCandidatesQuery, ListHabitsQuery, ListMemoriesQuery, ListMemorySourcesQuery, ListSpacesQuery, MemoryAppApi,
-    MemoryAppRequestContext, MemoryContextPackRequest, MemoryEventRequest, MemoryExportRequest,
-    MemoryExtractionRequest, MemoryFeedbackRequest, MemoryForgetRequest, MemoryHabitRequest,
-    MemoryLearningSettingsPatch, MemoryRecordPatch, MemoryRecordRequest, MemoryRetrievalRequest,
-    MemoryReviewRequest, MemorySpaceRequest, MemorySpaceScopeQuery,
+    ListCandidatesQuery, ListHabitsQuery, ListJobsQuery, ListMemoriesQuery, ListMemorySourcesQuery,
+    ListSpacesQuery, MemoryAppApi, MemoryAppRequestContext, MemoryContextPackRequest,
+    MemoryEventRequest, MemoryExportRequest, MemoryExtractionRequest, MemoryFeedbackRequest,
+    MemoryForgetRequest, MemoryHabitRequest, MemoryLearningSettingsPatch, MemoryRecordPatch,
+    MemoryRecordRequest, MemoryRetrievalRequest, MemoryReviewRequest, MemorySpaceRequest,
+    MemorySpaceScopeQuery,
 };
 use sdkwork_routes_memory_support::{
     created_resource_json, no_content_json, ok_page_json, ok_resource_json,
@@ -68,7 +69,10 @@ fn build_app_router(state: AppState) -> Router {
                 .delete(delete_memory),
         )
         .route(paths::MEMORY_SOURCES, get(list_memory_sources))
-        .route(paths::FORGET_REQUESTS, post(create_forget_request))
+        .route(
+            paths::FORGET_REQUESTS,
+            get(list_forget_requests).post(create_forget_request),
+        )
         .route(paths::FORGET_REQUEST, get(retrieve_forget_request))
         .route(paths::EXTRACTIONS, post(create_extraction))
         .route(paths::CANDIDATES, get(list_candidates))
@@ -84,7 +88,10 @@ fn build_app_router(state: AppState) -> Router {
         .route(paths::CONTEXT_PACKS, post(create_context_pack))
         .route(paths::CONTEXT_PACK, get(retrieve_context_pack))
         .route(paths::FEEDBACK, post(create_feedback))
-        .route(paths::EXPORT_JOBS, post(create_export_job))
+        .route(
+            paths::EXPORT_JOBS,
+            get(list_export_jobs).post(create_export_job),
+        )
         .route(paths::EXPORT_JOB, get(retrieve_export_job))
         .route(
             paths::LEARNING_SETTINGS,
@@ -241,6 +248,15 @@ async fn create_forget_request(
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
     created_resource_json(state.api.create_forget_request(context, request).await)
+}
+
+async fn list_forget_requests(
+    Extension(state): Extension<AppState>,
+    context: Option<Extension<MemoryAppRequestContext>>,
+    Query(query): Query<ListJobsQuery>,
+) -> Result<Response, ApiProblem> {
+    let context = require_app_context(context)?;
+    ok_page_json(state.api.list_forget_requests(context, query).await)
 }
 
 async fn retrieve_forget_request(
@@ -419,6 +435,15 @@ async fn create_export_job(
 ) -> Result<Response, ApiProblem> {
     let context = require_app_context(context)?;
     created_resource_json(state.api.create_export_job(context, request).await)
+}
+
+async fn list_export_jobs(
+    Extension(state): Extension<AppState>,
+    context: Option<Extension<MemoryAppRequestContext>>,
+    Query(query): Query<ListJobsQuery>,
+) -> Result<Response, ApiProblem> {
+    let context = require_app_context(context)?;
+    ok_page_json(state.api.list_export_jobs(context, query).await)
 }
 
 async fn retrieve_export_job(

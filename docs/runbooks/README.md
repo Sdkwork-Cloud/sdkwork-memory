@@ -11,5 +11,6 @@ Operational runbooks per `../sdkwork-specs/DOCUMENTATION_SPEC.md` section 7.
 | [RUNBOOK-rate-limit-quota.md](RUNBOOK-rate-limit-quota.md) | Rate limit and quota incidents |
 | [RUNBOOK-outbox-backlog.md](RUNBOOK-outbox-backlog.md) | Outbox backlog and delivery failures |
 | [RUNBOOK-audit-log-investigation.md](RUNBOOK-audit-log-investigation.md) | Audit log investigation |
+| [RUNBOOK-memory-pc-operations.md](RUNBOOK-memory-pc-operations.md) | Console/Admin runtime, smoke test, incident triage, and rollback |
 
 Deployment rollout: [../deployments/runbooks/rollout.md](../deployments/runbooks/rollout.md)

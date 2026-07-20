@@ -3,17 +3,18 @@ use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use sdkwork_memory_contract::{
     ListAdminResourcesQuery, ListAuditLogsQuery, ListCandidatesQuery, ListEventsQuery,
-    ListMemoriesQuery, ListRetrievalTracesQuery, ListSpacesQuery, MemoryAuditLogList,
-    MemoryBackendApi, MemoryBackendRequestContext,
-    MemoryCandidate, MemoryCandidateList, MemoryEvalRun, MemoryEvalRunList, MemoryEvalRunRequest,
-    MemoryEvent, MemoryEventList, MemoryExtractionRequest, MemoryImplementationProfile,
+    ListJobsQuery, ListMemoriesQuery, ListRetrievalTracesQuery, ListSpacesQuery,
+    MemoryAuditLogList, MemoryBackendApi, MemoryBackendRequestContext, MemoryCandidate,
+    MemoryCandidateList, MemoryEvalRun, MemoryEvalRunList, MemoryEvalRunRequest, MemoryEvent,
+    MemoryEventList, MemoryExtractionRequest, MemoryImplementationProfile,
     MemoryImplementationProfileList, MemoryImplementationProfileRequest, MemoryIndex,
-    MemoryIndexList, MemoryIndexRequest, MemoryLearningJob, MemoryMigrationJobRequest,
-    MemoryProviderBinding, MemoryProviderBindingList, MemoryProviderBindingRequest,
-    MemoryProviderHealth, MemoryRecord, MemoryRecordList, MemoryRecordPatch, MemoryRecordRequest,
-    MemoryRetentionJobRequest, MemoryRetrievalProfile, MemoryRetrievalProfileList,
-    MemoryRetrievalProfileRequest, MemoryRetrievalTrace, MemoryRetrievalTraceList,
-    MemoryReviewRequest, MemoryServiceResult, MemorySpace, MemorySpaceList, MemorySpaceRequest,
+    MemoryIndexList, MemoryIndexRequest, MemoryLearningJob, MemoryLearningJobList,
+    MemoryMigrationJobRequest, MemoryProviderBinding, MemoryProviderBindingList,
+    MemoryProviderBindingRequest, MemoryProviderHealth, MemoryRecord, MemoryRecordList,
+    MemoryRecordPatch, MemoryRecordRequest, MemoryRetentionJobRequest, MemoryRetrievalProfile,
+    MemoryRetrievalProfileList, MemoryRetrievalProfileRequest, MemoryRetrievalTrace,
+    MemoryRetrievalTraceList, MemoryReviewRequest, MemoryServiceResult, MemorySpace,
+    MemorySpaceList, MemorySpaceRequest,
 };
 use sdkwork_routes_memory_backend_api::build_router_with_shared_backend_api;
 use serde_json::Value;
@@ -160,6 +161,13 @@ impl MemoryBackendApi for StubBackendApi {
     ) -> MemoryServiceResult<MemoryLearningJob> {
         unimplemented!("stub -- not called in route-mount test")
     }
+    async fn list_extraction_jobs(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _q: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryLearningJobList> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
     async fn retrieve_extraction_job(
         &self,
         _c: MemoryBackendRequestContext,
@@ -171,6 +179,20 @@ impl MemoryBackendApi for StubBackendApi {
         &self,
         _c: MemoryBackendRequestContext,
         _r: MemoryExtractionRequest,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn list_consolidation_jobs(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _q: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryLearningJobList> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn retrieve_consolidation_job(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
     ) -> MemoryServiceResult<MemoryLearningJob> {
         unimplemented!("stub -- not called in route-mount test")
     }
@@ -345,11 +367,32 @@ impl MemoryBackendApi for StubBackendApi {
     ) -> MemoryServiceResult<MemoryLearningJob> {
         unimplemented!("stub -- not called in route-mount test")
     }
+    async fn list_retention_jobs(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _q: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryLearningJobList> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn retrieve_retention_job(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _id: u64,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
     async fn create_migration_job(
         &self,
         _c: MemoryBackendRequestContext,
         _r: MemoryMigrationJobRequest,
     ) -> MemoryServiceResult<MemoryLearningJob> {
+        unimplemented!("stub -- not called in route-mount test")
+    }
+    async fn list_migration_jobs(
+        &self,
+        _c: MemoryBackendRequestContext,
+        _q: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryLearningJobList> {
         unimplemented!("stub -- not called in route-mount test")
     }
     async fn retrieve_migration_job(

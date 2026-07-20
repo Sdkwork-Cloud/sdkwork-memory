@@ -1245,7 +1245,7 @@ impl MemoryOpenApi for OpenMemoryService {
         let mut unavailable_retriever_kinds = Vec::new();
         let mut degradation_codes = Vec::new();
 
-        // Phase 1: materialize scopes from the single-snapshot governance decisions.
+        // Step 1: materialize scopes from the single-snapshot governance decisions.
         let mut space_data: Vec<(MemoryScopeContext, bool)> =
             Vec::with_capacity(authorized_spaces.len());
         for authorization in authorized_spaces {
@@ -1253,7 +1253,7 @@ impl MemoryOpenApi for OpenMemoryService {
             space_data.push((scope, authorization.actor_is_space_owner));
         }
 
-        // Phase 2: search all spaces in parallel.
+        // Step 2: search all spaces in parallel.
         let search_futures: Vec<_> = space_data
             .iter()
             .map(|(scope, actor_is_owner)| {
@@ -1277,7 +1277,7 @@ impl MemoryOpenApi for OpenMemoryService {
             .collect();
         let search_results = futures::future::join_all(search_futures).await;
 
-        // Phase 3: combine and score results.
+        // Step 3: combine and score results.
         for (space_idx, search_result) in search_results.into_iter().enumerate() {
             let search_result = search_result?;
             let (scope, actor_is_owner) = &space_data[space_idx];

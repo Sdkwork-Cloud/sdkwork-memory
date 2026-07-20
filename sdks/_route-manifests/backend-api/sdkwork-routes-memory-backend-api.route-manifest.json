@@ -280,6 +280,28 @@
       "apiSurface": "backend-api"
     },
     {
+      "method": "GET",
+      "path": "/backend/v3/api/memory/extraction_jobs",
+      "operationId": "extractionJobs.list",
+      "tags": [
+        "memory"
+      ],
+      "auth": {
+        "mode": "dual-token",
+        "required": true
+      },
+      "handler": {
+        "module": "crate::routes",
+        "name": null
+      },
+      "ownership": {
+        "owner": "sdkwork-memory",
+        "apiAuthority": "sdkwork-memory.backend"
+      },
+      "requestContext": "WebRequestContext",
+      "apiSurface": "backend-api"
+    },
+    {
       "method": "POST",
       "path": "/backend/v3/api/memory/extraction_jobs",
       "operationId": "extractionJobs.create",
@@ -324,9 +346,53 @@
       "apiSurface": "backend-api"
     },
     {
+      "method": "GET",
+      "path": "/backend/v3/api/memory/consolidation_jobs",
+      "operationId": "consolidationJobs.list",
+      "tags": [
+        "memory"
+      ],
+      "auth": {
+        "mode": "dual-token",
+        "required": true
+      },
+      "handler": {
+        "module": "crate::routes",
+        "name": null
+      },
+      "ownership": {
+        "owner": "sdkwork-memory",
+        "apiAuthority": "sdkwork-memory.backend"
+      },
+      "requestContext": "WebRequestContext",
+      "apiSurface": "backend-api"
+    },
+    {
       "method": "POST",
       "path": "/backend/v3/api/memory/consolidation_jobs",
       "operationId": "consolidationJobs.create",
+      "tags": [
+        "memory"
+      ],
+      "auth": {
+        "mode": "dual-token",
+        "required": true
+      },
+      "handler": {
+        "module": "crate::routes",
+        "name": null
+      },
+      "ownership": {
+        "owner": "sdkwork-memory",
+        "apiAuthority": "sdkwork-memory.backend"
+      },
+      "requestContext": "WebRequestContext",
+      "apiSurface": "backend-api"
+    },
+    {
+      "method": "GET",
+      "path": "/backend/v3/api/memory/consolidation_jobs/{jobId}",
+      "operationId": "consolidationJobs.retrieve",
       "tags": [
         "memory"
       ],
@@ -853,6 +919,28 @@
       "apiSurface": "backend-api"
     },
     {
+      "method": "GET",
+      "path": "/backend/v3/api/memory/retention_jobs",
+      "operationId": "retentionJobs.list",
+      "tags": [
+        "memory"
+      ],
+      "auth": {
+        "mode": "dual-token",
+        "required": true
+      },
+      "handler": {
+        "module": "crate::routes",
+        "name": null
+      },
+      "ownership": {
+        "owner": "sdkwork-memory",
+        "apiAuthority": "sdkwork-memory.backend"
+      },
+      "requestContext": "WebRequestContext",
+      "apiSurface": "backend-api"
+    },
+    {
       "method": "POST",
       "path": "/backend/v3/api/memory/retention_jobs",
       "operationId": "retentionJobs.create",
@@ -874,6 +962,50 @@
       "requestContext": "WebRequestContext",
       "apiSurface": "backend-api",
       "rateLimitTier": "authCritical"
+    },
+    {
+      "method": "GET",
+      "path": "/backend/v3/api/memory/retention_jobs/{retentionJobId}",
+      "operationId": "retentionJobs.retrieve",
+      "tags": [
+        "memory"
+      ],
+      "auth": {
+        "mode": "dual-token",
+        "required": true
+      },
+      "handler": {
+        "module": "crate::routes",
+        "name": null
+      },
+      "ownership": {
+        "owner": "sdkwork-memory",
+        "apiAuthority": "sdkwork-memory.backend"
+      },
+      "requestContext": "WebRequestContext",
+      "apiSurface": "backend-api"
+    },
+    {
+      "method": "GET",
+      "path": "/backend/v3/api/memory/migration_jobs",
+      "operationId": "migrationJobs.list",
+      "tags": [
+        "memory"
+      ],
+      "auth": {
+        "mode": "dual-token",
+        "required": true
+      },
+      "handler": {
+        "module": "crate::routes",
+        "name": null
+      },
+      "ownership": {
+        "owner": "sdkwork-memory",
+        "apiAuthority": "sdkwork-memory.backend"
+      },
+      "requestContext": "WebRequestContext",
+      "apiSurface": "backend-api"
     },
     {
       "method": "POST",

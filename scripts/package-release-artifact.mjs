@@ -14,13 +14,16 @@ import { join, resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
 const version =
-  JSON.parse(readFileSync(join(root, "sdkwork.app.config.json"), "utf8")).release
-    ?.currentVersion ?? "0.1.0";
+  process.env.SDKWORK_PACKAGE_VERSION
+  ?? JSON.parse(readFileSync(join(root, "sdkwork.app.config.json"), "utf8")).release
+    ?.currentVersion
+  ?? "0.1.0";
 const artifactRoot = join(root, "deployments", "artifacts", "release");
-const stagingDir = join(artifactRoot, `sdkwork-memory-${version}-linux-x64-server`);
-const archivePath = join(
-  artifactRoot,
-  `sdkwork-memory-${version}-linux-x64-server.tar.gz`,
+const stagingDir = join(artifactRoot, `sdkwork-memory-${version}-linux-x64-standalone-server`);
+const archivePath = resolve(
+  root,
+  process.env.SDKWORK_PACKAGE_ARTIFACT_PATH
+    ?? "deployments/artifacts/release/sdkwork-memory-linux-x64-standalone-server.tar.gz",
 );
 
 rmSync(stagingDir, { recursive: true, force: true });
@@ -30,8 +33,6 @@ execSync("cargo build --release -p sdkwork-api-memory-standalone-gateway", {
   cwd: root,
   stdio: "inherit",
 });
-execSync("node scripts/generate-release-sbom.mjs", { cwd: root, stdio: "inherit" });
-
 const releaseBinary = (() => {
   for (const candidate of [
     join(root, "target", "release", "sdkwork-api-memory-standalone-gateway.exe"),
@@ -48,14 +49,6 @@ const releaseBinary = (() => {
 })();
 cpSync(releaseBinary, join(stagingDir, "sdkwork-api-memory-standalone-gateway"));
 cpSync(join(root, "database"), join(stagingDir, "database"), { recursive: true });
-cpSync(
-  join(root, "deployments", "artifacts", "sbom.spdx.json"),
-  join(stagingDir, "sbom.spdx.json"),
-);
-cpSync(
-  join(root, "deployments", "artifacts", "checksums.json"),
-  join(stagingDir, "checksums.json"),
-);
 
 writeFileSync(
   join(stagingDir, "release-manifest.json"),
@@ -65,8 +58,8 @@ writeFileSync(
       version,
       platform: "linux",
       architecture: "x64",
-      deploymentProfile: "cloud",
-      runtimeTarget: "container",
+      deploymentProfile: "standalone",
+      runtimeTarget: "server",
       binary: "sdkwork-api-memory-standalone-gateway",
       databaseRoot: "database",
       generatedAt: new Date().toISOString(),
@@ -78,7 +71,7 @@ writeFileSync(
 );
 
 rmSync(archivePath, { force: true });
-execSync(`tar -czf "${archivePath}" -C "${artifactRoot}" "${`sdkwork-memory-${version}-linux-x64-server`}"`, {
+execSync(`tar -czf "${archivePath}" -C "${artifactRoot}" "${`sdkwork-memory-${version}-linux-x64-standalone-server`}"`, {
   cwd: root,
   stdio: "inherit",
 });

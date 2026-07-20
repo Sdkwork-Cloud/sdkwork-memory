@@ -1,5 +1,4 @@
 export interface MemoryEntityRequest {
-  tenantId: string;
   spaceId: string;
   entityType: string;
   canonicalName: string;

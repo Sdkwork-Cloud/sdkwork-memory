@@ -1,8 +1,8 @@
 use crate::dto::PageInfo;
 use crate::serde_int64::{
     deserialize_option_u64_from_string_or_number, deserialize_option_vec_u64_from_string_or_number,
-    deserialize_u64_from_string_or_number,
-    serialize_option_u64_as_string, serialize_option_vec_u64_as_string, serialize_u64_as_string,
+    deserialize_u64_from_string_or_number, serialize_option_u64_as_string,
+    serialize_option_vec_u64_as_string, serialize_u64_as_string,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -356,6 +356,7 @@ pub struct MemoryAuditLogList {
 #[serde(rename_all = "camelCase")]
 pub struct MemoryRetentionJobRequest {
     pub scope: String,
+    pub reason: String,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -385,6 +386,7 @@ pub struct MemoryMigrationJobRequest {
     )]
     pub target_implementation_profile_id: u64,
     pub mode: String,
+    pub reason: String,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",

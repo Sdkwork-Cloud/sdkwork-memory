@@ -41,7 +41,9 @@ async fn open_api_rejects_memory_retrieve_when_space_id_does_not_match_record() 
     assert_eq!(create.status(), StatusCode::CREATED);
     let body = to_bytes(create.into_body(), usize::MAX).await.unwrap();
     let memory_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    let memory_id = api_envelope::item(&memory_json)["memoryId"].as_str().unwrap();
+    let memory_id = api_envelope::item(&memory_json)["memoryId"]
+        .as_str()
+        .unwrap();
 
     let wrong_space = app
         .oneshot(
@@ -67,11 +69,13 @@ async fn open_api_list_memories_requires_space_id_query_parameter() {
             Request::builder()
                 .method("GET")
                 .uri("/mem/v3/api/memory/memories")
-                .extension(sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
-                    "key-1",
-                    100_001,
-                    Some(2001),
-                ))
+                .extension(
+                    sdkwork_memory_contract::MemoryOpenApiRequestContext::for_open_surface(
+                        "key-1",
+                        100_001,
+                        Some(2001),
+                    ),
+                )
                 .body(Body::empty())
                 .unwrap(),
         )

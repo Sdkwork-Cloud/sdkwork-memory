@@ -17,6 +17,8 @@ fn conformance_harness_reports_native_sql_baseline_checks_explicitly() {
     assert!(report.has_status("store_crud", ConformanceCheckStatus::Passed));
     assert!(report.has_status("tenant_isolation", ConformanceCheckStatus::Passed));
     assert!(report.has_status("deletion_propagation", ConformanceCheckStatus::Passed));
+    assert!(report.has_status("retriever", ConformanceCheckStatus::Passed));
+    assert!(report.has_status("index", ConformanceCheckStatus::Pending));
     assert!(report.has_status("retrieval_trace", ConformanceCheckStatus::Passed));
     assert!(report.has_status("audit_and_outbox", ConformanceCheckStatus::Passed));
     assert!(report.has_status("candidate_lifecycle", ConformanceCheckStatus::Passed));
@@ -34,10 +36,11 @@ fn conformance_harness_reports_reference_profile_baseline_checks_explicitly() {
     assert!(report.has_status("store_crud", ConformanceCheckStatus::Passed));
     assert!(report.has_status("tenant_isolation", ConformanceCheckStatus::Passed));
     assert!(report.has_status("deletion_propagation", ConformanceCheckStatus::Passed));
-    assert!(report.has_status("retriever_and_index", ConformanceCheckStatus::Passed));
+    assert!(report.has_status("retriever", ConformanceCheckStatus::Passed));
+    assert!(report.has_status("index", ConformanceCheckStatus::Pending));
     assert!(report.has_status("retrieval_trace", ConformanceCheckStatus::Passed));
     assert!(report.has_status("audit_and_outbox", ConformanceCheckStatus::Passed));
     assert!(report.has_status("candidate_lifecycle", ConformanceCheckStatus::Passed));
     assert!(report.has_status("habit_learning", ConformanceCheckStatus::Passed));
-    assert!(report.has_status("external_bridge", ConformanceCheckStatus::Passed));
+    assert!(report.has_status("external_bridge", ConformanceCheckStatus::Pending));
 }

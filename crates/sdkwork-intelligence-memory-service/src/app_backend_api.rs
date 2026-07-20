@@ -2,14 +2,15 @@ use async_trait::async_trait;
 use sdkwork_memory_contract::ListSpacesQuery;
 use sdkwork_memory_contract::{
     ListAdminResourcesQuery, ListAuditLogsQuery, ListCandidatesQuery, ListEventsQuery,
-    ListHabitsQuery, ListMemoriesQuery, ListMemorySourcesQuery, ListRetrievalTracesQuery,
-    MemoryAppApi, MemoryAppRequestContext, MemoryAuditLog, MemoryAuditLogList, MemoryBackendApi,
-    MemoryBackendRequestContext, MemoryCandidate, MemoryCandidateList, MemoryEvalRun,
-    MemoryEvalRunList, MemoryEvalRunRequest, MemoryEventList, MemoryExportJob, MemoryExportRequest,
-    MemoryExtractionRequest, MemoryForgetJob, MemoryForgetRequest, MemoryHabit, MemoryHabitList,
+    ListHabitsQuery, ListJobsQuery, ListMemoriesQuery, ListMemorySourcesQuery,
+    ListRetrievalTracesQuery, MemoryAppApi, MemoryAppRequestContext, MemoryAuditLog,
+    MemoryAuditLogList, MemoryBackendApi, MemoryBackendRequestContext, MemoryCandidate,
+    MemoryCandidateList, MemoryEvalRun, MemoryEvalRunList, MemoryEvalRunRequest, MemoryEventList,
+    MemoryExportJob, MemoryExportJobList, MemoryExportRequest, MemoryExtractionRequest,
+    MemoryForgetJob, MemoryForgetJobList, MemoryForgetRequest, MemoryHabit, MemoryHabitList,
     MemoryHabitRequest, MemoryImplementationProfile, MemoryImplementationProfileList,
     MemoryImplementationProfileRequest, MemoryIndex, MemoryIndexList, MemoryIndexRequest,
-    MemoryLearningJob, MemoryLearningSettings, MemoryLearningSettingsPatch,
+    MemoryLearningJob, MemoryLearningJobList, MemoryLearningSettings, MemoryLearningSettingsPatch,
     MemoryMigrationJobRequest, MemoryOpenApi, MemoryProviderBinding, MemoryProviderBindingList,
     MemoryProviderBindingRequest, MemoryProviderHealth, MemoryRecordList, MemoryRecordRequest,
     MemoryRecordSource, MemoryRecordSourceList, MemoryRetentionJobRequest, MemoryRetrievalProfile,
@@ -838,6 +839,50 @@ impl MemoryAppApi for OpenMemoryService {
         Ok(job)
     }
 
+    async fn list_forget_requests(
+        &self,
+        context: MemoryAppRequestContext,
+        query: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryForgetJobList> {
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
+        let actor_id = context
+            .actor_id
+            .map(|value| value.to_string())
+            .ok_or_else(|| MemoryServiceError::forbidden("authenticated actor is required"))?;
+        let page_size = platform::clamp_page_size(query.page_size);
+        let rows = self
+            .store
+            .list_governance_jobs_for_tenant(
+                tenant_id,
+                "forget_job",
+                Some(actor_id.as_str()),
+                page_size,
+                query.cursor.as_deref(),
+            )
+            .await
+            .map_err(OpenMemoryService::map_store_error)?;
+        let has_more = rows.len() > page_size as usize;
+        let page_rows: Vec<_> = rows.into_iter().take(page_size as usize).collect();
+        let next_cursor = page_rows.last().map(|row| row.job_id.clone());
+        let items = page_rows
+            .into_iter()
+            .map(|row| {
+                let metadata = row
+                    .metadata_json
+                    .ok_or_else(|| MemoryServiceError::storage("forget job metadata is missing"))?;
+                serde_json::from_str(&metadata).map_err(|error| {
+                    MemoryServiceError::storage(format!(
+                        "forget job metadata decode failed: {error}"
+                    ))
+                })
+            })
+            .collect::<MemoryServiceResult<Vec<_>>>()?;
+        Ok(MemoryForgetJobList {
+            items,
+            page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),
+        })
+    }
+
     async fn retrieve_forget_request(
         &self,
         context: MemoryAppRequestContext,
@@ -1038,6 +1083,50 @@ impl MemoryAppApi for OpenMemoryService {
             "privacy export job completed"
         );
         Ok(job)
+    }
+
+    async fn list_export_jobs(
+        &self,
+        context: MemoryAppRequestContext,
+        query: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryExportJobList> {
+        let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
+        let actor_id = context
+            .actor_id
+            .map(|value| value.to_string())
+            .ok_or_else(|| MemoryServiceError::forbidden("authenticated actor is required"))?;
+        let page_size = platform::clamp_page_size(query.page_size);
+        let rows = self
+            .store
+            .list_governance_jobs_for_tenant(
+                tenant_id,
+                "export_job",
+                Some(actor_id.as_str()),
+                page_size,
+                query.cursor.as_deref(),
+            )
+            .await
+            .map_err(OpenMemoryService::map_store_error)?;
+        let has_more = rows.len() > page_size as usize;
+        let page_rows: Vec<_> = rows.into_iter().take(page_size as usize).collect();
+        let next_cursor = page_rows.last().map(|row| row.job_id.clone());
+        let items = page_rows
+            .into_iter()
+            .map(|row| {
+                let metadata = row
+                    .metadata_json
+                    .ok_or_else(|| MemoryServiceError::storage("export job metadata is missing"))?;
+                serde_json::from_str(&metadata).map_err(|error| {
+                    MemoryServiceError::storage(format!(
+                        "export job metadata decode failed: {error}"
+                    ))
+                })
+            })
+            .collect::<MemoryServiceResult<Vec<_>>>()?;
+        Ok(MemoryExportJobList {
+            items,
+            page_info: platform::memory_cursor_page_info(page_size, has_more, next_cursor),
+        })
     }
 
     async fn retrieve_export_job(
@@ -1794,6 +1883,14 @@ impl MemoryBackendApi for OpenMemoryService {
         self.backend_create_extraction_job(context, request).await
     }
 
+    async fn list_extraction_jobs(
+        &self,
+        context: MemoryBackendRequestContext,
+        query: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryLearningJobList> {
+        self.backend_list_extraction_jobs(context, query).await
+    }
+
     async fn retrieve_extraction_job(
         &self,
         context: MemoryBackendRequestContext,
@@ -1808,6 +1905,24 @@ impl MemoryBackendApi for OpenMemoryService {
         request: MemoryExtractionRequest,
     ) -> MemoryServiceResult<MemoryLearningJob> {
         self.backend_create_consolidation_job(context, request)
+            .await
+    }
+
+    async fn list_consolidation_jobs(
+        &self,
+        context: MemoryBackendRequestContext,
+        query: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryLearningJobList> {
+        self.backend_list_governance_learning_jobs(context, query, "consolidation_job")
+            .await
+    }
+
+    async fn retrieve_consolidation_job(
+        &self,
+        context: MemoryBackendRequestContext,
+        job_id: u64,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        self.backend_retrieve_consolidation_job(context, job_id)
             .await
     }
 
@@ -1983,12 +2098,39 @@ impl MemoryBackendApi for OpenMemoryService {
         self.backend_create_retention_job(context, request).await
     }
 
+    async fn list_retention_jobs(
+        &self,
+        context: MemoryBackendRequestContext,
+        query: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryLearningJobList> {
+        self.backend_list_governance_learning_jobs(context, query, "retention_job")
+            .await
+    }
+
+    async fn retrieve_retention_job(
+        &self,
+        context: MemoryBackendRequestContext,
+        retention_job_id: u64,
+    ) -> MemoryServiceResult<MemoryLearningJob> {
+        self.backend_retrieve_retention_job(context, retention_job_id)
+            .await
+    }
+
     async fn create_migration_job(
         &self,
         context: MemoryBackendRequestContext,
         request: MemoryMigrationJobRequest,
     ) -> MemoryServiceResult<MemoryLearningJob> {
         self.backend_create_migration_job(context, request).await
+    }
+
+    async fn list_migration_jobs(
+        &self,
+        context: MemoryBackendRequestContext,
+        query: ListJobsQuery,
+    ) -> MemoryServiceResult<MemoryLearningJobList> {
+        self.backend_list_governance_learning_jobs(context, query, "migration_job")
+            .await
     }
 
     async fn retrieve_migration_job(
