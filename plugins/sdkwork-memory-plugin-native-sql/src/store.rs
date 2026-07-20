@@ -219,9 +219,8 @@ impl NativeSqlMemoryStore {
         &self,
         migrations: &[(&str, &str)],
     ) -> Result<(), NativeSqlStoreError> {
-        let mut connection = self.pool.acquire().await?;
-
-        // Ensure the migration tracking table exists so incremental upgrades work.
+        // This compatibility bootstrap is used by isolated plugin tests. Production uses the
+        // application-root sdkwork-database lifecycle and its checksum-backed history tables.
         let create_tracking_table = match self.dialect {
             MemorySqlDialect::Postgres => {
                 r"CREATE TABLE IF NOT EXISTS ops_memory_schema_version (
@@ -236,52 +235,35 @@ impl NativeSqlMemoryStore {
                 )"
             }
         };
-        sqlx::query(create_tracking_table)
-            .execute(&mut *connection)
-            .await?;
+        sqlx::query(create_tracking_table).execute(&self.pool).await?;
 
         for (version, migration_sql) in migrations {
-            // Skip if this migration was already recorded.
+            let mut transaction = self.pool.begin().await?;
             let already_applied = sqlx::query_scalar::<_, i32>(
                 "SELECT 1 FROM ops_memory_schema_version WHERE version = ? LIMIT 1",
             )
             .bind(version)
-            .fetch_optional(&mut *connection)
+            .fetch_optional(&mut *transaction)
             .await?;
 
             if already_applied.is_some() {
+                transaction.rollback().await?;
                 continue;
             }
 
-            // Apply each statement using the dollar-quote-aware splitter.
             for statement in split_sql_statements(migration_sql) {
                 let statement = statement.trim();
                 if statement.is_empty() {
                     continue;
                 }
-                match sqlx::query(statement).execute(&mut *connection).await {
-                    Ok(_) => {}
-                    Err(error) => {
-                        let msg = error.to_string().to_lowercase();
-                        // SQLite ALTER TABLE ADD COLUMN fails if the column already exists.
-                        // Treat this as a no-op for idempotent upgrades from legacy databases.
-                        if msg.contains("duplicate column") || msg.contains("already exists") {
-                            tracing::debug!(
-                                version,
-                                "migration statement skipped (already applied)"
-                            );
-                            continue;
-                        }
-                        return Err(error.into());
-                    }
-                }
+                sqlx::query(statement).execute(&mut *transaction).await?;
             }
 
-            // Record the migration.
             sqlx::query("INSERT INTO ops_memory_schema_version (version) VALUES (?)")
                 .bind(version)
-                .execute(&mut *connection)
+                .execute(&mut *transaction)
                 .await?;
+            transaction.commit().await?;
         }
 
         Ok(())
