@@ -6,12 +6,21 @@ settings:
 
 catalogs:
   default:
+    '@tailwindcss/vite':
+      specifier: ^4.1.14
+      version: 4.2.2
     '@types/react':
       specifier: ^19.2.14
       version: 19.2.14
     '@types/react-dom':
       specifier: ^19.2.3
       version: 19.2.3
+    '@vitejs/plugin-react':
+      specifier: ^6.0.1
+      version: 6.0.1
+    jsdom:
+      specifier: ^29.1.1
+      version: 29.1.1
     lucide-react:
       specifier: ^1.7.0
       version: 1.7.0
@@ -24,12 +33,21 @@ catalogs:
     react-dom:
       specifier: ^19.2.4
       version: 19.2.4
+    tailwindcss:
+      specifier: ^4.1.14
+      version: 4.2.2
     typescript:
       specifier: ~6.0.2
       version: 6.0.3
+    vite:
+      specifier: ^8.0.3
+      version: 8.1.5
     vite-plugin-dts:
       specifier: ^4.5.4
       version: 4.5.4
+    vitest:
+      specifier: ^4.1.8
+      version: 4.1.10
 
 importers:
 
@@ -522,6 +540,421 @@ importers:
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
+
+  apps/sdkwork-memory-pc:
+    dependencies:
+      '@sdkwork/appbase-pc-react':
+        specifier: workspace:*
+        version: link:../../../sdkwork-appbase/packages/pc-react/foundation/sdkwork-appbase-pc-react
+      '@sdkwork/auth-pc-react':
+        specifier: workspace:*
+        version: link:../../../sdkwork-iam/apps/sdkwork-iam-pc/packages/sdkwork-auth-pc-react
+      '@sdkwork/auth-runtime-pc-react':
+        specifier: workspace:*
+        version: link:../../../sdkwork-iam/apps/sdkwork-iam-pc/packages/sdkwork-auth-runtime-pc-react
+      '@sdkwork/core-pc-react':
+        specifier: workspace:*
+        version: link:../../../sdkwork-core/sdkwork-core-pc-react
+      '@sdkwork/memory-app-sdk':
+        specifier: workspace:*
+        version: link:../../sdks/sdkwork-memory-app-sdk/sdkwork-memory-app-sdk-typescript
+      '@sdkwork/memory-backend-sdk':
+        specifier: workspace:*
+        version: link:../../sdks/sdkwork-memory-backend-sdk/sdkwork-memory-backend-sdk-typescript
+      '@sdkwork/memory-pc-admin-control-plane':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-admin-control-plane
+      '@sdkwork/memory-pc-admin-core':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-admin-core
+      '@sdkwork/memory-pc-admin-evaluation':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-admin-evaluation
+      '@sdkwork/memory-pc-admin-governance':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-admin-governance
+      '@sdkwork/memory-pc-admin-knowledge-graph':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-admin-knowledge-graph
+      '@sdkwork/memory-pc-admin-learning':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-admin-learning
+      '@sdkwork/memory-pc-admin-memory':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-admin-memory
+      '@sdkwork/memory-pc-admin-overview':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-admin-overview
+      '@sdkwork/memory-pc-admin-providers':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-admin-providers
+      '@sdkwork/memory-pc-admin-retrieval':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-admin-retrieval
+      '@sdkwork/memory-pc-admin-shell':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-admin-shell
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-commons
+      '@sdkwork/memory-pc-console-core':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-console-core
+      '@sdkwork/memory-pc-console-governance':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-console-governance
+      '@sdkwork/memory-pc-console-knowledge':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-console-knowledge
+      '@sdkwork/memory-pc-console-learning':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-console-learning
+      '@sdkwork/memory-pc-console-memory':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-console-memory
+      '@sdkwork/memory-pc-console-overview':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-console-overview
+      '@sdkwork/memory-pc-console-retrieval':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-console-retrieval
+      '@sdkwork/memory-pc-console-shell':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-console-shell
+      '@sdkwork/memory-pc-core':
+        specifier: workspace:*
+        version: link:packages/sdkwork-memory-pc-core
+      '@sdkwork/sdk-common':
+        specifier: workspace:*
+        version: link:../../../sdkwork-sdk-commons/sdkwork-sdk-common-typescript
+      '@sdkwork/ui-pc-react':
+        specifier: workspace:*
+        version: link:../../../sdkwork-ui/sdkwork-ui-pc-react
+      '@tailwindcss/vite':
+        specifier: 'catalog:'
+        version: 4.2.2(vite@8.1.5(@types/node@25.9.5)(jiti@2.7.0))
+      lucide-react:
+        specifier: 'catalog:'
+        version: 1.7.0(react@19.2.4)
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.4(react@19.2.4)
+      react-router-dom:
+        specifier: ^7.14.0
+        version: 7.18.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      tailwindcss:
+        specifier: 'catalog:'
+        version: 4.2.2
+    devDependencies:
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.3(@types/react@19.2.14)
+      '@vitejs/plugin-react':
+        specifier: 'catalog:'
+        version: 6.0.1(vite@8.1.5(@types/node@25.9.5)(jiti@2.7.0))
+      jsdom:
+        specifier: 'catalog:'
+        version: 29.1.1
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vite:
+        specifier: 'catalog:'
+        version: 8.1.5(@types/node@25.9.5)(jiti@2.7.0)
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.10(@types/node@25.9.5)(jsdom@29.1.1)(vite@8.1.5(@types/node@25.9.5)(jiti@2.7.0))
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-admin-control-plane:
+    dependencies:
+      '@sdkwork/memory-pc-admin-core':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-admin-core
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-admin-core:
+    dependencies:
+      '@sdkwork/memory-backend-sdk':
+        specifier: workspace:*
+        version: link:../../../../sdks/sdkwork-memory-backend-sdk/sdkwork-memory-backend-sdk-typescript
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      '@sdkwork/sdk-common':
+        specifier: workspace:*
+        version: link:../../../../../sdkwork-sdk-commons/sdkwork-sdk-common-typescript
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-admin-evaluation:
+    dependencies:
+      '@sdkwork/memory-pc-admin-core':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-admin-core
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-admin-governance:
+    dependencies:
+      '@sdkwork/memory-pc-admin-core':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-admin-core
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-admin-knowledge-graph:
+    dependencies:
+      '@sdkwork/memory-pc-admin-core':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-admin-core
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-admin-learning:
+    dependencies:
+      '@sdkwork/memory-pc-admin-core':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-admin-core
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-admin-memory:
+    dependencies:
+      '@sdkwork/memory-pc-admin-core':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-admin-core
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-admin-overview:
+    dependencies:
+      '@sdkwork/memory-pc-admin-core':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-admin-core
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-admin-providers:
+    dependencies:
+      '@sdkwork/memory-pc-admin-core':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-admin-core
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-admin-retrieval:
+    dependencies:
+      '@sdkwork/memory-pc-admin-core':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-admin-core
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-admin-shell:
+    dependencies:
+      '@sdkwork/memory-pc-admin-core':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-admin-core
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+      react-router-dom:
+        specifier: ^7.14.0
+        version: 7.18.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-commons:
+    dependencies:
+      '@sdkwork/utils':
+        specifier: workspace:*
+        version: link:../../../../../sdkwork-utils/packages/sdkwork-utils-typescript
+      lucide-react:
+        specifier: 'catalog:'
+        version: 1.7.0(react@19.2.4)
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+      react-router-dom:
+        specifier: ^7.14.0
+        version: 7.18.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-console-core:
+    dependencies:
+      '@sdkwork/memory-app-sdk':
+        specifier: workspace:*
+        version: link:../../../../sdks/sdkwork-memory-app-sdk/sdkwork-memory-app-sdk-typescript
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-console-governance:
+    dependencies:
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      '@sdkwork/memory-pc-console-core':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-console-core
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-console-knowledge:
+    dependencies:
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      '@sdkwork/memory-pc-console-core':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-console-core
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-console-learning:
+    dependencies:
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      '@sdkwork/memory-pc-console-core':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-console-core
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-console-memory:
+    dependencies:
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      '@sdkwork/memory-pc-console-core':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-console-core
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-console-overview:
+    dependencies:
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      '@sdkwork/memory-pc-console-core':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-console-core
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-console-retrieval:
+    dependencies:
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      '@sdkwork/memory-pc-console-core':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-console-core
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-console-shell:
+    dependencies:
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      '@sdkwork/memory-pc-console-core':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-console-core
+      react:
+        specifier: 'catalog:'
+        version: 19.2.4
+      react-router-dom:
+        specifier: ^7.14.0
+        version: 7.18.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+
+  apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-core:
+    dependencies:
+      '@sdkwork/auth-pc-react':
+        specifier: workspace:*
+        version: link:../../../../../sdkwork-iam/apps/sdkwork-iam-pc/packages/sdkwork-auth-pc-react
+      '@sdkwork/auth-runtime-pc-react':
+        specifier: workspace:*
+        version: link:../../../../../sdkwork-iam/apps/sdkwork-iam-pc/packages/sdkwork-auth-runtime-pc-react
+      '@sdkwork/memory-app-sdk':
+        specifier: workspace:*
+        version: link:../../../../sdks/sdkwork-memory-app-sdk/sdkwork-memory-app-sdk-typescript
+      '@sdkwork/memory-pc-commons':
+        specifier: workspace:*
+        version: link:../sdkwork-memory-pc-commons
+      '@sdkwork/sdk-common':
+        specifier: workspace:*
+        version: link:../../../../../sdkwork-sdk-commons/sdkwork-sdk-common-typescript
+
+  sdks/sdkwork-memory-app-sdk/sdkwork-memory-app-sdk-typescript:
+    dependencies:
+      '@sdkwork/sdk-common':
+        specifier: workspace:*
+        version: link:../../../../sdkwork-sdk-commons/sdkwork-sdk-common-typescript
+
+  sdks/sdkwork-memory-backend-sdk/sdkwork-memory-backend-sdk-typescript:
+    dependencies:
+      '@sdkwork/sdk-common':
+        specifier: workspace:*
+        version: link:../../../../sdkwork-sdk-commons/sdkwork-sdk-common-typescript
 
 packages:
 
@@ -5028,6 +5461,13 @@ snapshots:
       tailwindcss: 4.2.2
       vite: 8.0.3(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@types/node@25.9.5)(jiti@2.7.0)
 
+  '@tailwindcss/vite@4.2.2(vite@8.1.5(@types/node@25.9.5)(jiti@2.7.0))':
+    dependencies:
+      '@tailwindcss/node': 4.2.2
+      '@tailwindcss/oxide': 4.2.2
+      tailwindcss: 4.2.2
+      vite: 8.1.5(@types/node@25.9.5)(jiti@2.7.0)
+
   '@tanstack/react-table@8.21.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
       '@tanstack/table-core': 8.21.3
@@ -5223,6 +5663,11 @@ snapshots:
       '@rolldown/pluginutils': 1.0.0-rc.7
       vite: 8.0.3(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@types/node@25.9.5)(jiti@2.7.0)
 
+  '@vitejs/plugin-react@6.0.1(vite@8.1.5(@types/node@25.9.5)(jiti@2.7.0))':
+    dependencies:
+      '@rolldown/pluginutils': 1.0.0-rc.7
+      vite: 8.1.5(@types/node@25.9.5)(jiti@2.7.0)
+
   '@vitejs/plugin-vue@5.2.4(vite@5.4.21(@types/node@25.9.5)(lightningcss@1.32.0))(vue@3.5.40(typescript@6.0.2))':
     dependencies:
       vite: 5.4.21(@types/node@25.9.5)(lightningcss@1.32.0)
@@ -5244,6 +5689,14 @@ snapshots:
       magic-string: 0.30.21
     optionalDependencies:
       vite: 8.0.3(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@types/node@25.9.5)(jiti@2.7.0)
+
+  '@vitest/mocker@4.1.10(vite@8.1.5(@types/node@25.9.5)(jiti@2.7.0))':
+    dependencies:
+      '@vitest/spy': 4.1.10
+      estree-walker: 3.0.3
+      magic-string: 0.30.21
+    optionalDependencies:
+      vite: 8.1.5(@types/node@25.9.5)(jiti@2.7.0)
 
   '@vitest/pretty-format@4.1.10':
     dependencies:
@@ -6700,6 +7153,34 @@ snapshots:
       tinyglobby: 0.2.17
       tinyrainbow: 3.1.0
       vite: 8.0.3(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@types/node@25.9.5)(jiti@2.7.0)
+      why-is-node-running: 2.3.0
+    optionalDependencies:
+      '@types/node': 25.9.5
+      jsdom: 29.1.1
+    transitivePeerDependencies:
+      - msw
+
+  vitest@4.1.10(@types/node@25.9.5)(jsdom@29.1.1)(vite@8.1.5(@types/node@25.9.5)(jiti@2.7.0)):
+    dependencies:
+      '@vitest/expect': 4.1.10
+      '@vitest/mocker': 4.1.10(vite@8.1.5(@types/node@25.9.5)(jiti@2.7.0))
+      '@vitest/pretty-format': 4.1.10
+      '@vitest/runner': 4.1.10
+      '@vitest/snapshot': 4.1.10
+      '@vitest/spy': 4.1.10
+      '@vitest/utils': 4.1.10
+      es-module-lexer: 2.3.1
+      expect-type: 1.4.0
+      magic-string: 0.30.21
+      obug: 2.1.4
+      pathe: 2.0.3
+      picomatch: 4.0.5
+      std-env: 4.2.0
+      tinybench: 2.9.0
+      tinyexec: 1.2.4
+      tinyglobby: 0.2.17
+      tinyrainbow: 3.1.0
+      vite: 8.1.5(@types/node@25.9.5)(jiti@2.7.0)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 25.9.5

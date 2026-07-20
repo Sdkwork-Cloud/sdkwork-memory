@@ -1,4 +1,4 @@
-import { createSdkworkIamRuntimeAuthController } from "@sdkwork/auth-pc-react";
+import { createSdkworkIamRuntimeAuthController, type SdkworkIamRuntimeAuthRuntimeLike } from "@sdkwork/auth-pc-react";
 import { createSdkworkAppbasePcAuthRuntime } from "@sdkwork/auth-runtime-pc-react";
 import { createTokenManager } from "@sdkwork/sdk-common";
 
@@ -11,8 +11,8 @@ export function createMemoryPcRuntime(config: MemoryPcRuntimeConfig, localeProvi
   const auth = createSdkworkAppbasePcAuthRuntime({
     app: {
       appId: "sdkwork-memory-pc",
-      deploymentMode: config.deploymentProfile,
-      environment: config.environment,
+      deploymentMode: config.deploymentProfile === "cloud" ? "saas" : "local",
+      environment: config.environment === "test" ? "test" : config.environment === "development" ? "dev" : "prod",
       platform: "pc",
     },
     baseUrls: { appbaseAppApiBaseUrl: config.appbaseAppApiBaseUrl },
@@ -21,7 +21,9 @@ export function createMemoryPcRuntime(config: MemoryPcRuntimeConfig, localeProvi
     sessionAuth: true,
     tokenManager,
   });
-  const authController = createSdkworkIamRuntimeAuthController({ getRuntime: auth.getRuntime });
+  // IAM's controller port intentionally accepts a narrower structural runtime than IamRuntime.
+  const getAuthRuntime = () => auth.getRuntime() as unknown as SdkworkIamRuntimeAuthRuntimeLike;
+  const authController = createSdkworkIamRuntimeAuthController({ getRuntime: getAuthRuntime });
   return { appClient, auth, authController, config, tokenManager } as const;
 }
 
