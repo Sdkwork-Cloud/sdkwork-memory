@@ -15,6 +15,7 @@ Read `../../../sdkwork-specs/SOUL.md` before executing tasks in this root.
 - `../../../sdkwork-specs/FRONTEND_CODE_SPEC.md`
 - `../../../sdkwork-specs/I18N_SPEC.md`
 - `../../../sdkwork-specs/CONFIG_SPEC.md`
+- `../../../sdkwork-specs/SOURCE_CONFIG_SPEC.md`
 - `../../../sdkwork-specs/TEST_SPEC.md`
 
 Do not copy global spec bodies into this application root. If these relative paths do not resolve, stop and report the broken workspace layout.

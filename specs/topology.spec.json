@@ -3,7 +3,7 @@
   "kind": "sdkwork.app.topology",
   "appId": "sdkwork-memory",
   "archetype": "application-http-gateway",
-  "profileRoot": "configs/topology",
+  "profileRoot": "etc/topology",
   "profilePattern": "{deploymentProfile}.{environment}.env",
   "vocabulary": {
     "deploymentProfile": {
@@ -26,10 +26,10 @@
     "gatewayBind": "127.0.0.1:8080"
   },
   "profileFiles": {
-    "standalone.development": "configs/topology/standalone.development.env",
-    "standalone.production": "configs/topology/standalone.production.env",
-    "cloud.development": "configs/topology/cloud.development.env",
-    "cloud.production": "configs/topology/cloud.production.env"
+    "standalone.development": "etc/topology/standalone.development.env",
+    "standalone.production": "etc/topology/standalone.production.env",
+    "cloud.development": "etc/topology/cloud.development.env",
+    "cloud.production": "etc/topology/cloud.production.env"
   },
   "envKeys": {
     "deploymentProfile": "SDKWORK_MEMORY_DEPLOYMENT_PROFILE",

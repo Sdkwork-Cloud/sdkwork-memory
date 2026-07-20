@@ -92,7 +92,7 @@ function resolvePreservedReleaseChecksum(existingManifest) {
   const packages = existingManifest?.artifacts?.installConfig?.packages ?? [];
   for (const pkg of packages) {
     if (
-      pkg.id === "container-x64-server-docker-image"
+      ["container-x64-server-docker-image", "container-x64-dual-container-docker-image"].includes(pkg.id)
       && pkg.enabled !== false
       && !isPlaceholderChecksum(pkg.checksum)
     ) {
@@ -474,6 +474,7 @@ function writeAppManifest() {
   const preservedChecksum = resolvePreservedReleaseChecksum(
     readJsonIfExists("sdkwork.app.config.json"),
   );
+  const packageId = "container-x64-dual-container-docker-image";
   const manifest = {
     schemaVersion: 3,
     kind: "sdkwork.app",
@@ -512,7 +513,9 @@ function writeAppManifest() {
       runtimes: ["API"],
       deliveryModes: ["CONTAINER_IMAGE"],
       defaultPlatform: "API",
-      defaultArchitecture: "x64"
+      defaultArchitecture: "x64",
+      supportedDeploymentProfiles: ["standalone", "cloud"],
+      defaultDeploymentProfile: "cloud"
     },
     media: {
       icons: {
@@ -571,13 +574,13 @@ function writeAppManifest() {
       }
     },
     publish: {
-      status: "ACTIVE",
+      status: preservedChecksum ? "ACTIVE" : "DRAFT",
       installSkill: {
         name: "sdkwork-skills-app"
       },
       platforms: ["API"],
       installPlatforms: ["API"],
-      defaultPackageId: "container-x64-server-docker-image",
+      defaultPackageId: packageId,
       storeUrl: "https://sdkwork.com/apps/sdkwork-memory",
       stores: [],
       config: {
@@ -586,45 +589,37 @@ function writeAppManifest() {
         managedBy: "tools/materialize_phase1_contracts.mjs"
       }
     },
-    environments: {
-      development: {
-        accessUrl: "https://api-dev.sdkwork.com/apps/sdkwork-memory",
-        deployUrl: "https://api-dev.sdkwork.com/apps/sdkwork-memory",
-        deployEnv: "dev"
-      },
-      test: {
-        accessUrl: "https://api-test.sdkwork.com/apps/sdkwork-memory",
-        deployUrl: "https://api-test.sdkwork.com/apps/sdkwork-memory",
-        deployEnv: "test"
-      },
-      production: {
-        accessUrl: "https://api.sdkwork.com/apps/sdkwork-memory",
-        deployUrl: "https://api.sdkwork.com/apps/sdkwork-memory",
-        deployEnv: "production"
-      }
-    },
     artifacts: {
       installConfig: {
-        defaultPackageId: "container-x64-server-docker-image",
+        defaultPackageId: packageId,
         installCommand: "sdkwork install sdkwork-memory",
         launchCommand: "sdkwork open sdkwork-memory",
         uninstallCommand: "sdkwork uninstall sdkwork-memory",
         packages: [
           {
-            id: "container-x64-server-docker-image",
+            id: packageId,
             name: "SDKWork Memory Server Container",
             sourceType: "CONTAINER_IMAGE",
             packageFormat: "DOCKER_IMAGE",
             platform: "API",
-            url: "https://registry.sdkwork.com/v2/apps/sdkwork-memory/manifests/0.1.0",
-            enabled: true,
+            ...(preservedChecksum ? {
+              url: `https://registry.sdkwork.com/apps/sdkwork-memory@sha256:${preservedChecksum}`,
+              enabled: true
+            } : {
+              enabled: false
+            }),
             metadata: {
               image: "registry.sdkwork.com/apps/sdkwork-memory:0.1.0",
-              digestRequiredBeforeRelease: true
+              digestRequiredBeforeRelease: true,
+              ...(!preservedChecksum ? { releaseBuildDeferred: true } : {})
             },
             architecture: "x64",
+            profileBinding: "runtime-configurable",
+            supportedDeploymentProfiles: ["standalone", "cloud"],
+            defaultDeploymentProfile: "cloud",
+            runtimeTarget: "container",
             checksumAlgorithm: "SHA-256",
-            checksum: null
+            ...(preservedChecksum ? { checksum: preservedChecksum } : {})
           }
         ],
         metadata: {
@@ -654,7 +649,7 @@ function writeAppManifest() {
             "Kubernetes migration Job, HPA, PDB, and Prometheus scraping",
             "SPDX SBOM and SHA-256 release checksum pipeline"
           ],
-          packageIds: ["container-x64-server-docker-image"],
+          packageIds: [packageId],
           publishedAt: "2026-06-23T00:00:00Z",
           current: true,
           forceUpdate: false,
@@ -677,21 +672,13 @@ function writeAppManifest() {
       },
       sourceRoot: "sdkwork-memory"
     },
-    sdkDependencies: rootSdkDependencies,
     metadata: {
       standardOwner: "sdkwork-platform",
       initializedAt: "2026-06-10T00:00:00Z",
-      managedBy: "tools/materialize_phase1_contracts.mjs"
+      managedBy: "tools/materialize_phase1_contracts.mjs",
+      deploymentConfig: "etc/sdkwork.deployment.config.json"
     }
   };
-
-  if (preservedChecksum) {
-    for (const pkg of manifest.artifacts.installConfig.packages) {
-      if (pkg.id === "container-x64-server-docker-image" && pkg.enabled !== false) {
-        pkg.checksum = preservedChecksum;
-      }
-    }
-  }
 
   writeJson("sdkwork.app.config.json", manifest);
 }

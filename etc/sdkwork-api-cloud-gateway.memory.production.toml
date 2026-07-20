@@ -56,8 +56,8 @@ serviceId = "sdkwork-memory-open-api"
 baseUrl = "http://127.0.0.1:8080"
 
 [cors]
-allowAnyOrigin = true
-allowedOrigins = []
+allowAnyOrigin = false
+allowedOrigins = ["https://memory.sdkwork.com"]
 
 [request]
 maxBodyBytes = 33554432

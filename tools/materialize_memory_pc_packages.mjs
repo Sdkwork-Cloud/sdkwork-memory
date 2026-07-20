@@ -124,6 +124,33 @@ function componentSpec(definition, packageName, directoryName) {
             credentialMode: isBackend ? "authenticated-backend-admin" : "authenticated-app-api",
           }]
         : [],
+      ...(definition.id.endsWith("core") ? {
+        permissionComposition: {
+          inheritanceMode: "module-catalog-with-overrides",
+          applicationModule: { manifestRef: "../../../../../specs/iam.module.manifest.json" },
+          moduleCatalogRefs: [{
+            moduleId: "memory",
+            manifestRef: "../../../../../specs/iam.module.manifest.json",
+            inheritPermissions: true,
+            inheritRoles: true,
+          }],
+          bootstrapAccessTokenScope: {
+            inheritFrom: "sdkwork.app.config.json#backend.accessTokenPermissionScope",
+            supplement: [],
+            overrideReplace: false,
+          },
+          routePermissionHints: {
+            inheritFromOpenApi: true,
+            inheritFromModuleManifests: true,
+            overrides: [],
+          },
+          consumerPolicy: {
+            forbidLocalPermissionCatalogForDependencyDomains: true,
+            allowExplicitOverridesOnly: true,
+            allowFrontendHintsWithoutServerDuplication: true,
+          },
+        },
+      } : {}),
       events: [],
       configKeys: [],
       permissions: "permission" in definition ? [definition.permission] : [],

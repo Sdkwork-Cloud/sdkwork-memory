@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.browser-runtime-bindings",
+  "application": "sdkwork-memory-pc",
+  "runtimeTargets": ["browser"],
+  "bindings": {
+    "deploymentProfile": "VITE_MEMORY_PC_DEPLOYMENT_PROFILE",
+    "environment": "VITE_MEMORY_PC_ENVIRONMENT",
+    "applicationAppUrl": "VITE_MEMORY_PC_APP_API_BASE_URL",
+    "applicationBackendUrl": "VITE_MEMORY_PC_BACKEND_API_BASE_URL",
+    "appbaseAppUrl": "VITE_MEMORY_PC_APPBASE_APP_API_BASE_URL"
+  }
+}

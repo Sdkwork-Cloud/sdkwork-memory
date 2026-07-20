@@ -11,7 +11,7 @@ if (!environment || !allowed.has(environment)) {
   throw new Error("--environment must be development, test, staging, or production");
 }
 
-const source = resolve(appRoot, "config", "browser", `runtime-env.${environment}.example.json`);
+const source = resolve(appRoot, "etc", "browser", `runtime-env.${environment}.example.json`);
 const target = resolve(appRoot, "public", "runtime-env.json");
 const config = JSON.parse(readFileSync(source, "utf8"));
 

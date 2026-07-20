@@ -105,12 +105,6 @@
     "stores": [],
     "config": { "workspaceRoot": "apps/sdkwork-memory-pc", "framework": "react", "managedBy": "sdkwork-memory" }
   },
-  "environments": {
-    "development": { "accessUrl": "http://127.0.0.1:3910", "deployUrl": "http://127.0.0.1:3910", "deployEnv": "dev" },
-    "test": { "accessUrl": "https://memory-pc-test.sdkwork.com", "deployUrl": "https://memory-pc-test.sdkwork.com", "deployEnv": "test" },
-    "staging": { "accessUrl": "https://memory-pc-staging.sdkwork.com", "deployUrl": "https://memory-pc-staging.sdkwork.com", "deployEnv": "staging" },
-    "production": { "accessUrl": "https://memory.sdkwork.com", "deployUrl": "https://memory.sdkwork.com", "deployEnv": "production" }
-  },
   "artifacts": {
     "installConfig": {
       "defaultPackageId": "web-universal-cloud-browser-other",
@@ -165,5 +159,5 @@
     "sourceRoot": "apps/sdkwork-memory-pc",
     "build": { "targets": [{ "id": "web-production", "command": "pnpm build", "outputs": ["dist"] }] }
   },
-  "metadata": { "standardOwner": "sdkwork-platform", "component": "sdkwork-memory-pc", "surface": "pc", "initializedAt": "2026-07-20T00:00:00Z" }
+  "metadata": { "standardOwner": "sdkwork-platform", "component": "sdkwork-memory-pc", "surface": "pc", "initializedAt": "2026-07-20T00:00:00Z", "deploymentConfig": "etc/sdkwork.deployment.config.json" }
 }

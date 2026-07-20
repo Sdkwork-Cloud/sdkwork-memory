@@ -16,4 +16,4 @@ pnpm --dir apps/sdkwork-memory-pc dev
 pnpm --dir apps/sdkwork-memory-pc check
 ```
 
-Runtime URL templates live in `config/browser/`. They contain public endpoints only and must never contain credentials.
+Runtime URL templates live in `etc/browser/`. They contain public endpoints only and must never contain credentials.
