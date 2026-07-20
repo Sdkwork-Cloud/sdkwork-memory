@@ -33,8 +33,8 @@ Assert-PathExists "scripts/generate-memory-sdk.mjs" "Missing SDK generation orch
 Assert-PathExists "sdks/standardize-memory-sdk-family.mjs" "Missing SDK family standardizer"
 
 $topologySpec = Get-Content -Raw "specs/topology.spec.json" | ConvertFrom-Json
-if ($topologySpec.schemaVersion -ne 2) {
-    throw "specs/topology.spec.json schemaVersion must be 2"
+if ($topologySpec.schemaVersion -ne 5) {
+    throw "specs/topology.spec.json schemaVersion must be 5"
 }
 if ($topologySpec.kind -ne "sdkwork.app.topology") {
     throw "specs/topology.spec.json kind must be sdkwork.app.topology"
@@ -47,10 +47,8 @@ foreach ($profileId in @($topologySpec.defaults.developmentProfileId, $topologyS
     Assert-PathExists $profilePath "Missing topology profile file for $profileId"
 }
 
-Assert-PathExists "configs/topology/standalone.unified-process.development.env" "Missing development topology profile"
-
 $requiredRootDirectories = @(
-    "apis", "apps", "crates", "sdks", "tools", "configs", "deployments",
+    "apis", "apps", "crates", "sdks", "tools", "etc", "deployments",
     "scripts", "docs", "tests", "database", "specs", ".sdkwork"
 )
 

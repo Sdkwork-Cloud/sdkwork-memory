@@ -11,7 +11,7 @@ COPY plugins/ ./plugins/
 COPY database/ ./database/
 COPY apis/ ./apis/
 COPY sdks/ ./sdks/
-COPY configs/ ./configs/
+COPY etc/ ./etc/
 COPY specs/ ./specs/
 COPY tools/ ./tools/
 COPY docs/ ./docs/

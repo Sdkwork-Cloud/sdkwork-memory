@@ -56,8 +56,6 @@ spec:
               value: production
             - name: SDKWORK_MEMORY_DEPLOYMENT_PROFILE
               value: cloud
-            - name: SDKWORK_MEMORY_SERVICE_LAYOUT
-              value: unified-process
             - name: SDKWORK_MEMORY_RUNTIME_TARGET
               value: container
             - name: POD_NAME

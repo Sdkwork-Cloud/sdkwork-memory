@@ -1064,7 +1064,7 @@ const requiredSkeletonPaths = [
   'deployments/docker/README.md',
   'deployments/kubernetes/README.md',
   'deployments/runbooks/README.md',
-  'configs/README.md',
+  'etc/README.md',
   'scripts/README.md',
   'apps/README.md',
   'specs/topology.spec.json',
