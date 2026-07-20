@@ -96,10 +96,10 @@ function main() {
     strictFail("security.signatureRequired must be true before externally distributed packages ship");
   }
 
-  const contractPhase =
-    manifest.artifacts?.installConfig?.metadata?.contractPhase ?? "unknown";
-  if (contractPhase !== "phase1-production-ready") {
-    strictFail(`artifacts.installConfig.metadata.contractPhase must be phase1-production-ready (found ${contractPhase})`);
+  const contractState =
+    manifest.artifacts?.installConfig?.metadata?.contractState ?? "unknown";
+  if (contractState !== "production-ready") {
+    strictFail(`artifacts.installConfig.metadata.contractState must be production-ready (found ${contractState})`);
   }
 
   const packages = manifest.artifacts?.installConfig?.packages ?? [];

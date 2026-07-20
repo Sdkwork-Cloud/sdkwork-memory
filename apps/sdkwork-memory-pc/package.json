@@ -13,6 +13,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "check": "pnpm typecheck && pnpm test && pnpm build",
+    "verify": "pnpm check",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "dev:standalone": "pnpm exec sdkwork-app dev --root ../.. --deployment-profile standalone",
     "dev:cloud": "pnpm exec sdkwork-app dev --root ../.. --deployment-profile cloud",
     "stop": "pnpm exec sdkwork-app stop --root ../.."
