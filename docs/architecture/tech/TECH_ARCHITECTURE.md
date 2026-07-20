@@ -21,8 +21,9 @@ Specs: ARCHITECTURE_DECISION_SPEC.md, DOCUMENTATION_SPEC.md
 ## 1. Architecture Overview
 
 SDKWork Memory is a Rust-based multi-tenant memory service organized as a Cargo workspace.
-The service exposes three API surfaces (open / app / backend) via a single `standalone-gateway`
-binary in unified-process mode, or as separate processes in split-services mode.
+The service exposes three API surfaces (open / app / backend) through route-owned adapters
+assembled by the `standalone-gateway` binary. Public deployment topology is expressed only by
+the `standalone` or `cloud` deployment profile; process layout remains an internal orchestration detail.
 
 The architecture follows a ports-and-adapters (hexagonal) pattern:
 
@@ -114,8 +115,9 @@ sdkwork-memory/
 │   ├── docker/Dockerfile
 │   ├── kubernetes/                        # Deployment, Service, HPA, PDB, Ingress, etc.
 │   └── runbooks/rollout.md
-├── configs/
-│   ├── topology/                          # 5 topology env files
+├── etc/
+│   ├── topology/                          # Four standard topology profiles
+│   ├── sdkwork.deployment.config.json     # Source deployment index
 │   └── sdkwork-api-cloud-gateway.memory.*.toml
 ├── docs/                                  # Product, architecture, engineering docs
 └── tools/                                 # Contract materialization, verification scripts
@@ -200,11 +202,10 @@ sdkwork-memory/
 
 | Topology | Profile | Layout | Use Case |
 |---|---|---|---|
-| `standalone.unified-process.development` | standalone | unified-process | Local dev, single binary, SQLite |
-| `standalone.unified-process.production` | standalone | unified-process | Single-node prod, PostgreSQL |
-| `standalone.split-services.development` | standalone | split-services | Local dev, separate processes |
-| `cloud.split-services.development` | cloud | split-services | Cloud dev, separate services |
-| `cloud.split-services.production` | cloud | split-services | Production, Kubernetes, PostgreSQL |
+| `standalone.development` | standalone | Local source runtime | Local development, SQLite by default |
+| `standalone.production` | standalone | Container or binary | Single-site production, PostgreSQL |
+| `cloud.development` | cloud | Platform-managed | Shared development environment |
+| `cloud.production` | cloud | Kubernetes | Production, PostgreSQL |
 
 ### Runtime Targets
 

@@ -1,8 +1,8 @@
 version: 1
-defaultProfile: cloud.split-services.production
+defaultProfile: cloud.production
 
 profiles:
-  cloud.split-services.production:
+  cloud.production:
     install:
       layout: binary-package
     expose:
@@ -14,8 +14,8 @@ profiles:
     overrides:
       topology:
         spec: specs/topology.spec.json
-        profile: cloud.split-services.production
-        env: configs/topology/cloud.split-services.production.env
+        profile: cloud.production
+        env: etc/topology/cloud.production.env
       kubernetes:
         reference: deployments/kubernetes/
       proxy:
@@ -25,7 +25,7 @@ profiles:
       nginx:
         clientMaxBodySize: 32m
 
-  cloud.split-services.development:
+  cloud.development:
     install:
       layout: source-tree
     expose:
@@ -38,14 +38,14 @@ profiles:
       allowInsecureTls: true
       topology:
         spec: specs/topology.spec.json
-        profile: cloud.split-services.development
-        env: configs/topology/cloud.split-services.development.env
+        profile: cloud.development
+        env: etc/topology/cloud.development.env
       proxy:
         upstreams:
           application.public-ingress: http://127.0.0.1:8080
           platform.api-gateway: http://127.0.0.1:3900
 
-  standalone.unified-process.production:
+  standalone.production:
     install:
       layout: binary-package
     expose:
@@ -57,18 +57,19 @@ profiles:
     overrides:
       topology:
         spec: specs/topology.spec.json
-        profile: standalone.unified-process.production
-        env: configs/topology/standalone.unified-process.production.env
+        profile: standalone.production
+        env: etc/topology/standalone.production.env
       proxy:
         upstreams:
           application.public-ingress: http://127.0.0.1:8080
           application.backend-http: http://127.0.0.1:8080
           application.open-http: http://127.0.0.1:8080
+          application.app-http: http://127.0.0.1:8080
           platform.api-gateway: http://127.0.0.1:3900
       nginx:
         clientMaxBodySize: 32m
 
-  standalone.unified-process.development:
+  standalone.development:
     install:
       layout: source-tree
     expose:
@@ -81,33 +82,12 @@ profiles:
       allowInsecureTls: true
       topology:
         spec: specs/topology.spec.json
-        profile: standalone.unified-process.development
-        env: configs/topology/standalone.unified-process.development.env
+        profile: standalone.development
+        env: etc/topology/standalone.development.env
       proxy:
         upstreams:
           application.public-ingress: http://127.0.0.1:8080
           application.backend-http: http://127.0.0.1:8080
           application.open-http: http://127.0.0.1:8080
-          platform.api-gateway: http://127.0.0.1:3900
-
-  standalone.split-services.development:
-    install:
-      layout: source-tree
-    expose:
-      - domain: localhost
-        tls: off
-        mode: api
-        apiPathStyle: full-prefix
-    packages: []
-    overrides:
-      allowInsecureTls: true
-      topology:
-        spec: specs/topology.spec.json
-        profile: standalone.split-services.development
-        env: configs/topology/standalone.split-services.development.env
-      proxy:
-        upstreams:
-          application.public-ingress: http://127.0.0.1:8080
-          application.backend-http: http://127.0.0.1:8080
-          application.open-http: http://127.0.0.1:8080
+          application.app-http: http://127.0.0.1:8080
           platform.api-gateway: http://127.0.0.1:3900

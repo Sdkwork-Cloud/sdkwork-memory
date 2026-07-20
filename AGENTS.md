@@ -38,7 +38,7 @@ Read `sdkwork.app.config.json` only when the task touches Memory application beh
 - `crates/`: reusable Rust service, repository, route, and API server crates.
 - `sdks/`: SDK families, SDK generation manifests, route manifests, and generated SDK artifacts.
 - `database/`: database contract, baseline DDL, migrations, seeds, and drift policy.
-- `configs/`, `deployments/`, `scripts/`, `tools/`, `docs/`, `tests/`: config templates, deployment descriptors, thin command entrypoints, validators, documentation, and verification assets.
+- `etc/`, `deployments/`, `scripts/`, `tools/`, `docs/`, `tests/`: source-owned config templates, deployment descriptors, thin command entrypoints, validators, documentation, and verification assets.
 - `package.json`, `Cargo.toml`: language/build manifests.
 
 ## Spec Resolution Order
@@ -120,6 +120,28 @@ node <sdkwork-specs>/tools/check-app-sdk-consumer-imports.mjs --workspace <works
 ```
 
 Authority: `APP_SDK_INTEGRATION_SPEC.md` section 9, `SDK_SPEC.md`, `SDK_WORKSPACE_GENERATION_SPEC.md`.
+
+## HTTP API Response Envelope
+
+All L2+ SDKWork-owned custom HTTP contracts, including `app-api`, `backend-api`, and SDKWork-owned business `open-api`, `MUST` follow `API_SPEC.md` sections 4.5 and 14-16:
+
+- Omitted `x-sdkwork-wire-protocol` means the SDKWork `sdkwork-v3` protocol. Only operations that declare both `x-sdkwork-wire-protocol: external` and `x-sdkwork-external-protocol-id` may use a third-party compatibility wire format.
+- Inputs use typed request bodies and the standard list/search/command shapes. Free-text search uses `q`.
+- Success responses use `SdkWorkApiResponse` with numeric `code: 0`, typed `data`, and server-generated `traceId`.
+- Errors use HTTP 4xx/5xx `application/problem+json` with numeric non-zero `code` and `traceId`.
+- Single-resource data uses `data.item`; lists use `data.items` and `data.pageInfo`; commands use `data.accepted`; async accepts use `data.operationId` and `data.status`.
+- Create uses HTTP 201, delete uses HTTP 204 with no JSON body, and PUT/PATCH use SDK action `update`.
+
+SDKWork-owned business APIs must not opt out of the standard envelope. Business failures must not use HTTP 2xx with a non-zero code, a string wire code, `success`, or a human `message` field. Generated SDKs unwrap `data` by default; consumers use `.raw` only when the full envelope is required.
+
+Before completing API contract, SDK generation, or frontend service work, run:
+
+```bash
+node <sdkwork-specs>/tools/check-api-operation-patterns.mjs --workspace <workspace-root>
+node <sdkwork-specs>/tools/check-api-response-envelope.mjs --workspace <workspace-root>
+```
+
+Authority: `API_SPEC.md` sections 4.5 and 14-16, `SDK_SPEC.md` section 4.2, `FRONTEND_SPEC.md`, and `MIGRATION_SPEC.md` section 4.2.
 
 ## Human Review Rules
 

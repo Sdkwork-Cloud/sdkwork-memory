@@ -56,7 +56,7 @@ commercial multi-tenant deployment.
 ### Non-Goals
 
 - **NG1**: Not building an embedding/vector database — embeddings are delegated to providers.
-- **NG2**: Not providing a UI — the service is API-only; UI is owned by consuming apps.
+- **NG2**: Not providing mobile or third-party embedded UI; the repository-owned PC application provides the supported Console and Admin experiences.
 - **NG3**: Not replacing IAM — authentication and tenant identity are delegated to SDKWork IAM.
 - **NG4**: Not supporting multi-region active-active in Phase 1 — single-region HA only.
 
@@ -70,7 +70,8 @@ commercial multi-tenant deployment.
 - Governance: audit log, outbox events, tenant preferences, tenant quotas.
 - Provider binding: native SQL plugin, reference profiles plugin, SPI registry.
 - API: open (17 ops), app (33 ops), backend (55 ops) with generated TypeScript SDK.
-- Deployment: Docker, Kubernetes (unified-process and split-services topologies).
+- PC application: customer-facing Console and internal Admin surfaces with strict App SDK and Backend SDK isolation.
+- Deployment: Docker and Kubernetes through the standard `standalone` and `cloud` profiles.
 - Observability: Prometheus metrics, tracing, readiness/liveness probes, correlation IDs.
 - Privacy: soft delete, hard delete, forget requests, export jobs, sensitivity classification.
 

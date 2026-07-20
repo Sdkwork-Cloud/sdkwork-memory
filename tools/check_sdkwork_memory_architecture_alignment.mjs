@@ -47,7 +47,7 @@ const requiredDirectories = [
   'sdks',
   'database',
   'deployments',
-  'configs',
+  'etc',
   'scripts',
   'docs',
   'tests',
@@ -691,12 +691,20 @@ assert(
   'scripts/cargo-test-workspace.mjs must exist for reliable Windows workspace test linking',
 );
 assert(
-  packageJson.scripts?.verify?.includes('scripts/cargo-test-workspace.mjs'),
-  'package.json verify must run scripts/cargo-test-workspace.mjs',
+  packageJson.scripts?.verify === 'pnpm exec sdkwork-app verify',
+  'package.json verify must remain the canonical sdkwork-app facade',
 );
 assert(
-  packageJson.scripts?.test?.includes('scripts/cargo-test-workspace.mjs'),
-  'package.json test must run scripts/cargo-test-workspace.mjs',
+  packageJson.scripts?.test === 'pnpm exec sdkwork-app test',
+  'package.json test must remain the canonical sdkwork-app facade',
+);
+assert(
+  packageJson.scripts?.['_sdkwork:verify']?.includes('scripts/cargo-test-workspace.mjs'),
+  'package.json _sdkwork:verify must run scripts/cargo-test-workspace.mjs',
+);
+assert(
+  packageJson.scripts?.['_sdkwork:test']?.includes('scripts/cargo-test-workspace.mjs'),
+  'package.json _sdkwork:test must run scripts/cargo-test-workspace.mjs',
 );
 
 const appRoutesSource = readText('crates/sdkwork-routes-memory-app-api/src/routes.rs');
@@ -796,7 +804,7 @@ assert(
 );
 
 const topologySpec = readJson('specs/topology.spec.json');
-assert(topologySpec.schemaVersion === 4, 'specs/topology.spec.json schemaVersion must be 4');
+assert(topologySpec.schemaVersion === 5, 'specs/topology.spec.json schemaVersion must be 5');
 assert(topologySpec.archetype === 'application-http-gateway', 'topology archetype must be application-http-gateway');
 const defaultProfileIds = [
   topologySpec.defaults?.developmentProfileId,

@@ -1,6 +1,6 @@
 # SDKWork Memory Runtime Topology
 
-This repository adopts the shared SDKWork runtime topology framework.
+SDKWork Memory follows the shared SDKWork runtime topology model.
 
 - Platform standard: `../sdkwork-specs/APP_RUNTIME_TOPOLOGY_SPEC.md`
 - Naming authority: `../sdkwork-specs/APP_RUNTIME_TOPOLOGY_NAMING.md`
@@ -9,44 +9,45 @@ This repository adopts the shared SDKWork runtime topology framework.
 
 ## Archetype
 
-`application-http-gateway`: Memory exposes open, app, and backend HTTP surfaces through `sdkwork-routes-memory-*` route crates. The default production profile (`cloud.split-services.production`) runs `sdkwork-api-memory-standalone-gateway` as a unified ingress process; split-service profiles are available when surfaces must bind to separate hosts.
+The application uses the `application-http-gateway` archetype. The route crates own the Open, App, and Backend API surfaces, while `sdkwork-api-memory-standalone-gateway` assembles the public ingress runtime. Process layout is an internal orchestration detail, not a public profile axis.
 
-## Production deployment
+## Profiles
 
-- **Container image:** `registry.sdkwork.com/apps/sdkwork-memory` (see `deployments/docker/Dockerfile`)
-- **Kubernetes:** `deployments/kubernetes/` — migration Job, Deployment, HPA, PDB, Prometheus rules
-- **Database:** PostgreSQL required; apply migrations via `pnpm db:migrate` locally or the K8s migration Job in production
-- **Drive exports:** privacy export jobs upload through SDKWork Drive (`sdkwork-memory-drive`); configure `sdkwork-memory-drive` secrets per `deployments/kubernetes/secret.example.yaml`
-- **Verification:** `pnpm verify` before release
+The only supported profile IDs are:
 
-## Default Dev Profile
+| Profile | Purpose | Database |
+| --- | --- | --- |
+| `standalone.development` | Local development | SQLite by default |
+| `standalone.production` | Single-site production | PostgreSQL |
+| `cloud.development` | Shared cloud development | Environment-managed |
+| `cloud.production` | Kubernetes production | PostgreSQL |
 
-`standalone.unified-process.development`
+`standalone.development` is the default development profile. `cloud.production` is the default production profile. Source-owned values live in `etc/topology/<deploymentProfile>.<environment>.env`; secrets are injected by the runtime environment and are never committed to profile files.
+
+## Production Deployment
+
+- Container image: `registry.sdkwork.com/apps/sdkwork-memory` from `deployments/docker/Dockerfile`.
+- Kubernetes descriptors: `deployments/kubernetes/`, including migration job, Deployment, HPA, PDB, ingress, and Prometheus rules.
+- Database: PostgreSQL is required; run migrations through `pnpm db:migrate` or the Kubernetes migration job.
+- Drive exports: privacy export jobs upload through SDKWork Drive using deployment-managed credentials.
+- Verification: `pnpm verify` and release-readiness checks must pass before publication.
+
+## Local Development
 
 ```bash
 pnpm dev
 pnpm topology:validate
 ```
 
-## Local URLs
-
-| Surface | URL |
+| Surface | Default URL |
 | --- | --- |
-| `application.public-ingress` | http://127.0.0.1:8080 |
-| `application.app-http` | http://127.0.0.1:8080 |
-| `application.backend-http` | http://127.0.0.1:8080 |
-| `application.open-http` | http://127.0.0.1:8080 |
+| `application.public-ingress` | `http://127.0.0.1:8080` |
+| `application.open-http` | `http://127.0.0.1:8081` |
+| `application.app-http` | `http://127.0.0.1:8082` |
+| `application.backend-http` | `http://127.0.0.1:8083` |
 
-Client env keys:
+Browser runtime configuration exposes only declared public keys, including deployment profile and App/Backend/Open SDK base URLs. The PC Console consumes only the App API URL; the PC Admin surface consumes only the Backend API URL.
 
-- `VITE_SDKWORK_MEMORY_DEPLOYMENT_PROFILE`: browser-visible deployment profile.
-- `VITE_SDKWORK_MEMORY_APPLICATION_PUBLIC_HTTP_URL`: unified ingress surface.
-- `VITE_SDKWORK_MEMORY_APPLICATION_APP_HTTP_URL`: app SDK surface.
-- `VITE_SDKWORK_MEMORY_APPLICATION_BACKEND_HTTP_URL`: backend SDK surface.
-- `VITE_SDKWORK_MEMORY_APPLICATION_OPEN_HTTP_URL`: open SDK surface.
+## Cloud Gateway
 
-Profile values live in `configs/topology/*.env` only.
-
-## Cloud profiles
-
-`cloud.split-services.production` is the default production profile in `specs/topology.spec.json`. Use `pnpm gateway:validate:cloud` and `pnpm gateway:package:cloud` when packaging cloud gateway bundles.
+Cloud profiles route public traffic through the platform API gateway. Use `pnpm release:package:cloud` for the cloud deployment profile and validate the generated gateway bundle before deployment.
