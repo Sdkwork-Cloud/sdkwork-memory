@@ -17,6 +17,7 @@ Canonical SDKWORK specs path from this root:
 - `../sdkwork-specs/GITHUB_WORKFLOW_SPEC.md`
 - `../sdkwork-specs/CODE_STYLE_SPEC.md`
 - `../sdkwork-specs/NAMING_SPEC.md`
+- `../sdkwork-specs/SOURCE_CONFIG_SPEC.md`
 
 Do not copy root standard text into this repository. If these relative paths do not resolve, stop and report the broken workspace layout.
 
@@ -34,7 +35,7 @@ Read `sdkwork.app.config.json` only when the task touches Memory application beh
 - `.sdkwork/`: repository/application AI workspace metadata, local skills, local plugins, and manifests.
 - `specs/`: local application/component contracts and narrowing rules.
 - `apis/`: Memory-owned API contract sources and materialized OpenAPI inputs.
-- `apps/`: reserved for future client application roots.
+- `apps/`: independently governed client application roots, including the Memory PC Console and Admin application.
 - `crates/`: reusable Rust service, repository, route, and API server crates.
 - `sdks/`: SDK families, SDK generation manifests, route manifests, and generated SDK artifacts.
 - `database/`: database contract, baseline DDL, migrations, seeds, and drift policy.
@@ -62,7 +63,7 @@ Do not load the whole repository or every root spec before identifying the task 
 - Rust code: `../sdkwork-specs/RUST_CODE_SPEC.md`; add `../sdkwork-specs/RUST_RPC_SPEC.md` when RPC is touched.
 - API/SDK changes: `../sdkwork-specs/API_SPEC.md`, `../sdkwork-specs/WEB_FRAMEWORK_SPEC.md`, `../sdkwork-specs/WEB_BACKEND_SPEC.md`, `../sdkwork-specs/SDK_SPEC.md`, `../sdkwork-specs/SDK_WORKSPACE_GENERATION_SPEC.md`, and `../sdkwork-specs/TEST_SPEC.md`.
 - Database changes: `../sdkwork-specs/DATABASE_SPEC.md`, `../sdkwork-specs/DATABASE_FRAMEWORK_SPEC.md`, `../sdkwork-specs/PRIVACY_SPEC.md`, and `../sdkwork-specs/TEST_SPEC.md`.
-- Runtime/deployment/release changes: `../sdkwork-specs/CONFIG_SPEC.md`, `../sdkwork-specs/ENVIRONMENT_SPEC.md`, `../sdkwork-specs/DEPLOYMENT_SPEC.md`, `../sdkwork-specs/RELEASE_SPEC.md`, and `../sdkwork-specs/GITHUB_WORKFLOW_SPEC.md`.
+- Runtime/deployment/release changes: `../sdkwork-specs/SOURCE_CONFIG_SPEC.md`, `../sdkwork-specs/CONFIG_SPEC.md`, `../sdkwork-specs/ENVIRONMENT_SPEC.md`, `../sdkwork-specs/DEPLOYMENT_SPEC.md`, `../sdkwork-specs/RELEASE_SPEC.md`, and `../sdkwork-specs/GITHUB_WORKFLOW_SPEC.md`.
 - Provider/integration changes: `../sdkwork-specs/INTEGRATION_SPEC.md`, `../sdkwork-specs/SECURITY_SPEC.md`, and `../sdkwork-specs/PRIVACY_SPEC.md`.
 
 Language-specific specs are on-demand; do not load Rust, Java, TypeScript, and frontend specs for unrelated tasks.
@@ -86,62 +87,9 @@ pnpm db:validate
 
 Do not rely on memory when a relevant SDKWork spec exists. Do not replace generated SDK calls with raw HTTP. Stop when the relative specs path, app identity, component spec, API authority, SDK family, table prefix, or provider ownership is ambiguous.
 
-## List And Search Pagination
+## Task-Specific Standards
 
-All L2+ list/search APIs and their backing services, repositories, SDK consumers, and interactive frontend lists `MUST` follow `PAGINATION_SPEC.md`:
-
-- **Input:** standard `SdkWorkListQuery` or query params (`page`/`page_size` or `cursor`/`page_size` per `API_SPEC.md` §14.1); default `page_size` `20`; max `200` unless a documented exception exists.
-- **Output:** `SdkWorkApiResponse.data.items` + `data.pageInfo` with `PageInfo.mode` (`offset` or `cursor`) per `API_SPEC.md` §16.
-- **Store-level pagination:** push filtering, sorting, and page selection to SQL `LIMIT`/keyset or incrementally maintained indexes — never unbounded collect then `skip`/`take`/`slice` in process memory (`PAGINATION_SPEC.md` §2).
-- **SDK and frontend:** interactive lists request one page at a time from the server; no default `listAll*` on P0/P1 paths; no client-side `slice` pagination over full downloads.
-
-Before completing list/search API, repository, SDK list helper, projection read model, or paginated UI work, run:
-
-```bash
-node <sdkwork-specs>/tools/check-pagination.mjs --workspace <workspace-root>
-```
-
-Authority: `PAGINATION_SPEC.md`, `API_SPEC.md` §14.1/§16, `DATABASE_SPEC.md` §20.5, `WEB_BACKEND_SPEC.md` §12, `SDK_SPEC.md` §4.2/§6, `FRONTEND_SPEC.md`, `APP_SDK_INTEGRATION_SPEC.md` §9.
-
-## App SDK Consumer Imports
-
-Application, feature, shell, and service packages `MUST` consume HTTP SDKs through scoped composed consumer packages, not generator transport package names.
-
-- App API clients: `@sdkwork/<application-code>-app-sdk`
-- Backend API clients (`backend-admin` only): `@sdkwork/<application-code>-backend-sdk`
-- Open/domain API clients: `@sdkwork/<domain>-sdk`
-
-Forbidden in application code: generator transport package names, deep imports into `generated/server-openapi/src/*` from consumers when a composed facade exists.
-
-Before completing SDK integration work, run:
-
-```bash
-node <sdkwork-specs>/tools/check-app-sdk-consumer-imports.mjs --workspace <workspace-root>
-```
-
-Authority: `APP_SDK_INTEGRATION_SPEC.md` section 9, `SDK_SPEC.md`, `SDK_WORKSPACE_GENERATION_SPEC.md`.
-
-## HTTP API Response Envelope
-
-All L2+ SDKWork-owned custom HTTP contracts, including `app-api`, `backend-api`, and SDKWork-owned business `open-api`, `MUST` follow `API_SPEC.md` sections 4.5 and 14-16:
-
-- Omitted `x-sdkwork-wire-protocol` means the SDKWork `sdkwork-v3` protocol. Only operations that declare both `x-sdkwork-wire-protocol: external` and `x-sdkwork-external-protocol-id` may use a third-party compatibility wire format.
-- Inputs use typed request bodies and the standard list/search/command shapes. Free-text search uses `q`.
-- Success responses use `SdkWorkApiResponse` with numeric `code: 0`, typed `data`, and server-generated `traceId`.
-- Errors use HTTP 4xx/5xx `application/problem+json` with numeric non-zero `code` and `traceId`.
-- Single-resource data uses `data.item`; lists use `data.items` and `data.pageInfo`; commands use `data.accepted`; async accepts use `data.operationId` and `data.status`.
-- Create uses HTTP 201, delete uses HTTP 204 with no JSON body, and PUT/PATCH use SDK action `update`.
-
-SDKWork-owned business APIs must not opt out of the standard envelope. Business failures must not use HTTP 2xx with a non-zero code, a string wire code, `success`, or a human `message` field. Generated SDKs unwrap `data` by default; consumers use `.raw` only when the full envelope is required.
-
-Before completing API contract, SDK generation, or frontend service work, run:
-
-```bash
-node <sdkwork-specs>/tools/check-api-operation-patterns.mjs --workspace <workspace-root>
-node <sdkwork-specs>/tools/check-api-response-envelope.mjs --workspace <workspace-root>
-```
-
-Authority: `API_SPEC.md` sections 4.5 and 14-16, `SDK_SPEC.md` section 4.2, `FRONTEND_SPEC.md`, and `MIGRATION_SPEC.md` section 4.2.
+API work loads `../sdkwork-specs/API_SPEC.md` and its validators. List/search work loads `../sdkwork-specs/PAGINATION_SPEC.md` and `check-pagination.mjs`. SDK consumer work loads `../sdkwork-specs/APP_SDK_INTEGRATION_SPEC.md` and `../sdkwork-specs/SDK_SPEC.md` for the touched surface. Source configuration work loads `../sdkwork-specs/SOURCE_CONFIG_SPEC.md` and `check-source-config-standard.mjs`. Link these authorities instead of copying their normative bodies into `AGENTS.md`.
 
 ## Human Review Rules
 

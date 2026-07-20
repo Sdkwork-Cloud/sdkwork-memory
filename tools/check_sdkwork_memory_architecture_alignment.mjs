@@ -781,8 +781,9 @@ assert(!sdkDependencyIds.has('sdkwork-discovery'), 'component spec must not decl
 
 assert(fs.existsSync(path.join(repoRoot, '.env.example')), '.env.example must exist');
 assert(
-  readText('AGENTS.md').includes('## List And Search Pagination'),
-  'AGENTS.md must declare List And Search Pagination per PAGINATION_SPEC.md',
+  readText('AGENTS.md').includes('## Task-Specific Standards')
+    && readText('AGENTS.md').includes('PAGINATION_SPEC.md'),
+  'AGENTS.md must route list/search work to PAGINATION_SPEC.md without copying the normative body',
 );
 assert(
   readText('AGENTS.md').includes('check-pagination.mjs'),
