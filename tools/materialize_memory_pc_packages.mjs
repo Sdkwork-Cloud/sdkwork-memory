@@ -6,11 +6,11 @@ const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const appRoot = resolve(workspaceRoot, "apps", "sdkwork-memory-pc");
 
 const infrastructurePackages = [
-  { id: "core", surface: "pc-runtime", dependencies: { "@sdkwork/auth-runtime-pc-react": "workspace:*", "@sdkwork/memory-app-sdk": "workspace:*", "@sdkwork/sdk-common": "workspace:*" } },
+  { id: "core", surface: "pc-runtime", dependencies: { "@sdkwork/auth-pc-react": "workspace:*", "@sdkwork/auth-runtime-pc-react": "workspace:*", "@sdkwork/memory-app-sdk": "workspace:*", "@sdkwork/memory-pc-commons": "workspace:*", "@sdkwork/sdk-common": "workspace:*" } },
   { id: "commons", surface: "pc-shared", dependencies: { "@sdkwork/utils": "workspace:*", "lucide-react": "catalog:", "react": "catalog:", "react-router-dom": "^7.14.0" } },
-  { id: "console-core", surface: "app-console", dependencies: { "@sdkwork/memory-app-sdk": "workspace:*", react: "catalog:" } },
+  { id: "console-core", surface: "app-console", dependencies: { "@sdkwork/memory-app-sdk": "workspace:*", "@sdkwork/memory-pc-commons": "workspace:*", react: "catalog:" } },
   { id: "console-shell", surface: "app-console", dependencies: { "@sdkwork/memory-pc-commons": "workspace:*", "@sdkwork/memory-pc-console-core": "workspace:*", react: "catalog:", "react-router-dom": "^7.14.0" } },
-  { id: "admin-core", surface: "backend-admin", dependencies: { "@sdkwork/memory-backend-sdk": "workspace:*", react: "catalog:" } },
+  { id: "admin-core", surface: "backend-admin", dependencies: { "@sdkwork/memory-backend-sdk": "workspace:*", "@sdkwork/memory-pc-commons": "workspace:*", "@sdkwork/sdk-common": "workspace:*", react: "catalog:" } },
   { id: "admin-shell", surface: "backend-admin", dependencies: { "@sdkwork/memory-pc-admin-core": "workspace:*", "@sdkwork/memory-pc-commons": "workspace:*", react: "catalog:", "react-router-dom": "^7.14.0" } },
 ];
 
@@ -76,6 +76,9 @@ function materializePackage(definition) {
   writeText(resolve(packageRoot, "specs", "README.md"), `# ${packageName}\n\nMachine authority: \`component.spec.json\`. Global standards are referenced through \`canonicalSpecs\` and are not copied here.\n`);
 
   if (isCapability) {
+    const capability = definition.id.replace(/^(console|admin)-/, "");
+    writeText(resolve(packageRoot, "src", "i18n", "en-US", "memory", capability, "module.ts"), messageSource(definition, "en-US"));
+    writeText(resolve(packageRoot, "src", "i18n", "zh-CN", "memory", capability, "module.ts"), messageSource(definition, "zh-CN"));
     writeText(resolve(packageRoot, "src", "module.ts"), capabilityModuleSource(definition));
     writeText(resolve(packageRoot, "src", "index.ts"), "export { memoryModule } from \"./module.ts\";\n");
   }
@@ -149,7 +152,70 @@ function spec(file, purpose) {
 function capabilityModuleSource(definition) {
   const route = definition.id.replace(/^(console|admin)-/, "");
   const constantName = definition.id.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-  return `import type { MemoryPcModuleDefinition } from "@sdkwork/memory-pc-commons";\n\nexport const ${constantName}Module = {\n  id: "${definition.id}",\n  surface: "${definition.surface}",\n  route: "${route}",\n  titleKey: "memory.${definition.id}.title",\n  descriptionKey: "memory.${definition.id}.description",\n  permission: "${definition.permission}",\n  resources: ${JSON.stringify(definition.resources)},\n} as const satisfies MemoryPcModuleDefinition;\n\nexport const memoryModule = ${constantName}Module;\n`;
+  return `import type { MemoryPcModuleDefinition } from "@sdkwork/memory-pc-commons";\nimport { messages as enUS } from "./i18n/en-US/memory/${route}/module.ts";\nimport { messages as zhCN } from "./i18n/zh-CN/memory/${route}/module.ts";\n\nexport const ${constantName}Module = {\n  id: "${definition.id}",\n  surface: "${definition.surface}",\n  route: "${route}",\n  titleKey: "memory.${definition.id}.title",\n  descriptionKey: "memory.${definition.id}.description",\n  permission: "${definition.permission}",\n  resources: ${JSON.stringify(definition.resources)},\n  messages: { "en-US": enUS, "zh-CN": zhCN },\n} as const satisfies MemoryPcModuleDefinition;\n\nexport const memoryModule = ${constantName}Module;\n`;
+}
+
+function messageSource(definition, locale) {
+  const descriptions = {
+    "console-overview": "Monitor the state of your memory workspace and pending decisions.",
+    "console-memory": "Inspect, correct, and trace memories stored in your spaces.",
+    "console-learning": "Review learned candidates, habits, and learning preferences.",
+    "console-retrieval": "Test retrieval and inspect context assembled for AI workflows.",
+    "console-knowledge": "Maintain the entities recognized in your memory spaces.",
+    "console-governance": "Control policies, exports, retention, and forgetting requests.",
+    "admin-overview": "Track service health, readiness, and operational risk.",
+    "admin-memory": "Investigate canonical memories, events, and supersession chains.",
+    "admin-learning": "Operate extraction, candidate review, and consolidation jobs.",
+    "admin-retrieval": "Manage indexes, profiles, and explainable retrieval traces.",
+    "admin-providers": "Manage implementation profiles, provider bindings, and health.",
+    "admin-evaluation": "Measure retrieval, learning, habit, and end-to-end quality.",
+    "admin-knowledge-graph": "Inspect entities, edges, and relationship integrity.",
+    "admin-control-plane": "Manage subjects, bindings, and capability resolution.",
+    "admin-governance": "Operate policy, audit, retention, and migration controls.",
+  };
+  const zhDescriptions = {
+    "console-overview": "查看记忆工作区状态与待处理决策。",
+    "console-memory": "检查、纠正并追溯空间中的记忆。",
+    "console-learning": "审核学习候选、习惯与学习偏好。",
+    "console-retrieval": "验证检索效果并检查 AI 工作流的上下文组装。",
+    "console-knowledge": "维护记忆空间中识别出的实体。",
+    "console-governance": "管理策略、导出、保留与遗忘请求。",
+    "admin-overview": "跟踪服务健康、商业就绪度与运营风险。",
+    "admin-memory": "排查规范记忆、事件与替代链路。",
+    "admin-learning": "运营抽取、候选审核与合并任务。",
+    "admin-retrieval": "管理索引、检索配置与可解释 Trace。",
+    "admin-providers": "管理实现配置、Provider 绑定与健康状态。",
+    "admin-evaluation": "评估检索、学习、习惯与端到端质量。",
+    "admin-knowledge-graph": "检查实体、关系边与图完整性。",
+    "admin-control-plane": "管理 Subject、绑定与能力解析。",
+    "admin-governance": "运营策略、审计、保留与迁移控制。",
+  };
+  const title = locale === "zh-CN" ? translateTitle(definition.title) : definition.title;
+  const description = locale === "zh-CN" ? zhDescriptions[definition.id] : descriptions[definition.id];
+  return `export const messages = ${JSON.stringify({
+    [`memory.${definition.id}.title`]: title,
+    [`memory.${definition.id}.description`]: description,
+  }, null, 2)} as const;\n`;
+}
+
+function translateTitle(title) {
+  const titles = {
+    "Overview": "概览",
+    "Memory": "记忆",
+    "Learning": "学习",
+    "Retrieval": "检索",
+    "Knowledge": "知识实体",
+    "Governance": "治理",
+    "Operations": "运营概览",
+    "Memory operations": "记忆运营",
+    "Learning operations": "学习运营",
+    "Retrieval operations": "检索运营",
+    "Providers": "Provider 管理",
+    "Evaluation": "质量评测",
+    "Knowledge graph": "知识图谱",
+    "Control plane": "控制平面",
+  };
+  return titles[title] ?? title;
 }
 
 function coreSubpathExports() {

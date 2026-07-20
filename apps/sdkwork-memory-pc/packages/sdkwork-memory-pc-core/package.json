@@ -37,6 +37,7 @@
     }
   },
   "dependencies": {
+    "@sdkwork/auth-pc-react": "workspace:*",
     "@sdkwork/auth-runtime-pc-react": "workspace:*",
     "@sdkwork/memory-app-sdk": "workspace:*",
     "@sdkwork/sdk-common": "workspace:*"

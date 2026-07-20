@@ -38,6 +38,8 @@
   },
   "dependencies": {
     "@sdkwork/memory-backend-sdk": "workspace:*",
+    "@sdkwork/memory-pc-commons": "workspace:*",
+    "@sdkwork/sdk-common": "workspace:*",
     "react": "catalog:"
   },
   "sdkwork": {
