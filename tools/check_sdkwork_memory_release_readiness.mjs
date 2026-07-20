@@ -1,159 +1,201 @@
 #!/usr/bin/env node
-/**
- * Release and supply-chain readiness gate for SDKWork Memory.
- * Follows RELEASE_SPEC.md and OBSERVABILITY_SPEC.md production gates.
- *
- * Default mode reports placeholder gaps as warnings so development can continue.
- * Set SDKWORK_RELEASE_VALIDATION=strict to fail on production-blocking manifest gaps.
- */
-import fs from "node:fs";
-import path from "node:path";
+
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { createReadStream, existsSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const strict = process.env.SDKWORK_RELEASE_VALIDATION !== "development";
+const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const strict = process.env.SDKWORK_RELEASE_VALIDATION === "strict";
 const failures = [];
 const warnings = [];
 
-function readJson(relativePath) {
-  const absolutePath = path.join(repoRoot, relativePath);
-  if (!fs.existsSync(absolutePath)) {
-    failures.push(`${relativePath} must exist`);
+const manifest = readJson("sdkwork.app.config.json");
+const workflow = readJson("sdkwork.workflow.json");
+const dockerfile = readText("deployments/docker/Dockerfile");
+const deployment = readText("deployments/kubernetes/deployment.yaml");
+const migrationJob = readText("deployments/kubernetes/migration-job.yaml");
+
+if (manifest?.schemaVersion !== 3 || manifest?.kind !== "sdkwork.app") {
+  fail("sdkwork.app.config.json must use schemaVersion 3 and kind sdkwork.app");
+}
+
+const publishStatus = manifest?.publish?.status ?? "UNKNOWN";
+const contractState = manifest?.artifacts?.installConfig?.metadata?.contractState ?? "unknown";
+const productionClaimed = publishStatus === "ACTIVE" || contractState === "production-ready";
+const packages = manifest?.artifacts?.installConfig?.packages ?? [];
+const enabledPackages = packages.filter((pkg) => pkg.enabled !== false);
+const targets = new Map((workflow?.targets ?? []).map((target) => [target.id, target]));
+
+requireExecutableReleaseLifecycle(workflow);
+requireCanonicalDockerfile(dockerfile);
+requireContainerTarget(targets);
+rejectFalseCandidateClaims();
+
+if (strict) {
+  if (!productionClaimed || publishStatus !== "ACTIVE" || contractState !== "production-ready") {
+    fail("strict release validation requires ACTIVE publication and production-ready contract state");
+  }
+  if (enabledPackages.length === 0) {
+    fail("strict release validation requires at least one enabled immutable package");
+  }
+  for (const pkg of enabledPackages) await validateEnabledPackage(pkg);
+  rejectDeploymentPlaceholders();
+} else if (!productionClaimed) {
+  if (enabledPackages.length > 0) {
+    fail("release-candidate manifests must keep publication packages disabled until immutable evidence exists");
+  }
+  warnings.push("release candidate is correctly blocked from production publication");
+}
+
+report();
+
+function requireExecutableReleaseLifecycle(config) {
+  if (config?.security?.sbomRequired !== true || config?.security?.signingRequired !== true) {
+    fail("workflow must require both SBOM generation and artifact signing");
+  }
+  const signCommands = (config?.lifecycle?.sign ?? []).map((step) => step.run ?? "");
+  const sbomCommands = (config?.lifecycle?.sbom ?? []).map((step) => step.run ?? "");
+  if (!signCommands.some((command) => command.includes("workflow-supply-chain-evidence.mjs sign"))) {
+    fail("workflow sign phase must execute the Memory detached-signature producer");
+  }
+  if (!sbomCommands.some((command) => command.includes("workflow-supply-chain-evidence.mjs attest"))) {
+    fail("workflow SBOM phase must create byte-bound SBOM, provenance, checksum, and artifact evidence");
+  }
+}
+
+function requireCanonicalDockerfile(value) {
+  for (const requiredText of [
+    "cargo build --release -p sdkwork-api-memory-standalone-gateway",
+    "/src/target/release/sdkwork-api-memory-standalone-gateway",
+    'CMD ["sdkwork-api-memory-standalone-gateway"]',
+  ]) {
+    if (!value.includes(requiredText)) fail(`Dockerfile is missing canonical runtime declaration: ${requiredText}`);
+  }
+  if (value.includes("sdkwork-memory-standalone-gateway")) {
+    fail("Dockerfile still references the retired nonexistent gateway package");
+  }
+}
+
+function requireContainerTarget(targetMap) {
+  const target = targetMap.get("container-x64-cloud-container-oci");
+  if (
+    !target
+    || target.profileBinding !== "fixed"
+    || target.deploymentProfile !== "cloud"
+    || target.runtimeTarget !== "container"
+    || target.profile !== "container"
+    || target.platform !== "container"
+    || !target.formats?.includes("oci")
+    || !target.artifactPath
+  ) {
+    fail("workflow must define a byte-bound container-x64-cloud-container-oci target");
+  }
+}
+
+function rejectFalseCandidateClaims() {
+  const serialized = JSON.stringify(manifest);
+  if (!productionClaimed && /Production Ready|production-ready Memory service/u.test(serialized)) {
+    fail("release-candidate manifest still contains production-ready marketing claims");
+  }
+  for (const pkg of packages) {
+    if (pkg.enabled === false && /@sha256:[a-f0-9]{64}$/u.test(pkg.url ?? "")) {
+      fail(`disabled candidate package ${pkg.id} must not retain a stale immutable digest claim`);
+    }
+  }
+}
+
+async function validateEnabledPackage(pkg) {
+  const target = targets.get(pkg.id);
+  if (!target) {
+    fail(`enabled package ${pkg.id} has no matching workflow target`);
+    return;
+  }
+  if (!/^oci:\/\/[^\s]+@sha256:[a-f0-9]{64}$/u.test(pkg.url ?? "")) {
+    fail(`enabled container package ${pkg.id} must use an immutable oci://...@sha256 URL`);
+  }
+  if (!/^[a-f0-9]{64}$/u.test(pkg.checksum ?? "")) {
+    fail(`enabled package ${pkg.id} must declare a 64-character artifact checksum`);
+  }
+  const evidencePath = join(root, ".sdkwork", "evidence", `${pkg.id}.json`);
+  if (!existsSync(evidencePath)) {
+    fail(`enabled package ${pkg.id} is missing canonical artifact evidence`);
+    return;
+  }
+  const evidence = JSON.parse(readFileSync(evidencePath, "utf8"));
+  const artifactPath = join(root, evidence.artifactPath ?? "");
+  if (!existsSync(artifactPath)) {
+    fail(`artifact evidence for ${pkg.id} references a missing artifact`);
+    return;
+  }
+  const digest = await sha256File(artifactPath);
+  if (evidence.digest?.value !== digest && evidence.digest !== `sha256:${digest}`) {
+    fail(`artifact evidence for ${pkg.id} does not match artifact bytes`);
+  }
+  if (evidence.sourceCommit !== gitHead()) {
+    fail(`artifact evidence for ${pkg.id} is stale for the current source commit`);
+  }
+  for (const key of ["sbom", "provenance", "signature"]) {
+    if (!evidence[key]) fail(`artifact evidence for ${pkg.id} is missing ${key}`);
+  }
+}
+
+function rejectDeploymentPlaceholders() {
+  for (const [path, value] of [
+    ["deployments/kubernetes/deployment.yaml", deployment],
+    ["deployments/kubernetes/migration-job.yaml", migrationJob],
+  ]) {
+    if (/<release-build-digest>|:latest@sha256:/u.test(value)) {
+      fail(`${path} must reference the approved immutable release digest without placeholders or latest tags`);
+    }
+  }
+}
+
+function readJson(path) {
+  const value = readText(path);
+  if (!value) return null;
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    fail(`${path} is not valid JSON: ${error.message}`);
     return null;
   }
-  return JSON.parse(fs.readFileSync(absolutePath, "utf8"));
+}
+
+function readText(path) {
+  const absolutePath = join(root, path);
+  if (!existsSync(absolutePath)) {
+    fail(`${path} must exist`);
+    return "";
+  }
+  return readFileSync(absolutePath, "utf8");
+}
+
+function gitHead() {
+  return execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+}
+
+function sha256File(path) {
+  return new Promise((resolveDigest, reject) => {
+    const hash = createHash("sha256");
+    const stream = createReadStream(path);
+    stream.on("error", reject);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("end", () => resolveDigest(hash.digest("hex")));
+  });
 }
 
 function fail(message) {
   failures.push(message);
 }
 
-function strictFail(message) {
-  if (strict) {
-    failures.push(message);
-  } else {
-    warnings.push(message);
-  }
-}
-
-function isPlaceholderChecksum(checksum) {
-  if (checksum == null) {
-    return true;
-  }
-  if (typeof checksum !== "string" || checksum.length < 16) {
-    return true;
-  }
-  const sample = checksum.slice(0, 8);
-  return checksum === sample.repeat(Math.ceil(checksum.length / sample.length)).slice(0, checksum.length);
-}
-
-function collectPlaceholderMedia(manifest) {
-  const placeholders = [];
-  const media = manifest.media ?? {};
-  for (const icon of [media.icons?.primary, ...(media.icons?.platform ?? [])].filter(Boolean)) {
-    if (icon.metadata?.generatedPlaceholder === true) {
-      placeholders.push(`media icon ${icon.id ?? icon.purpose ?? "unknown"}`);
-    }
-  }
-  for (const preview of media.previews ?? []) {
-    if (preview.metadata?.generatedPlaceholder === true) {
-      placeholders.push(`preview ${preview.id ?? preview.purpose ?? "unknown"}`);
-    }
-  }
-  return placeholders;
-}
-
-function main() {
-  const manifest = readJson("sdkwork.app.config.json");
-  if (!manifest) {
-    reportAndExit();
-  }
-
-  if (manifest.schemaVersion !== 3 || manifest.kind !== "sdkwork.app") {
-    fail("sdkwork.app.config.json must use schemaVersion 3 and kind sdkwork.app");
-  }
-
-  if (!fs.existsSync(path.join(repoRoot, "sdkwork.workflow.json"))) {
-    fail("sdkwork.workflow.json must exist for release governance");
-  }
-
-  if (!fs.existsSync(path.join(repoRoot, "scripts/generate-release-sbom.mjs"))) {
-    fail("scripts/generate-release-sbom.mjs must exist when security.sbomRequired is enabled");
-  }
-
-  if (!fs.existsSync(path.join(repoRoot, "scripts/package-release-artifact.mjs"))) {
-    fail("scripts/package-release-artifact.mjs must exist for workflow package lifecycle");
-  }
-
-  const security = manifest.security ?? {};
-  if (security.sbomRequired !== true) {
-    strictFail("security.sbomRequired must be true for commercial release evidence");
-  }
-  if (security.checksumRequired !== true) {
-    strictFail("security.checksumRequired must be true before production artifact publication");
-  }
-  if (security.signatureRequired !== true) {
-    strictFail("security.signatureRequired must be true before externally distributed packages ship");
-  }
-
-  const contractState =
-    manifest.artifacts?.installConfig?.metadata?.contractState ?? "unknown";
-  if (contractState !== "production-ready") {
-    strictFail(`artifacts.installConfig.metadata.contractState must be production-ready (found ${contractState})`);
-  }
-
-  const packages = manifest.artifacts?.installConfig?.packages ?? [];
-  for (const pkg of packages) {
-    if (pkg.enabled === false) {
-      continue;
-    }
-    if (!pkg.checksumAlgorithm) {
-      fail(`package ${pkg.id} must declare checksumAlgorithm`);
-    }
-    if (isPlaceholderChecksum(pkg.checksum)) {
-      strictFail(
-        `package ${pkg.id} must declare a release-build SHA-256 checksum (run pnpm release:sbom after release build)`,
-      );
-    }
-  }
-
-  for (const placeholder of collectPlaceholderMedia(manifest)) {
-    strictFail(`${placeholder} is still a generated placeholder; replace with production media before catalog launch`);
-  }
-
-  if (manifest.publish?.status === "ACTIVE") {
-    const hasPlaceholderMedia = collectPlaceholderMedia(manifest).length > 0;
-    const hasPlaceholderChecksum = packages.some(
-      (pkg) => pkg.enabled !== false && isPlaceholderChecksum(pkg.checksum),
-    );
-    if (hasPlaceholderMedia || hasPlaceholderChecksum) {
-      strictFail("publish.status ACTIVE is incompatible with placeholder media or checksums");
-    }
-  }
-
-  const workflow = readJson("sdkwork.workflow.json");
-  if (workflow?.security?.sbomRequired !== true) {
-    strictFail("sdkwork.workflow.json security.sbomRequired must be true");
-  }
-
-  reportAndExit();
-}
-
-function reportAndExit() {
-  for (const message of warnings) {
-    console.warn(`[release-readiness] warning: ${message}`);
-  }
+function report() {
+  for (const warning of warnings) console.warn(`[release-readiness] warning: ${warning}`);
+  for (const failure of failures) console.error(`[release-readiness] error: ${failure}`);
   if (failures.length > 0) {
-    for (const message of failures) {
-      console.error(`[release-readiness] error: ${message}`);
-    }
-    console.error(
-      `[release-readiness] failed (${failures.length} error(s), ${warnings.length} warning(s))`,
-    );
+    console.error(`[release-readiness] failed (${failures.length} error(s))`);
     process.exit(1);
   }
-  const mode = strict ? "strict" : "development";
-  console.log(`[release-readiness] passed (${mode} mode, ${warnings.length} warning(s))`);
+  console.log(`[release-readiness] passed (${strict ? "strict production" : "candidate"} mode)`);
 }
-
-main();

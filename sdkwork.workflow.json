@@ -76,7 +76,7 @@
       {
         "name": "Install workspace dependencies",
         "shell": "pwsh",
-        "run": "pnpm install --frozen-lockfile || echo skip-pnpm-lockfile"
+        "run": "pnpm install --frozen-lockfile"
       }
     ],
     "build": [
@@ -98,60 +98,84 @@
     ],
     "package": [
       {
-        "name": "Package Memory server release artifact",
+        "name": "Package the selected Memory workflow target",
         "shell": "pwsh",
-        "run": "node scripts/package-release-artifact.mjs"
-      },
-      {
-        "name": "Package deterministic Memory PC browser artifact",
-        "shell": "pwsh",
-        "run": "pnpm --dir apps/sdkwork-memory-pc build:browser:cloud"
+        "run": "node scripts/package-workflow-target.mjs"
       }
     ],
     "validate": [
       {
         "name": "Validate Memory contract and architecture",
         "shell": "pwsh",
-        "run": "cargo test --workspace && node tools/check_sdkwork_memory_architecture_alignment.mjs"
+        "run": "cargo test --workspace && node tools/check_sdkwork_memory_architecture_alignment.mjs && node scripts/release/workflow-supply-chain-evidence.mjs verify"
       }
     ],
     "sign": [
       {
-        "name": "Generate release checksums",
+        "name": "Create a detached artifact signature",
         "shell": "pwsh",
-        "run": "node scripts/generate-release-sbom.mjs"
+        "run": "node scripts/release/workflow-supply-chain-evidence.mjs sign"
       }
     ],
     "sbom": [
       {
-        "name": "Generate SPDX SBOM",
+        "name": "Generate byte-bound SBOM, provenance, checksum, and deployment evidence",
         "shell": "pwsh",
-        "run": "node scripts/generate-release-sbom.mjs"
+        "run": "node scripts/release/workflow-supply-chain-evidence.mjs attest"
       }
     ]
   },
   "targets": [
     {
-      "id": "linux-x64-cloud-server-tar-gz",
+      "id": "linux-x64-standalone-server-tar-gz",
+      "profileBinding": "fixed",
       "profile": "server",
       "platform": "linux",
       "architecture": "x64",
       "formats": ["tar.gz"],
       "runner": "ubuntu-24.04",
-      "outputGlobs": ["target/release/sdkwork-api-memory-standalone-gateway*"],
-      "deploymentProfile": "cloud",
+      "outputGlobs": [
+        "deployments/artifacts/release/sdkwork-memory-linux-x64-standalone-server.tar.gz",
+        ".sdkwork/evidence/linux-x64-standalone-server-tar-gz.json",
+        ".sdkwork/evidence/linux-x64-standalone-server-tar-gz/**"
+      ],
+      "artifactPath": "deployments/artifacts/release/sdkwork-memory-linux-x64-standalone-server.tar.gz",
+      "deploymentProfile": "standalone",
       "runtimeTarget": "server"
     },
     {
       "id": "web-universal-cloud-browser-zip",
+      "profileBinding": "fixed",
       "profile": "browser",
       "platform": "web",
       "architecture": "universal",
       "formats": ["zip"],
       "runner": "ubuntu-24.04",
-      "outputGlobs": ["deployments/artifacts/pc/sdkwork-memory-pc-*-web-universal-cloud-browser.zip*"],
+      "outputGlobs": [
+        "deployments/artifacts/pc/sdkwork-memory-pc-web-universal-cloud-browser.zip",
+        ".sdkwork/evidence/web-universal-cloud-browser-zip.json",
+        ".sdkwork/evidence/web-universal-cloud-browser-zip/**"
+      ],
+      "artifactPath": "deployments/artifacts/pc/sdkwork-memory-pc-web-universal-cloud-browser.zip",
       "deploymentProfile": "cloud",
       "runtimeTarget": "browser"
+    },
+    {
+      "id": "container-x64-cloud-container-oci",
+      "profileBinding": "fixed",
+      "profile": "container",
+      "platform": "container",
+      "architecture": "x64",
+      "formats": ["oci"],
+      "runner": "ubuntu-24.04",
+      "outputGlobs": [
+        "deployments/artifacts/release/sdkwork-memory-container-x64-cloud.oci.tar",
+        ".sdkwork/evidence/container-x64-cloud-container-oci.json",
+        ".sdkwork/evidence/container-x64-cloud-container-oci/**"
+      ],
+      "artifactPath": "deployments/artifacts/release/sdkwork-memory-container-x64-cloud.oci.tar",
+      "deploymentProfile": "cloud",
+      "runtimeTarget": "container"
     }
   ],
   "security": {

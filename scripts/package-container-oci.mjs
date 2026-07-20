@@ -7,6 +7,7 @@ import { dirname, resolve } from "node:path";
 const root = resolve(import.meta.dirname, "..");
 const version = required(process.env.SDKWORK_PACKAGE_VERSION, "SDKWORK_PACKAGE_VERSION");
 const sourceRevision = gitValue(["rev-parse", "HEAD"]);
+const builderName = process.env.SDKWORK_CONTAINER_BUILDER ?? "sdkwork-memory-release";
 const artifactPath = resolve(
   root,
   process.env.SDKWORK_PACKAGE_ARTIFACT_PATH
@@ -15,12 +16,15 @@ const artifactPath = resolve(
 
 mkdirSync(dirname(artifactPath), { recursive: true });
 rmSync(artifactPath, { force: true });
+ensureAttestationBuilder(builderName);
 
 execFileSync(
   "docker",
   [
     "buildx",
     "build",
+    "--builder",
+    builderName,
     "--file",
     "deployments/docker/Dockerfile",
     "--platform",
@@ -68,4 +72,23 @@ function required(value, label) {
 
 function gitValue(args) {
   return execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
+}
+
+function ensureAttestationBuilder(name) {
+  try {
+    execFileSync("docker", ["buildx", "inspect", name], {
+      cwd: root,
+      stdio: "ignore",
+    });
+  } catch {
+    execFileSync(
+      "docker",
+      ["buildx", "create", "--name", name, "--driver", "docker-container"],
+      { cwd: root, stdio: "inherit" },
+    );
+  }
+  execFileSync("docker", ["buildx", "inspect", name, "--bootstrap"], {
+    cwd: root,
+    stdio: "inherit",
+  });
 }
