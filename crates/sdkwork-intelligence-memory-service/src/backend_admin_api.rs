@@ -36,9 +36,9 @@ impl OpenMemoryService {
                 "implementation profile name must not be empty",
             ));
         }
-        serde_json::from_value::<MemoryImplementationKind>(Value::String(
-            request.implementation_kind.clone(),
-        ))
+        let implementation_kind = serde_json::from_value::<MemoryImplementationKind>(
+            Value::String(request.implementation_kind.clone()),
+        )
         .map_err(|_| {
             MemoryServiceError::validation(format!(
                 "unsupported implementationKind: {}",
@@ -64,6 +64,49 @@ impl OpenMemoryService {
             return Err(MemoryServiceError::validation(
                 "implementation profile capabilities must be an object",
             ));
+        }
+        let status = request.status.as_deref().unwrap_or("active");
+        if !crate::implementation_migration::is_production_qualified_implementation_kind(
+            &request.implementation_kind,
+        ) {
+            if request.role != "shadow" || status != "disabled" {
+                return Err(MemoryServiceError::validation(format!(
+                    "implementationKind {} is evaluation-only and must use role=shadow with status=disabled",
+                    request.implementation_kind
+                )));
+            }
+            if request
+                .capabilities
+                .get("productionQualified")
+                .and_then(Value::as_bool)
+                != Some(false)
+            {
+                return Err(MemoryServiceError::validation(
+                    "evaluation-only implementation capabilities must declare productionQualified=false",
+                ));
+            }
+        } else {
+            for unsupported_claim in [
+                "embeddingRequired",
+                "vector",
+                "graph",
+                "rerank",
+                "externalProvider",
+                "eventSourced",
+                "liveDynamicCutover",
+            ] {
+                if request
+                    .capabilities
+                    .get(unsupported_claim)
+                    .and_then(Value::as_bool)
+                    == Some(true)
+                {
+                    return Err(MemoryServiceError::validation(format!(
+                        "qualified {:?} profile cannot claim unavailable capability {unsupported_claim}",
+                        implementation_kind
+                    )));
+                }
+            }
         }
         for (name, value) in [
             ("config", request.config.as_ref()),
@@ -568,6 +611,9 @@ impl OpenMemoryService {
     ) -> MemoryServiceResult<MemoryRetrievalProfile> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         retrieval_profile::validate_retrieval_retrievers(&request.retrievers)?;
+        retrieval_profile::validate_retrieval_strategy(&request.strategy, &request.retrievers)?;
+        retrieval_profile::validate_retrieval_limits(request.top_k, request.context_budget_tokens)?;
+        retrieval_profile::resolve_retrieval_fusion_policy(request.fusion_policy.as_ref())?;
         let profile_id = self.next_id()?.to_string();
         let retrievers_json = serde_json::to_string(&request.retrievers).map_err(|error| {
             MemoryServiceError::storage(format!("retrievers encode failed: {error}"))
@@ -626,6 +672,9 @@ impl OpenMemoryService {
     ) -> MemoryServiceResult<MemoryRetrievalProfile> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         retrieval_profile::validate_retrieval_retrievers(&request.retrievers)?;
+        retrieval_profile::validate_retrieval_strategy(&request.strategy, &request.retrievers)?;
+        retrieval_profile::validate_retrieval_limits(request.top_k, request.context_budget_tokens)?;
+        retrieval_profile::resolve_retrieval_fusion_policy(request.fusion_policy.as_ref())?;
         let retrievers_json = serde_json::to_string(&request.retrievers).ok();
         let fusion_policy_json = Self::optional_json_patch(&request.fusion_policy);
         let rerank_policy_json = Self::optional_json_patch(&request.rerank_policy);
@@ -1073,6 +1122,7 @@ impl OpenMemoryService {
                 tenant_id,
                 &request,
                 &self.core_runtime.profile().profile_id,
+                self.active_implementation_kind_code(),
             )
             .await?;
         let job_id = self.next_id()?;
@@ -1235,5 +1285,30 @@ mod implementation_profile_validation_tests {
             error.kind,
             sdkwork_memory_contract::MemoryServiceErrorKind::Validation
         );
+    }
+
+    #[test]
+    fn evaluation_only_implementation_cannot_become_primary() {
+        let mut value = request();
+        value.implementation_kind = "graph_temporal".to_string();
+        value.capabilities = serde_json::json!({ "productionQualified": false });
+        let error = OpenMemoryService::validate_implementation_profile_request(&value)
+            .expect_err("unqualified graph implementation must not become primary");
+        assert_eq!(
+            error.kind,
+            sdkwork_memory_contract::MemoryServiceErrorKind::Validation
+        );
+
+        value.role = "shadow".to_string();
+        value.status = Some("disabled".to_string());
+        OpenMemoryService::validate_implementation_profile_request(&value)
+            .expect("disabled shadow metadata may be stored for evaluation");
+    }
+
+    #[test]
+    fn qualified_profile_cannot_claim_missing_provider_capabilities() {
+        let mut value = request();
+        value.capabilities = serde_json::json!({ "keyword": true, "graph": true });
+        assert!(OpenMemoryService::validate_implementation_profile_request(&value).is_err());
     }
 }

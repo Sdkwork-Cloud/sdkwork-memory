@@ -57,6 +57,45 @@ fn fuse_retrieval_candidates_ranks_by_score_without_embeddings() {
     assert_eq!(fused.len(), 2);
     assert_eq!(fused[0].memory.memory_id, 2);
     assert_eq!(fused[0].retriever_name, "keyword");
+    assert_eq!(fused[0].retrievers, vec!["keyword"]);
+    assert!(fused[0].fused_score > 0.0 && fused[0].fused_score < 1.0);
+}
+
+#[test]
+fn weighted_rrf_rewards_cross_retriever_agreement_and_deduplicates_hits() {
+    let candidates = vec![
+        RetrievalCandidate {
+            memory: sample_record(1, "shared relevant memory"),
+            retriever_name: "keyword".to_string(),
+            raw_score: 0.8,
+            rank: 1,
+        },
+        RetrievalCandidate {
+            memory: sample_record(1, "shared relevant memory"),
+            retriever_name: "dictionary".to_string(),
+            raw_score: 0.7,
+            rank: 1,
+        },
+        // A duplicate from one provider must not amplify the same memory.
+        RetrievalCandidate {
+            memory: sample_record(1, "shared relevant memory"),
+            retriever_name: "keyword".to_string(),
+            raw_score: 0.8,
+            rank: 1,
+        },
+        RetrievalCandidate {
+            memory: sample_record(2, "single signal memory"),
+            retriever_name: "keyword".to_string(),
+            raw_score: 0.95,
+            rank: 1,
+        },
+    ];
+
+    let fused = fuse_retrieval_candidates(candidates, 10);
+    assert_eq!(fused.len(), 2);
+    assert_eq!(fused[0].memory.memory_id, 1);
+    assert_eq!(fused[0].retrievers, vec!["dictionary", "keyword"]);
+    assert_eq!(fused[1].memory.memory_id, 2);
 }
 
 // =============================================================================

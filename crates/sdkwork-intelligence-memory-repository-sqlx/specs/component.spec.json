@@ -56,7 +56,10 @@
       { "workspace": "sdkwork-utils" }
     ],
     "events": [],
-    "configKeys": []
+    "configKeys": [
+      "SDKWORK_MEMORY_IMPLEMENTATION_PROFILE",
+      "SDKWORK_MEMORY_RETRIEVAL_STRATEGY"
+    ]
   },
   "verification": {
     "commands": ["cargo test -p sdkwork-intelligence-memory-repository-sqlx"]

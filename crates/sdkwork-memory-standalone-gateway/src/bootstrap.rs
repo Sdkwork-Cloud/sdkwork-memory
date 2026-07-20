@@ -6,7 +6,9 @@ use axum::{
     Router,
 };
 use sdkwork_intelligence_memory_repository_sqlx::bootstrap_memory_runtime_from_env;
-use sdkwork_intelligence_memory_service::{platform, render_memory_domain_prometheus, OpenMemoryService};
+use sdkwork_intelligence_memory_service::{
+    platform, render_memory_domain_prometheus, OpenMemoryService,
+};
 use sdkwork_memory_gateway_assembly::assemble_application_business_router;
 use sdkwork_routes_memory_support::{
     memory_dependency_ready_check, memory_http_metrics, memory_metric_environment_label,
@@ -39,8 +41,8 @@ async fn metrics(Extension(product): Extension<Arc<OpenMemoryService>>) -> impl 
     let environment = memory_metric_environment_label();
     let deployment_profile = std::env::var("SDKWORK_MEMORY_DEPLOYMENT_PROFILE")
         .unwrap_or_else(|_| "standalone".to_owned());
-    let runtime_target = std::env::var("SDKWORK_MEMORY_RUNTIME_TARGET")
-        .unwrap_or_else(|_| "server".to_owned());
+    let runtime_target =
+        std::env::var("SDKWORK_MEMORY_RUNTIME_TARGET").unwrap_or_else(|_| "server".to_owned());
     let runtime_profile = product.runtime_profile_label();
     let body = format!(
         "{}{}",
@@ -73,9 +75,10 @@ pub async fn build_router() -> Result<MemoryApplication, String> {
         postgres_host_pool = runtime.data_plane.host_pool.is_some(),
         "memory runtime ready"
     );
-    let mut product = OpenMemoryService::try_from_core_runtime(
+    let mut product = OpenMemoryService::try_from_core_runtime_with_retrieval_strategy(
         runtime.data_plane.phase1,
         runtime.core_runtime,
+        runtime.retrieval_strategy,
     )?;
     if let Some(uploader) =
         sdkwork_memory_drive::bootstrap_memory_drive_export_uploader_from_env().await?
@@ -85,18 +88,24 @@ pub async fn build_router() -> Result<MemoryApplication, String> {
     let product = Arc::new(product);
     let worker_shutdown_tx = OpenMemoryService::spawn_background_workers(&product);
 
-    let business_router = assemble_application_business_router(product.clone()).await.router;
+    let business_router = assemble_application_business_router(product.clone())
+        .await
+        .router;
 
     let readiness = Arc::new(MemoryReadinessCheck::new(product.clone()));
 
-    let max_body_bytes = platform::read_env_usize("SDKWORK_MEMORY_MAX_BODY_BYTES", DEFAULT_MAX_BODY_BYTES);
-    let max_concurrency = platform::read_env_usize("SDKWORK_MEMORY_MAX_CONCURRENCY", DEFAULT_MAX_CONCURRENCY);
+    let max_body_bytes =
+        platform::read_env_usize("SDKWORK_MEMORY_MAX_BODY_BYTES", DEFAULT_MAX_BODY_BYTES);
+    let max_concurrency =
+        platform::read_env_usize("SDKWORK_MEMORY_MAX_CONCURRENCY", DEFAULT_MAX_CONCURRENCY);
 
     let router = Router::new()
         .route("/metrics", get(metrics))
         .route("/healthz", get(healthz_handler))
         .route("/livez", get(livez_handler))
-        .route("/readyz", get({
+        .route(
+            "/readyz",
+            get({
                 let readiness = readiness.clone();
                 move || async move {
                     if !memory_dependency_ready_check().await {
@@ -104,7 +113,8 @@ pub async fn build_router() -> Result<MemoryApplication, String> {
                     }
                     readyz_handler(Some(readiness)).await
                 }
-            }))
+            }),
+        )
         .merge(business_router)
         .layer(Extension(product))
         .layer(DefaultBodyLimit::max(max_body_bytes))
@@ -112,8 +122,7 @@ pub async fn build_router() -> Result<MemoryApplication, String> {
 
     info!(
         max_body_bytes,
-        max_concurrency,
-        "memory standalone-gateway rate limits configured"
+        max_concurrency, "memory standalone-gateway rate limits configured"
     );
 
     Ok(MemoryApplication {

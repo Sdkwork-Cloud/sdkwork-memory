@@ -2,7 +2,7 @@
 
 Status: active
 Owner: SDKWork maintainers
-Updated: 2026-07-06
+Updated: 2026-07-20
 Specs: ARCHITECTURE_DECISION_SPEC.md, DOCUMENTATION_SPEC.md
 
 **Production readiness:** see `TECH-2026-06-10-commercial-memory-management-design.md` §2 for the authoritative current-state checklist (auth, pagination, FTS, jobs, deployment bootstrap).
@@ -15,6 +15,7 @@ Specs: ARCHITECTURE_DECISION_SPEC.md, DOCUMENTATION_SPEC.md
 - [TECH-2026-06-10-memory-open-api-and-no-embedding-mvp.md](TECH-2026-06-10-memory-open-api-and-no-embedding-mvp.md)
 - [TECH-2026-06-10-memory-spi-plugin-architecture-design.md](TECH-2026-06-10-memory-spi-plugin-architecture-design.md)
 - [TECH-2026-06-10-memory-spi-plugin-runtime-implementation-plan.md](TECH-2026-06-10-memory-spi-plugin-runtime-implementation-plan.md)
+- [TECH-2026-07-20-memory-commercial-retrieval-hardening.md](TECH-2026-07-20-memory-commercial-retrieval-hardening.md)
 - [TECH-topology-standard.md](TECH-topology-standard.md)
 
 ## 1. Architecture Overview
@@ -183,6 +184,8 @@ sdkwork-memory/
 - **Readiness**: `/readyz` checks database + IAM connectivity; `/healthz` for liveness.
 - **Correlation**: `correlation.rs` injects `request_id`/`trace_id` into all spans.
 - **Audit log**: Separate `ai_audit_log` table for compliance-grade event recording.
+- **Qualified scheme labels**: runtime metrics distinguish the bounded
+  PostgreSQL/SQLite and balanced/search-first/event-aware combinations.
 
 ## 7. Deployment And Runtime Topology
 

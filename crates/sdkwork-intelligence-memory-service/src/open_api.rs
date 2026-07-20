@@ -18,8 +18,9 @@ use sdkwork_memory_plugin_native_sql::{
     NATIVE_SQL_PLUGIN_ID,
 };
 use sdkwork_memory_retrieval::{
-    build_context_pack_from_hits, fuse_retrieval_candidates, orchestrate_retrieval_candidates,
-    RetrievalCandidate, RetrievalEventInput, RetrievalRecordInput,
+    build_context_pack_from_hits, fuse_retrieval_candidates_with_policy,
+    orchestrate_retrieval_candidates, MemoryRetrievalStrategy, RetrievalCandidate,
+    RetrievalEventInput, RetrievalFusionPolicy, RetrievalRecordInput,
 };
 use sdkwork_memory_spi::{
     AppendMemoryAuditCommand, AppendMemoryOutboxCommand, AppendMemoryRetrievalTraceCommand,
@@ -46,6 +47,7 @@ pub struct OpenMemoryService {
     pub(crate) core_runtime: MemoryCoreRuntime,
     pub(crate) runtime_data_plane: MemoryRuntimeDataPlane,
     pub(crate) drive_export_uploader: Option<Arc<dyn MemoryDriveExportUploader>>,
+    retrieval_strategy: MemoryRetrievalStrategy,
 }
 
 impl OpenMemoryService {
@@ -59,6 +61,7 @@ impl OpenMemoryService {
             core_runtime,
             runtime_data_plane,
             drive_export_uploader: None,
+            retrieval_strategy: MemoryRetrievalStrategy::Balanced,
         }
     }
 
@@ -68,8 +71,12 @@ impl OpenMemoryService {
         primary_plugin_id: impl Into<String>,
     ) -> Self {
         let store = Arc::new(store);
-        let metadata =
-            Self::legacy_runtime_profile_metadata(profile_id.into(), primary_plugin_id.into());
+        let metadata = Self::qualified_native_runtime_profile_metadata(
+            store.as_ref(),
+            profile_id.into(),
+            primary_plugin_id.into(),
+        )
+        .expect("runtime profile must be a qualified native SQL profile");
         let core_runtime = Self::build_native_core_runtime(store.clone(), metadata);
         let runtime_data_plane = MemoryRuntimeDataPlane::try_for_phase1_http(core_runtime.clone())
             .expect("built-in native SQL runtime must expose the Phase-1 HTTP data plane");
@@ -78,6 +85,7 @@ impl OpenMemoryService {
             core_runtime,
             runtime_data_plane,
             drive_export_uploader: None,
+            retrieval_strategy: MemoryRetrievalStrategy::Balanced,
         }
     }
 
@@ -117,30 +125,40 @@ impl OpenMemoryService {
         runtime
     }
 
-    fn legacy_runtime_profile_metadata(
+    fn qualified_native_runtime_profile_metadata(
+        store: &NativeSqlMemoryStore,
         profile_id: String,
         primary_plugin_id: String,
-    ) -> MemoryRuntimeProfileMetadata {
-        let implementation_kind = match profile_id.as_str() {
-            "local-embedded-phase1" => SpiMemoryImplementationKind::LocalEmbedded,
-            "event-sourced-phase1" => SpiMemoryImplementationKind::EventSourced,
-            "search-first-phase1" => SpiMemoryImplementationKind::SearchFirst,
-            "graph-temporal-phase1" => SpiMemoryImplementationKind::GraphTemporal,
-            "external-provider-bridge-eval" => SpiMemoryImplementationKind::ExternalProviderBridge,
-            "hybrid-platform-phase1" => SpiMemoryImplementationKind::HybridPlatform,
-            _ => SpiMemoryImplementationKind::NativeSql,
+    ) -> Result<MemoryRuntimeProfileMetadata, String> {
+        if primary_plugin_id != NATIVE_SQL_PLUGIN_ID {
+            return Err(format!(
+                "qualified SQL runtime requires primary plugin {NATIVE_SQL_PLUGIN_ID}"
+            ));
+        }
+        let (expected_profile_id, implementation_kind, deployment_mode) = match store.dialect() {
+            sdkwork_memory_plugin_native_sql::MemorySqlDialect::Postgres => (
+                "native-sql-phase1",
+                SpiMemoryImplementationKind::NativeSql,
+                MemoryDeploymentMode::Server,
+            ),
+            sdkwork_memory_plugin_native_sql::MemorySqlDialect::Sqlite => (
+                "local-embedded-phase1",
+                SpiMemoryImplementationKind::LocalEmbedded,
+                MemoryDeploymentMode::Local,
+            ),
         };
-        let deployment_mode = match profile_id.as_str() {
-            "local-embedded-phase1" => MemoryDeploymentMode::Local,
-            "native-sql-phase1" => MemoryDeploymentMode::Server,
-            _ => MemoryDeploymentMode::EvalOnly,
-        };
-        MemoryRuntimeProfileMetadata {
+        if profile_id != expected_profile_id {
+            return Err(format!(
+                "profile {profile_id} is not qualified for {:?}; expected {expected_profile_id}",
+                store.dialect()
+            ));
+        }
+        Ok(MemoryRuntimeProfileMetadata {
             profile_id,
             implementation_kind,
             primary_plugin_id,
             deployment_mode,
-        }
+        })
     }
 
     fn validate_native_sql_core_runtime(runtime: &MemoryCoreRuntime) -> Result<(), String> {
@@ -187,6 +205,10 @@ impl OpenMemoryService {
         &self.core_runtime
     }
 
+    pub fn retrieval_strategy(&self) -> MemoryRetrievalStrategy {
+        self.retrieval_strategy
+    }
+
     pub fn runtime_data_plane(&self) -> &MemoryRuntimeDataPlane {
         &self.runtime_data_plane
     }
@@ -197,8 +219,12 @@ impl OpenMemoryService {
         primary_plugin_id: impl Into<String>,
     ) -> Self {
         let store = phase1.into_arc_store();
-        let metadata =
-            Self::legacy_runtime_profile_metadata(profile_id.into(), primary_plugin_id.into());
+        let metadata = Self::qualified_native_runtime_profile_metadata(
+            store.as_ref(),
+            profile_id.into(),
+            primary_plugin_id.into(),
+        )
+        .expect("runtime profile must be a qualified native SQL profile");
         let core_runtime = Self::build_native_core_runtime(store.clone(), metadata);
         let runtime_data_plane = MemoryRuntimeDataPlane::try_for_phase1_http(core_runtime.clone())
             .expect("built-in native SQL runtime must expose the Phase-1 HTTP data plane");
@@ -207,12 +233,25 @@ impl OpenMemoryService {
             core_runtime,
             runtime_data_plane,
             drive_export_uploader: None,
+            retrieval_strategy: MemoryRetrievalStrategy::Balanced,
         }
     }
 
     pub fn try_from_core_runtime(
         phase1: sdkwork_memory_plugin_native_sql::NativeSqlPhase1Runtime,
         core_runtime: MemoryCoreRuntime,
+    ) -> Result<Self, String> {
+        Self::try_from_core_runtime_with_retrieval_strategy(
+            phase1,
+            core_runtime,
+            MemoryRetrievalStrategy::Balanced,
+        )
+    }
+
+    pub fn try_from_core_runtime_with_retrieval_strategy(
+        phase1: sdkwork_memory_plugin_native_sql::NativeSqlPhase1Runtime,
+        core_runtime: MemoryCoreRuntime,
+        retrieval_strategy: MemoryRetrievalStrategy,
     ) -> Result<Self, String> {
         Self::validate_native_sql_core_runtime(&core_runtime)?;
         let runtime_data_plane = MemoryRuntimeDataPlane::try_for_phase1_http(core_runtime.clone())
@@ -222,6 +261,7 @@ impl OpenMemoryService {
             core_runtime,
             runtime_data_plane,
             drive_export_uploader: None,
+            retrieval_strategy,
         })
     }
 
@@ -236,9 +276,31 @@ impl OpenMemoryService {
     }
 
     pub fn runtime_profile_label(&self) -> &'static str {
-        match self.store.dialect() {
-            sdkwork_memory_plugin_native_sql::MemorySqlDialect::Postgres => "postgresql",
-            sdkwork_memory_plugin_native_sql::MemorySqlDialect::Sqlite => "sqlite",
+        match (self.store.dialect(), self.retrieval_strategy) {
+            (
+                sdkwork_memory_plugin_native_sql::MemorySqlDialect::Postgres,
+                MemoryRetrievalStrategy::Balanced,
+            ) => "postgresql_balanced",
+            (
+                sdkwork_memory_plugin_native_sql::MemorySqlDialect::Postgres,
+                MemoryRetrievalStrategy::SearchFirst,
+            ) => "postgresql_search_first",
+            (
+                sdkwork_memory_plugin_native_sql::MemorySqlDialect::Postgres,
+                MemoryRetrievalStrategy::EventAware,
+            ) => "postgresql_event_aware",
+            (
+                sdkwork_memory_plugin_native_sql::MemorySqlDialect::Sqlite,
+                MemoryRetrievalStrategy::Balanced,
+            ) => "sqlite_balanced",
+            (
+                sdkwork_memory_plugin_native_sql::MemorySqlDialect::Sqlite,
+                MemoryRetrievalStrategy::SearchFirst,
+            ) => "sqlite_search_first",
+            (
+                sdkwork_memory_plugin_native_sql::MemorySqlDialect::Sqlite,
+                MemoryRetrievalStrategy::EventAware,
+            ) => "sqlite_event_aware",
         }
     }
 
@@ -253,6 +315,18 @@ impl OpenMemoryService {
                 MemoryImplementationKind::ExternalProviderBridge
             }
             SpiMemoryImplementationKind::HybridPlatform => MemoryImplementationKind::HybridPlatform,
+        }
+    }
+
+    pub(crate) fn active_implementation_kind_code(&self) -> &'static str {
+        match &self.core_runtime.profile().implementation_kind {
+            SpiMemoryImplementationKind::NativeSql => "native_sql",
+            SpiMemoryImplementationKind::EventSourced => "event_sourced",
+            SpiMemoryImplementationKind::SearchFirst => "search_first",
+            SpiMemoryImplementationKind::GraphTemporal => "graph_temporal",
+            SpiMemoryImplementationKind::LocalEmbedded => "local_embedded",
+            SpiMemoryImplementationKind::ExternalProviderBridge => "external_provider_bridge",
+            SpiMemoryImplementationKind::HybridPlatform => "hybrid_platform",
         }
     }
 
@@ -580,14 +654,34 @@ impl OpenMemoryService {
         }
     }
 
-    fn default_retriever_profile() -> Option<serde_json::Value> {
-        Some(serde_json::json!({
-            "keyword": { "weight": 1.0 },
-            "dictionary": { "weight": 0.85 },
-            "time": { "weight": 0.5 },
-            "event": { "weight": 0.6 },
-            "sql": { "weight": 0.75 }
-        }))
+    fn default_retriever_profile(&self) -> Option<serde_json::Value> {
+        Some(self.retrieval_strategy.retriever_profile())
+    }
+
+    fn selectable_memory_schemes(&self) -> serde_json::Value {
+        let (storage, scheme_prefix) = match self.store.dialect() {
+            sdkwork_memory_plugin_native_sql::MemorySqlDialect::Postgres => {
+                ("native_sql", "native")
+            }
+            sdkwork_memory_plugin_native_sql::MemorySqlDialect::Sqlite => {
+                ("local_embedded", "local")
+            }
+        };
+        serde_json::Value::Array(
+            MemoryRetrievalStrategy::all()
+                .into_iter()
+                .map(|strategy| {
+                    serde_json::json!({
+                        "schemeId": format!("{scheme_prefix}-{}-v1", strategy.code().replace('_', "-")),
+                        "implementationKind": storage,
+                        "retrievalStrategy": strategy.code(),
+                        "productionQualified": true,
+                        "canonicalStore": "sql",
+                        "embeddingRequired": false,
+                    })
+                })
+                .collect(),
+        )
     }
 
     fn enabled_retriever_kinds(profile: Option<&serde_json::Value>) -> Vec<SpiMemoryRetrieverKind> {
@@ -718,9 +812,14 @@ impl MemoryOpenApi for OpenMemoryService {
             metadata: Some(serde_json::json!({
                 "activeProfileId": self.core_runtime.profile().profile_id,
                 "primaryPluginId": self.core_runtime.profile().primary_plugin_id,
+                "activeRetrievalStrategy": self.retrieval_strategy.code(),
+                "selectableSchemes": self.selectable_memory_schemes(),
+                "implementationSelectionKey": "SDKWORK_MEMORY_IMPLEMENTATION_PROFILE",
+                "retrievalStrategySelectionKey": "SDKWORK_MEMORY_RETRIEVAL_STRATEGY",
                 "deploymentQualification": self.deployment_qualification(),
                 "runtimeComposition": "typed_ports",
                 "dynamicProfileCutover": false,
+                "runtimeSelectionRequiresRestart": true,
             })),
         })
     }
@@ -1050,12 +1149,10 @@ impl MemoryOpenApi for OpenMemoryService {
         if request.query.trim().is_empty() {
             return Err(MemoryServiceError::validation("query must not be blank"));
         }
-        if !(1..=platform::MAX_RETRIEVAL_TOP_K).contains(&request.top_k) {
-            return Err(MemoryServiceError::validation(format!(
-                "topK must be between 1 and {}",
-                platform::MAX_RETRIEVAL_TOP_K
-            )));
-        }
+        crate::retrieval_profile::validate_retrieval_limits(
+            request.top_k,
+            request.context_budget_tokens,
+        )?;
 
         let authorized_spaces = access::authorize_actor_for_retrieval_spaces(
             &self.runtime_data_plane,
@@ -1071,7 +1168,7 @@ impl MemoryOpenApi for OpenMemoryService {
             .await
             .map_err(Self::map_store_error)?;
 
-        let (effective_top_k, applied_profile_id, profile_retrievers) =
+        let (effective_top_k, applied_profile_id, profile_retrievers, fusion_policy) =
             if let Some(profile_id) = request.retrieval_profile_id {
                 if let Some(row) = self
                     .store
@@ -1086,23 +1183,43 @@ impl MemoryOpenApi for OpenMemoryService {
                             )
                         })?;
                     crate::retrieval_profile::validate_retrieval_retrievers(&retrievers)?;
+                    crate::retrieval_profile::validate_retrieval_strategy(
+                        &row.strategy,
+                        &retrievers,
+                    )?;
+                    let fusion_policy_value = row
+                        .fusion_policy_json
+                        .as_deref()
+                        .map(serde_json::from_str::<serde_json::Value>)
+                        .transpose()
+                        .map_err(|_| {
+                            MemoryServiceError::storage(
+                                "retrieval profile contains invalid fusion policy",
+                            )
+                        })?;
+                    let fusion_policy = crate::retrieval_profile::resolve_retrieval_fusion_policy(
+                        fusion_policy_value.as_ref(),
+                    )?;
                     (
                         platform::clamp_retrieval_top_k(row.top_k.min(request.top_k)),
                         Some(profile_id),
                         Some(retrievers),
+                        fusion_policy,
                     )
                 } else {
                     (
                         platform::clamp_retrieval_top_k(request.top_k),
                         None,
-                        Self::default_retriever_profile(),
+                        self.default_retriever_profile(),
+                        RetrievalFusionPolicy::default(),
                     )
                 }
             } else {
                 (
                     platform::clamp_retrieval_top_k(request.top_k),
                     None,
-                    Self::default_retriever_profile(),
+                    self.default_retriever_profile(),
+                    RetrievalFusionPolicy::default(),
                 )
             };
 
@@ -1113,7 +1230,7 @@ impl MemoryOpenApi for OpenMemoryService {
             ));
         }
         let candidate_limit = (effective_top_k as u32)
-            .saturating_mul(2)
+            .saturating_mul(4)
             .clamp(1, MAX_MEMORY_RETRIEVAL_CANDIDATES);
 
         let memory_type_filter = request.memory_types.as_ref().map(|types| {
@@ -1267,13 +1384,17 @@ impl MemoryOpenApi for OpenMemoryService {
                         memory,
                         retriever_name: candidate.retriever_name,
                         raw_score: candidate.raw_score,
-                        rank: 0,
+                        rank: candidate.rank,
                     });
                 }
             }
         }
 
-        let fused = fuse_retrieval_candidates(candidates, effective_top_k as usize);
+        let fused = fuse_retrieval_candidates_with_policy(
+            candidates,
+            effective_top_k as usize,
+            fusion_policy,
+        );
         let retrieval_id = self.next_id()?;
         let trace_id = retrieval_id.to_string();
         let primary_scope = Self::scope(&context, request.space_ids[0])?;
@@ -1294,7 +1415,13 @@ impl MemoryOpenApi for OpenMemoryService {
                     result_rank: hit.rank,
                     raw_score: Some(hit.raw_score),
                     fused_score: Some(hit.fused_score),
-                    explanation: None,
+                    explanation: Some(serde_json::json!({
+                        "fusionAlgorithm": "weighted_rrf",
+                        "rankConstant": fusion_policy.rank_constant,
+                        "dominantRetriever": hit.retriever_name,
+                        "contributingRetrievers": hit.retrievers,
+                        "canonicalRehydrated": true,
+                    })),
                     status: "accepted".to_string(),
                 })
             })
@@ -1314,11 +1441,11 @@ impl MemoryOpenApi for OpenMemoryService {
                 raw_score: hit.raw_score,
                 fused_score: hit.fused_score,
                 explanation_json: hit.memory.as_ref().map(|memory| {
-                    serde_json::json!({
-                        "spaceId": memory.space_id,
-                        "canonicalRehydrated": true,
-                    })
-                    .to_string()
+                    let mut explanation = hit.explanation.clone().unwrap_or_default();
+                    if let Some(object) = explanation.as_object_mut() {
+                        object.insert("spaceId".to_string(), serde_json::json!(memory.space_id));
+                    }
+                    explanation.to_string()
                 }),
                 status: hit.status.clone(),
             })

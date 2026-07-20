@@ -476,14 +476,26 @@ impl NativeSqlMemoryStore {
         .fetch_one(self.pool())
         .await?;
         if count == 0 {
+            let (name, implementation_kind, capability_json) = match self.dialect() {
+                crate::MemorySqlDialect::Postgres => (
+                    "native-sql-phase1",
+                    "native_sql",
+                    r#"{"keyword":true,"embedding":false,"productionQualified":true}"#,
+                ),
+                crate::MemorySqlDialect::Sqlite => (
+                    "local-embedded-phase1",
+                    "local_embedded",
+                    r#"{"keyword":true,"embedding":false,"productionQualified":true}"#,
+                ),
+            };
             self.insert_mem_implementation_profile(
                 tenant_id,
                 "1",
-                "native-sql-phase1",
-                "native_sql",
+                name,
+                implementation_kind,
                 "primary",
                 "active",
-                r#"{"keyword":true,"embedding":false}"#,
+                capability_json,
                 None,
                 None,
             )

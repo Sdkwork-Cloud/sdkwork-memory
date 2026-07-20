@@ -1,6 +1,5 @@
 //! Tracing bootstrap for `sdkwork-memory-standalone-gateway` (`OBSERVABILITY_SPEC.md` §2, §4).
 
-
 pub fn init_tracing() {
     #[cfg(feature = "otel")]
     if std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT")
@@ -44,9 +43,7 @@ fn init_fmt_tracing() {
 }
 
 #[cfg(feature = "otel")]
-fn init_otel_tracing(
-    service_name: &str,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+fn init_otel_tracing(service_name: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     use opentelemetry::trace::TracerProvider as _;
     use opentelemetry_otlp::WithExportConfig;
     use opentelemetry_sdk::trace::TracerProvider;
@@ -89,6 +86,9 @@ fn init_otel_tracing(
         .with(telemetry)
         .try_init()?;
 
-    tracing::info!(service = service_name, "sdkwork-memory OTLP tracing initialized");
+    tracing::info!(
+        service = service_name,
+        "sdkwork-memory OTLP tracing initialized"
+    );
     Ok(())
 }

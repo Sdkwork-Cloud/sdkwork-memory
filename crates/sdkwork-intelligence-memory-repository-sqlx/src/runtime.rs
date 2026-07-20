@@ -7,6 +7,7 @@ use sdkwork_memory_profile_resolver::{
     MemoryImplementationProfileDraft, MemoryRuntimeProfileResolver,
     ResolvedMemoryImplementationProfile,
 };
+use sdkwork_memory_retrieval::MemoryRetrievalStrategy;
 use sdkwork_memory_spi::{MemoryCoreRuntime, MemoryDeploymentMode, MemoryPluginRegistry};
 
 use crate::bootstrap::{bootstrap_memory_data_plane_from_env, MemoryDataPlane};
@@ -33,6 +34,27 @@ pub struct MemoryRuntime {
     /// Compatibility projections; `profile` is the authoritative typed value.
     pub profile_id: String,
     pub primary_plugin_id: String,
+    pub retrieval_strategy: MemoryRetrievalStrategy,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemoryImplementationProfileSelection {
+    Auto,
+    NativeSql,
+    LocalEmbedded,
+}
+
+impl MemoryImplementationProfileSelection {
+    fn parse(value: &str) -> Result<Self, String> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "auto" => Ok(Self::Auto),
+            "native_sql" | "native-sql" => Ok(Self::NativeSql),
+            "local_embedded" | "local-embedded" => Ok(Self::LocalEmbedded),
+            other => Err(format!(
+                "SDKWORK_MEMORY_IMPLEMENTATION_PROFILE must be auto, native_sql, or local_embedded; got {other}"
+            )),
+        }
+    }
 }
 
 pub fn bootstrap_memory_plugin_registry() -> MemoryPluginRegistry {
@@ -70,6 +92,27 @@ pub fn validate_memory_plugin_registry(registry: &MemoryPluginRegistry) -> Resul
     Ok(())
 }
 
+pub fn resolve_memory_implementation_profile_from_env(
+) -> Result<MemoryImplementationProfileSelection, String> {
+    match std::env::var("SDKWORK_MEMORY_IMPLEMENTATION_PROFILE") {
+        Ok(value) => MemoryImplementationProfileSelection::parse(&value),
+        Err(std::env::VarError::NotPresent) => Ok(MemoryImplementationProfileSelection::Auto),
+        Err(error) => Err(format!(
+            "SDKWORK_MEMORY_IMPLEMENTATION_PROFILE could not be read: {error}"
+        )),
+    }
+}
+
+pub fn resolve_memory_retrieval_strategy_from_env() -> Result<MemoryRetrievalStrategy, String> {
+    match std::env::var("SDKWORK_MEMORY_RETRIEVAL_STRATEGY") {
+        Ok(value) => MemoryRetrievalStrategy::parse(&value),
+        Err(std::env::VarError::NotPresent) => Ok(MemoryRetrievalStrategy::Balanced),
+        Err(error) => Err(format!(
+            "SDKWORK_MEMORY_RETRIEVAL_STRATEGY could not be read: {error}"
+        )),
+    }
+}
+
 pub fn resolve_native_sql_phase1_profile(
     registry: &MemoryPluginRegistry,
 ) -> Result<(String, String), String> {
@@ -96,9 +139,41 @@ pub fn resolve_native_sql_profile_for_runtime(
     dialect: MemorySqlDialect,
     deployment_mode: MemoryDeploymentMode,
 ) -> Result<ResolvedMemoryImplementationProfile, String> {
-    let mut profile = match dialect {
-        MemorySqlDialect::Postgres => MemoryImplementationProfileDraft::native_sql_phase1(),
-        MemorySqlDialect::Sqlite => MemoryImplementationProfileDraft::local_embedded_phase1(),
+    resolve_memory_profile_for_runtime(
+        registry,
+        dialect,
+        deployment_mode,
+        MemoryImplementationProfileSelection::Auto,
+    )
+}
+
+pub fn resolve_memory_profile_for_runtime(
+    registry: &MemoryPluginRegistry,
+    dialect: MemorySqlDialect,
+    deployment_mode: MemoryDeploymentMode,
+    selection: MemoryImplementationProfileSelection,
+) -> Result<ResolvedMemoryImplementationProfile, String> {
+    let mut profile = match (selection, dialect) {
+        (MemoryImplementationProfileSelection::Auto, MemorySqlDialect::Postgres)
+        | (MemoryImplementationProfileSelection::NativeSql, MemorySqlDialect::Postgres) => {
+            MemoryImplementationProfileDraft::native_sql_phase1()
+        }
+        (MemoryImplementationProfileSelection::Auto, MemorySqlDialect::Sqlite)
+        | (MemoryImplementationProfileSelection::LocalEmbedded, MemorySqlDialect::Sqlite) => {
+            MemoryImplementationProfileDraft::local_embedded_phase1()
+        }
+        (MemoryImplementationProfileSelection::NativeSql, MemorySqlDialect::Sqlite) => {
+            return Err(
+                "native_sql implementation requires PostgreSQL; SQLite must use local_embedded"
+                    .to_string(),
+            )
+        }
+        (MemoryImplementationProfileSelection::LocalEmbedded, MemorySqlDialect::Postgres) => {
+            return Err(
+                "local_embedded implementation requires SQLite; PostgreSQL must use native_sql"
+                    .to_string(),
+            )
+        }
     };
     profile.deployment_mode = deployment_mode;
 
@@ -142,7 +217,14 @@ pub async fn bootstrap_memory_runtime_from_env() -> Result<MemoryRuntime, String
         .map_err(|error| error.to_string())?;
     let dialect = data_plane.store().dialect();
     let deployment_mode = resolve_memory_deployment_mode_from_env(dialect)?;
-    let profile = resolve_native_sql_profile_for_runtime(&registry, dialect, deployment_mode)?;
+    let implementation_selection = resolve_memory_implementation_profile_from_env()?;
+    let retrieval_strategy = resolve_memory_retrieval_strategy_from_env()?;
+    let profile = resolve_memory_profile_for_runtime(
+        &registry,
+        dialect,
+        deployment_mode,
+        implementation_selection,
+    )?;
     let core_runtime = MemoryRuntimeProfileResolver::new(&registry)
         .assemble(&profile)
         .map_err(|error| error.to_string())?;
@@ -155,5 +237,6 @@ pub async fn bootstrap_memory_runtime_from_env() -> Result<MemoryRuntime, String
         core_runtime,
         profile_id,
         primary_plugin_id,
+        retrieval_strategy,
     })
 }

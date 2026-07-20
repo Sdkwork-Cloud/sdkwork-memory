@@ -4,8 +4,9 @@ use sdkwork_memory_contract::{
     MemoryRetrievalRequest, MemoryServiceErrorKind, MemoryType,
 };
 use sdkwork_memory_plugin_native_sql::{
-    InsertSubjectCommand, NativeSqlCreateSpaceCommand, NativeSqlMemoryStore,
+    InsertSubjectCommand, NativeSqlCreateSpaceCommand, NativeSqlMemoryStore, NativeSqlPhase1Runtime,
 };
+use sdkwork_memory_retrieval::MemoryRetrievalStrategy;
 
 const TENANT_ID: u64 = 91_001;
 const ACTOR_ID: u64 = 42;
@@ -19,6 +20,10 @@ fn context() -> MemoryOpenApiRequestContext {
 }
 
 async fn service_with_spaces() -> OpenMemoryService {
+    service_with_strategy(MemoryRetrievalStrategy::Balanced).await
+}
+
+async fn service_with_strategy(strategy: MemoryRetrievalStrategy) -> OpenMemoryService {
     let store = NativeSqlMemoryStore::new_in_memory_sqlite()
         .await
         .expect("retrieval contract sqlite store must open");
@@ -39,7 +44,13 @@ async fn service_with_spaces() -> OpenMemoryService {
             .await
             .expect("retrieval contract space must be created");
     }
-    OpenMemoryService::new(store)
+    let prepared = OpenMemoryService::new(store.clone());
+    OpenMemoryService::try_from_core_runtime_with_retrieval_strategy(
+        NativeSqlPhase1Runtime::from_store(store),
+        prepared.core_runtime().clone(),
+        strategy,
+    )
+    .expect("qualified strategy must compose with native SQL runtime")
 }
 
 fn memory_request(space_id: u64, memory_type: MemoryType, text: &str) -> MemoryRecordRequest {
@@ -170,10 +181,13 @@ async fn retrieval_filters_before_top_k_and_rejects_invalid_query_bounds() {
         MemoryType::Semantic
     );
 
+    let mut invalid_budget = retrieval_request("typefilterneedle", vec![1], 1, None);
+    invalid_budget.context_budget_tokens = 0;
     for request in [
         retrieval_request("   ", vec![1], 1, None),
         retrieval_request("typefilterneedle", vec![1], 0, None),
         retrieval_request("typefilterneedle", vec![1], 101, None),
+        invalid_budget,
     ] {
         let error = service
             .create_retrieval(context.clone(), request)
@@ -181,6 +195,34 @@ async fn retrieval_filters_before_top_k_and_rejects_invalid_query_bounds() {
             .expect_err("invalid retrieval input must fail before adapter search");
         assert_eq!(error.kind, MemoryServiceErrorKind::Validation);
     }
+}
+
+#[tokio::test]
+async fn search_first_scheme_executes_only_its_materialized_retrievers() {
+    let service = service_with_strategy(MemoryRetrievalStrategy::SearchFirst).await;
+    let context = context();
+    service
+        .create_memory(
+            context.clone(),
+            memory_request(1, MemoryType::Semantic, "strategyneedle searchable memory"),
+        )
+        .await
+        .unwrap();
+
+    let result = service
+        .create_retrieval(
+            context,
+            retrieval_request("strategyneedle", vec![1], 5, None),
+        )
+        .await
+        .unwrap();
+    let retrievers = result.hits[0].explanation.as_ref().unwrap()["contributingRetrievers"]
+        .as_array()
+        .unwrap();
+    assert!(retrievers.iter().any(|value| value == "keyword"));
+    assert!(retrievers.iter().any(|value| value == "dictionary"));
+    assert!(!retrievers.iter().any(|value| value == "time"));
+    assert!(!retrievers.iter().any(|value| value == "event"));
 }
 
 #[tokio::test]

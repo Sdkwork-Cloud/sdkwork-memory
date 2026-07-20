@@ -46,6 +46,25 @@ fn mutation_journal(memory_id: &str, suffix: &str) -> MemoryMutationJournal {
     }
 }
 
+#[tokio::test]
+async fn sqlite_default_implementation_profile_matches_the_live_store() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    store
+        .ensure_default_implementation_profile_for_tenant(77)
+        .await
+        .unwrap();
+    let profile = store
+        .retrieve_mem_implementation_profile_for_tenant(77, "1")
+        .await
+        .unwrap()
+        .expect("default implementation profile must exist");
+
+    assert_eq!(profile.name, "local-embedded-phase1");
+    assert_eq!(profile.implementation_kind, "local_embedded");
+    assert_eq!(profile.role, "primary");
+    assert!(profile.capability_json.contains("productionQualified"));
+}
+
 fn assert_utc_timestamp(value: Option<&str>) {
     let Some(text) = value else {
         panic!("expected UTC timestamp");

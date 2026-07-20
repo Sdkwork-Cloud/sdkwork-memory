@@ -43,9 +43,37 @@ fn context_pack_builder_respects_token_budget_without_embeddings() {
         sample_hit("short"),
         sample_hit("another concise memory fragment"),
     ];
-    let (pack, tokens, truncated) = build_context_pack_from_hits(&hits, 8);
-    assert!(tokens <= 8 || truncated);
+    let (pack, tokens, _truncated) = build_context_pack_from_hits(&hits, 8);
+    assert!(tokens <= 8);
     assert_eq!(pack["embeddingOptional"], true);
+    assert_eq!(pack["selection"]["algorithm"], "ranked_budgeted_dedup");
     assert!(!pack["fragments"].as_array().unwrap().is_empty());
     assert!(estimate_tokens("hello world") >= 2);
+}
+
+#[test]
+fn context_pack_truncates_the_first_long_fragment_inside_budget() {
+    let hits = vec![sample_hit(
+        "This memory is intentionally much longer than the available context budget",
+    )];
+    let (pack, tokens, truncated) = build_context_pack_from_hits(&hits, 3);
+    let fragment = &pack["fragments"][0];
+
+    assert!(truncated);
+    assert!(tokens <= 3);
+    assert_eq!(fragment["truncated"], true);
+    assert!(fragment["canonicalText"].as_str().unwrap().len() < 72);
+}
+
+#[test]
+fn context_pack_suppresses_duplicate_memories() {
+    let hits = vec![
+        sample_hit("user prefers concise technical answers"),
+        sample_hit("user prefers concise technical answers"),
+    ];
+    let (pack, _tokens, truncated) = build_context_pack_from_hits(&hits, 100);
+
+    assert!(truncated);
+    assert_eq!(pack["fragments"].as_array().unwrap().len(), 1);
+    assert_eq!(pack["selection"]["deduplicatedCount"], 1);
 }

@@ -30,7 +30,12 @@
       { "workspace": "sdkwork-appbase" }
     ],
     "events": [],
-    "configKeys": ["SDKWORK_MEMORY_APPLICATION_PUBLIC_INGRESS_BIND", "SDKWORK_MEMORY_DATABASE_URL"]
+    "configKeys": [
+      "SDKWORK_MEMORY_APPLICATION_PUBLIC_INGRESS_BIND",
+      "SDKWORK_MEMORY_DATABASE_URL",
+      "SDKWORK_MEMORY_IMPLEMENTATION_PROFILE",
+      "SDKWORK_MEMORY_RETRIEVAL_STRATEGY"
+    ]
   },
   "verification": {
     "commands": ["cargo test -p sdkwork-memory-standalone-gateway"]

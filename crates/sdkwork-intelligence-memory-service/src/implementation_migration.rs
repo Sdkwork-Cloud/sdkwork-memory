@@ -7,6 +7,10 @@ use crate::store_error::map_native_sql_store_error;
 
 pub const ACTIVE_IMPLEMENTATION_PROFILE_KEY: &str = "implementation_profile.active";
 
+pub fn is_production_qualified_implementation_kind(value: &str) -> bool {
+    matches!(value, "native_sql" | "local_embedded")
+}
+
 /// Execute an implementation-profile migration for a tenant.
 ///
 /// - `shadow`: validate profiles and return a comparison report without mutating state.
@@ -16,6 +20,7 @@ pub async fn execute_implementation_profile_migration(
     tenant_id: i64,
     request: &MemoryMigrationJobRequest,
     active_runtime_profile_id: &str,
+    active_runtime_implementation_kind: &str,
 ) -> MemoryServiceResult<serde_json::Value> {
     store
         .ensure_default_implementation_profile_for_tenant(tenant_id)
@@ -76,7 +81,22 @@ pub async fn execute_implementation_profile_migration(
             "migrationScope": "control_plane_only",
             "liveRuntimeCutover": false,
             "activeRuntimeProfileId": active_runtime_profile_id,
+            "activeRuntimeImplementationKind": active_runtime_implementation_kind,
+            "targetProductionQualified": is_production_qualified_implementation_kind(&target.implementation_kind),
         }));
+    }
+
+    if !is_production_qualified_implementation_kind(&target.implementation_kind) {
+        return Err(MemoryServiceError::validation(format!(
+            "target implementation kind {} is evaluation-only and cannot be promoted",
+            target.implementation_kind
+        )));
+    }
+    if target.implementation_kind != active_runtime_implementation_kind {
+        return Err(MemoryServiceError::validation(format!(
+            "target implementation kind {} is not loaded by the active runtime {}; select a qualified runtime profile and restart before promotion",
+            target.implementation_kind, active_runtime_implementation_kind
+        )));
     }
 
     store
@@ -106,7 +126,8 @@ pub async fn execute_implementation_profile_migration(
         "migrationScope": "control_plane_only",
         "liveRuntimeCutover": false,
         "activeRuntimeProfileId": active_runtime_profile_id,
-        "requiresRuntimeCutover": true,
+        "activeRuntimeImplementationKind": active_runtime_implementation_kind,
+        "requiresRuntimeCutover": false,
     }))
 }
 
@@ -129,8 +150,22 @@ mod tests {
                 "search-first-eval",
                 "search_first",
                 "shadow",
+                "disabled",
+                r#"{"keyword":true,"productionQualified":false}"#,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+        store
+            .insert_mem_implementation_profile(
+                1,
+                "3",
+                "local-embedded-qualified",
+                "local_embedded",
+                "secondary",
                 "active",
-                r#"{"keyword":true}"#,
+                r#"{"keyword":true,"embedding":false}"#,
                 None,
                 None,
             )
@@ -158,6 +193,7 @@ mod tests {
             1,
             &request("shadow"),
             "local-embedded-phase1",
+            "local_embedded",
         )
         .await
         .unwrap();
@@ -167,19 +203,40 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn switch_result_distinguishes_metadata_promotion_from_runtime_cutover() {
+    async fn switch_rejects_evaluation_only_target() {
         let store = migration_store().await;
         let result = execute_implementation_profile_migration(
             &store,
             1,
             &request("switch"),
             "local-embedded-phase1",
+            "local_embedded",
+        )
+        .await
+        .expect_err("evaluation-only implementation must not be promoted");
+        assert_eq!(
+            result.kind,
+            sdkwork_memory_contract::MemoryServiceErrorKind::Validation
+        );
+    }
+
+    #[tokio::test]
+    async fn switch_only_promotes_target_loaded_by_active_runtime() {
+        let store = migration_store().await;
+        let mut matching_request = request("switch");
+        matching_request.target_implementation_profile_id = 3;
+        let result = execute_implementation_profile_migration(
+            &store,
+            1,
+            &matching_request,
+            "local-embedded-phase1",
+            "local_embedded",
         )
         .await
         .unwrap();
         assert_eq!(result["migrated"], true);
         assert_eq!(result["migrationScope"], "control_plane_only");
         assert_eq!(result["liveRuntimeCutover"], false);
-        assert_eq!(result["requiresRuntimeCutover"], true);
+        assert_eq!(result["requiresRuntimeCutover"], false);
     }
 }

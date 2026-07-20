@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.component.spec",
+  "component": {
+    "name": "sdkwork-memory-retrieval",
+    "displayName": "SDKWork Memory Retrieval",
+    "version": "0.1.0",
+    "type": "rust-library",
+    "root": "sdkwork-memory/crates/sdkwork-memory-retrieval",
+    "domain": "intelligence",
+    "capability": "memory",
+    "surface": "service",
+    "languages": ["rust"],
+    "generated": false,
+    "status": "active",
+    "manifests": ["Cargo.toml", "specs/component.spec.json"]
+  },
+  "canonicalSpecs": [
+    { "file": "SOUL.md", "path": "../../../sdkwork-specs/SOUL.md" },
+    { "file": "COMPONENT_SPEC.md", "path": "../../../sdkwork-specs/COMPONENT_SPEC.md" },
+    { "file": "CODE_STYLE_SPEC.md", "path": "../../../sdkwork-specs/CODE_STYLE_SPEC.md" },
+    { "file": "NAMING_SPEC.md", "path": "../../../sdkwork-specs/NAMING_SPEC.md" },
+    { "file": "RUST_CODE_SPEC.md", "path": "../../../sdkwork-specs/RUST_CODE_SPEC.md" },
+    { "file": "TEST_SPEC.md", "path": "../../../sdkwork-specs/TEST_SPEC.md" }
+  ],
+  "contracts": {
+    "layerRole": "backend-service",
+    "publicExports": ["."],
+    "providedPorts": [
+      { "name": "MemoryCandidateFusion", "export": "." },
+      { "name": "MemoryContextPackBuilder", "export": "." }
+    ],
+    "requiredPorts": [],
+    "runtimeEntrypoints": [],
+    "routeManifest": null,
+    "sdkClients": [],
+    "sdkDependencies": [],
+    "permissionComposition": {},
+    "dependencyApiExports": [],
+    "dependencyApiSurfaces": [],
+    "events": [],
+    "configKeys": []
+  },
+  "integration": {
+    "candidateContract": "Inputs are bounded provider candidates; canonical records are rehydrated by the owning service before public output.",
+    "fusionContract": "Independent retriever rankings are fused by deterministic weighted reciprocal rank fusion and deduplicated by memory id.",
+    "strategyContract": "Production strategies are balanced, search_first, and event_aware; every strategy materializes only retrievers implemented by the qualified native SQL runtime.",
+    "contextContract": "Context assembly must remain within the requested token budget and suppress near-duplicate fragments.",
+    "embeddingPolicy": "Embedding and rerank providers are optional inputs, never canonical storage dependencies."
+  },
+  "verification": {
+    "commands": ["cargo test -p sdkwork-memory-retrieval"]
+  }
+}

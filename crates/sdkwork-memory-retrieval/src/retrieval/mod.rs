@@ -1,9 +1,81 @@
-use std::collections::HashMap;
+use std::cmp::Ordering;
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use serde_json::Value;
 
 use sdkwork_memory_contract::MemoryRecord;
 use sdkwork_utils_rust::is_blank;
+
+const RRF_RANK_CONSTANT: f64 = 60.0;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MemoryRetrievalStrategy {
+    Balanced,
+    SearchFirst,
+    EventAware,
+}
+
+impl MemoryRetrievalStrategy {
+    pub const fn code(self) -> &'static str {
+        match self {
+            Self::Balanced => "balanced",
+            Self::SearchFirst => "search_first",
+            Self::EventAware => "event_aware",
+        }
+    }
+
+    pub fn parse(value: &str) -> Result<Self, String> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "balanced" => Ok(Self::Balanced),
+            "search_first" | "search-first" => Ok(Self::SearchFirst),
+            "event_aware" | "event-aware" => Ok(Self::EventAware),
+            other => Err(format!(
+                "memory retrieval strategy must be balanced, search_first, or event_aware; got {other}"
+            )),
+        }
+    }
+
+    pub fn retriever_profile(self) -> Value {
+        match self {
+            Self::Balanced => serde_json::json!({
+                "keyword": { "weight": 1.0 },
+                "dictionary": { "weight": 0.85 },
+                "time": { "weight": 0.5 },
+                "event": { "weight": 0.6 },
+                "sql": { "weight": 0.75 }
+            }),
+            Self::SearchFirst => serde_json::json!({
+                "keyword": { "weight": 1.0 },
+                "dictionary": { "weight": 0.55 },
+                "sql": { "weight": 0.35 }
+            }),
+            Self::EventAware => serde_json::json!({
+                "event": { "weight": 1.0 },
+                "keyword": { "weight": 0.8 },
+                "time": { "weight": 0.65 },
+                "dictionary": { "weight": 0.4 },
+                "sql": { "weight": 0.2 }
+            }),
+        }
+    }
+
+    pub const fn all() -> [Self; 3] {
+        [Self::Balanced, Self::SearchFirst, Self::EventAware]
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RetrievalFusionPolicy {
+    pub rank_constant: f64,
+}
+
+impl Default for RetrievalFusionPolicy {
+    fn default() -> Self {
+        Self {
+            rank_constant: RRF_RANK_CONSTANT,
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct RetrievalCandidate {
@@ -17,6 +89,7 @@ pub struct RetrievalCandidate {
 pub struct FusedRetrievalHit {
     pub memory: MemoryRecord,
     pub retriever_name: String,
+    pub retrievers: Vec<String>,
     pub raw_score: f64,
     pub fused_score: f64,
     pub rank: i32,
@@ -45,85 +118,129 @@ pub struct OrchestratedCandidate {
     pub record: RetrievalRecordInput,
     pub retriever_name: String,
     pub raw_score: f64,
+    pub rank: i32,
 }
 
-// ---------------------------------------------------------------------------
-// Tokenisation helpers — CJK-aware
-// ---------------------------------------------------------------------------
-
-/// True when `ch` is a CJK Unified Ideograph (U+4E00–U+9FFF), CJK
-/// Extension A (U+3400–U+4DBF), or a full-width punctuation/compatibility
-/// ideograph.
-fn is_cjk(ch: char) -> bool {
-    matches!(ch,
-        '\u{3400}'..='\u{4DBF}'    // CJK Unified Extension A
-        | '\u{4E00}'..='\u{9FFF}'  // CJK Unified Ideographs
-        | '\u{F900}'..='\u{FAFF}'  // CJK Compatibility Ideographs
-        | '\u{2F800}'..='\u{2FA1F}' // CJK Compatibility Supplement (supplementary plane)
-    )
+#[derive(Debug)]
+struct FusionAggregate {
+    memory: MemoryRecord,
+    raw_score: f64,
+    rrf_score: f64,
+    dominant_contribution: f64,
+    dominant_retriever: String,
+    retrievers: BTreeSet<String>,
 }
 
-/// Tokenise a trimmed, lowercased query into searchable tokens.
+fn score_order(left: f64, right: f64) -> Ordering {
+    right.partial_cmp(&left).unwrap_or(Ordering::Equal)
+}
+
+/// Fuse independently ranked retriever results with weighted reciprocal rank fusion.
 ///
-/// For CJK text, each character is treated as a separate token (character-level
-/// unigram).  For non-CJK text, whitespace delimiters are used.  Mixed text
-/// (e.g. "hello世界") is handled correctly because we look at each character
-/// individually.
-fn tokenise_query(text: &str) -> Vec<String> {
-    let text = text.trim().to_lowercase();
-    if text.is_empty() {
-        return vec![];
-    }
-
-    let chars: Vec<char> = text.chars().collect();
-
-    // If *any* character in the query is CJK, use character-level tokenisation
-    // for the entire query so that a CJK query string finds CJK content and
-    // ASCII tokens still get found by substring.
-    let has_cjk = chars.iter().any(|c| is_cjk(*c));
-
-    if has_cjk {
-        // Character-level unigrams — deduplicate while preserving order.
-        let mut seen = std::collections::HashSet::new();
-        let mut tokens = Vec::new();
-        for ch in chars {
-            if ch.is_alphanumeric() && seen.insert(ch) {
-                tokens.push(ch.to_string());
-            }
-        }
-        tokens
-    } else {
-        // Whitespace-delimited word-level tokens.
-        chars
-            .split(|c| c.is_ascii_whitespace())
-            .filter(|w| !w.is_empty())
-            .map(|w| w.iter().collect::<String>())
-            .collect()
-    }
-}
-
+/// Each candidate's `raw_score` is its non-negative relevance multiplied by the
+/// configured retriever weight. RRF makes the result robust to retrievers whose
+/// native score distributions are not directly comparable. Duplicate hits from
+/// one retriever are ignored so repeated provider output cannot amplify a memory.
 pub fn fuse_retrieval_candidates(
     candidates: Vec<RetrievalCandidate>,
     top_k: usize,
 ) -> Vec<FusedRetrievalHit> {
-    let mut sorted = candidates;
-    sorted.sort_by(|left, right| {
-        right
-            .raw_score
-            .partial_cmp(&left.raw_score)
-            .unwrap_or(std::cmp::Ordering::Equal)
+    fuse_retrieval_candidates_with_policy(candidates, top_k, RetrievalFusionPolicy::default())
+}
+
+pub fn fuse_retrieval_candidates_with_policy(
+    candidates: Vec<RetrievalCandidate>,
+    top_k: usize,
+    policy: RetrievalFusionPolicy,
+) -> Vec<FusedRetrievalHit> {
+    if top_k == 0 {
+        return Vec::new();
+    }
+    let rank_constant = if policy.rank_constant.is_finite() && policy.rank_constant >= 1.0 {
+        policy.rank_constant
+    } else {
+        RRF_RANK_CONSTANT
+    };
+
+    let mut by_retriever: HashMap<String, Vec<RetrievalCandidate>> = HashMap::new();
+    for candidate in candidates {
+        if candidate.raw_score.is_finite() && candidate.raw_score > 0.0 {
+            by_retriever
+                .entry(candidate.retriever_name.clone())
+                .or_default()
+                .push(candidate);
+        }
+    }
+
+    let mut retriever_names = by_retriever.keys().cloned().collect::<Vec<_>>();
+    retriever_names.sort();
+    let mut aggregates: HashMap<u64, FusionAggregate> = HashMap::new();
+
+    for retriever_name in retriever_names {
+        let Some(mut retriever_candidates) = by_retriever.remove(&retriever_name) else {
+            continue;
+        };
+        retriever_candidates.sort_by(|left, right| {
+            score_order(left.raw_score, right.raw_score)
+                .then_with(|| left.memory.memory_id.cmp(&right.memory.memory_id))
+        });
+
+        let mut seen_memory_ids = HashSet::new();
+        let mut computed_rank = 0_i32;
+        for candidate in retriever_candidates {
+            if !seen_memory_ids.insert(candidate.memory.memory_id) {
+                continue;
+            }
+            computed_rank += 1;
+            // Searches run once per authorized space. Re-rank the merged list
+            // here so several space-local rank-1 candidates do not all receive
+            // the same global RRF contribution.
+            let rank = computed_rank;
+            let contribution = candidate.raw_score / (rank_constant + f64::from(rank.max(1)));
+            let memory_id = candidate.memory.memory_id;
+            aggregates
+                .entry(memory_id)
+                .and_modify(|aggregate| {
+                    aggregate.raw_score = aggregate.raw_score.max(candidate.raw_score);
+                    aggregate.rrf_score += contribution;
+                    aggregate.retrievers.insert(retriever_name.clone());
+                    if contribution > aggregate.dominant_contribution
+                        || (contribution == aggregate.dominant_contribution
+                            && retriever_name < aggregate.dominant_retriever)
+                    {
+                        aggregate.dominant_contribution = contribution;
+                        aggregate.dominant_retriever = retriever_name.clone();
+                    }
+                })
+                .or_insert_with(|| FusionAggregate {
+                    memory: candidate.memory,
+                    raw_score: candidate.raw_score,
+                    rrf_score: contribution,
+                    dominant_contribution: contribution,
+                    dominant_retriever: retriever_name.clone(),
+                    retrievers: BTreeSet::from([retriever_name.clone()]),
+                });
+        }
+    }
+
+    let mut fused = aggregates.into_values().collect::<Vec<_>>();
+    fused.sort_by(|left, right| {
+        score_order(left.rrf_score, right.rrf_score)
+            .then_with(|| score_order(left.raw_score, right.raw_score))
             .then_with(|| left.memory.memory_id.cmp(&right.memory.memory_id))
     });
 
-    sorted
+    fused
         .into_iter()
         .take(top_k)
         .enumerate()
-        .map(|(index, candidate)| FusedRetrievalHit {
-            memory: candidate.memory,
-            retriever_name: candidate.retriever_name,
-            raw_score: candidate.raw_score,
-            fused_score: candidate.raw_score,
+        .map(|(index, aggregate)| FusedRetrievalHit {
+            memory: aggregate.memory,
+            retriever_name: aggregate.dominant_retriever,
+            retrievers: aggregate.retrievers.into_iter().collect(),
+            raw_score: aggregate.raw_score,
+            // Map the unbounded weighted RRF sum to a stable [0, 1) confidence.
+            fused_score: 1.0 - (-aggregate.rrf_score * (rank_constant + 1.0)).exp(),
             rank: (index as i32) + 1,
         })
         .collect()
@@ -143,7 +260,7 @@ pub fn keyword_match_score(query: &str, canonical_text: &str) -> f64 {
         return 0.85;
     }
 
-    token_overlap_score(&query, &haystack, &tokenise_query(&query))
+    token_overlap_score(&haystack, &tokenise_query(&query))
 }
 
 pub fn dictionary_match_score(
@@ -162,12 +279,7 @@ pub fn dictionary_match_score(
         corpus.push(' ');
     }
     corpus.push_str(object_text);
-    let tokens = tokenise_query(&query.trim().to_lowercase());
-    token_overlap_score(
-        &query.trim().to_lowercase(),
-        &corpus.to_lowercase(),
-        &tokens,
-    )
+    token_overlap_score(&corpus.to_lowercase(), &tokenise_query(query))
 }
 
 pub fn sql_structured_match_score(
@@ -195,11 +307,11 @@ pub fn sql_structured_match_score(
         score = score.max(0.95);
     }
 
-    // CJK-aware partial match
     for token in &tokens {
-        if subject
-            .map(|value| value.to_lowercase().contains(token.as_str()))
-            .unwrap_or(false)
+        if [subject, predicate]
+            .into_iter()
+            .flatten()
+            .any(|value| value.to_lowercase().contains(token.as_str()))
         {
             score = score.max(0.8);
             break;
@@ -211,33 +323,70 @@ pub fn sql_structured_match_score(
 pub fn time_recency_score(created_at: &str) -> f64 {
     let parsed = sdkwork_utils_rust::parse_datetime(created_at, None);
     let Some(timestamp) = parsed else {
-        return 0.35;
+        return 0.0;
     };
     let age_hours = (sdkwork_utils_rust::now() - timestamp).num_hours().max(0) as f64;
-    (1.0 / (1.0 + age_hours / 24.0)).clamp(0.1, 1.0)
+    recency_score_for_age_hours(age_hours)
+}
+
+fn recency_score_for_age_hours(age_hours: f64) -> f64 {
+    // A seven-day half-life is useful as a tie-breaking retrieval signal without
+    // erasing stable semantic memory after a single day.
+    2_f64.powf(-age_hours / (24.0 * 7.0)).clamp(0.05, 1.0)
 }
 
 pub fn event_match_score(query: &str, payload_text: &str) -> f64 {
     keyword_match_score(query, payload_text)
 }
 
-fn token_overlap_score(_query: &str, haystack: &str, tokens: &[String]) -> f64 {
+fn is_cjk(ch: char) -> bool {
+    matches!(ch,
+        '\u{3400}'..='\u{4DBF}'
+        | '\u{4E00}'..='\u{9FFF}'
+        | '\u{F900}'..='\u{FAFF}'
+        | '\u{2F800}'..='\u{2FA1F}'
+    )
+}
+
+fn tokenise_query(text: &str) -> Vec<String> {
+    let text = text.trim().to_lowercase();
+    if text.is_empty() {
+        return Vec::new();
+    }
+
+    if text.chars().any(is_cjk) {
+        let mut tokens = Vec::new();
+        let mut word = String::new();
+        for character in text.chars() {
+            if is_cjk(character) {
+                if !word.is_empty() {
+                    tokens.push(std::mem::take(&mut word));
+                }
+                tokens.push(character.to_string());
+            } else if character.is_alphanumeric() {
+                word.push(character);
+            } else if !word.is_empty() {
+                tokens.push(std::mem::take(&mut word));
+            }
+        }
+        if !word.is_empty() {
+            tokens.push(word);
+        }
+        let mut seen = HashSet::new();
+        tokens.retain(|token| seen.insert(token.clone()));
+        return tokens;
+    }
+
+    text.split(|ch: char| !ch.is_alphanumeric())
+        .filter(|token| !token.is_empty())
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
+fn token_overlap_score(haystack: &str, tokens: &[String]) -> f64 {
     if tokens.is_empty() {
         return 0.0;
     }
-
-    // For CJK text, a character-level overlap heuristic is more meaningful.
-    if tokens
-        .iter()
-        .any(|t| is_cjk(t.chars().next().unwrap_or_default()))
-    {
-        let matched = tokens
-            .iter()
-            .filter(|token| haystack.contains(token.as_str()))
-            .count();
-        return matched as f64 / tokens.len() as f64;
-    }
-
     let matched = tokens
         .iter()
         .filter(|token| haystack.contains(token.as_str()))
@@ -257,8 +406,48 @@ fn retriever_weight(profile: Option<&Value>, retriever: &str, default_weight: f6
     }
 }
 
-fn retriever_enabled(profile: Option<&Value>, retriever: &str, default_weight: f64) -> bool {
-    retriever_weight(profile, retriever, default_weight) > 0.0
+fn append_ranked_signal(
+    output: &mut Vec<OrchestratedCandidate>,
+    retriever_name: &str,
+    weight: f64,
+    scored_records: impl IntoIterator<Item = (RetrievalRecordInput, f64)>,
+    top_k: usize,
+) {
+    if weight <= 0.0 || top_k == 0 {
+        return;
+    }
+
+    let mut best_by_memory: HashMap<String, (RetrievalRecordInput, f64)> = HashMap::new();
+    for (record, score) in scored_records {
+        if !score.is_finite() || score <= 0.0 {
+            continue;
+        }
+        best_by_memory
+            .entry(record.memory_id.clone())
+            .and_modify(|existing| {
+                if score > existing.1 {
+                    *existing = (record.clone(), score);
+                }
+            })
+            .or_insert((record, score));
+    }
+
+    let mut ranked = best_by_memory.into_values().collect::<Vec<_>>();
+    ranked.sort_by(|left, right| {
+        score_order(left.1, right.1).then_with(|| left.0.memory_id.cmp(&right.0.memory_id))
+    });
+    output.extend(
+        ranked
+            .into_iter()
+            .take(top_k)
+            .enumerate()
+            .map(|(index, (record, score))| OrchestratedCandidate {
+                record,
+                retriever_name: retriever_name.to_string(),
+                raw_score: score * weight,
+                rank: (index as i32) + 1,
+            }),
+    );
 }
 
 pub fn orchestrate_retrieval_candidates(
@@ -268,81 +457,81 @@ pub fn orchestrate_retrieval_candidates(
     profile: Option<&Value>,
     top_k: usize,
 ) -> Vec<OrchestratedCandidate> {
-    let mut weighted: HashMap<String, (RetrievalRecordInput, f64, f64, String)> = HashMap::new();
+    let mut output = Vec::new();
 
-    let push_score = |map: &mut HashMap<String, (RetrievalRecordInput, f64, f64, String)>,
-                      record: RetrievalRecordInput,
-                      retriever: &str,
-                      raw_score: f64,
-                      weight: f64| {
-        if raw_score <= 0.0 || weight <= 0.0 {
-            return;
-        }
-        let contribution = raw_score * weight;
-        let key = record.memory_id.clone();
-        map.entry(key)
-            .and_modify(|existing| {
-                existing.1 += contribution;
-                if contribution > existing.2 {
-                    existing.0 = record.clone();
-                    existing.2 = contribution;
-                    existing.3 = retriever.to_string();
-                }
-            })
-            .or_insert((record, contribution, contribution, retriever.to_string()));
-    };
+    let keyword_weight = retriever_weight(profile, "keyword", 1.0);
+    append_ranked_signal(
+        &mut output,
+        "keyword",
+        keyword_weight,
+        records.iter().map(|record| {
+            (
+                record.clone(),
+                keyword_match_score(query, &record.canonical_text),
+            )
+        }),
+        top_k,
+    );
 
-    if retriever_enabled(profile, "keyword", 1.0) {
-        let weight = retriever_weight(profile, "keyword", 1.0);
-        for record in records {
-            let score = keyword_match_score(query, &record.canonical_text);
-            push_score(&mut weighted, record.clone(), "keyword", score, weight);
-        }
-    }
-
-    if retriever_enabled(profile, "dictionary", 0.85) {
-        let weight = retriever_weight(profile, "dictionary", 0.85);
-        for record in records {
+    let dictionary_weight = retriever_weight(profile, "dictionary", 0.85);
+    append_ranked_signal(
+        &mut output,
+        "dictionary",
+        dictionary_weight,
+        records.iter().cloned().map(|record| {
             let score = dictionary_match_score(
                 query,
                 record.subject.as_deref(),
                 record.predicate.as_deref(),
                 &record.object_text,
             );
-            push_score(&mut weighted, record.clone(), "dictionary", score, weight);
-        }
-    }
+            (record, score)
+        }),
+        top_k,
+    );
 
-    if retriever_enabled(profile, "sql", 0.75) {
-        let weight = retriever_weight(profile, "sql", 0.75);
-        for record in records {
+    let sql_weight = retriever_weight(profile, "sql", 0.75);
+    append_ranked_signal(
+        &mut output,
+        "sql",
+        sql_weight,
+        records.iter().cloned().map(|record| {
             let score = sql_structured_match_score(
                 query,
                 record.subject.as_deref(),
                 record.predicate.as_deref(),
             );
-            push_score(&mut weighted, record.clone(), "sql", score, weight);
-        }
-    }
+            (record, score)
+        }),
+        top_k,
+    );
 
-    if retriever_enabled(profile, "time", 0.5) {
-        let weight = retriever_weight(profile, "time", 0.5);
-        for record in records {
-            let score = time_recency_score(&record.created_at);
-            if keyword_match_score(query, &record.canonical_text) > 0.0 || is_blank(Some(query)) {
-                push_score(&mut weighted, record.clone(), "time", score, weight);
-            }
-        }
-    }
+    let time_weight = retriever_weight(profile, "time", 0.5);
+    append_ranked_signal(
+        &mut output,
+        "time",
+        time_weight,
+        records.iter().filter_map(|record| {
+            let lexical_score =
+                keyword_match_score(query, &record.canonical_text).max(dictionary_match_score(
+                    query,
+                    record.subject.as_deref(),
+                    record.predicate.as_deref(),
+                    &record.object_text,
+                ));
+            (lexical_score > 0.0 || is_blank(Some(query)))
+                .then(|| (record.clone(), time_recency_score(&record.created_at)))
+        }),
+        top_k,
+    );
 
-    if retriever_enabled(profile, "event", 0.6) {
-        let weight = retriever_weight(profile, "event", 0.6);
-        for event in events {
-            let score = event_match_score(query, &event.payload_text);
-            if score <= 0.0 {
-                continue;
-            }
-            let synthetic = RetrievalRecordInput {
+    let event_weight = retriever_weight(profile, "event", 0.6);
+    append_ranked_signal(
+        &mut output,
+        "event",
+        event_weight,
+        events.iter().map(|event| {
+            let record = RetrievalRecordInput {
                 memory_id: event
                     .memory_id
                     .clone()
@@ -353,45 +542,35 @@ pub fn orchestrate_retrieval_candidates(
                 canonical_text: event.payload_text.clone(),
                 created_at: event.created_at.clone(),
             };
-            push_score(&mut weighted, synthetic, "event", score, weight);
-        }
-    }
+            (record, event_match_score(query, &event.payload_text))
+        }),
+        top_k,
+    );
 
-    let mut results: Vec<OrchestratedCandidate> = weighted
-        .into_values()
-        .map(
-            |(record, fused, _dominant_score, retriever_name)| OrchestratedCandidate {
-                record,
-                retriever_name,
-                raw_score: fused,
-            },
-        )
-        .collect();
-
-    results.sort_by(|left, right| {
-        right
-            .raw_score
-            .partial_cmp(&left.raw_score)
-            .unwrap_or(std::cmp::Ordering::Equal)
-            .then_with(|| left.record.memory_id.cmp(&right.record.memory_id))
-    });
-    results.truncate(top_k);
-    results
+    output
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn record(memory_id: &str, text: &str) -> RetrievalRecordInput {
+        RetrievalRecordInput {
+            memory_id: memory_id.to_string(),
+            subject: None,
+            predicate: None,
+            object_text: text.to_string(),
+            canonical_text: text.to_string(),
+            created_at: sdkwork_utils_rust::format_datetime(sdkwork_utils_rust::now(), None),
+        }
+    }
+
     #[test]
-    fn orchestrator_combines_keyword_and_dictionary_signals() {
+    fn orchestrator_preserves_independent_ranked_signals() {
         let records = vec![RetrievalRecordInput {
-            memory_id: "1".to_string(),
             subject: Some("preference".to_string()),
             predicate: Some("is".to_string()),
-            object_text: "concise answers".to_string(),
-            canonical_text: "User prefers concise answers".to_string(),
-            created_at: sdkwork_utils_rust::format_datetime(sdkwork_utils_rust::now(), None),
+            ..record("1", "concise answers")
         }];
         let hits = orchestrate_retrieval_candidates(
             "concise answers",
@@ -403,20 +582,15 @@ mod tests {
             })),
             5,
         );
-        assert!(!hits.is_empty());
-        assert!(hits[0].raw_score > 0.0);
+        assert_eq!(hits.len(), 2);
+        assert_eq!(hits[0].retriever_name, "keyword");
+        assert_eq!(hits[1].retriever_name, "dictionary");
+        assert_eq!(hits[0].rank, 1);
     }
 
     #[test]
-    fn orchestrator_applies_exact_profile_weights_and_sums_signals() {
-        let records = vec![RetrievalRecordInput {
-            memory_id: "weighted".to_string(),
-            subject: None,
-            predicate: None,
-            object_text: "alpha".to_string(),
-            canonical_text: "alpha".to_string(),
-            created_at: sdkwork_utils_rust::format_datetime(sdkwork_utils_rust::now(), None),
-        }];
+    fn orchestrator_applies_profile_weights_to_each_signal() {
+        let records = vec![record("weighted", "alpha")];
         let hits = orchestrate_retrieval_candidates(
             "alpha",
             &records,
@@ -427,39 +601,17 @@ mod tests {
             })),
             1,
         );
-        assert_eq!(hits.len(), 1);
-        assert!((hits[0].raw_score - 0.3).abs() < 1e-9);
-        assert_eq!(hits[0].retriever_name, "dictionary");
+        assert_eq!(hits.len(), 2);
+        assert!((hits[0].raw_score - 0.1).abs() < 1e-9);
+        assert!((hits[1].raw_score - 0.2).abs() < 1e-9);
     }
 
     #[test]
-    fn orchestrator_scores_all_bounded_inputs_before_top_k() {
-        let now = sdkwork_utils_rust::format_datetime(sdkwork_utils_rust::now(), None);
+    fn orchestrator_ranks_all_bounded_inputs_before_top_k() {
         let records = vec![
-            RetrievalRecordInput {
-                memory_id: "low-a".to_string(),
-                subject: None,
-                predicate: None,
-                object_text: "needle one".to_string(),
-                canonical_text: "needle one".to_string(),
-                created_at: now.clone(),
-            },
-            RetrievalRecordInput {
-                memory_id: "low-b".to_string(),
-                subject: None,
-                predicate: None,
-                object_text: "needle two".to_string(),
-                canonical_text: "needle two".to_string(),
-                created_at: now.clone(),
-            },
-            RetrievalRecordInput {
-                memory_id: "exact".to_string(),
-                subject: None,
-                predicate: None,
-                object_text: "needle".to_string(),
-                canonical_text: "needle".to_string(),
-                created_at: now,
-            },
+            record("low-a", "needle one"),
+            record("low-b", "needle two"),
+            record("exact", "needle"),
         ];
         let hits = orchestrate_retrieval_candidates(
             "needle",
@@ -473,22 +625,51 @@ mod tests {
     }
 
     #[test]
-    fn orchestrator_preserves_linked_event_memory_id() {
-        let events = vec![RetrievalEventInput {
-            memory_id: Some("memory-from-event".to_string()),
-            event_id: "event-1".to_string(),
-            payload_text: "event needle".to_string(),
-            created_at: sdkwork_utils_rust::format_datetime(sdkwork_utils_rust::now(), None),
-        }];
+    fn orchestrator_deduplicates_events_for_the_same_memory() {
+        let events = vec![
+            RetrievalEventInput {
+                memory_id: Some("memory-from-event".to_string()),
+                event_id: "event-1".to_string(),
+                payload_text: "event needle".to_string(),
+                created_at: sdkwork_utils_rust::format_datetime(sdkwork_utils_rust::now(), None),
+            },
+            RetrievalEventInput {
+                memory_id: Some("memory-from-event".to_string()),
+                event_id: "event-2".to_string(),
+                payload_text: "needle".to_string(),
+                created_at: sdkwork_utils_rust::format_datetime(sdkwork_utils_rust::now(), None),
+            },
+        ];
         let hits = orchestrate_retrieval_candidates(
-            "event needle",
+            "needle",
             &[],
             &events,
             Some(&serde_json::json!({ "event": { "weight": 1.0 } })),
-            1,
+            5,
         );
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].record.memory_id, "memory-from-event");
         assert_eq!(hits[0].retriever_name, "event");
+        assert_eq!(hits[0].raw_score, 1.0);
+    }
+
+    #[test]
+    fn seven_day_recency_half_life_does_not_erase_long_term_memory() {
+        assert!((recency_score_for_age_hours(24.0 * 7.0) - 0.5).abs() < 1e-9);
+        assert!(recency_score_for_age_hours(24.0) > 0.9);
+        assert_eq!(time_recency_score("invalid"), 0.0);
+    }
+
+    #[test]
+    fn commercial_retrieval_strategies_are_typed_and_materialize_real_retrievers() {
+        for strategy in MemoryRetrievalStrategy::all() {
+            let profile = strategy.retriever_profile();
+            assert!(profile.as_object().is_some_and(|value| !value.is_empty()));
+            assert_eq!(
+                MemoryRetrievalStrategy::parse(strategy.code()),
+                Ok(strategy)
+            );
+        }
+        assert!(MemoryRetrievalStrategy::parse("vector_magic").is_err());
     }
 }

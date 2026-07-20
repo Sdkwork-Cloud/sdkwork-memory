@@ -15,7 +15,9 @@ pub use bootstrap::{
 pub use db::{connect_memory_pool_from_env, open_native_sql_store_from_pool, MemoryDatabasePool};
 pub use runtime::{
     bootstrap_memory_plugin_registry, bootstrap_memory_runtime_from_env,
-    resolve_memory_deployment_mode_from_env, resolve_native_sql_phase1_profile,
-    resolve_native_sql_profile_for_dialect, resolve_native_sql_profile_for_runtime,
-    validate_memory_plugin_registry, MemoryRuntime,
+    resolve_memory_deployment_mode_from_env, resolve_memory_implementation_profile_from_env,
+    resolve_memory_profile_for_runtime, resolve_memory_retrieval_strategy_from_env,
+    resolve_native_sql_phase1_profile, resolve_native_sql_profile_for_dialect,
+    resolve_native_sql_profile_for_runtime, validate_memory_plugin_registry,
+    MemoryImplementationProfileSelection, MemoryRuntime,
 };
