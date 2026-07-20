@@ -1,5 +1,6 @@
 import { createSdkworkIamRuntimeAuthController, type SdkworkIamRuntimeAuthRuntimeLike } from "@sdkwork/auth-pc-react";
 import { createSdkworkAppbasePcAuthRuntime } from "@sdkwork/auth-runtime-pc-react";
+import { createClient as createIamAppClient } from "@sdkwork/iam-app-sdk";
 import { createTokenManager } from "@sdkwork/sdk-common";
 
 import type { MemoryPcRuntimeConfig } from "../config/runtime-config.ts";
@@ -16,6 +17,10 @@ export function createMemoryPcRuntime(config: MemoryPcRuntimeConfig, localeProvi
       platform: "pc",
     },
     baseUrls: { appbaseAppApiBaseUrl: config.appbaseAppApiBaseUrl },
+    createAppbaseAppClient: (clientConfig) => createIamAppClient({
+      ...clientConfig,
+      timeout: config.environment === "production" || config.environment === "staging" ? 10_000 : 5_000,
+    }),
     localeProvider,
     sdkClients: [appClient],
     sessionAuth: true,

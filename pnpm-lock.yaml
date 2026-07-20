@@ -934,6 +934,9 @@ importers:
       '@sdkwork/auth-runtime-pc-react':
         specifier: workspace:*
         version: link:../../../../../sdkwork-iam/apps/sdkwork-iam-pc/packages/sdkwork-auth-runtime-pc-react
+      '@sdkwork/iam-app-sdk':
+        specifier: workspace:*
+        version: link:../../../../../sdkwork-iam/sdks/sdkwork-iam-app-sdk/sdkwork-iam-app-sdk-typescript
       '@sdkwork/memory-app-sdk':
         specifier: workspace:*
         version: link:../../../../sdks/sdkwork-memory-app-sdk/sdkwork-memory-app-sdk-typescript

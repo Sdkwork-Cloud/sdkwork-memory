@@ -6,7 +6,7 @@ const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const appRoot = resolve(workspaceRoot, "apps", "sdkwork-memory-pc");
 
 const infrastructurePackages = [
-  { id: "core", surface: "pc-runtime", dependencies: { "@sdkwork/auth-pc-react": "workspace:*", "@sdkwork/auth-runtime-pc-react": "workspace:*", "@sdkwork/memory-app-sdk": "workspace:*", "@sdkwork/memory-pc-commons": "workspace:*", "@sdkwork/sdk-common": "workspace:*" } },
+  { id: "core", surface: "pc-runtime", dependencies: { "@sdkwork/auth-pc-react": "workspace:*", "@sdkwork/auth-runtime-pc-react": "workspace:*", "@sdkwork/iam-app-sdk": "workspace:*", "@sdkwork/memory-app-sdk": "workspace:*", "@sdkwork/memory-pc-commons": "workspace:*", "@sdkwork/sdk-common": "workspace:*" } },
   { id: "commons", surface: "pc-shared", dependencies: { "@sdkwork/utils": "workspace:*", "lucide-react": "catalog:", "react": "catalog:", "react-router-dom": "^7.14.0" } },
   { id: "console-core", surface: "app-console", dependencies: { "@sdkwork/memory-app-sdk": "workspace:*", "@sdkwork/memory-pc-commons": "workspace:*", react: "catalog:" } },
   { id: "console-shell", surface: "app-console", dependencies: { "@sdkwork/memory-pc-commons": "workspace:*", "@sdkwork/memory-pc-console-core": "workspace:*", react: "catalog:", "react-router-dom": "^7.14.0" } },
