@@ -2920,6 +2920,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sdkwork-api-memory-assembly"
+version = "0.1.0"
+dependencies = [
+ "axum 0.8.9",
+ "sdkwork-routes-memory-app-api",
+ "sdkwork-routes-memory-backend-api",
+ "sdkwork-routes-memory-open-api",
+ "tokio",
+]
+
+[[package]]
 name = "sdkwork-database-config"
 version = "0.1.0"
 dependencies = [

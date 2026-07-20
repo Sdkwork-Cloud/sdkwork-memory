@@ -438,8 +438,8 @@ async fn run_retrieval_quality_eval(
         }
     }
 
-    let tenant_id = u64::try_from(tenant_id)
-        .map_err(|_| "eval tenant id must be non-negative".to_string())?;
+    let tenant_id =
+        u64::try_from(tenant_id).map_err(|_| "eval tenant id must be non-negative".to_string())?;
     let mut scores = Vec::with_capacity(config.cases.len());
     let mut case_results = Vec::with_capacity(config.cases.len());
     for case in &config.cases {
@@ -610,9 +610,7 @@ fn validate_retrieval_quality_config(config: &RetrievalQualityEvalConfig) -> Res
         }
         let _ = parse_json_id(&case.space_id, "cases[].spaceId")?;
         if case.expected_memory_ids.is_empty() {
-            return Err(
-                "retrieval quality case expectedMemoryIds must not be empty".to_string(),
-            );
+            return Err("retrieval quality case expectedMemoryIds must not be empty".to_string());
         }
         let expected = case
             .expected_memory_ids
@@ -621,8 +619,7 @@ fn validate_retrieval_quality_config(config: &RetrievalQualityEvalConfig) -> Res
             .collect::<Result<std::collections::BTreeSet<_>, _>>()?;
         if expected.len() != case.expected_memory_ids.len() {
             return Err(
-                "retrieval quality case expectedMemoryIds must not contain duplicates"
-                    .to_string(),
+                "retrieval quality case expectedMemoryIds must not contain duplicates".to_string(),
             );
         }
         crate::retrieval_profile::validate_retrieval_limits(
@@ -646,10 +643,24 @@ fn validate_retrieval_quality_config(config: &RetrievalQualityEvalConfig) -> Res
             .flatten()
             .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
         {
-            return Err("retrieval quality thresholds must be finite values from 0 to 1".to_string());
+            return Err(
+                "retrieval quality thresholds must be finite values from 0 to 1".to_string(),
+            );
         }
     }
     Ok(())
+}
+
+pub(crate) fn validate_retrieval_quality_eval_request(
+    config: Option<&Value>,
+) -> Result<(), String> {
+    let config = config.ok_or_else(|| {
+        "retrieval_quality requires inline config.cases; datasetRef-only resolution is not configured"
+            .to_string()
+    })?;
+    let config: RetrievalQualityEvalConfig = serde_json::from_value(config.clone())
+        .map_err(|error| format!("retrieval quality config is invalid: {error}"))?;
+    validate_retrieval_quality_config(&config)
 }
 
 fn parse_json_id(value: &Value, field: &str) -> Result<u64, String> {
@@ -879,18 +890,116 @@ mod eval_tests {
         }));
         assert!(unknown.is_err());
 
-        let invalid_gate: RetrievalQualityEvalConfig =
-            serde_json::from_value(serde_json::json!({
-                "cases": [{
-                    "spaceId": "7",
-                    "query": "q",
-                    "expectedMemoryIds": ["11"]
-                }],
-                "thresholds": {"minRecallAtK": 1.1}
-            }))
-            .expect("gate decodes before semantic validation");
+        let invalid_gate: RetrievalQualityEvalConfig = serde_json::from_value(serde_json::json!({
+            "cases": [{
+                "spaceId": "7",
+                "query": "q",
+                "expectedMemoryIds": ["11"]
+            }],
+            "thresholds": {"minRecallAtK": 1.1}
+        }))
+        .expect("gate decodes before semantic validation");
         assert!(validate_retrieval_quality_config(&invalid_gate)
             .unwrap_err()
             .contains("from 0 to 1"));
+    }
+
+    #[tokio::test]
+    async fn retrieval_quality_eval_executes_the_commercial_retrieval_path() {
+        let store = NativeSqlMemoryStore::new_in_memory_sqlite()
+            .await
+            .expect("in-memory store");
+        store
+            .create_space_record(
+                1,
+                7,
+                &sdkwork_memory_plugin_native_sql::NativeSqlCreateSpaceCommand {
+                    organization_id: None,
+                    owner_subject_type: "tenant".to_string(),
+                    owner_subject_id: "1".to_string(),
+                    space_type: "workspace".to_string(),
+                    display_name: "Eval Space".to_string(),
+                    default_scope: "tenant".to_string(),
+                },
+            )
+            .await
+            .expect("eval space");
+        let scope = MemoryScopeContext {
+            tenant_id: 1,
+            space_id: 7,
+            organization_id: None,
+            user_id: None,
+        };
+        store
+            .create_record_open_api(
+                &scope,
+                "11",
+                "tenant",
+                "semantic",
+                Some("editor"),
+                Some("preference"),
+                "prefers modal editor keybindings",
+                "editor preference is modal keybindings",
+                "internal",
+            )
+            .await
+            .expect("expected eval memory");
+        store
+            .create_record_open_api(
+                &scope,
+                "12",
+                "tenant",
+                "semantic",
+                Some("theme"),
+                Some("preference"),
+                "prefers a light color theme",
+                "theme preference is light",
+                "internal",
+            )
+            .await
+            .expect("distractor eval memory");
+        let service = OpenMemoryService::new(store);
+        let row = NativeSqlEvalRunRow {
+            eval_run_uuid: "501".to_string(),
+            eval_type: "retrieval_quality".to_string(),
+            state: "running".to_string(),
+            dataset_ref: Some("inline-golden-v1".to_string()),
+            profile_ref: None,
+            metrics_json: None,
+            result_json: Some(
+                serde_json::json!({
+                    "cases": [{
+                        "spaceId": "7",
+                        "query": "modal editor",
+                        "expectedMemoryIds": ["11"],
+                        "topK": 5
+                    }],
+                    "thresholds": {
+                        "minRecallAtK": 1.0,
+                        "minMeanReciprocalRank": 1.0,
+                        "maxDegradedRate": 0.0
+                    }
+                })
+                .to_string(),
+            ),
+            started_at: Some(platform::current_timestamp()),
+            finished_at: None,
+            created_at: platform::current_timestamp(),
+            updated_at: platform::current_timestamp(),
+        };
+
+        let output = run_retrieval_quality_eval(&service, 1, &row)
+            .await
+            .expect("real retrieval eval");
+        let metrics: Value = serde_json::from_str(&output.metrics).expect("metrics json");
+        let result: Value = serde_json::from_str(&output.result).expect("result json");
+        assert_eq!(metrics["recallAtK"], 1.0);
+        assert_eq!(metrics["meanReciprocalRank"], 1.0);
+        assert_eq!(metrics["qualityGatePassed"], true);
+        assert_eq!(result["status"], "completed");
+        assert!(result["cases"][0]["queryHash"]
+            .as_str()
+            .is_some_and(|value| !value.is_empty() && value != "modal editor"));
+        assert!(result["cases"][0].get("query").is_none());
     }
 }

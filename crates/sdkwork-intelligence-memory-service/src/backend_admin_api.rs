@@ -941,6 +941,32 @@ impl OpenMemoryService {
         request: MemoryEvalRunRequest,
     ) -> MemoryServiceResult<MemoryEvalRun> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
+        let eval_type = request.eval_type.trim();
+        if eval_type.is_empty() {
+            return Err(MemoryServiceError::validation("evalType must not be blank"));
+        }
+        if eval_type == "retrieval_quality" {
+            crate::job_worker::validate_retrieval_quality_eval_request(request.config.as_ref())
+                .map_err(MemoryServiceError::validation)?;
+            if let Some(profile_ref) = request.profile_ref.as_deref() {
+                let profile_id = profile_ref.parse::<u64>().map_err(|_| {
+                    MemoryServiceError::validation(
+                        "profileRef must be a numeric retrieval profile id",
+                    )
+                })?;
+                let profile_exists = self
+                    .store
+                    .retrieve_mem_retrieval_profile_for_tenant(tenant_id, &profile_id.to_string())
+                    .await
+                    .map_err(OpenMemoryService::map_store_error)?
+                    .is_some();
+                if !profile_exists {
+                    return Err(MemoryServiceError::validation(format!(
+                        "retrieval profile {profile_id} was not found for the eval tenant"
+                    )));
+                }
+            }
+        }
         let eval_run_id = self.next_id()?.to_string();
         let config_json = request
             .config
@@ -954,7 +980,7 @@ impl OpenMemoryService {
             .insert_mem_eval_run_request(
                 tenant_id,
                 &eval_run_id,
-                &request.eval_type,
+                eval_type,
                 "accepted",
                 request.dataset_ref.as_deref(),
                 request.profile_ref.as_deref(),

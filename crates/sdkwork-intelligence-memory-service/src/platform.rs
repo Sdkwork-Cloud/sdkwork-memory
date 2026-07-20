@@ -173,13 +173,11 @@ pub fn elapsed_millis_i64(started: std::time::Instant) -> i64 {
 }
 
 pub fn stable_query_hash(query: &str) -> String {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
     let normalized = query.trim().to_lowercase();
-    let mut hasher = DefaultHasher::new();
-    normalized.hash(&mut hasher);
-    format!("query:{:016x}", hasher.finish())
+    format!(
+        "sha256:{}",
+        sdkwork_utils_rust::sha256_hash(normalized.as_bytes())
+    )
 }
 
 pub fn parse_numeric_id(value: &str) -> Option<u64> {
@@ -305,5 +303,16 @@ mod tests {
     fn non_negative_i64_as_u64_rejects_negative_storage_values() {
         assert_eq!(non_negative_i64_as_u64(7, "field").unwrap(), 7);
         assert_eq!(non_negative_i64_as_u64(-3, "field").unwrap(), 0);
+    }
+
+    #[test]
+    fn stable_query_hash_is_normalized_and_cryptographic() {
+        let first = stable_query_hash("  Preferred Editor ");
+        let second = stable_query_hash("preferred editor");
+
+        assert_eq!(first, second);
+        assert!(first.starts_with("sha256:"));
+        assert_eq!(first.len(), "sha256:".len() + 64);
+        assert!(!first.contains("preferred editor"));
     }
 }

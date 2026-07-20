@@ -186,6 +186,13 @@ sdkwork-memory/
 - **Audit log**: Separate `ai_audit_log` table for compliance-grade event recording.
 - **Qualified scheme labels**: runtime metrics distinguish the bounded
   PostgreSQL/SQLite and balanced/search-first/event-aware combinations.
+- **Offline quality evaluation**: bounded golden cases execute the production
+  retrieval path and persist Recall@K, Hit Rate@K, MRR, degraded rate, and
+  explicit quality-gate outcomes; absent datasets fail closed.
+- **Query identity**: normalized SHA-256 query hashes support deterministic
+  trace/eval correlation without using implementation-defined hash output.
+- **Consolidation**: exact canonical duplicates are transactionally linked by
+  supersession within user, scope, type, and sensitivity boundaries.
 
 ## 7. Deployment And Runtime Topology
 

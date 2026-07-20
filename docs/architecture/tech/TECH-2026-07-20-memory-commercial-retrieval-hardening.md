@@ -37,6 +37,17 @@ canonical storage, or generated SDK contracts:
 - evaluation-only implementation families cannot become `primary`, cannot be
   promoted by migration, and must be stored as disabled shadow metadata with
   `productionQualified=false`.
+- the reference plugin advertises only its executable keyword reference path;
+  placeholder graph, provider, index, and evaluation ports are no longer
+  bindable, and direct legacy calls fail closed;
+- `retrieval_quality` runs execute the same retrieval path as production over
+  bounded inline golden cases and report macro Recall@K, Hit Rate@K, MRR,
+  degraded rate, per-case query hashes, and optional operator-defined gates;
+- consolidation uses transactional, identity-bounded supersession instead of
+  labeling soft deletion as a merge; records from different users, scopes,
+  memory types, or sensitivity classes cannot be consolidated together;
+- retrieval trace query hashes use normalized SHA-256 rather than Rust's
+  non-cryptographic, implementation-defined default hasher.
 
 The implementation remains deterministic and embedding optional. Vector,
 graph, and model rerank providers can be added behind existing boundaries after
@@ -58,7 +69,8 @@ their production qualification and evaluation gates are complete.
 | Model reranking | contract only | `RerankModelPort` exists; production request/score contract is not sufficient yet |
 | Graph-temporal retrieval | data/control-plane partial | entity and edge management exists; no production graph retriever is active |
 | External memory bridge | evaluation only | reference profile is explicitly evaluation-only |
-| Automated retrieval quality gates | partial | eval tables and APIs exist; no versioned golden dataset gate is wired into release |
+| Offline retrieval quality evaluation | production baseline | bounded inline golden cases execute production retrieval and calculate Recall@K, Hit Rate@K, MRR, degradation, and optional gates |
+| Versioned dataset registry and release promotion gate | not implemented | `datasetRef` is persisted as identity metadata; external dataset resolution and automated release promotion remain fail-closed |
 
 ## 2.1 Commercial Scheme Catalog
 
@@ -116,9 +128,10 @@ universal store:
    context precision, answer support, latency, and cost before rollout.
 
 SDKWork Memory now has strong coverage of layers 1, 3 (sparse), 4 (deterministic
-fusion), and 5. Its largest remaining quality gap is not another schema or
-provider interface; it is a repeatable evaluation system that proves each
-profile is better for a declared workload.
+fusion), and 5, plus a real bounded offline retrieval evaluation baseline. The
+remaining quality gap is a versioned dataset registry and automated release
+promotion workflow that proves each profile is better for a declared workload
+and code revision.
 
 Weighted RRF was selected because lexical, event, graph, vector, and reranker
 scores are not calibrated to the same scale. Rank-based fusion is robust to
@@ -134,12 +147,16 @@ then memory id for deterministic replay.
 
 ## 4. Commercial Gaps And Required Next Gates
 
-### P0: Evaluation Before Algorithm Claims
+### P0: Versioned Evaluation Before Broader Algorithm Claims
 
 - Create versioned, tenant-safe golden datasets for preference, episodic,
   procedural, relationship, contradiction, multilingual, and long-horizon
   memory queries.
-- Gate profile releases on Recall@10, nDCG@10, MRR, context precision, p95
+- Resolve `datasetRef` through a reviewed dataset registry. Until that resolver
+  exists, `retrieval_quality` requires bounded inline `config.cases` and fails
+  rather than pretending that the reference was evaluated.
+- Extend the implemented Recall@K, Hit Rate@K, MRR, and degraded-rate metrics
+  with nDCG@10, context precision, p95
   latency, provider error rate, and cost per retrieval.
 - Add shadow evaluation and canary comparison before changing tenant defaults.
 - Record dataset version, profile version, provider/model version, seed, and
@@ -170,12 +187,13 @@ is a public SPI ownership change and requires human review before implementation
 Selecting pgvector, OpenSearch, or an external vector service changes database
 or provider ownership and requires the corresponding human review.
 
-### P1: Temporal Graph And Consolidation
+### P1: Temporal Graph And Semantic Consolidation
 
 - Resolve entity aliases and maintain validity intervals for facts and edges.
 - Retrieve bounded graph neighborhoods with temporal predicates and provenance.
-- Consolidate near duplicates at write time, link corrections through
-  supersession, and lower confidence when evidence conflicts.
+- Extend the implemented exact canonical duplicate supersession with qualified
+  near-duplicate detection, source/evidence aggregation, contradiction policy,
+  and explicit audit/outbox journals.
 - Separate event time from ingestion time so late events do not rewrite history.
 
 ### P1: Context Optimization
@@ -214,6 +232,8 @@ or provider ownership and requires the corresponding human review.
 
 ```powershell
 cargo test -p sdkwork-memory-retrieval
+cargo test -p sdkwork-memory-plugin-reference-profiles
+cargo test -p sdkwork-memory-plugin-native-sql
 cargo test -p sdkwork-intelligence-memory-service --test retrieval_workflow_contract
 node ..\sdkwork-specs\tools\check-component-port-bindings.mjs --root crates\sdkwork-memory-retrieval --strict
 ```

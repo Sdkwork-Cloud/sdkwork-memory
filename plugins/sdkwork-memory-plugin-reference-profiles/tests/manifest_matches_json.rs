@@ -8,7 +8,9 @@ use sdkwork_memory_plugin_reference_profiles::{
     build_reference_record_store, build_reference_retrieval_trace_store, build_reference_retriever,
     build_reference_space_store, reference_profiles_manifest,
 };
-use sdkwork_memory_spi::{MemoryImplementationKind, MemoryPluginManifest, MemoryPluginRole, MemoryRetrieverKind};
+use sdkwork_memory_spi::{
+    MemoryImplementationKind, MemoryPluginManifest, MemoryPluginRole, MemoryRetrieverKind,
+};
 
 #[test]
 fn rust_manifest_matches_source_controlled_json_manifest() {
@@ -88,8 +90,5 @@ fn manifest_declares_reference_retriever_contract() {
     assert_eq!(export.builder, builder.builder_name);
     assert!(builder.ready);
     assert!(manifest.plugin_roles.contains(&MemoryPluginRole::Retriever));
-    assert_eq!(
-        manifest.retriever_kinds,
-        vec![MemoryRetrieverKind::Keyword]
-    );
+    assert_eq!(manifest.retriever_kinds, vec![MemoryRetrieverKind::Keyword]);
 }

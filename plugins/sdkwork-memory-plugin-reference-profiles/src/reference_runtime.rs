@@ -1954,9 +1954,7 @@ fn external_bridge_unconfigured() -> MemorySpiError {
 fn reference_capability_unavailable(port: &str, reason: &str) -> MemorySpiError {
     MemorySpiError::PortOperationFailed {
         port: port.to_string(),
-        message: format!(
-            "reference capability is unavailable and fails closed: {reason}"
-        ),
+        message: format!("reference capability is unavailable and fails closed: {reason}"),
     }
 }
 

@@ -65,6 +65,143 @@ async fn sqlite_default_implementation_profile_matches_the_live_store() {
     assert!(profile.capability_json.contains("productionQualified"));
 }
 
+#[tokio::test]
+async fn sqlite_eval_run_persists_dataset_profile_config_and_lifecycle_timestamps() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    store
+        .insert_mem_eval_run_request(
+            77,
+            "501",
+            "retrieval_quality",
+            "accepted",
+            Some("golden-v1"),
+            Some("42"),
+            Some(r#"{"cases":[{"spaceId":"1","query":"q","expectedMemoryIds":["9"]}]}"#),
+        )
+        .await
+        .unwrap();
+
+    let claimed = store.claim_queued_eval_runs(1).await.unwrap();
+    assert_eq!(
+        claimed,
+        vec![(77, "501".to_string(), "retrieval_quality".to_string())]
+    );
+    let running = store
+        .retrieve_mem_eval_run_for_tenant(77, "501")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(running.dataset_ref.as_deref(), Some("golden-v1"));
+    assert_eq!(running.profile_ref.as_deref(), Some("42"));
+    assert!(running
+        .result_json
+        .as_deref()
+        .is_some_and(|value| value.contains("expectedMemoryIds")));
+    assert_utc_timestamp(running.started_at.as_deref());
+    assert!(running.finished_at.is_none());
+
+    store
+        .update_eval_run_state(
+            77,
+            "501",
+            "succeeded",
+            Some(r#"{"recallAtK":1.0}"#),
+            Some(r#"{"status":"completed"}"#),
+        )
+        .await
+        .unwrap();
+    let completed = store
+        .retrieve_mem_eval_run_for_tenant(77, "501")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        completed.metrics_json.as_deref(),
+        Some(r#"{"recallAtK":1.0}"#)
+    );
+    assert_eq!(
+        completed.result_json.as_deref(),
+        Some(r#"{"status":"completed"}"#)
+    );
+    assert_utc_timestamp(completed.finished_at.as_deref());
+}
+
+#[tokio::test]
+async fn sqlite_consolidation_supersedes_duplicates_without_cross_user_merges() {
+    let store = new_contract_store().await;
+    let user_one = MemoryScopeContext {
+        tenant_id: 1,
+        space_id: 1,
+        organization_id: None,
+        user_id: Some(101),
+    };
+    let user_two = MemoryScopeContext {
+        user_id: Some(202),
+        ..user_one.clone()
+    };
+    for (scope, memory_id) in [
+        (&user_one, "consolidate-user-one-a"),
+        (&user_one, "consolidate-user-one-b"),
+        (&user_two, "consolidate-user-two"),
+    ] {
+        store
+            .create_record_open_api(
+                scope,
+                memory_id,
+                "user",
+                "semantic",
+                Some("editor"),
+                Some("prefers"),
+                "uses a modal editor",
+                "editor prefers modal",
+                "internal",
+            )
+            .await
+            .unwrap();
+    }
+
+    let consolidated = store
+        .consolidate_duplicate_records_in_scope(&MemoryScopeContext {
+            user_id: None,
+            ..user_one.clone()
+        })
+        .await
+        .unwrap();
+    assert_eq!(consolidated, 1);
+
+    let first = store
+        .retrieve_record_detail(&user_one, "consolidate-user-one-a")
+        .await
+        .unwrap()
+        .unwrap();
+    let second = store
+        .retrieve_record_detail(&user_one, "consolidate-user-one-b")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        [first.status.as_str(), second.status.as_str()]
+            .into_iter()
+            .filter(|status| *status == "superseded")
+            .count(),
+        1
+    );
+    let superseded = if first.status == "superseded" {
+        &first
+    } else {
+        &second
+    };
+    assert!(superseded.superseded_by_memory_id.is_some());
+
+    let isolated = store
+        .retrieve_record_detail(&user_two, "consolidate-user-two")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(isolated.status, "active");
+    assert!(isolated.superseded_by_memory_id.is_none());
+}
+
 fn assert_utc_timestamp(value: Option<&str>) {
     let Some(text) = value else {
         panic!("expected UTC timestamp");
