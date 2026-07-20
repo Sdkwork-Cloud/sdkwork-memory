@@ -140,7 +140,7 @@ mod tests {
     fn prometheus_render_includes_quota_counter() {
         memory_domain_metrics().record_quota_exceeded();
         let rendered = render_memory_domain_prometheus(
-            "sdkwork-memory-standalone-gateway",
+            "sdkwork-api-memory-standalone-gateway",
             "test",
             "standalone",
             "server",

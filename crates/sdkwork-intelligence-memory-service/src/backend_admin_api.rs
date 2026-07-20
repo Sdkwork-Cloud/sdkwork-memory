@@ -9,8 +9,8 @@ use sdkwork_memory_contract::{
     MemoryServiceResult, PageInfo,
 };
 use sdkwork_memory_plugin_native_sql::{
-    NativeSqlEvalRunRow, NativeSqlImplementationProfileRow, NativeSqlMemoryIndexRow,
-    NativeSqlProviderBindingRow, NativeSqlRetrievalProfileRow,
+    InsertMemoryEvalRunCommand, NativeSqlEvalRunRow, NativeSqlImplementationProfileRow,
+    NativeSqlMemoryIndexRow, NativeSqlProviderBindingRow, NativeSqlRetrievalProfileRow,
 };
 use sdkwork_memory_spi::{
     MemoryImplementationKind, MemoryScopeContext, SupersedeCanonicalMemoryAtomicCommand,
@@ -977,15 +977,15 @@ impl OpenMemoryService {
                 MemoryServiceError::storage(format!("eval config encode failed: {error}"))
             })?;
         self.store
-            .insert_mem_eval_run_request(
+            .insert_mem_eval_run_request(InsertMemoryEvalRunCommand {
                 tenant_id,
-                &eval_run_id,
+                eval_run_uuid: &eval_run_id,
                 eval_type,
-                "accepted",
-                request.dataset_ref.as_deref(),
-                request.profile_ref.as_deref(),
-                config_json.as_deref(),
-            )
+                state: "accepted",
+                dataset_ref: request.dataset_ref.as_deref(),
+                profile_ref: request.profile_ref.as_deref(),
+                config_json: config_json.as_deref(),
+            })
             .await
             .map_err(OpenMemoryService::map_store_error)?;
         let row = self

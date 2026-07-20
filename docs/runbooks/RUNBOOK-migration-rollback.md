@@ -26,7 +26,7 @@ pnpm db:migrate
 
 ## Rollback
 
-1. Stop API server pods (`kubectl scale deployment sdkwork-memory-standalone-gateway --replicas=0`).
+1. Stop API server pods (`kubectl scale deployment sdkwork-api-memory-standalone-gateway --replicas=0`).
 2. Restore database from last verified backup, or apply paired `.down.sql` migrations in reverse order under `database/migrations/{postgres,sqlite}/`.
 3. Redeploy previous container image digest.
 4. Run smoke tests from `deployments/runbooks/rollout.md`.

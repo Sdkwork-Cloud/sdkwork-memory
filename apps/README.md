@@ -14,7 +14,7 @@ The repository root `sdkwork.app.config.json` governs the primary application ma
 
 | Directory | Surface role | Runnable | Purpose | Entry |
 | --- | --- | --- | --- | --- |
-| _none_ | n/a | no | No child application roots are checked in under `apps/` yet. | n/a |
+| `sdkwork-memory-pc/` | PC console and backend-admin | yes | User memory console and internal operations workspace. | `src/main.tsx` |
 
 ## Allowed Content
 

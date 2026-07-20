@@ -95,7 +95,7 @@ assert(cargoToml.includes('sdkwork-database-sqlx'), 'Cargo.toml must declare sdk
 assert(cargoToml.includes('sdkwork-database-repository'), 'Cargo.toml must declare sdkwork-database-repository');
 assert(cargoToml.includes('sdkwork-utils-rust'), 'Cargo.toml must declare sdkwork-utils-rust');
 assert(cargoToml.includes('sdkwork-id-core'), 'Cargo.toml must declare sdkwork-id-core');
-assert(cargoToml.includes('sdkwork-memory-standalone-gateway'), 'Cargo.toml must include sdkwork-memory-standalone-gateway');
+assert(cargoToml.includes('sdkwork-api-memory-standalone-gateway'), 'Cargo.toml must include sdkwork-api-memory-standalone-gateway');
 assert(cargoToml.includes('sdkwork-routes-memory-support'), 'Cargo.toml must include sdkwork-routes-memory-support');
 assert(!cargoToml.includes('sdkwork-discovery'), 'sdkwork-discovery is not required until RPC services exist');
 
@@ -263,17 +263,17 @@ assert(
   'k8s readiness probe must target /readyz for database-backed readiness',
 );
 assert(
-  readText('crates/sdkwork-memory-standalone-gateway/src/bootstrap.rs').includes('bootstrap_memory_runtime_from_env'),
+  readText('crates/sdkwork-api-memory-standalone-gateway/src/bootstrap.rs').includes('bootstrap_memory_runtime_from_env'),
   'standalone-gateway bootstrap must use unified memory runtime bootstrap',
 );
 assert(
   /\.route\(\s*["']\/readyz["']/.test(
-    readText('crates/sdkwork-memory-standalone-gateway/src/bootstrap.rs'),
+    readText('crates/sdkwork-api-memory-standalone-gateway/src/bootstrap.rs'),
   ),
   'standalone-gateway must expose /readyz readiness endpoint',
 );
 assert(
-  readText('crates/sdkwork-memory-standalone-gateway/src/bootstrap.rs').includes(
+  readText('crates/sdkwork-api-memory-standalone-gateway/src/bootstrap.rs').includes(
     'memory_dependency_ready_check',
   ),
   'standalone-gateway /readyz must validate IAM database dependency in production',
@@ -303,7 +303,7 @@ assert(
   'outbox publisher must deliver events through a dedicated adapter',
 );
 assert(
-  !readText('crates/sdkwork-memory-standalone-gateway/src/bootstrap.rs')
+  !readText('crates/sdkwork-api-memory-standalone-gateway/src/bootstrap.rs')
     .split('async fn metrics')[1]
     .split('async fn build_router')[0]
     .includes('ready_check'),
@@ -318,7 +318,7 @@ assert(
   'k8s deployment must spread standalone-gateway replicas across nodes',
 );
 assert(
-  readText('crates/sdkwork-memory-standalone-gateway/src/bootstrap.rs').includes('route("/metrics"'),
+  readText('crates/sdkwork-api-memory-standalone-gateway/src/bootstrap.rs').includes('route("/metrics"'),
   'standalone-gateway must expose /metrics for Prometheus scraping',
 );
 assert(
@@ -340,7 +340,7 @@ assert(
   'correlation middleware must emit tracing spans for request correlation',
 );
 assert(
-  readText('crates/sdkwork-memory-standalone-gateway/src/observability.rs').includes(
+  readText('crates/sdkwork-api-memory-standalone-gateway/src/observability.rs').includes(
     'OTEL_EXPORTER_OTLP_ENDPOINT',
   ),
   'standalone-gateway must support optional OTLP tracing per OBSERVABILITY_SPEC',
@@ -938,7 +938,7 @@ const crateComponentSpecs = [
   'crates/sdkwork-intelligence-memory-service/specs/component.spec.json',
   'crates/sdkwork-intelligence-memory-repository-sqlx/specs/component.spec.json',
   'crates/sdkwork-memory-database-host/specs/component.spec.json',
-  'crates/sdkwork-memory-standalone-gateway/specs/component.spec.json',
+  'crates/sdkwork-api-memory-standalone-gateway/specs/component.spec.json',
 ];
 for (const relativePath of crateComponentSpecs) {
   assert(fs.existsSync(path.join(repoRoot, relativePath)), `${relativePath} must exist`);

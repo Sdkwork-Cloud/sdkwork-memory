@@ -39,7 +39,7 @@ fn metric_runtime_profile() -> String {
 
 fn memory_http_metric_dimensions() -> HttpMetricsDimensions {
     HttpMetricsDimensions {
-        service: "sdkwork-memory-standalone-gateway".to_owned(),
+        service: "sdkwork-api-memory-standalone-gateway".to_owned(),
         environment: memory_metric_environment_label(),
         deployment_profile: metric_deployment_profile(),
         runtime_target: metric_runtime_target(),

@@ -6,7 +6,7 @@ Unified-process Memory API server manifests for cloud-hosted deployment.
 
 ## Files
 
-- `deployment.yaml` — `sdkwork-memory-standalone-gateway` Deployment (`deploymentProfile=cloud`, 2 replicas, pod anti-affinity, startup/readiness/liveness probes, graceful shutdown, securityContext)
+- `deployment.yaml` — `sdkwork-api-memory-standalone-gateway` Deployment (`deploymentProfile=cloud`, 2 replicas, pod anti-affinity, startup/readiness/liveness probes, graceful shutdown, securityContext)
 - `migration-job.yaml` — one-shot database migration Job (`db-migrate` subcommand, `SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE=true`)
 - `service.yaml` — ClusterIP service exposing port 8080 (Prometheus scrape annotations on `/metrics`)
 - `servicemonitor.yaml` — Prometheus Operator scrape config for `/metrics` (optional when operator is installed)

@@ -116,15 +116,11 @@ fn phase1_family_profiles_resolve_when_baseline_plugins_are_registered() {
         .map(|profile| profile.implementation_kind.clone())
         .collect::<Vec<_>>();
 
-    assert_eq!(resolved.len(), 7);
+    assert_eq!(resolved.len(), 3);
     for implementation_kind in [
         MemoryImplementationKind::NativeSql,
         MemoryImplementationKind::LocalEmbedded,
-        MemoryImplementationKind::EventSourced,
         MemoryImplementationKind::SearchFirst,
-        MemoryImplementationKind::GraphTemporal,
-        MemoryImplementationKind::ExternalProviderBridge,
-        MemoryImplementationKind::HybridPlatform,
     ] {
         assert!(
             implementation_kinds.contains(&implementation_kind),
@@ -205,37 +201,21 @@ fn reference_profile_cannot_be_promoted_to_server_without_production_plugin_supp
 }
 
 #[test]
-fn hybrid_profile_can_compose_required_ports_across_plugins() {
+fn unqualified_reference_drafts_fail_before_port_composition() {
     let registry = registry_with_phase1_baselines();
-    let native_sql = "sdkwork-memory-plugin-native-sql";
-    let mut profile = MemoryImplementationProfileDraft::hybrid_platform_phase1();
-    profile.deployment_mode = MemoryDeploymentMode::Test;
-    let profile = profile
-        .with_port_binding("MemoryRecordStorePort", native_sql)
-        .with_port_binding("MemoryEventStorePort", native_sql)
-        .with_port_binding("MemoryAuditStorePort", native_sql)
-        .with_port_binding("MemoryOutboxStorePort", native_sql)
-        .with_port_binding("MemoryCandidateStorePort", native_sql)
-        .with_port_binding("MemoryHabitStorePort", native_sql)
-        .with_port_binding("MemoryRetrievalTraceStorePort", native_sql);
-
-    let resolved = MemoryRuntimeProfileResolver::new(&registry)
-        .resolve(profile)
-        .expect("hybrid profile should compose ports from both baseline plugins");
-
-    assert_eq!(resolved.deployment_mode, MemoryDeploymentMode::Test);
-    assert!(
-        resolved
-            .port_bindings
-            .iter()
-            .filter(|binding| binding.plugin_id == native_sql)
-            .count()
-            >= 7
-    );
-    assert!(resolved.port_bindings.iter().any(|binding| {
-        binding.port == "MemoryRetrieverPort"
-            && binding.plugin_id == "sdkwork-memory-plugin-reference-profiles"
-    }));
+    for profile in MemoryImplementationProfileDraft::unqualified_evaluation_drafts() {
+        let expected_kind = format!("{:?}", profile.implementation_kind);
+        let error = MemoryRuntimeProfileResolver::new(&registry)
+            .resolve(profile)
+            .expect_err("unimplemented reference family must not resolve");
+        assert!(matches!(
+            error,
+            MemoryRuntimeError::ImplementationKindUnsupported {
+                implementation_kind,
+                ..
+            } if implementation_kind == expected_kind
+        ));
+    }
 }
 
 #[test]

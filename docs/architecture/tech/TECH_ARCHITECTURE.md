@@ -61,7 +61,7 @@ Data flows: HTTP request → route handler → service port → repository/plugi
 | `sdkwork-memory-contract` | DTOs, ports (traits), typed errors | none (domain) |
 | `sdkwork-intelligence-memory-service` | Business rules, use case orchestration | contract, spi |
 | `sdkwork-intelligence-memory-repository-sqlx` | SQLx adapter, bootstrap | contract, service, plugin-native-sql |
-| `sdkwork-memory-standalone-gateway` | Binary entry point, HTTP bootstrap | all route crates, service, repository |
+| `sdkwork-api-memory-standalone-gateway` | Binary entry point, HTTP bootstrap | all route crates, service, repository |
 | `sdkwork-memory-spi` | SPI registry, ports, manifest validation | contract |
 | `sdkwork-memory-retrieval` | Context pack fusion, retrieval algorithms | contract |
 | `sdkwork-memory-profile-resolver` | Implementation profile resolution | contract, spi |
@@ -81,7 +81,7 @@ sdkwork-memory/
 │   ├── sdkwork-memory-contract/           # DTOs, ports, errors
 │   ├── sdkwork-intelligence-memory-service/        # Business rules
 │   ├── sdkwork-intelligence-memory-repository-sqlx/ # SQLx adapter
-│   ├── sdkwork-memory-standalone-gateway/         # Binary entry point
+│   ├── sdkwork-api-memory-standalone-gateway/         # Binary entry point
 │   ├── sdkwork-memory-spi/                # SPI registry and ports
 │   ├── sdkwork-memory-retrieval/               # Retrieval
 │   ├── sdkwork-memory-profile-resolver/            # Profile resolver
@@ -254,7 +254,7 @@ powershell -ExecutionPolicy Bypass -File tools/verify_phase1.ps1
 
 ```bash
 # Apply migrations to a clean PostgreSQL database
-cargo run -p sdkwork-memory-standalone-gateway -- db-migrate
+cargo run -p sdkwork-api-memory-standalone-gateway -- db-migrate
 
 # Verify rollback
 # (Apply down migrations in reverse order via the migration runner)
@@ -264,7 +264,7 @@ cargo run -p sdkwork-memory-standalone-gateway -- db-migrate
 
 ```bash
 # Docker build
-docker build -f deployments/docker/Dockerfile -t sdkwork-memory-standalone-gateway:dev .
+docker build -f deployments/docker/Dockerfile -t sdkwork-api-memory-standalone-gateway:dev .
 
 # Kubernetes dry-run
 kubectl apply --dry-run=client -f deployments/kubernetes/

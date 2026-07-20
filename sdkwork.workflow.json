@@ -128,7 +128,7 @@
       "architecture": "x64",
       "formats": ["tar.gz"],
       "runner": "ubuntu-24.04",
-      "outputGlobs": ["target/release/sdkwork-memory-standalone-gateway*"],
+      "outputGlobs": ["target/release/sdkwork-api-memory-standalone-gateway*"],
       "deploymentProfile": "cloud",
       "runtimeTarget": "container"
     }

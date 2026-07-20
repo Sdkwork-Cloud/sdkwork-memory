@@ -1,0 +1,26 @@
+{
+  "name": "@sdkwork/memory-pc-admin-evaluation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@sdkwork/memory-pc-commons": "workspace:*",
+    "@sdkwork/memory-pc-admin-core": "workspace:*",
+    "react": "catalog:"
+  },
+  "sdkwork": {
+    "applicationCode": "memory",
+    "architecture": "pc-react",
+    "capability": "admin-evaluation",
+    "surface": "backend-admin",
+    "managedBy": "tools/materialize_memory_pc_packages.mjs"
+  }
+}

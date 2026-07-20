@@ -1,4 +1,8 @@
 packages:
+  - "apps/sdkwork-memory-pc"
+  - "apps/sdkwork-memory-pc/packages/*"
+  - "sdks/sdkwork-memory-app-sdk/sdkwork-memory-app-sdk-typescript"
+  - "sdks/sdkwork-memory-backend-sdk/sdkwork-memory-backend-sdk-typescript"
   - "../sdkwork-iam/apps/sdkwork-iam-common/packages/sdkwork-iam-contracts"
   - "../sdkwork-iam/apps/sdkwork-iam-common/packages/sdkwork-iam-runtime"
   - "../sdkwork-iam/apps/sdkwork-iam-common/packages/sdkwork-iam-sdk-ports"

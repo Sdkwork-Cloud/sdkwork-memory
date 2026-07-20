@@ -1,7 +1,7 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: sdkwork-memory-standalone-gateway
+  name: sdkwork-api-memory-standalone-gateway
   labels:
     app.kubernetes.io/name: sdkwork-memory
     app.kubernetes.io/component: standalone-gateway
@@ -9,7 +9,7 @@ spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: sdkwork-memory-standalone-gateway
+    name: sdkwork-api-memory-standalone-gateway
   minReplicas: 2
   maxReplicas: 6
   metrics:

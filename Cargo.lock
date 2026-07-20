@@ -2924,10 +2924,35 @@ name = "sdkwork-api-memory-assembly"
 version = "0.1.0"
 dependencies = [
  "axum 0.8.9",
+ "sdkwork-intelligence-memory-service",
  "sdkwork-routes-memory-app-api",
  "sdkwork-routes-memory-backend-api",
  "sdkwork-routes-memory-open-api",
+ "sdkwork-routes-memory-support",
  "tokio",
+]
+
+[[package]]
+name = "sdkwork-api-memory-standalone-gateway"
+version = "0.1.0"
+dependencies = [
+ "axum 0.8.9",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
+ "sdkwork-api-memory-assembly",
+ "sdkwork-intelligence-memory-repository-sqlx",
+ "sdkwork-intelligence-memory-service",
+ "sdkwork-memory-database-host",
+ "sdkwork-memory-drive",
+ "sdkwork-routes-memory-support",
+ "sdkwork-utils-rust",
+ "sdkwork-web-bootstrap",
+ "tokio",
+ "tower 0.5.3",
+ "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -3320,30 +3345,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "sdkwork-memory-gateway-assembly"
-version = "0.1.0"
-dependencies = [
- "axum 0.8.9",
- "sdkwork-intelligence-memory-service",
- "sdkwork-routes-memory-app-api",
- "sdkwork-routes-memory-backend-api",
- "sdkwork-routes-memory-open-api",
- "sdkwork-routes-memory-support",
- "tokio",
-]
-
-[[package]]
 name = "sdkwork-memory-integration-tests"
 version = "0.1.0"
 dependencies = [
  "axum 0.8.9",
  "http 1.4.2",
+ "sdkwork-api-memory-standalone-gateway",
  "sdkwork-iam-web-adapter",
  "sdkwork-intelligence-memory-service",
  "sdkwork-memory-contract",
  "sdkwork-memory-plugin-native-sql",
  "sdkwork-memory-spi",
- "sdkwork-memory-standalone-gateway",
  "sdkwork-memory-test-support",
  "sdkwork-routes-memory-app-api",
  "sdkwork-routes-memory-backend-api",
@@ -3414,29 +3426,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
-]
-
-[[package]]
-name = "sdkwork-memory-standalone-gateway"
-version = "0.1.0"
-dependencies = [
- "axum 0.8.9",
- "opentelemetry",
- "opentelemetry-otlp",
- "opentelemetry_sdk",
- "sdkwork-intelligence-memory-repository-sqlx",
- "sdkwork-intelligence-memory-service",
- "sdkwork-memory-database-host",
- "sdkwork-memory-drive",
- "sdkwork-memory-gateway-assembly",
- "sdkwork-routes-memory-support",
- "sdkwork-utils-rust",
- "sdkwork-web-bootstrap",
- "tokio",
- "tower 0.5.3",
- "tracing",
- "tracing-opentelemetry",
- "tracing-subscriber",
 ]
 
 [[package]]

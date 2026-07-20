@@ -1,0 +1,26 @@
+{
+  "name": "@sdkwork/memory-pc-console-knowledge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "@sdkwork/memory-pc-commons": "workspace:*",
+    "@sdkwork/memory-pc-console-core": "workspace:*",
+    "react": "catalog:"
+  },
+  "sdkwork": {
+    "applicationCode": "memory",
+    "architecture": "pc-react",
+    "capability": "console-knowledge",
+    "surface": "app-console",
+    "managedBy": "tools/materialize_memory_pc_packages.mjs"
+  }
+}

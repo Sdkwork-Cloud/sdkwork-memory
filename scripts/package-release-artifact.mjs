@@ -26,7 +26,7 @@ const archivePath = join(
 rmSync(stagingDir, { recursive: true, force: true });
 mkdirSync(stagingDir, { recursive: true });
 
-execSync("cargo build --release -p sdkwork-memory-standalone-gateway", {
+execSync("cargo build --release -p sdkwork-api-memory-standalone-gateway", {
   cwd: root,
   stdio: "inherit",
 });
@@ -34,8 +34,8 @@ execSync("node scripts/generate-release-sbom.mjs", { cwd: root, stdio: "inherit"
 
 const releaseBinary = (() => {
   for (const candidate of [
-    join(root, "target", "release", "sdkwork-memory-standalone-gateway.exe"),
-    join(root, "target", "release", "sdkwork-memory-standalone-gateway"),
+    join(root, "target", "release", "sdkwork-api-memory-standalone-gateway.exe"),
+    join(root, "target", "release", "sdkwork-api-memory-standalone-gateway"),
   ]) {
     try {
       readFileSync(candidate);
@@ -46,7 +46,7 @@ const releaseBinary = (() => {
   }
   throw new Error("release binary not found after cargo build");
 })();
-cpSync(releaseBinary, join(stagingDir, "sdkwork-memory-standalone-gateway"));
+cpSync(releaseBinary, join(stagingDir, "sdkwork-api-memory-standalone-gateway"));
 cpSync(join(root, "database"), join(stagingDir, "database"), { recursive: true });
 cpSync(
   join(root, "deployments", "artifacts", "sbom.spdx.json"),
@@ -67,7 +67,7 @@ writeFileSync(
       architecture: "x64",
       deploymentProfile: "cloud",
       runtimeTarget: "container",
-      binary: "sdkwork-memory-standalone-gateway",
+      binary: "sdkwork-api-memory-standalone-gateway",
       databaseRoot: "database",
       generatedAt: new Date().toISOString(),
     },

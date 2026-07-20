@@ -70,7 +70,6 @@ impl MemoryImplementationProfileDraft {
             vec![
                 "MemoryRecordStorePort",
                 "MemoryRetrieverPort",
-                "MemoryIndexPort",
                 "MemoryAuditStorePort",
             ],
         )
@@ -123,8 +122,13 @@ impl MemoryImplementationProfileDraft {
         vec![
             Self::native_sql_phase1(),
             Self::local_embedded_phase1(),
-            Self::event_sourced_phase1(),
             Self::search_first_phase1(),
+        ]
+    }
+
+    pub fn unqualified_evaluation_drafts() -> Vec<Self> {
+        vec![
+            Self::event_sourced_phase1(),
             Self::graph_temporal_phase1(),
             Self::external_provider_bridge_eval(),
             Self::hybrid_platform_phase1(),

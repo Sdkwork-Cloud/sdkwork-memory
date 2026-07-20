@@ -65,7 +65,7 @@ $expectedPackages = @(
     "sdkwork-memory-database-host",
     "sdkwork-intelligence-memory-service",
     "sdkwork-intelligence-memory-repository-sqlx",
-    "sdkwork-memory-standalone-gateway",
+    "sdkwork-api-memory-standalone-gateway",
     "sdkwork-routes-memory-open-api",
     "sdkwork-routes-memory-app-api",
     "sdkwork-routes-memory-backend-api"
@@ -115,7 +115,7 @@ foreach ($crateComponentSpec in @(
     "crates/sdkwork-intelligence-memory-service/specs/component.spec.json",
     "crates/sdkwork-intelligence-memory-repository-sqlx/specs/component.spec.json",
     "crates/sdkwork-memory-database-host/specs/component.spec.json",
-    "crates/sdkwork-memory-standalone-gateway/specs/component.spec.json"
+    "crates/sdkwork-api-memory-standalone-gateway/specs/component.spec.json"
 )) {
     Assert-PathExists $crateComponentSpec "Core crate component spec"
 }

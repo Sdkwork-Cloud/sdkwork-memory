@@ -43,7 +43,7 @@ console.log(
   `Starting SDKWork Memory dev server (${values.target}, ${values.database}, ${values["deployment-profile"]}, ${values["service-layout"]}, profile=${profileId})`,
 );
 
-const child = spawn("cargo", ["run", "-p", "sdkwork-memory-standalone-gateway"], {
+const child = spawn("cargo", ["run", "-p", "sdkwork-api-memory-standalone-gateway"], {
   cwd: REPO_ROOT,
   stdio: "inherit",
   shell: true,

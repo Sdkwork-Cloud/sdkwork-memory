@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.component.spec",
+  "component": {
+    "name": "@sdkwork/memory-pc-core",
+    "displayName": "SDKWork Memory PC core",
+    "version": "0.1.0",
+    "type": "node-package",
+    "root": "sdkwork-memory/apps/sdkwork-memory-pc/packages/sdkwork-memory-pc-core",
+    "domain": "intelligence",
+    "capability": "core",
+    "surface": "pc-runtime",
+    "languages": [
+      "typescript"
+    ],
+    "generated": false,
+    "private": true,
+    "status": "active",
+    "manifests": [
+      "package.json",
+      "specs/component.spec.json"
+    ]
+  },
+  "canonicalSpecs": [
+    {
+      "file": "COMPONENT_SPEC.md",
+      "path": "../../../../../sdkwork-specs/COMPONENT_SPEC.md",
+      "purpose": "Module-local component contract."
+    },
+    {
+      "file": "APP_PC_ARCHITECTURE_SPEC.md",
+      "path": "../../../../../sdkwork-specs/APP_PC_ARCHITECTURE_SPEC.md",
+      "purpose": "PC package taxonomy and surface boundaries."
+    },
+    {
+      "file": "APP_PC_REACT_UI_SPEC.md",
+      "path": "../../../../../sdkwork-specs/APP_PC_REACT_UI_SPEC.md",
+      "purpose": "React PC package implementation rules."
+    },
+    {
+      "file": "APP_SDK_INTEGRATION_SPEC.md",
+      "path": "../../../../../sdkwork-specs/APP_SDK_INTEGRATION_SPEC.md",
+      "purpose": "Injected SDK client and consumer import rules."
+    },
+    {
+      "file": "I18N_SPEC.md",
+      "path": "../../../../../sdkwork-specs/I18N_SPEC.md",
+      "purpose": "Package-owned locale fragment rules."
+    },
+    {
+      "file": "TEST_SPEC.md",
+      "path": "../../../../../sdkwork-specs/TEST_SPEC.md",
+      "purpose": "Verification requirements."
+    }
+  ],
+  "contracts": {
+    "publicExports": [
+      "src/index.ts"
+    ],
+    "runtimeEntrypoints": [],
+    "routeManifest": null,
+    "sdkClients": [],
+    "sdkDependencies": [
+      {
+        "workspace": "sdkwork-memory-app-sdk",
+        "surface": "app-api",
+        "credentialMode": "authenticated-app-api"
+      }
+    ],
+    "events": [],
+    "configKeys": [],
+    "permissions": []
+  },
+  "integration": {
+    "authority": "Root SDKWork specs remain authoritative.",
+    "dependencyPolicy": "Consume sibling modules through package public exports only.",
+    "sdkPolicy": "Console services consume the injected composed Memory app SDK through console-core."
+  },
+  "verification": {
+    "commands": [
+      "pnpm --dir apps/sdkwork-memory-pc typecheck",
+      "pnpm --dir apps/sdkwork-memory-pc test"
+    ]
+  },
+  "metadata": {
+    "managedBy": "tools/materialize_memory_pc_packages.mjs",
+    "standardVersion": "2026-07-20"
+  }
+}

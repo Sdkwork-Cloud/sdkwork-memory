@@ -9,7 +9,7 @@ This repository adopts the shared SDKWork runtime topology framework.
 
 ## Archetype
 
-`application-http-gateway`: Memory exposes open, app, and backend HTTP surfaces through `sdkwork-routes-memory-*` route crates. The default production profile (`cloud.split-services.production`) runs `sdkwork-memory-standalone-gateway` as a unified ingress process; split-service profiles are available when surfaces must bind to separate hosts.
+`application-http-gateway`: Memory exposes open, app, and backend HTTP surfaces through `sdkwork-routes-memory-*` route crates. The default production profile (`cloud.split-services.production`) runs `sdkwork-api-memory-standalone-gateway` as a unified ingress process; split-service profiles are available when surfaces must bind to separate hosts.
 
 ## Production deployment
 

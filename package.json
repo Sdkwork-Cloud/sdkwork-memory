@@ -40,7 +40,7 @@
     "db:postgres:init": "node ../sdkwork-specs/tools/postgres/postgres-db-cli.mjs --mode init --config .env.postgres --app-root .",
     "db:postgres:plan": "node ../sdkwork-specs/tools/postgres/postgres-db-cli.mjs --mode plan --config .env.postgres --app-root . --dry-run",
     "release:sbom": "node scripts/generate-release-sbom.mjs",
-    "release:evidence": "cargo build --release -p sdkwork-memory-standalone-gateway && node scripts/generate-release-sbom.mjs",
+    "release:evidence": "cargo build --release -p sdkwork-api-memory-standalone-gateway && node scripts/generate-release-sbom.mjs",
     "release:package": "node scripts/package-release-artifact.mjs",
     "release:readiness": "node tools/check_sdkwork_memory_release_readiness.mjs",
     "test:contract:database": "node ../sdkwork-specs/tools/check-database-framework-standard.mjs --root .",

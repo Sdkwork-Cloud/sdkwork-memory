@@ -108,16 +108,16 @@
   },
   "components": {
     "appApiRouter": {
-      "crate": "sdkwork-memory-standalone-gateway",
-      "binary": "sdkwork-memory-standalone-gateway"
+      "crate": "sdkwork-api-memory-standalone-gateway",
+      "binary": "sdkwork-api-memory-standalone-gateway"
     },
     "backendApiRouter": {
-      "crate": "sdkwork-memory-standalone-gateway",
-      "binary": "sdkwork-memory-standalone-gateway"
+      "crate": "sdkwork-api-memory-standalone-gateway",
+      "binary": "sdkwork-api-memory-standalone-gateway"
     },
     "openApiRouter": {
-      "crate": "sdkwork-memory-standalone-gateway",
-      "binary": "sdkwork-memory-standalone-gateway"
+      "crate": "sdkwork-api-memory-standalone-gateway",
+      "binary": "sdkwork-api-memory-standalone-gateway"
     }
   },
   "orchestration": {
@@ -126,8 +126,8 @@
         "processes": [
           {
             "id": "application.public-ingress",
-            "crate": "sdkwork-memory-standalone-gateway",
-            "binary": "sdkwork-memory-standalone-gateway",
+            "crate": "sdkwork-api-memory-standalone-gateway",
+            "binary": "sdkwork-api-memory-standalone-gateway",
             "required": true,
             "role": "api-standalone-gateway"
           }
@@ -140,8 +140,8 @@
         "processes": [
           {
             "id": "application.public-ingress",
-            "crate": "sdkwork-memory-standalone-gateway",
-            "binary": "sdkwork-memory-standalone-gateway",
+            "crate": "sdkwork-api-memory-standalone-gateway",
+            "binary": "sdkwork-api-memory-standalone-gateway",
             "required": true,
             "role": "api-standalone-gateway"
           }
@@ -161,8 +161,8 @@
         "processes": [
           {
             "id": "application.public-ingress",
-            "crate": "sdkwork-memory-standalone-gateway",
-            "binary": "sdkwork-memory-standalone-gateway",
+            "crate": "sdkwork-api-memory-standalone-gateway",
+            "binary": "sdkwork-api-memory-standalone-gateway",
             "required": true,
             "role": "api-standalone-gateway"
           }

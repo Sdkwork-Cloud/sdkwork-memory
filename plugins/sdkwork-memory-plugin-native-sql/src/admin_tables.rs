@@ -83,6 +83,17 @@ pub struct NativeSqlEvalRunRow {
     pub updated_at: String,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct InsertMemoryEvalRunCommand<'a> {
+    pub tenant_id: i64,
+    pub eval_run_uuid: &'a str,
+    pub eval_type: &'a str,
+    pub state: &'a str,
+    pub dataset_ref: Option<&'a str>,
+    pub profile_ref: Option<&'a str>,
+    pub config_json: Option<&'a str>,
+}
+
 impl NativeSqlMemoryStore {
     pub async fn ensure_default_keyword_index_for_tenant(
         &self,
@@ -992,13 +1003,7 @@ impl NativeSqlMemoryStore {
 
     pub async fn insert_mem_eval_run_request(
         &self,
-        tenant_id: i64,
-        eval_run_uuid: &str,
-        eval_type: &str,
-        state: &str,
-        dataset_ref: Option<&str>,
-        profile_ref: Option<&str>,
-        config_json: Option<&str>,
+        command: InsertMemoryEvalRunCommand<'_>,
     ) -> Result<(), NativeSqlStoreError> {
         let timestamp = now_text();
         sqlx::query(
@@ -1010,13 +1015,13 @@ impl NativeSqlMemoryStore {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
-        .bind(eval_run_uuid)
-        .bind(tenant_id)
-        .bind(eval_type)
-        .bind(state)
-        .bind(dataset_ref)
-        .bind(profile_ref)
-        .bind(config_json)
+        .bind(command.eval_run_uuid)
+        .bind(command.tenant_id)
+        .bind(command.eval_type)
+        .bind(command.state)
+        .bind(command.dataset_ref)
+        .bind(command.profile_ref)
+        .bind(command.config_json)
         .bind(&timestamp)
         .bind(&timestamp)
         .execute(self.pool())

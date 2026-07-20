@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
     "crates/sdkwork-api-memory-assembly",
-    "crates/sdkwork-memory-gateway-assembly",
+    "crates/sdkwork-api-memory-assembly",
   "crates/sdkwork-memory-database-host",
   "crates/sdkwork-memory-drive",
   "crates/sdkwork-routes-memory-support",
@@ -17,7 +17,7 @@ members = [
   "crates/sdkwork-routes-memory-app-api",
   "crates/sdkwork-routes-memory-backend-api",
   "crates/sdkwork-memory-integration-tests",
-  "crates/sdkwork-memory-standalone-gateway",
+  "crates/sdkwork-api-memory-standalone-gateway",
   "plugins/sdkwork-memory-plugin-native-sql",
   "plugins/sdkwork-memory-plugin-reference-profiles",
 ]
@@ -52,7 +52,7 @@ rand = "0.8"
 
 sdkwork-memory-database-host = { path = "crates/sdkwork-memory-database-host" }
 sdkwork-memory-drive = { path = "crates/sdkwork-memory-drive" }
-sdkwork-memory-gateway-assembly = { path = "crates/sdkwork-memory-gateway-assembly" }
+sdkwork-api-memory-assembly = { path = "crates/sdkwork-api-memory-assembly" }
 sdkwork-memory-spi = { path = "crates/sdkwork-memory-spi" }
 sdkwork-memory-profile-resolver = { path = "crates/sdkwork-memory-profile-resolver" }
 sdkwork-memory-contract = { path = "crates/sdkwork-memory-contract" }
@@ -66,7 +66,7 @@ sdkwork-routes-memory-open-api = { path = "crates/sdkwork-routes-memory-open-api
 sdkwork-routes-memory-support = { path = "crates/sdkwork-routes-memory-support" }
 sdkwork-routes-memory-app-api = { path = "crates/sdkwork-routes-memory-app-api" }
 sdkwork-routes-memory-backend-api = { path = "crates/sdkwork-routes-memory-backend-api" }
-sdkwork-memory-standalone-gateway = { path = "crates/sdkwork-memory-standalone-gateway" }
+sdkwork-api-memory-standalone-gateway = { path = "crates/sdkwork-api-memory-standalone-gateway" }
 
 sdkwork-iam-web-adapter = { path = "../sdkwork-iam/crates/sdkwork-iam-web-adapter" }
 sdkwork-routes-iam-app-api = { path = "../sdkwork-iam/crates/sdkwork-routes-iam-app-api" }

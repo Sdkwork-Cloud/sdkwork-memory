@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: sdkwork-memory-standalone-gateway
+  name: sdkwork-api-memory-standalone-gateway
   labels:
     app.kubernetes.io/name: sdkwork-memory
     app.kubernetes.io/component: standalone-gateway
@@ -41,7 +41,7 @@ spec:
         - name: standalone-gateway
           # Pin by digest in production: replace <release-build-digest> with the actual sha256.
           # Mutable :latest tags MUST NOT be used in production (per RELEASE_SPEC §4.1).
-          image: sdkwork-memory-standalone-gateway:latest@sha256:<release-build-digest>
+          image: sdkwork-api-memory-standalone-gateway:latest@sha256:<release-build-digest>
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

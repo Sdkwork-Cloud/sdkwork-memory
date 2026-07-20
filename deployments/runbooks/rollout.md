@@ -6,7 +6,7 @@
 - `SDKWORK_MEMORY_ENVIRONMENT=production` and `SDKWORK_MEMORY_DEPLOYMENT_PROFILE=cloud`.
 - IAM and memory database secrets exist in the target namespace.
 - For Drive-backed exports: configure `SDKWORK_MEMORY_DRIVE_DATABASE_URL` and either `SDKWORK_MEMORY_DRIVE_OBJECT_STORE_ROOT` (local) or `SDKWORK_MEMORY_DRIVE_S3_*` credentials (production S3-compatible storage).
-- Database migrations completed via release Job (`deployments/kubernetes/migration-job.yaml`) or `sdkwork-memory-standalone-gateway db-migrate`.
+- Database migrations completed via release Job (`deployments/kubernetes/migration-job.yaml`) or `sdkwork-api-memory-standalone-gateway db-migrate`.
 
 ## Rollout
 

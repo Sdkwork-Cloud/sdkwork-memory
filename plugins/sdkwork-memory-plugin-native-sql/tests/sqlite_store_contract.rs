@@ -5,9 +5,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use sdkwork_database_config::{DatabaseConfig, DatabaseEngine};
 use sdkwork_memory_plugin_native_sql::{
     build_native_sql_candidate_store, build_native_sql_habit_store,
-    build_native_sql_retrieval_trace_store, NativeSqlAppendOutboxEventCommand,
-    NativeSqlCreateSpaceCommand, NativeSqlMemoryStore, NativeSqlStoreError,
-    PromoteApprovedCandidateCommand,
+    build_native_sql_retrieval_trace_store, InsertMemoryEvalRunCommand,
+    NativeSqlAppendOutboxEventCommand, NativeSqlCreateSpaceCommand, NativeSqlMemoryStore,
+    NativeSqlStoreError, PromoteApprovedCandidateCommand,
 };
 use sdkwork_memory_spi::{
     AppendMemoryAuditCommand, AppendMemoryEventCommand, AppendMemoryOutboxCommand,
@@ -69,15 +69,17 @@ async fn sqlite_default_implementation_profile_matches_the_live_store() {
 async fn sqlite_eval_run_persists_dataset_profile_config_and_lifecycle_timestamps() {
     let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
     store
-        .insert_mem_eval_run_request(
-            77,
-            "501",
-            "retrieval_quality",
-            "accepted",
-            Some("golden-v1"),
-            Some("42"),
-            Some(r#"{"cases":[{"spaceId":"1","query":"q","expectedMemoryIds":["9"]}]}"#),
-        )
+        .insert_mem_eval_run_request(InsertMemoryEvalRunCommand {
+            tenant_id: 77,
+            eval_run_uuid: "501",
+            eval_type: "retrieval_quality",
+            state: "accepted",
+            dataset_ref: Some("golden-v1"),
+            profile_ref: Some("42"),
+            config_json: Some(
+                r#"{"cases":[{"spaceId":"1","query":"q","expectedMemoryIds":["9"]}]}"#,
+            ),
+        })
         .await
         .unwrap();
 

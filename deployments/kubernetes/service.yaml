@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: sdkwork-memory-standalone-gateway
+  name: sdkwork-api-memory-standalone-gateway
   labels:
     app.kubernetes.io/name: sdkwork-memory
     app.kubernetes.io/component: standalone-gateway

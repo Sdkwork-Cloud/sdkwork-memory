@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "kind": "sdkwork.component.spec",
+  "component": {
+    "name": "@sdkwork/memory-pc",
+    "displayName": "SDKWork Memory PC",
+    "version": "0.1.0",
+    "type": "pc-application",
+    "root": "sdkwork-memory/apps/sdkwork-memory-pc",
+    "domain": "intelligence",
+    "capability": "memory",
+    "surface": "pc",
+    "languages": ["typescript"],
+    "generated": false,
+    "private": true,
+    "status": "active",
+    "manifests": ["package.json", "sdkwork.app.config.json", "specs/component.spec.json"]
+  },
+  "canonicalSpecs": [
+    { "file": "APP_PC_ARCHITECTURE_SPEC.md", "path": "../../../sdkwork-specs/APP_PC_ARCHITECTURE_SPEC.md", "purpose": "PC root and package taxonomy." },
+    { "file": "APP_PC_REACT_UI_SPEC.md", "path": "../../../sdkwork-specs/APP_PC_REACT_UI_SPEC.md", "purpose": "React PC UI architecture." },
+    { "file": "APP_SDK_INTEGRATION_SPEC.md", "path": "../../../sdkwork-specs/APP_SDK_INTEGRATION_SPEC.md", "purpose": "SDK and IAM composition." },
+    { "file": "BACKEND_UI_SPEC.md", "path": "../../../sdkwork-specs/BACKEND_UI_SPEC.md", "purpose": "Backend-admin package boundaries." },
+    { "file": "I18N_SPEC.md", "path": "../../../sdkwork-specs/I18N_SPEC.md", "purpose": "Locale catalog ownership." },
+    { "file": "TEST_SPEC.md", "path": "../../../sdkwork-specs/TEST_SPEC.md", "purpose": "Verification requirements." }
+  ],
+  "contracts": {
+    "publicExports": [],
+    "runtimeEntrypoints": ["src/main.tsx"],
+    "routeManifest": null,
+    "sdkClients": ["SdkworkMemoryAppClient", "SdkworkMemoryBackendClient"],
+    "sdkDependencies": [
+      { "workspace": "sdkwork-memory-app-sdk", "surface": "app-api", "credentialMode": "authenticated-app-api" },
+      { "workspace": "sdkwork-memory-backend-sdk", "surface": "backend-api", "credentialMode": "authenticated-backend-admin" },
+      { "workspace": "sdkwork-iam-app-sdk", "surface": "app-api", "credentialMode": "authenticated-app-api" }
+    ],
+    "events": [],
+    "configKeys": ["appApiBaseUrl", "backendApiBaseUrl", "appbaseAppApiBaseUrl", "defaultLocale", "fallbackLocale"]
+  },
+  "integration": {
+    "authority": "Root SDKWork specs remain authoritative.",
+    "sdkPolicy": "Bootstrap constructs composed SDK clients once and feature services receive them through surface core providers.",
+    "surfacePolicy": "Console and backend-admin routes, permissions, telemetry, navigation, and SDK exports are isolated."
+  },
+  "verification": {
+    "commands": ["pnpm --dir apps/sdkwork-memory-pc check", "node ../sdkwork-specs/tools/check-app-sdk-consumer-imports.mjs --workspace ."]
+  },
+  "metadata": {
+    "managedBy": "sdkwork-memory",
+    "standardVersion": "2026-07-20"
+  }
+}

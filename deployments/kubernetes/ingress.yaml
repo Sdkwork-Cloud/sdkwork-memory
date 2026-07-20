@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: sdkwork-memory-standalone-gateway
+  name: sdkwork-api-memory-standalone-gateway
   labels:
     app.kubernetes.io/name: sdkwork-memory
     app.kubernetes.io/component: standalone-gateway
@@ -26,6 +26,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: sdkwork-memory-standalone-gateway
+                name: sdkwork-api-memory-standalone-gateway
                 port:
                   name: http

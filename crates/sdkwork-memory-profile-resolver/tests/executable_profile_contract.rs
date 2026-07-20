@@ -76,10 +76,10 @@ impl MemoryRetrieverPort for StaticRetriever {
     }
 }
 
-fn hybrid_executable_profile() -> MemoryImplementationProfileDraft {
+fn reference_search_executable_profile() -> MemoryImplementationProfileDraft {
     MemoryImplementationProfileDraft {
-        profile_id: "hybrid-executable-test".to_string(),
-        implementation_kind: MemoryImplementationKind::HybridPlatform,
+        profile_id: "reference-search-executable-test".to_string(),
+        implementation_kind: MemoryImplementationKind::SearchFirst,
         primary_plugin_id: "sdkwork-memory-plugin-reference-profiles".to_string(),
         deployment_mode: MemoryDeploymentMode::Test,
         port_bindings: vec![MemoryProfilePortBinding {
@@ -95,7 +95,7 @@ fn hybrid_executable_profile() -> MemoryImplementationProfileDraft {
 }
 
 #[tokio::test]
-async fn executable_hybrid_profile_dispatches_to_each_bound_plugin() {
+async fn executable_reference_search_profile_dispatches_to_each_bound_plugin() {
     let native_plugin_id = "sdkwork-memory-plugin-native-sql";
     let reference_plugin_id = "sdkwork-memory-plugin-reference-profiles";
     let record_store = Arc::new(InMemoryRecordStore::default());
@@ -117,7 +117,7 @@ async fn executable_hybrid_profile_dispatches_to_each_bound_plugin() {
         .unwrap();
 
     let runtime = MemoryRuntimeProfileResolver::new(&registry)
-        .resolve_executable(hybrid_executable_profile())
+        .resolve_executable(reference_search_executable_profile())
         .unwrap();
 
     assert_eq!(
@@ -130,7 +130,7 @@ async fn executable_hybrid_profile_dispatches_to_each_bound_plugin() {
     );
     assert_eq!(
         runtime.profile().implementation_kind,
-        MemoryImplementationKind::HybridPlatform
+        MemoryImplementationKind::SearchFirst
     );
 
     let scope = MemoryScopeContext::for_test(1, 9);

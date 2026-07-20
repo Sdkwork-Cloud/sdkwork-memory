@@ -56,3 +56,4 @@ sdks/**/generated/server-openapi/package-lock.json
 **/.sdkwork/sdkwork-generator-changes.json
 **/.sdkwork/sdkwork-generator-manifest.json
 **/.sdkwork/sdkwork-generator-report.json
+apps/sdkwork-memory-pc/public/runtime-env.json

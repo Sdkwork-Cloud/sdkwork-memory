@@ -12,13 +12,12 @@ use sdkwork_memory_spi::{
     AppendMemoryOutboxCommand, ApproveMemoryCandidateCommand, AssembleMemoryContextCommand,
     CreateCanonicalMemoryCommand, CreateMemoryCandidateCommand, CreateMemoryRecordCommand,
     CreateMemorySpaceCommand, DeleteCanonicalMemoryCommand, DeleteMemoryRecordCommand,
-    ExternalMemoryImportCommand, ListMemoryCandidatesQuery, MemoryCandidate,
-    MemoryCandidateEvidenceLink, MemoryCandidateStorePort, MemoryCoreRuntime,
-    MemoryDeletionReceipt, MemoryDeploymentMode, MemoryExecutablePluginRuntime,
-    MemoryGovernanceAccessPort, MemoryImplementationKind, MemoryMutationJournal, MemoryPluginPorts,
-    MemoryRecord, MemoryRecordStorePort, MemoryRetrieverKind, MemoryRetrieverPort,
-    MemoryRetrieverResult, MemoryRuntimeProfileMetadata, MemoryScopeContext,
-    MemorySensitivityReadScope, MemorySpaceStorePort, MemorySpiResult,
+    ListMemoryCandidatesQuery, MemoryCandidate, MemoryCandidateEvidenceLink,
+    MemoryCandidateStorePort, MemoryCoreRuntime, MemoryDeletionReceipt, MemoryDeploymentMode,
+    MemoryExecutablePluginRuntime, MemoryGovernanceAccessPort, MemoryImplementationKind,
+    MemoryMutationJournal, MemoryPluginPorts, MemoryRecord, MemoryRecordStorePort,
+    MemoryRetrieverKind, MemoryRetrieverPort, MemoryRetrieverResult, MemoryRuntimeProfileMetadata,
+    MemoryScopeContext, MemorySensitivityReadScope, MemorySpaceStorePort, MemorySpiResult,
     PromoteMemoryCandidateAtomicCommand, PromoteMemoryCandidateAtomicWithJournalCommand,
     PromoteMemoryHabitCommand, RejectMemoryCandidateCommand, ResolveMemorySpaceGovernanceQuery,
     RetrieveCanonicalMemoryQuery, RetrieveMemoryCandidateDetailQuery, RetrieveMemoryCandidateQuery,
@@ -389,17 +388,16 @@ fn eval_runtime() -> MemoryRuntimeDataPlane {
     let manifest = reference_profiles_manifest();
     let metadata = MemoryRuntimeProfileMetadata {
         profile_id: "reference-eval-contract".to_string(),
-        implementation_kind: MemoryImplementationKind::HybridPlatform,
+        implementation_kind: MemoryImplementationKind::SearchFirst,
         primary_plugin_id: REFERENCE_PROFILES_PLUGIN_ID.to_string(),
         deployment_mode: MemoryDeploymentMode::EvalOnly,
     };
     let mut core = MemoryCoreRuntime::new(metadata);
-    for port in PHASE1_HTTP_DATA_PLANE_PORTS.iter().copied().chain([
-        "MemoryIndexPort",
-        "ExternalMemoryBridgePort",
-        "MemoryContextAssemblerPort",
-        "MemoryEvaluationPort",
-    ]) {
+    for port in PHASE1_HTTP_DATA_PLANE_PORTS
+        .iter()
+        .copied()
+        .chain(["MemoryContextAssemblerPort"])
+    {
         assert!(manifest
             .port_exports
             .iter()
@@ -1182,12 +1180,12 @@ async fn outbox_candidates_and_habits_do_not_cross_scope_boundaries() {
 }
 
 #[tokio::test]
-async fn external_bridge_is_present_but_fail_closed_until_configured() {
+async fn unimplemented_external_bridge_is_not_exported_by_the_reference_runtime() {
     let plane = eval_runtime();
-    let bridge = plane.external_memory_bridge().unwrap();
-    let error = bridge
-        .import(ExternalMemoryImportCommand)
-        .await
-        .expect_err("reference bridge must fail closed");
-    assert!(error.to_string().contains("fail-closed"));
+    let error = match plane.external_memory_bridge() {
+        Ok(_) => panic!("reference runtime must not export an unimplemented provider bridge"),
+        Err(error) => error,
+    };
+    assert_eq!(error.code, "storage_error");
+    assert_eq!(error.detail, "internal storage error");
 }
