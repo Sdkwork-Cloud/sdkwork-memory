@@ -6,21 +6,12 @@
   "displayName": "SDKWork Memory Reference Profiles Plugin",
   "version": "0.1.0",
   "owner": "sdkwork-memory",
-  "implementationKinds": [
-    "event_sourced",
-    "search_first",
-    "graph_temporal",
-    "external_provider_bridge",
-    "hybrid_platform"
-  ],
+  "implementationKinds": ["search_first"],
   "pluginRoles": [
     "implementation",
     "store",
     "retriever",
-    "index",
-    "provider",
-    "context",
-    "evaluation"
+    "context"
   ],
   "deploymentModes": ["test", "eval_only"],
   "portExports": [
@@ -65,25 +56,13 @@
       "builder": "build_reference_retriever"
     },
     {
-      "port": "MemoryIndexPort",
-      "builder": "build_reference_index"
-    },
-    {
-      "port": "ExternalMemoryBridgePort",
-      "builder": "build_reference_external_bridge"
-    },
-    {
       "port": "MemoryContextAssemblerPort",
       "builder": "build_reference_context_assembler"
-    },
-    {
-      "port": "MemoryEvaluationPort",
-      "builder": "build_reference_evaluation"
     }
   ],
-  "providerKinds": ["search_engine", "graph_engine", "external_memory"],
-  "retrieverKinds": ["keyword", "dictionary", "time"],
-  "indexKinds": ["sql", "keyword", "time", "event", "graph"],
+  "providerKinds": [],
+  "retrieverKinds": ["keyword"],
+  "indexKinds": [],
   "requiredCoreVersion": "0.1.0",
   "secretRefs": [],
   "dataClasses": ["tenant", "personal", "internal"],
@@ -106,7 +85,7 @@
     "exportSupported": false,
     "importSupported": false,
     "dualWriteSupported": false,
-    "shadowReadSupported": true
+    "shadowReadSupported": false
   },
   "observability": {
     "metricsPrefix": "sdkwork_memory_reference_profiles",

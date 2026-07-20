@@ -125,10 +125,7 @@ pub fn build_reference_executable_runtime(
             .with_governance_access(runtime.clone())
             .with_space_store(runtime.clone())
             .with_retriever(runtime.clone())
-            .with_index(runtime.clone())
-            .with_external_memory_bridge(runtime.clone())
-            .with_context_assembler(runtime.clone())
-            .with_evaluation(runtime),
+            .with_context_assembler(runtime),
     )
 }
 
@@ -1623,25 +1620,13 @@ impl MemoryRetrieverPort for ReferenceMemoryRuntime {
             });
         }
 
-        let supported_record_search = query.retriever_kinds.iter().any(|kind| {
-            matches!(
-                kind,
-                MemoryRetrieverKind::Keyword
-                    | MemoryRetrieverKind::Dictionary
-                    | MemoryRetrieverKind::Time
-            )
-        });
+        let supported_record_search = query
+            .retriever_kinds
+            .contains(&MemoryRetrieverKind::Keyword);
         let unavailable_retriever_kinds = query
             .retriever_kinds
             .iter()
-            .filter(|kind| {
-                !matches!(
-                    kind,
-                    MemoryRetrieverKind::Keyword
-                        | MemoryRetrieverKind::Dictionary
-                        | MemoryRetrieverKind::Time
-                )
-            })
+            .filter(|kind| **kind != MemoryRetrieverKind::Keyword)
             .cloned()
             .collect::<Vec<_>>();
         if !supported_record_search {
@@ -1716,11 +1701,14 @@ impl MemoryRetrieverPort for ReferenceMemoryRuntime {
 #[async_trait]
 impl MemoryIndexPort for ReferenceMemoryRuntime {
     fn index_kind(&self) -> &str {
-        "reference_sql_keyword"
+        "reference_index_unavailable"
     }
 
-    async fn index(&self, memory_id: String) -> MemorySpiResult<MemoryIndexReceipt> {
-        Ok(MemoryIndexReceipt { memory_id })
+    async fn index(&self, _memory_id: String) -> MemorySpiResult<MemoryIndexReceipt> {
+        Err(reference_capability_unavailable(
+            "MemoryIndexPort",
+            "the reference runtime has no independently materialized index",
+        ))
     }
 }
 
@@ -1799,10 +1787,11 @@ impl MemoryContextAssemblerPort for ReferenceMemoryRuntime {
 
 #[async_trait]
 impl MemoryEvaluationPort for ReferenceMemoryRuntime {
-    async fn run(&self, command: RunMemoryEvalCommand) -> MemorySpiResult<MemoryEvalRunResult> {
-        Ok(MemoryEvalRunResult {
-            eval_type: command.eval_type,
-        })
+    async fn run(&self, _command: RunMemoryEvalCommand) -> MemorySpiResult<MemoryEvalRunResult> {
+        Err(reference_capability_unavailable(
+            "MemoryEvaluationPort",
+            "the reference runtime has no golden dataset evaluation engine",
+        ))
     }
 }
 
@@ -1959,6 +1948,15 @@ fn external_bridge_unconfigured() -> MemorySpiError {
     MemorySpiError::PortOperationFailed {
         port: "ExternalMemoryBridgePort".to_string(),
         message: "reference external memory bridge is fail-closed until a reviewed provider adapter is configured".to_string(),
+    }
+}
+
+fn reference_capability_unavailable(port: &str, reason: &str) -> MemorySpiError {
+    MemorySpiError::PortOperationFailed {
+        port: port.to_string(),
+        message: format!(
+            "reference capability is unavailable and fails closed: {reason}"
+        ),
     }
 }
 

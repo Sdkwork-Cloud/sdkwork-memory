@@ -4,17 +4,16 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use sdkwork_memory_contract::{
-    MemoryExtractionRequest, MemoryLearningJob, MemoryMigrationJobRequest,
-    MemoryOpenApiRequestContext, MemoryRetentionJobRequest, MemoryServiceError,
+    MemoryExtractionRequest, MemoryLearningJob, MemoryMigrationJobRequest, MemoryOpenApi,
+    MemoryOpenApiRequestContext, MemoryRetentionJobRequest, MemoryRetrievalRequest,
+    MemoryServiceError,
 };
 use sdkwork_memory_plugin_native_sql::{
-    InsertLearningJobCommand, NativeSqlLearningJobRow, NativeSqlMemoryStore,
+    InsertLearningJobCommand, NativeSqlEvalRunRow, NativeSqlLearningJobRow, NativeSqlMemoryStore,
 };
-use sdkwork_memory_spi::{
-    MemoryRetrieverKind, MemoryScopeContext, MemorySensitivityReadScope,
-    SearchMemoryCandidatesQuery,
-};
+use sdkwork_memory_spi::MemoryScopeContext;
 use sdkwork_utils_rust::is_blank;
+use serde::Deserialize;
 use serde_json::Value;
 
 use crate::open_api::OpenMemoryService;
@@ -231,8 +230,13 @@ async fn execute_learning_job(
                 .consolidate_duplicate_records_in_scope(&scope)
                 .await
                 .map_err(|error| error.to_string())?;
-            serde_json::json!({ "mergedDuplicates": merged, "spaceId": request.space_id })
-                .to_string()
+            serde_json::json!({
+                "mergedDuplicates": merged,
+                "supersededDuplicates": merged,
+                "consolidationMode": "identity_bounded_supersession",
+                "spaceId": request.space_id
+            })
+            .to_string()
         }
         "retention" => {
             let request: MemoryRetentionJobRequest = serde_json::from_str(input)
@@ -348,24 +352,46 @@ async fn process_eval_run_batch(service: &OpenMemoryService) -> Result<(), Strin
         .await
         .map_err(|error| error.to_string())?;
     for (tenant_id, eval_uuid, eval_type) in runs {
-        let (state, metrics) = match eval_type.as_str() {
-            "retrieval_quality" => {
-                let metrics = run_retrieval_quality_eval(service, tenant_id).await?;
-                ("succeeded", metrics)
-            }
+        let row = service
+            .store
+            .retrieve_mem_eval_run_for_tenant(tenant_id, &eval_uuid)
+            .await
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| format!("claimed eval run {eval_uuid} no longer exists"))?;
+        let (state, metrics, result) = match eval_type.as_str() {
+            "retrieval_quality" => match run_retrieval_quality_eval(service, tenant_id, &row).await
+            {
+                Ok(output) => ("succeeded", Some(output.metrics), output.result),
+                Err(error) => (
+                    "failed",
+                    None,
+                    serde_json::json!({
+                        "evalType": "retrieval_quality",
+                        "status": "failed",
+                        "reason": error,
+                    })
+                    .to_string(),
+                ),
+            },
             other => {
-                let metrics = serde_json::json!({
+                let result = serde_json::json!({
                     "evalType": other,
                     "status": "skipped",
                     "reason": "eval type is not implemented"
                 })
                 .to_string();
-                ("skipped", metrics)
+                ("skipped", None, result)
             }
         };
         service
             .store
-            .update_eval_run_state(tenant_id, &eval_uuid, state, Some(&metrics), Some(&metrics))
+            .update_eval_run_state(
+                tenant_id,
+                &eval_uuid,
+                state,
+                metrics.as_deref(),
+                Some(&result),
+            )
             .await
             .map_err(|error| error.to_string())?;
     }
@@ -375,45 +401,294 @@ async fn process_eval_run_batch(service: &OpenMemoryService) -> Result<(), Strin
 async fn run_retrieval_quality_eval(
     service: &OpenMemoryService,
     tenant_id: i64,
-) -> Result<String, String> {
-    let _ = service
-        .store
-        .ensure_default_retrieval_profile_for_tenant(tenant_id)
-        .await;
-    let spaces = service
-        .store
-        .list_spaces_for_tenant(tenant_id, sdkwork_utils_rust::MAX_LIST_PAGE_SIZE, 0, None)
-        .await
-        .map_err(|error| error.to_string())?;
-    let space_id = spaces.first().map(|space| space.space_id).unwrap_or(1);
-    let sample_query = "memory";
-    let scope = MemoryScopeContext {
-        tenant_id,
-        space_id,
-        organization_id: None,
-        user_id: None,
-    };
-    let search = service
-        .runtime_data_plane
-        .search_candidates_scoped(SearchMemoryCandidatesQuery {
-            scope,
-            query: sample_query.to_string(),
-            limit: 5,
-            retriever_kinds: vec![MemoryRetrieverKind::Keyword],
-            memory_types: Vec::new(),
-            read_scope: MemorySensitivityReadScope::Owner,
+    row: &NativeSqlEvalRunRow,
+) -> Result<RetrievalQualityEvalOutput, String> {
+    let config_json = row.result_json.as_deref().ok_or_else(|| {
+        if row.dataset_ref.is_some() {
+            "datasetRef resolution is not configured; retrieval_quality requires inline config.cases"
+                .to_string()
+        } else {
+            "retrieval_quality requires inline config.cases".to_string()
+        }
+    })?;
+    let config: RetrievalQualityEvalConfig = serde_json::from_str(config_json)
+        .map_err(|error| format!("retrieval quality config is invalid: {error}"))?;
+    validate_retrieval_quality_config(&config)?;
+
+    let retrieval_profile_id = row
+        .profile_ref
+        .as_deref()
+        .map(|value| {
+            value
+                .parse::<u64>()
+                .map_err(|_| "profileRef must be a numeric retrieval profile id".to_string())
         })
+        .transpose()?;
+    if let Some(profile_id) = retrieval_profile_id {
+        let profile_exists = service
+            .store
+            .retrieve_mem_retrieval_profile_for_tenant(tenant_id, &profile_id.to_string())
+            .await
+            .map_err(|error| error.to_string())?
+            .is_some();
+        if !profile_exists {
+            return Err(format!(
+                "retrieval profile {profile_id} was not found for the eval tenant"
+            ));
+        }
+    }
+
+    let tenant_id = u64::try_from(tenant_id)
+        .map_err(|_| "eval tenant id must be non-negative".to_string())?;
+    let mut scores = Vec::with_capacity(config.cases.len());
+    let mut case_results = Vec::with_capacity(config.cases.len());
+    for case in &config.cases {
+        let space_id = parse_json_id(&case.space_id, "cases[].spaceId")?;
+        let expected_memory_ids = case
+            .expected_memory_ids
+            .iter()
+            .map(|value| parse_json_id(value, "cases[].expectedMemoryIds[]"))
+            .collect::<Result<std::collections::BTreeSet<_>, _>>()?;
+        let top_k = case.top_k.unwrap_or(10);
+        let retrieval = MemoryOpenApi::create_retrieval(
+            service,
+            MemoryOpenApiRequestContext::for_backend_surface(tenant_id, None),
+            MemoryRetrievalRequest {
+                query: case.query.clone(),
+                space_ids: vec![space_id],
+                actor_id: None,
+                retrieval_profile_id,
+                memory_types: None,
+                filters: None,
+                top_k,
+                context_budget_tokens: config.context_budget_tokens,
+                include_trace: Some(false),
+            },
+        )
         .await
-        .map_err(|error| error.detail)?;
-    let hit_count = search.records.len();
-    Ok(serde_json::json!({
+        .map_err(|error| {
+            format!(
+                "retrieval case {} failed: {}",
+                platform::stable_query_hash(&case.query),
+                error.detail
+            )
+        })?;
+        let retrieved_ids = retrieval
+            .hits
+            .iter()
+            .filter_map(|hit| hit.memory_id)
+            .collect::<Vec<_>>();
+        let score = score_retrieval_case(&expected_memory_ids, &retrieved_ids, retrieval.degraded);
+        case_results.push(serde_json::json!({
+            "queryHash": platform::stable_query_hash(&case.query),
+            "spaceId": space_id.to_string(),
+            "topK": top_k,
+            "expectedCount": expected_memory_ids.len(),
+            "retrievedRelevantCount": score.retrieved_relevant_count,
+            "recallAtK": score.recall_at_k,
+            "reciprocalRank": score.reciprocal_rank,
+            "degraded": score.degraded,
+        }));
+        scores.push(score);
+    }
+
+    let case_count = scores.len() as f64;
+    let recall_at_k = scores.iter().map(|score| score.recall_at_k).sum::<f64>() / case_count;
+    let hit_rate_at_k = scores
+        .iter()
+        .filter(|score| score.retrieved_relevant_count > 0)
+        .count() as f64
+        / case_count;
+    let mean_reciprocal_rank = scores
+        .iter()
+        .map(|score| score.reciprocal_rank)
+        .sum::<f64>()
+        / case_count;
+    let degraded_case_count = scores.iter().filter(|score| score.degraded).count();
+    let degraded_rate = degraded_case_count as f64 / case_count;
+    let quality_gate_passed = config.thresholds.as_ref().map(|thresholds| {
+        thresholds
+            .min_recall_at_k
+            .is_none_or(|minimum| recall_at_k >= minimum)
+            && thresholds
+                .min_hit_rate_at_k
+                .is_none_or(|minimum| hit_rate_at_k >= minimum)
+            && thresholds
+                .min_mean_reciprocal_rank
+                .is_none_or(|minimum| mean_reciprocal_rank >= minimum)
+            && thresholds
+                .max_degraded_rate
+                .is_none_or(|maximum| degraded_rate <= maximum)
+    });
+    let metrics = serde_json::json!({
+        "caseCount": scores.len(),
+        "recallAtK": recall_at_k,
+        "hitRateAtK": hit_rate_at_k,
+        "meanReciprocalRank": mean_reciprocal_rank,
+        "degradedCaseCount": degraded_case_count,
+        "degradedRate": degraded_rate,
+        "qualityGatePassed": quality_gate_passed,
+    });
+    let result = serde_json::json!({
         "evalType": "retrieval_quality",
-        "sampleQuery": sample_query,
-        "spaceId": space_id,
-        "hitCount": hit_count,
-        "passed": hit_count > 0,
+        "status": "completed",
+        "datasetRef": row.dataset_ref,
+        "profileRef": row.profile_ref,
+        "thresholds": config.thresholds,
+        "qualityGatePassed": quality_gate_passed,
+        "cases": case_results,
+    });
+    Ok(RetrievalQualityEvalOutput {
+        metrics: metrics.to_string(),
+        result: result.to_string(),
     })
-    .to_string())
+}
+
+const MAX_RETRIEVAL_EVAL_CASES: usize = 1_000;
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RetrievalQualityEvalConfig {
+    cases: Vec<RetrievalQualityEvalCase>,
+    #[serde(default = "default_eval_context_budget_tokens")]
+    context_budget_tokens: i32,
+    #[serde(default)]
+    thresholds: Option<RetrievalQualityThresholds>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RetrievalQualityEvalCase {
+    space_id: Value,
+    query: String,
+    expected_memory_ids: Vec<Value>,
+    #[serde(default)]
+    top_k: Option<i32>,
+}
+
+#[derive(Debug, Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct RetrievalQualityThresholds {
+    #[serde(default)]
+    min_recall_at_k: Option<f64>,
+    #[serde(default)]
+    min_hit_rate_at_k: Option<f64>,
+    #[serde(default)]
+    min_mean_reciprocal_rank: Option<f64>,
+    #[serde(default)]
+    max_degraded_rate: Option<f64>,
+}
+
+struct RetrievalQualityEvalOutput {
+    metrics: String,
+    result: String,
+}
+
+#[derive(Debug, PartialEq)]
+struct RetrievalCaseScore {
+    retrieved_relevant_count: usize,
+    recall_at_k: f64,
+    reciprocal_rank: f64,
+    degraded: bool,
+}
+
+fn default_eval_context_budget_tokens() -> i32 {
+    4_096
+}
+
+fn validate_retrieval_quality_config(config: &RetrievalQualityEvalConfig) -> Result<(), String> {
+    if config.cases.is_empty() || config.cases.len() > MAX_RETRIEVAL_EVAL_CASES {
+        return Err(format!(
+            "retrieval quality cases must contain between 1 and {MAX_RETRIEVAL_EVAL_CASES} entries"
+        ));
+    }
+    crate::retrieval_profile::validate_retrieval_limits(1, config.context_budget_tokens)
+        .map_err(|error| error.detail)?;
+    for case in &config.cases {
+        if case.query.trim().is_empty() {
+            return Err("retrieval quality case query must not be blank".to_string());
+        }
+        let _ = parse_json_id(&case.space_id, "cases[].spaceId")?;
+        if case.expected_memory_ids.is_empty() {
+            return Err(
+                "retrieval quality case expectedMemoryIds must not be empty".to_string(),
+            );
+        }
+        let expected = case
+            .expected_memory_ids
+            .iter()
+            .map(|value| parse_json_id(value, "cases[].expectedMemoryIds[]"))
+            .collect::<Result<std::collections::BTreeSet<_>, _>>()?;
+        if expected.len() != case.expected_memory_ids.len() {
+            return Err(
+                "retrieval quality case expectedMemoryIds must not contain duplicates"
+                    .to_string(),
+            );
+        }
+        crate::retrieval_profile::validate_retrieval_limits(
+            case.top_k.unwrap_or(10),
+            config.context_budget_tokens,
+        )
+        .map_err(|error| error.detail)?;
+    }
+    if let Some(thresholds) = &config.thresholds {
+        let values = [
+            thresholds.min_recall_at_k,
+            thresholds.min_hit_rate_at_k,
+            thresholds.min_mean_reciprocal_rank,
+            thresholds.max_degraded_rate,
+        ];
+        if values.iter().all(Option::is_none) {
+            return Err("retrieval quality thresholds must define at least one gate".to_string());
+        }
+        if values
+            .iter()
+            .flatten()
+            .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
+        {
+            return Err("retrieval quality thresholds must be finite values from 0 to 1".to_string());
+        }
+    }
+    Ok(())
+}
+
+fn parse_json_id(value: &Value, field: &str) -> Result<u64, String> {
+    match value {
+        Value::String(value) => value
+            .parse::<u64>()
+            .map_err(|_| format!("{field} must be an unsigned integer string or number")),
+        Value::Number(value) => value
+            .as_u64()
+            .ok_or_else(|| format!("{field} must be an unsigned integer string or number")),
+        _ => Err(format!(
+            "{field} must be an unsigned integer string or number"
+        )),
+    }
+}
+
+fn score_retrieval_case(
+    expected_memory_ids: &std::collections::BTreeSet<u64>,
+    retrieved_memory_ids: &[u64],
+    degraded: bool,
+) -> RetrievalCaseScore {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut retrieved_relevant_count = 0usize;
+    let mut first_relevant_rank = None;
+    for (index, memory_id) in retrieved_memory_ids.iter().enumerate() {
+        if !seen.insert(*memory_id) || !expected_memory_ids.contains(memory_id) {
+            continue;
+        }
+        retrieved_relevant_count += 1;
+        first_relevant_rank.get_or_insert(index + 1);
+    }
+    RetrievalCaseScore {
+        retrieved_relevant_count,
+        recall_at_k: retrieved_relevant_count as f64 / expected_memory_ids.len() as f64,
+        reciprocal_rank: first_relevant_rank
+            .map(|rank| 1.0 / rank as f64)
+            .unwrap_or(0.0),
+        degraded,
+    }
 }
 
 async fn probe_provider_bindings(service: &OpenMemoryService) -> Result<(), String> {
@@ -551,3 +826,71 @@ pub fn learning_job_from_row(
 }
 
 use sdkwork_memory_contract::MemoryServiceResult;
+
+#[cfg(test)]
+mod eval_tests {
+    use super::*;
+
+    #[test]
+    fn retrieval_quality_config_accepts_string_ids_and_rejects_empty_datasets() {
+        let config: RetrievalQualityEvalConfig = serde_json::from_value(serde_json::json!({
+            "cases": [{
+                "spaceId": "7",
+                "query": "preferred editor",
+                "expectedMemoryIds": ["11", 12],
+                "topK": 20
+            }],
+            "thresholds": {
+                "minRecallAtK": 0.8,
+                "maxDegradedRate": 0.0
+            }
+        }))
+        .expect("valid retrieval eval config");
+        validate_retrieval_quality_config(&config).expect("config must validate");
+
+        let empty: RetrievalQualityEvalConfig =
+            serde_json::from_value(serde_json::json!({"cases": []}))
+                .expect("empty config decodes before semantic validation");
+        assert!(validate_retrieval_quality_config(&empty)
+            .unwrap_err()
+            .contains("between 1 and"));
+    }
+
+    #[test]
+    fn retrieval_quality_scoring_deduplicates_hits_and_computes_recall_and_mrr() {
+        let expected = [20_u64, 30_u64].into_iter().collect();
+        let score = score_retrieval_case(&expected, &[10, 20, 20, 30], false);
+
+        assert_eq!(score.retrieved_relevant_count, 2);
+        assert_eq!(score.recall_at_k, 1.0);
+        assert_eq!(score.reciprocal_rank, 0.5);
+        assert!(!score.degraded);
+    }
+
+    #[test]
+    fn retrieval_quality_config_rejects_unknown_fields_and_invalid_gates() {
+        let unknown = serde_json::from_value::<RetrievalQualityEvalConfig>(serde_json::json!({
+            "cases": [{
+                "spaceId": "7",
+                "query": "q",
+                "expectedMemoryIds": ["11"],
+                "pretendScore": 1.0
+            }]
+        }));
+        assert!(unknown.is_err());
+
+        let invalid_gate: RetrievalQualityEvalConfig =
+            serde_json::from_value(serde_json::json!({
+                "cases": [{
+                    "spaceId": "7",
+                    "query": "q",
+                    "expectedMemoryIds": ["11"]
+                }],
+                "thresholds": {"minRecallAtK": 1.1}
+            }))
+            .expect("gate decodes before semantic validation");
+        assert!(validate_retrieval_quality_config(&invalid_gate)
+            .unwrap_err()
+            .contains("from 0 to 1"));
+    }
+}

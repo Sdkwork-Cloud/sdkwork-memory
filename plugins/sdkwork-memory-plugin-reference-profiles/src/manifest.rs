@@ -64,16 +64,14 @@ pub fn build_reference_retriever() -> ReferenceProfilePortBuilder {
 }
 
 pub fn build_reference_index() -> ReferenceProfilePortBuilder {
-    ready_builder("MemoryIndexPort", "build_reference_index")
+    fail_closed_builder("MemoryIndexPort", "build_reference_index")
 }
 
 pub fn build_reference_external_bridge() -> ReferenceProfilePortBuilder {
-    ReferenceProfilePortBuilder {
-        port_name: "ExternalMemoryBridgePort",
-        builder_name: "build_reference_external_bridge",
-        ready: true,
-        fail_closed: true,
-    }
+    fail_closed_builder(
+        "ExternalMemoryBridgePort",
+        "build_reference_external_bridge",
+    )
 }
 
 pub fn build_reference_context_assembler() -> ReferenceProfilePortBuilder {
@@ -84,7 +82,7 @@ pub fn build_reference_context_assembler() -> ReferenceProfilePortBuilder {
 }
 
 pub fn build_reference_evaluation() -> ReferenceProfilePortBuilder {
-    ready_builder("MemoryEvaluationPort", "build_reference_evaluation")
+    fail_closed_builder("MemoryEvaluationPort", "build_reference_evaluation")
 }
 
 fn ready_builder(
@@ -96,5 +94,17 @@ fn ready_builder(
         builder_name,
         ready: true,
         fail_closed: false,
+    }
+}
+
+fn fail_closed_builder(
+    port_name: &'static str,
+    builder_name: &'static str,
+) -> ReferenceProfilePortBuilder {
+    ReferenceProfilePortBuilder {
+        port_name,
+        builder_name,
+        ready: false,
+        fail_closed: true,
     }
 }

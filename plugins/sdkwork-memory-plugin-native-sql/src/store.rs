@@ -3017,20 +3017,29 @@ impl NativeSqlMemoryStore {
         scope: &MemoryScopeContext,
     ) -> Result<u32, NativeSqlStoreError> {
         const BATCH_LIMIT: i64 = 500;
-        let mut merged = 0u32;
-        let timestamp = now_text();
+        let mut consolidated = 0u32;
         loop {
+            let mut transaction = self.pool.begin().await?;
             let rows = sqlx::query(
                 r#"
-                SELECT uuid
+                SELECT duplicate_id, winner_id
                 FROM (
-                  SELECT uuid,
+                  SELECT id AS duplicate_id,
+                         FIRST_VALUE(id) OVER (
+                           PARTITION BY user_id, scope, memory_type,
+                                        sensitivity_level, canonical_text
+                           ORDER BY evidence_count DESC, confidence DESC,
+                                    updated_at DESC, id DESC
+                         ) AS winner_id,
                          ROW_NUMBER() OVER (
-                           PARTITION BY canonical_text
-                           ORDER BY updated_at DESC, id DESC
+                           PARTITION BY user_id, scope, memory_type,
+                                        sensitivity_level, canonical_text
+                           ORDER BY evidence_count DESC, confidence DESC,
+                                    updated_at DESC, id DESC
                          ) AS row_num
                   FROM ai_record
-                  WHERE tenant_id = ? AND space_id = ? AND status <> 'deleted'
+                  WHERE tenant_id = ? AND space_id = ?
+                    AND status NOT IN ('deleted', 'superseded')
                 ) ranked
                 WHERE row_num > 1
                 LIMIT ?
@@ -3039,40 +3048,59 @@ impl NativeSqlMemoryStore {
             .bind(scope.tenant_id)
             .bind(scope.space_id)
             .bind(BATCH_LIMIT)
-            .fetch_all(&self.pool)
+            .fetch_all(&mut *transaction)
             .await?;
             if rows.is_empty() {
+                transaction.rollback().await?;
                 break;
             }
             let batch_len = rows.len();
+            let timestamp = now_text();
             for row in rows {
-                let memory_uuid: String = row.get("uuid");
+                let duplicate_id: i64 = row.get("duplicate_id");
+                let winner_id: i64 = row.get("winner_id");
                 let result = sqlx::query(
                     r#"
                     UPDATE ai_record
-                    SET status = 'deleted',
-                        deleted_at = ?,
+                    SET status = 'superseded',
+                        superseded_by_memory_id = ?,
+                        deleted_at = NULL,
                         updated_at = ?,
                         version = version + 1
-                    WHERE tenant_id = ? AND space_id = ? AND uuid = ? AND status <> 'deleted'
+                    WHERE tenant_id = ? AND space_id = ? AND id = ?
+                      AND status NOT IN ('deleted', 'superseded')
+                      AND id <> ?
+                      AND EXISTS (
+                        SELECT 1
+                        FROM ai_record winner
+                        WHERE winner.id = ?
+                          AND winner.tenant_id = ?
+                          AND winner.space_id = ?
+                          AND winner.status NOT IN ('deleted', 'superseded')
+                      )
                     "#,
                 )
-                .bind(&timestamp)
+                .bind(winner_id)
                 .bind(&timestamp)
                 .bind(scope.tenant_id)
                 .bind(scope.space_id)
-                .bind(&memory_uuid)
-                .execute(&self.pool)
+                .bind(duplicate_id)
+                .bind(winner_id)
+                .bind(winner_id)
+                .bind(scope.tenant_id)
+                .bind(scope.space_id)
+                .execute(&mut *transaction)
                 .await?;
                 if result.rows_affected() > 0 {
-                    merged += 1;
+                    consolidated += 1;
                 }
             }
+            transaction.commit().await?;
             if batch_len < BATCH_LIMIT as usize {
                 break;
             }
         }
-        Ok(merged)
+        Ok(consolidated)
     }
 
     pub async fn purge_expired_records_for_scope(

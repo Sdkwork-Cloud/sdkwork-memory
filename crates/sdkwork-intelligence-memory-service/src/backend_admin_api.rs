@@ -305,20 +305,22 @@ impl OpenMemoryService {
     }
 
     fn map_eval_run(row: &NativeSqlEvalRunRow) -> MemoryServiceResult<MemoryEvalRun> {
-        let metrics = row
-            .metrics_json
-            .as_deref()
-            .and_then(|value| serde_json::from_str(value).ok());
+        let metrics = Self::decode_optional_json(row.metrics_json.as_deref());
+        let result = if matches!(row.state.as_str(), "succeeded" | "failed" | "skipped") {
+            Self::decode_optional_json(row.result_json.as_deref())
+        } else {
+            None
+        };
         Ok(MemoryEvalRun {
             eval_run_id: Self::parse_row_id(&row.eval_run_uuid)?,
             eval_type: row.eval_type.clone(),
             state: row.state.clone(),
-            dataset_ref: None,
-            profile_ref: None,
+            dataset_ref: row.dataset_ref.clone(),
+            profile_ref: row.profile_ref.clone(),
             metrics,
-            result: None,
-            started_at: None,
-            finished_at: None,
+            result,
+            started_at: row.started_at.clone(),
+            finished_at: row.finished_at.clone(),
             created_at: row.created_at.clone(),
             updated_at: row.updated_at.clone(),
         })
@@ -940,21 +942,23 @@ impl OpenMemoryService {
     ) -> MemoryServiceResult<MemoryEvalRun> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let eval_run_id = self.next_id()?.to_string();
-        let metrics_json = request
+        let config_json = request
             .config
             .as_ref()
             .map(serde_json::to_string)
             .transpose()
             .map_err(|error| {
-                MemoryServiceError::storage(format!("eval metrics encode failed: {error}"))
+                MemoryServiceError::storage(format!("eval config encode failed: {error}"))
             })?;
         self.store
-            .insert_mem_eval_run(
+            .insert_mem_eval_run_request(
                 tenant_id,
                 &eval_run_id,
                 &request.eval_type,
                 "accepted",
-                metrics_json.as_deref(),
+                request.dataset_ref.as_deref(),
+                request.profile_ref.as_deref(),
+                config_json.as_deref(),
             )
             .await
             .map_err(OpenMemoryService::map_store_error)?;
@@ -1046,6 +1050,8 @@ impl OpenMemoryService {
         )?;
         job.result = Some(serde_json::json!({
             "mergedDuplicates": merged,
+            "supersededDuplicates": merged,
+            "consolidationMode": "identity_bounded_supersession",
             "spaceId": request.space_id,
         }));
         job.finished_at = Some(finished_at.clone());

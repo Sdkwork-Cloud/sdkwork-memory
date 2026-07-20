@@ -8,9 +8,7 @@ use sdkwork_memory_plugin_reference_profiles::{
     build_reference_record_store, build_reference_retrieval_trace_store, build_reference_retriever,
     build_reference_space_store, reference_profiles_manifest,
 };
-use sdkwork_memory_spi::{
-    MemoryImplementationKind, MemoryPluginManifest, MemoryPluginRole, MemoryRetrieverKind,
-};
+use sdkwork_memory_spi::{MemoryImplementationKind, MemoryPluginManifest, MemoryPluginRole, MemoryRetrieverKind};
 
 #[test]
 fn rust_manifest_matches_source_controlled_json_manifest() {
@@ -29,17 +27,12 @@ fn rust_manifest_matches_source_controlled_json_manifest() {
     assert!(rust_manifest.capabilities.retrieval_trace);
     assert!(rust_manifest.validate().is_ok());
 
-    for implementation_kind in [
-        MemoryImplementationKind::EventSourced,
-        MemoryImplementationKind::SearchFirst,
-        MemoryImplementationKind::GraphTemporal,
-        MemoryImplementationKind::ExternalProviderBridge,
-        MemoryImplementationKind::HybridPlatform,
-    ] {
-        assert!(rust_manifest
-            .implementation_kinds
-            .contains(&implementation_kind));
-    }
+    assert_eq!(
+        rust_manifest.implementation_kinds,
+        vec![MemoryImplementationKind::SearchFirst]
+    );
+    assert!(rust_manifest.provider_kinds.is_empty());
+    assert!(rust_manifest.index_kinds.is_empty());
 }
 
 #[test]
@@ -56,10 +49,7 @@ fn manifest_builders_are_exported_by_plugin_crate() {
         build_reference_governance_access(),
         build_reference_space_store(),
         build_reference_retriever(),
-        build_reference_index(),
-        build_reference_external_bridge(),
         build_reference_context_assembler(),
-        build_reference_evaluation(),
     ];
 
     for builder in builders {
@@ -70,7 +60,18 @@ fn manifest_builders_are_exported_by_plugin_crate() {
         assert!(builder.ready);
     }
 
-    assert!(build_reference_external_bridge().fail_closed);
+    for builder in [
+        build_reference_index(),
+        build_reference_external_bridge(),
+        build_reference_evaluation(),
+    ] {
+        assert!(!builder.ready);
+        assert!(builder.fail_closed);
+        assert!(!manifest
+            .port_exports
+            .iter()
+            .any(|export| export.builder == builder.builder_name));
+    }
 }
 
 #[test]
@@ -89,10 +90,6 @@ fn manifest_declares_reference_retriever_contract() {
     assert!(manifest.plugin_roles.contains(&MemoryPluginRole::Retriever));
     assert_eq!(
         manifest.retriever_kinds,
-        vec![
-            MemoryRetrieverKind::Keyword,
-            MemoryRetrieverKind::Dictionary,
-            MemoryRetrieverKind::Time,
-        ]
+        vec![MemoryRetrieverKind::Keyword]
     );
 }

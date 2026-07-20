@@ -261,6 +261,7 @@ impl NativeSqlMemoryStore {
             r#"
             UPDATE ai_eval_run
             SET state = 'queued',
+                started_at = NULL,
                 updated_at = ?
             WHERE state = 'running'
               AND updated_at <= ?
@@ -288,6 +289,7 @@ impl NativeSqlMemoryStore {
             SET state = ?,
                 metrics_json = COALESCE(?, metrics_json),
                 result_json = COALESCE(?, result_json),
+                finished_at = ?,
                 updated_at = ?
             WHERE tenant_id = ? AND uuid = ?
             "#,
@@ -295,6 +297,7 @@ impl NativeSqlMemoryStore {
         .bind(state)
         .bind(metrics_json)
         .bind(result_json)
+        .bind(&now)
         .bind(&now)
         .bind(tenant_id)
         .bind(eval_run_uuid)
@@ -323,6 +326,7 @@ impl NativeSqlMemoryStore {
             r#"
             UPDATE ai_eval_run AS e
             SET state = 'running',
+                started_at = COALESCE(e.started_at, ?),
                 updated_at = ?
             FROM (
                 SELECT tenant_id, uuid, eval_type
@@ -338,6 +342,7 @@ impl NativeSqlMemoryStore {
             RETURNING e.tenant_id, e.uuid, e.eval_type
             "#,
         )
+        .bind(&timestamp)
         .bind(&timestamp)
         .bind(row_limit)
         .fetch_all(self.pool())
@@ -374,10 +379,13 @@ impl NativeSqlMemoryStore {
             let updated = sqlx::query(
                 r#"
                 UPDATE ai_eval_run
-                SET state = 'running', updated_at = ?
+                SET state = 'running',
+                    started_at = COALESCE(started_at, ?),
+                    updated_at = ?
                 WHERE tenant_id = ? AND uuid = ? AND state IN ('accepted', 'queued')
                 "#,
             )
+            .bind(now_text())
             .bind(now_text())
             .bind(tenant_id)
             .bind(&eval_uuid)

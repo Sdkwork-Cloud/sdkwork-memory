@@ -99,18 +99,15 @@
         "scopeAwareMethod": "search_scoped",
         "capabilityProbe": "supports_bounded_scoped_search",
         "bounded": true,
-        "retrieverKinds": ["keyword", "dictionary", "time"],
+        "retrieverKinds": ["keyword"],
         "legacyUnscopedBehavior": "fail-closed"
       },
-      { "name": "MemoryIndexPort", "export": "." },
-      { "name": "ExternalMemoryBridgePort", "export": "." },
       {
         "name": "MemoryContextAssemblerPort",
         "export": ".",
         "scopeAwareMethod": "assemble_scoped",
         "legacyUnscopedBehavior": "fail-closed"
-      },
-      { "name": "MemoryEvaluationPort", "export": "." }
+      }
     ],
     "requiredPorts": [
       { "name": "MemoryPluginSpi", "export": ".", "dependency": "sdkwork-memory-spi" }
@@ -128,10 +125,7 @@
       "sdkwork_memory_plugin_reference_profiles::build_reference_retrieval_trace_store",
       "sdkwork_memory_plugin_reference_profiles::build_reference_governance_access",
       "sdkwork_memory_plugin_reference_profiles::build_reference_retriever",
-      "sdkwork_memory_plugin_reference_profiles::build_reference_index",
-      "sdkwork_memory_plugin_reference_profiles::build_reference_external_bridge",
-      "sdkwork_memory_plugin_reference_profiles::build_reference_context_assembler",
-      "sdkwork_memory_plugin_reference_profiles::build_reference_evaluation"
+      "sdkwork_memory_plugin_reference_profiles::build_reference_context_assembler"
     ],
     "routeManifest": null,
     "sdkClients": [],

@@ -129,15 +129,17 @@ async fn reference_runtime_round_trips_core_ports_and_retrieves_by_keyword() {
     )
     .await
     .unwrap();
-    let receipt = MemoryIndexPort::index(&runtime, "rec-reference".to_string())
+    let index_error = MemoryIndexPort::index(&runtime, "rec-reference".to_string())
         .await
-        .unwrap();
+        .unwrap_err();
 
     assert_eq!(record.content, "reference memory supports keyword lookup");
     assert_eq!(event.content, "event sourced baseline");
     assert_eq!(audit.result, "success");
     assert_eq!(hits.memory_ids, vec!["rec-reference".to_string()]);
-    assert_eq!(receipt.memory_id, "rec-reference");
+    assert!(index_error
+        .to_string()
+        .contains("no independently materialized index"));
 }
 
 #[tokio::test]
@@ -198,14 +200,14 @@ async fn reference_runtime_outbox_context_eval_and_bridge_fail_closed_are_determ
     )
     .await
     .unwrap();
-    let eval = MemoryEvaluationPort::run(
+    let eval_error = MemoryEvaluationPort::run(
         &runtime,
         RunMemoryEvalCommand {
             eval_type: "baseline".to_string(),
         },
     )
     .await
-    .unwrap();
+    .unwrap_err();
     let bridge_error = ExternalMemoryBridgePort::import(&runtime, ExternalMemoryImportCommand)
         .await
         .unwrap_err();
@@ -217,7 +219,9 @@ async fn reference_runtime_outbox_context_eval_and_bridge_fail_closed_are_determ
         .as_deref()
         .is_some_and(|value| value.ends_with('Z')));
     assert_eq!(context.context_text, "context line");
-    assert_eq!(eval.eval_type, "baseline");
+    assert!(eval_error
+        .to_string()
+        .contains("no golden dataset evaluation engine"));
     assert!(bridge_error
         .to_string()
         .contains("fail-closed until a reviewed provider adapter is configured"));

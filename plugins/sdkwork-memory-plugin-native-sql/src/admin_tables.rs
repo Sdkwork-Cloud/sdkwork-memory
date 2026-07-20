@@ -73,7 +73,12 @@ pub struct NativeSqlEvalRunRow {
     pub eval_run_uuid: String,
     pub eval_type: String,
     pub state: String,
+    pub dataset_ref: Option<String>,
+    pub profile_ref: Option<String>,
     pub metrics_json: Option<String>,
+    pub result_json: Option<String>,
+    pub started_at: Option<String>,
+    pub finished_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -985,6 +990,40 @@ impl NativeSqlMemoryStore {
         Ok(())
     }
 
+    pub async fn insert_mem_eval_run_request(
+        &self,
+        tenant_id: i64,
+        eval_run_uuid: &str,
+        eval_type: &str,
+        state: &str,
+        dataset_ref: Option<&str>,
+        profile_ref: Option<&str>,
+        config_json: Option<&str>,
+    ) -> Result<(), NativeSqlStoreError> {
+        let timestamp = now_text();
+        sqlx::query(
+            r#"
+            INSERT INTO ai_eval_run (
+              uuid, tenant_id, eval_type, state, dataset_ref, profile_ref,
+              result_json, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            "#,
+        )
+        .bind(eval_run_uuid)
+        .bind(tenant_id)
+        .bind(eval_type)
+        .bind(state)
+        .bind(dataset_ref)
+        .bind(profile_ref)
+        .bind(config_json)
+        .bind(&timestamp)
+        .bind(&timestamp)
+        .execute(self.pool())
+        .await?;
+        Ok(())
+    }
+
     pub async fn list_mem_eval_runs_for_tenant(
         &self,
         tenant_id: i64,
@@ -995,7 +1034,8 @@ impl NativeSqlMemoryStore {
         let cursor = cursor.unwrap_or("");
         let rows = sqlx::query(
             r#"
-            SELECT uuid, eval_type, state, metrics_json, created_at, updated_at
+            SELECT uuid, eval_type, state, dataset_ref, profile_ref, metrics_json,
+                   result_json, started_at, finished_at, created_at, updated_at
             FROM ai_eval_run
             WHERE tenant_id = ?
               AND id > COALESCE(
@@ -1023,7 +1063,8 @@ impl NativeSqlMemoryStore {
     ) -> Result<Option<NativeSqlEvalRunRow>, NativeSqlStoreError> {
         let row = sqlx::query(
             r#"
-            SELECT uuid, eval_type, state, metrics_json, created_at, updated_at
+            SELECT uuid, eval_type, state, dataset_ref, profile_ref, metrics_json,
+                   result_json, started_at, finished_at, created_at, updated_at
             FROM ai_eval_run
             WHERE tenant_id = ? AND uuid = ?
             "#,
@@ -1112,7 +1153,12 @@ fn map_eval_run_row(row: sqlx::any::AnyRow) -> NativeSqlEvalRunRow {
         eval_run_uuid: row.get("uuid"),
         eval_type: row.get("eval_type"),
         state: row.get("state"),
+        dataset_ref: row.get("dataset_ref"),
+        profile_ref: row.get("profile_ref"),
         metrics_json: row.get("metrics_json"),
+        result_json: row.get("result_json"),
+        started_at: row.get("started_at"),
+        finished_at: row.get("finished_at"),
         created_at: row.get("created_at"),
         updated_at: row.get("updated_at"),
     }
