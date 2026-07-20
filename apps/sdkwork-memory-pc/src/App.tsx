@@ -1,4 +1,4 @@
-import { SdkworkAuthGate, useSdkworkAuthControllerState } from "@sdkwork/auth-pc-react";
+import { useSdkworkAuthControllerState } from "@sdkwork/auth-pc-react";
 import { memoryModule as adminControlPlaneModule } from "@sdkwork/memory-pc-admin-control-plane";
 import { memoryModule as adminEvaluationModule } from "@sdkwork/memory-pc-admin-evaluation";
 import { memoryModule as adminGovernanceModule } from "@sdkwork/memory-pc-admin-governance";
@@ -22,6 +22,7 @@ import { lazy, Suspense, useMemo, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import type { BootstrappedMemoryPcRuntime } from "./bootstrap/runtime.ts";
+import { MemoryAuthGate } from "./auth/MemoryAuthGate.tsx";
 
 const consoleModules = assertUniqueMemoryModules([
   consoleOverviewModule,
@@ -73,13 +74,9 @@ function MemoryAuthenticatedApplication({ runtime }: { runtime: BootstrappedMemo
   const signOut = () => { void runtime.authController.signOut(); };
 
   return (
-    <SdkworkAuthGate
-      authBasePath="/auth"
+    <MemoryAuthGate
       controller={runtime.authController}
-      fallback={<div className="bootstrap-state" role="status">SDKWork Memory</div>}
-      homePath="/console"
-      protectedPrefixes={["/console", "/admin"]}
-      renderAuthRoutes={<Suspense fallback={<div className="bootstrap-state" role="status">SDKWork Memory</div>}><LazyMemoryAuthRoutes controller={runtime.authController} /></Suspense>}
+      authRoutes={<Suspense fallback={<div className="bootstrap-state" role="status">SDKWork Memory</div>}><LazyMemoryAuthRoutes controller={runtime.authController} /></Suspense>}
     >
       <MemoryConsoleSdkProvider client={runtime.appClient}>
         <Routes>
@@ -88,6 +85,6 @@ function MemoryAuthenticatedApplication({ runtime }: { runtime: BootstrappedMemo
           <Route path="*" element={<Navigate to="/console" replace />} />
         </Routes>
       </MemoryConsoleSdkProvider>
-    </SdkworkAuthGate>
+    </MemoryAuthGate>
   );
 }

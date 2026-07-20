@@ -1,5 +1,9 @@
 @import "tailwindcss";
 @source "../packages";
+@source "../../../../sdkwork-iam/apps/sdkwork-iam-pc/packages/sdkwork-auth-pc-react/src";
+@source "../../../../sdkwork-appbase/packages/pc-react/foundation/sdkwork-appbase-pc-react/src";
+@source "../../../../sdkwork-core/sdkwork-core-pc-react/src";
+@source "../../../../sdkwork-ui/sdkwork-ui-pc-react/src";
 
 :root {
   color: #1a211e;
@@ -36,6 +40,12 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   font-size: 14px;
 }
 .fatal-state { color: var(--danger); }
+.memory-auth-header { margin-bottom: 24px; }
+.memory-auth-brand { display: flex; align-items: center; gap: 9px; margin-bottom: 22px; color: #116f59; }
+.memory-auth-brand span { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid #b8d9cd; border-radius: 7px; background: #e8f4ef; }
+.memory-auth-brand strong { color: #1d2823; font-size: 13px; font-weight: 700; }
+.memory-auth-header h1 { margin: 0; color: #151b18; font-size: 32px; line-height: 1.2; }
+.memory-auth-header p { margin: 8px 0 0; color: #68736e; font-size: 13px; line-height: 1.55; }
 
 .app-frame { display: grid; grid-template-columns: 224px minmax(0, 1fr); height: 100vh; background: var(--canvas); }
 .primary-sidebar { display: flex; min-width: 0; flex-direction: column; border-right: 1px solid #313936; color: #edf2ef; background: #171c1a; }
