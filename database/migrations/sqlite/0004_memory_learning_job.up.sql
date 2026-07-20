@@ -1,7 +1,7 @@
 -- Async learning/governance job queue (schema-registry 002-memory-learning.yaml).
 
 CREATE TABLE IF NOT EXISTS ai_learning_job (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   space_id INTEGER REFERENCES ai_space(id),

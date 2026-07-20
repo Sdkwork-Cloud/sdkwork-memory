@@ -1,7 +1,7 @@
 -- Tenant-level and user-level preference store (schema-registry 005-memory-governance.yaml).
 
 CREATE TABLE IF NOT EXISTS ai_tenant_preference (
-  id BIGSERIAL PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   tenant_id BIGINT NOT NULL,
   user_id BIGINT,
   preference_key TEXT NOT NULL,

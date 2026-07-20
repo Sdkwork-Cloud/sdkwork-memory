@@ -17,6 +17,7 @@ pub fn is_production_qualified_implementation_kind(value: &str) -> bool {
 /// - `promote` / `switch`: demote source primary, promote target, persist preference, rebuild indexes.
 pub async fn execute_implementation_profile_migration(
     store: &NativeSqlMemoryStore,
+    preference_id: i64,
     tenant_id: i64,
     request: &MemoryMigrationJobRequest,
     active_runtime_profile_id: &str,
@@ -101,6 +102,7 @@ pub async fn execute_implementation_profile_migration(
 
     store
         .apply_implementation_profile_switch(
+            preference_id,
             tenant_id,
             &source_id,
             &target_id,
@@ -191,6 +193,7 @@ mod tests {
         let store = migration_store().await;
         let result = execute_implementation_profile_migration(
             &store,
+            10_001,
             1,
             &request("shadow"),
             "local-embedded-phase1",
@@ -208,6 +211,7 @@ mod tests {
         let store = migration_store().await;
         let result = execute_implementation_profile_migration(
             &store,
+            10_002,
             1,
             &request("switch"),
             "local-embedded-phase1",
@@ -228,6 +232,7 @@ mod tests {
         matching_request.target_implementation_profile_id = 3;
         let result = execute_implementation_profile_migration(
             &store,
+            10_003,
             1,
             &matching_request,
             "local-embedded-phase1",

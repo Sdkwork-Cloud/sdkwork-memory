@@ -1,89 +1,57 @@
 #!/usr/bin/env node
-/**
- * Ensures canonical database/ddl/baseline stays aligned with native-sql plugin authority.
- */
+
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
 const root = process.cwd();
-const engines = ["postgres", "sqlite"];
+const requiredTables = ["ai_space", "ai_event", "ai_record", "ai_tenant_preference", "ai_subject"];
 
-function normalizeSql(sql) {
-  return sql.replace(/\r\n/g, "\n");
-}
+for (const engine of ["postgres", "sqlite"]) {
+  const migrationRoot = path.join(root, "database", "migrations", engine);
+  const upFiles = fs.readdirSync(migrationRoot)
+    .filter((name) => name.endsWith(".up.sql"))
+    .sort();
+  assert.ok(upFiles.length > 0, `${engine} must own canonical application-root migrations`);
 
-const pluginMigrationOrder = [
-  "V202606100001__memory_phase1.sql",
-  "V202606100002__memory_phase1_indexes.sql",
-  "V202606230001__mem_tenant_preference.sql",
-  "V202606240001__ai_learning_job.sql",
-  "V202606240002__ai_record_fulltext_search.sql",
-  "V202606250001__ai_eval_run_extend.sql",
-  "V202606250002__memory_commercial_management.sql",
-];
-
-for (const engine of engines) {
-  const baselinePath = path.join(
-    root,
-    "database/ddl/baseline",
-    engine,
-    "0001_memory_baseline.sql",
-  );
-  assert.ok(fs.existsSync(baselinePath), `${baselinePath} must exist`);
-  const baselineSql = normalizeSql(fs.readFileSync(baselinePath, "utf8"));
-
-  for (const pluginName of pluginMigrationOrder) {
-    const pluginPath = path.join(
-      root,
-      "plugins/sdkwork-memory-plugin-native-sql/migrations",
-      engine,
-      pluginName,
-    );
-    assert.ok(fs.existsSync(pluginPath), `${pluginPath} must exist`);
-    const pluginSql = normalizeSql(fs.readFileSync(pluginPath, "utf8"));
+  for (const upFile of upFiles) {
+    const downFile = upFile.replace(/\.up\.sql$/u, ".down.sql");
     assert.ok(
-      baselineSql.includes(pluginSql),
-      `${baselinePath} must include plugin authority ${pluginPath}`,
+      fs.existsSync(path.join(migrationRoot, downFile)),
+      `${engine}/${upFile} must have paired ${downFile}`,
     );
   }
 
-  const migrationDir = path.join(root, "database/migrations", engine);
-  const migrationSqlFiles = fs
-    .readdirSync(migrationDir)
-    .filter((name) => name.endsWith(".sql"));
-  assert.equal(
-    migrationSqlFiles.length,
-    0,
-    `${migrationDir} must stay empty during initialization (found ${migrationSqlFiles.join(", ")})`,
-  );
+  const migrationSql = upFiles
+    .map((name) => fs.readFileSync(path.join(migrationRoot, name), "utf8"))
+    .join("\n")
+    .toLowerCase();
+  const baseline = fs.readFileSync(
+    path.join(root, "database", "ddl", "baseline", engine, "0001_memory_baseline.sql"),
+    "utf8",
+  ).toLowerCase();
+
+  for (const table of requiredTables) {
+    const pattern = new RegExp(`create\\s+table\\s+(if\\s+not\\s+exists\\s+)?${table}\\b`);
+    assert.match(migrationSql, pattern, `${engine} migrations must create ${table}`);
+    assert.match(baseline, pattern, `${engine} baseline must create ${table}`);
+  }
+
+  if (engine === "postgres") {
+    assert.doesNotMatch(migrationSql, /\bbigserial\b|\bserial\b/u, "PostgreSQL IDs must be application generated");
+  } else {
+    assert.doesNotMatch(migrationSql, /\bid\s+integer\s+primary\s+key\b/u, "SQLite business IDs must not use rowid allocation");
+  }
 }
 
-const requiredPhase1Tables = ["ai_space", "ai_event", "ai_record"];
-
-for (const engine of engines) {
-  const baseline = fs
-    .readFileSync(
-      path.join(root, "database/ddl/baseline", engine, "0001_memory_baseline.sql"),
-      "utf8",
-    )
-    .toLowerCase();
-  for (const table of requiredPhase1Tables) {
-    assert.match(
-      baseline,
-      new RegExp(`create\\s+table\\s+(if\\s+not\\s+exists\\s+)?${table}\\b`),
-      `baseline for ${engine} must create ${table}`,
-    );
-  }
-
-  assert.match(
-    baseline,
-    /create\s+table\s+(if\s+not\s+exists\s+)?ai_tenant_preference\b/,
-    `baseline for ${engine} must create ai_tenant_preference`,
+for (const engine of ["postgres", "sqlite"]) {
+  const pluginMigrationRoot = path.join(
+    root,
+    "plugins",
+    "sdkwork-memory-plugin-native-sql",
+    "migrations",
+    engine,
   );
-  assert.match(
-    baseline,
-    /create\s+table\s+(if\s+not\s+exists\s+)?ai_subject\b/,
-    `baseline for ${engine} must create ai_subject`,
-  );
+  const legacySql = fs.readdirSync(pluginMigrationRoot).filter((name) => name.endsWith(".sql"));
+  assert.deepEqual(legacySql, [], `${pluginMigrationRoot} must not remain a second migration authority`);
 }

@@ -4,8 +4,8 @@ import fs from "node:fs";
 const baselinePaths = [
   "database/ddl/baseline/sqlite/0001_memory_baseline.sql",
   "database/ddl/baseline/postgres/0001_memory_baseline.sql",
-  "plugins/sdkwork-memory-plugin-native-sql/migrations/sqlite/V202606100001__memory_phase1.sql",
-  "plugins/sdkwork-memory-plugin-native-sql/migrations/postgres/V202606100001__memory_phase1.sql",
+  "database/migrations/sqlite/0001_memory_schema.up.sql",
+  "database/migrations/postgres/0001_memory_schema.up.sql",
 ];
 
 const requiredTables = [

@@ -3,7 +3,7 @@
 -- SQLite stores tenant-scoped rows with user_id = -1 (see preference_user_storage_key).
 
 CREATE TABLE IF NOT EXISTS ai_tenant_preference (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   tenant_id INTEGER NOT NULL,
   user_id INTEGER,
   preference_key TEXT NOT NULL,

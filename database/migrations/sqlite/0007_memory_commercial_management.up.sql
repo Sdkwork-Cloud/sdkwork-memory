@@ -9,7 +9,7 @@
 
 -- Activate ai_entity (previously planned in 001-memory-core.yaml).
 CREATE TABLE IF NOT EXISTS ai_entity (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   space_id INTEGER NOT NULL REFERENCES ai_space(id),
@@ -35,7 +35,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_entity_type_status
 
 -- Activate ai_edge (previously planned in 001-memory-core.yaml).
 CREATE TABLE IF NOT EXISTS ai_edge (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   space_id INTEGER NOT NULL REFERENCES ai_space(id),
@@ -67,7 +67,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_edge_validity
 
 -- Activate ai_policy (previously planned in 004-memory-provider.yaml).
 CREATE TABLE IF NOT EXISTS ai_policy (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   policy_type TEXT NOT NULL,
@@ -88,7 +88,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_policy_type_scope
 
 -- Commercial management: subject projections.
 CREATE TABLE IF NOT EXISTS ai_subject (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   organization_id INTEGER,
@@ -120,7 +120,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_subject_space
 
 -- Commercial management: auditable memory bindings.
 CREATE TABLE IF NOT EXISTS ai_memory_binding (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   space_id INTEGER REFERENCES ai_space(id),
@@ -178,7 +178,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_binding_validity
 
 -- Commercial management: capability bindings.
 CREATE TABLE IF NOT EXISTS ai_capability_binding (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   capability_code TEXT NOT NULL,
@@ -215,7 +215,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_capability_validity
 
 -- Commercial management: policy assignments.
 CREATE TABLE IF NOT EXISTS ai_policy_assignment (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   policy_id INTEGER NOT NULL REFERENCES ai_policy(id),
@@ -248,7 +248,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_policy_assignment_validity
 
 -- Commercial management: relation rebuild jobs.
 CREATE TABLE IF NOT EXISTS ai_relation_rebuild_job (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   job_type TEXT NOT NULL,
@@ -281,7 +281,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_relation_rebuild_job_scope
 
 -- Commercial management: commercial readiness snapshot (read model).
 CREATE TABLE IF NOT EXISTS ai_commercial_readiness_snapshot (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   implementation_profile_id INTEGER REFERENCES ai_implementation_profile(id),

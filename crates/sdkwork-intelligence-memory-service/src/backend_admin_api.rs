@@ -1261,9 +1261,12 @@ impl OpenMemoryService {
             ));
         }
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
+        let preference_id = i64::try_from(self.next_id()?)
+            .map_err(|_| MemoryServiceError::storage("generated preference id out of range"))?;
         let migration_result =
             crate::implementation_migration::execute_implementation_profile_migration(
                 &self.store,
+                preference_id,
                 tenant_id,
                 &request,
                 &self.core_runtime.profile().profile_id,

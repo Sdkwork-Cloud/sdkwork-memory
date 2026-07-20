@@ -1513,8 +1513,16 @@ impl MemoryAppApi for OpenMemoryService {
                 "learning settings encode failed: {error}"
             ))
         })?;
+        let preference_id = i64::try_from(self.next_id()?)
+            .map_err(|_| MemoryServiceError::storage("generated preference id out of range"))?;
         self.store
-            .upsert_tenant_preference_json(tenant_id, user_id, LEARNING_SETTINGS_KEY, &encoded)
+            .upsert_tenant_preference_json(
+                preference_id,
+                tenant_id,
+                user_id,
+                LEARNING_SETTINGS_KEY,
+                &encoded,
+            )
             .await
             .map_err(OpenMemoryService::map_store_error)?;
         Ok(settings)

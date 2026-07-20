@@ -3016,6 +3016,7 @@ impl NativeSqlMemoryStore {
 
     pub async fn upsert_tenant_preference_json(
         &self,
+        preference_id: i64,
         tenant_id: i64,
         user_id: Option<i64>,
         preference_key: &str,
@@ -3026,15 +3027,16 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_tenant_preference (
-              tenant_id, user_id, preference_key, preference_json, created_at, updated_at, version
+              id, tenant_id, user_id, preference_key, preference_json, created_at, updated_at, version
             )
-            VALUES (?, ?, ?, ?, ?, ?, 0)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0)
             ON CONFLICT(tenant_id, user_id, preference_key) DO UPDATE SET
               preference_json = excluded.preference_json,
               updated_at = excluded.updated_at,
               version = ai_tenant_preference.version + 1
             "#,
         )
+        .bind(preference_id)
         .bind(tenant_id)
         .bind(bound_user_id)
         .bind(preference_key)

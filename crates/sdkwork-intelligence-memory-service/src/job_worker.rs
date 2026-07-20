@@ -319,8 +319,11 @@ async fn execute_learning_job(
         "migration" => {
             let request: MemoryMigrationJobRequest = serde_json::from_str(input)
                 .map_err(|error| format!("migration input decode failed: {error}"))?;
+            let preference_id = i64::try_from(service.next_id().map_err(|error| error.detail)?)
+                .map_err(|_| "generated preference id out of range".to_string())?;
             let result = crate::implementation_migration::execute_implementation_profile_migration(
                 &service.store,
+                preference_id,
                 job.tenant_id,
                 &request,
                 &service.core_runtime.profile().profile_id,

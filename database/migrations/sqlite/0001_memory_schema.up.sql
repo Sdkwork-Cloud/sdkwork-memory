@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS ai_space (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   organization_id INTEGER,
@@ -26,7 +26,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_space_owner_type
   ON ai_space (tenant_id, owner_subject_type, owner_subject_id, space_type);
 
 CREATE TABLE IF NOT EXISTS ai_event (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   space_id INTEGER NOT NULL,
@@ -57,7 +57,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_event_idempotency
   WHERE idempotency_key IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS ai_record (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   space_id INTEGER NOT NULL,
@@ -103,7 +103,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_record_scope_type_status
   ON ai_record (tenant_id, space_id, scope, memory_type, status, updated_at);
 
 CREATE TABLE IF NOT EXISTS ai_record_source (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   memory_id INTEGER NOT NULL,
@@ -119,7 +119,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_record_source_pair
   ON ai_record_source (tenant_id, memory_id, event_id, source_role);
 
 CREATE TABLE IF NOT EXISTS ai_candidate (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   space_id INTEGER NOT NULL,
@@ -148,7 +148,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_candidate_uuid
   ON ai_candidate (tenant_id, uuid);
 
 CREATE TABLE IF NOT EXISTS ai_habit (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   space_id INTEGER NOT NULL,
@@ -175,7 +175,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_habit_key
   ON ai_habit (tenant_id, space_id, user_id, habit_key);
 
 CREATE TABLE IF NOT EXISTS ai_retrieval_trace (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   space_id INTEGER,
@@ -195,7 +195,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_retrieval_trace_uuid
   ON ai_retrieval_trace (tenant_id, uuid);
 
 CREATE TABLE IF NOT EXISTS ai_retrieval_hit (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   retrieval_trace_id INTEGER NOT NULL,
@@ -215,7 +215,7 @@ CREATE INDEX IF NOT EXISTS idx_ai_retrieval_hit_trace_rank
   ON ai_retrieval_hit (tenant_id, retrieval_trace_id, result_rank);
 
 CREATE TABLE IF NOT EXISTS ai_context_pack (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   retrieval_trace_id INTEGER,
@@ -232,7 +232,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_context_pack_uuid
   ON ai_context_pack (tenant_id, uuid);
 
 CREATE TABLE IF NOT EXISTS ai_index (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   space_id INTEGER,
@@ -253,7 +253,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_index_uuid
   ON ai_index (tenant_id, uuid);
 
 CREATE TABLE IF NOT EXISTS ai_retrieval_profile (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   space_id INTEGER,
@@ -274,7 +274,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_retrieval_profile_uuid
   ON ai_retrieval_profile (tenant_id, uuid);
 
 CREATE TABLE IF NOT EXISTS ai_implementation_profile (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   name TEXT NOT NULL,
@@ -293,7 +293,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_implementation_profile_uuid
   ON ai_implementation_profile (tenant_id, uuid);
 
 CREATE TABLE IF NOT EXISTS ai_provider_binding (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   provider_kind TEXT NOT NULL,
@@ -315,7 +315,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_provider_binding_uuid
   ON ai_provider_binding (tenant_id, uuid);
 
 CREATE TABLE IF NOT EXISTS ai_eval_run (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   eval_type TEXT NOT NULL,
@@ -329,7 +329,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_eval_run_uuid
   ON ai_eval_run (tenant_id, uuid);
 
 CREATE TABLE IF NOT EXISTS ai_audit_log (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   actor_type TEXT NOT NULL,
@@ -349,7 +349,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_audit_log_uuid
   ON ai_audit_log (tenant_id, uuid);
 
 CREATE TABLE IF NOT EXISTS ai_outbox_event (
-  id INTEGER PRIMARY KEY,
+  id BIGINT NOT NULL PRIMARY KEY,
   uuid TEXT NOT NULL,
   tenant_id INTEGER NOT NULL,
   aggregate_type TEXT NOT NULL,
