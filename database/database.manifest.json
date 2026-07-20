@@ -12,11 +12,11 @@
   "defaultEngine": "postgres",
   "tablePrefix": "ai_",
   "contractVersion": "1.0.0",
-  "baselineStrategy": "baseline-plus-migrations",
+  "baselineStrategy": "migrations-only",
   "modules": [],
   "lifecycle": {
     "autoMigrate": true,
-    "autoMigrateNote": "Manifest value is true to satisfy SDKWORK L2 module standard (check-database-framework-standard.mjs). Runtime auto-migrate is controlled by SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE env var, which defaults to false in code (see bootstrap.rs). Production deployments MUST keep this env var set to false and apply migrations explicitly through the migration Job. Only the migration Job sets it to true.",
+    "autoMigrateNote": "Runtime auto-migrate is controlled by SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE and defaults to false. Production applies the canonical root migration chain through the migration Job before rolling out runtime Pods.",
     "seedOnBoot": false,
     "defaultSeedLocale": "zh-CN",
     "defaultSeedProfile": "standard",

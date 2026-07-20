@@ -183,32 +183,32 @@ impl NativeSqlMemoryStore {
         const MIGRATIONS: &[(&str, &str)] = &[
             (
                 "0001",
-                include_str!("../migrations/postgres/V202606100001__memory_phase1.sql"),
+                include_str!("../../../database/migrations/postgres/0001_memory_schema.up.sql"),
             ),
             (
                 "0002",
-                include_str!("../migrations/postgres/V202606100002__memory_phase1_indexes.sql"),
+                include_str!("../../../database/migrations/postgres/0002_memory_indexes.up.sql"),
             ),
             (
                 "0003",
-                include_str!("../migrations/postgres/V202606230001__mem_tenant_preference.sql"),
+                include_str!("../../../database/migrations/postgres/0003_memory_tenant_preference.up.sql"),
             ),
             (
                 "0004",
-                include_str!("../migrations/postgres/V202606240001__ai_learning_job.sql"),
+                include_str!("../../../database/migrations/postgres/0004_memory_learning_job.up.sql"),
             ),
             (
                 "0005",
-                include_str!("../migrations/postgres/V202606240002__ai_record_fulltext_search.sql"),
+                include_str!("../../../database/migrations/postgres/0005_memory_record_fulltext_search.up.sql"),
             ),
             (
                 "0006",
-                include_str!("../migrations/postgres/V202606250001__ai_eval_run_extend.sql"),
+                include_str!("../../../database/migrations/postgres/0006_memory_eval_run_extend.up.sql"),
             ),
             (
                 "0007",
                 include_str!(
-                    "../migrations/postgres/V202606250002__memory_commercial_management.sql"
+                    "../../../database/migrations/postgres/0007_memory_commercial_management.up.sql"
                 ),
             ),
         ];
@@ -3769,37 +3769,37 @@ impl NativeSqlMemoryStore {
         const MIGRATIONS: &[(&str, &str)] = &[
             (
                 "0001",
-                include_str!("../migrations/sqlite/V202606100001__memory_phase1.sql"),
+                include_str!("../../../database/migrations/sqlite/0001_memory_schema.up.sql"),
             ),
             (
                 "0002",
-                include_str!("../migrations/sqlite/V202606100002__memory_phase1_indexes.sql"),
+                include_str!("../../../database/migrations/sqlite/0002_memory_indexes.up.sql"),
             ),
             (
                 "0003",
-                include_str!("../migrations/sqlite/V202606230001__mem_tenant_preference.sql"),
+                include_str!("../../../database/migrations/sqlite/0003_memory_tenant_preference.up.sql"),
             ),
             (
                 "0004",
-                include_str!("../migrations/sqlite/V202606240001__ai_learning_job.sql"),
+                include_str!("../../../database/migrations/sqlite/0004_memory_learning_job.up.sql"),
             ),
             (
                 "0005",
-                include_str!("../migrations/sqlite/V202606240002__ai_record_fulltext_search.sql"),
+                include_str!("../../../database/migrations/sqlite/0005_memory_record_fulltext_search.up.sql"),
             ),
             (
                 "0006",
-                include_str!("../migrations/sqlite/V202606250001__ai_eval_run_extend.sql"),
+                include_str!("../../../database/migrations/sqlite/0006_memory_eval_run_extend.up.sql"),
             ),
             (
                 "0007",
                 include_str!(
-                    "../migrations/sqlite/V202606250002__memory_commercial_management.sql"
+                    "../../../database/migrations/sqlite/0007_memory_commercial_management.up.sql"
                 ),
             ),
             (
                 "0008",
-                include_str!("../migrations/sqlite/V202606250003__sqlite_fts_predicate_column.sql"),
+                include_str!("../../../database/migrations/sqlite/0008_memory_fts_predicate.up.sql"),
             ),
         ];
         self.apply_embedded_sql_migrations(MIGRATIONS).await

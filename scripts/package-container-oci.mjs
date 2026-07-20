@@ -8,6 +8,10 @@ const root = resolve(import.meta.dirname, "..");
 const version = required(process.env.SDKWORK_PACKAGE_VERSION, "SDKWORK_PACKAGE_VERSION");
 const sourceRevision = gitValue(["rev-parse", "HEAD"]);
 const builderName = process.env.SDKWORK_CONTAINER_BUILDER ?? "sdkwork-memory-release";
+const embedSbom = process.env.SDKWORK_CONTAINER_SBOM_ATTESTATION !== "false";
+if (!embedSbom && process.env.SDKWORK_RELEASE_VALIDATION === "strict") {
+  throw new Error("strict release validation forbids disabling OCI SBOM attestation");
+}
 const artifactPath = resolve(
   root,
   process.env.SDKWORK_PACKAGE_ARTIFACT_PATH
@@ -18,9 +22,7 @@ mkdirSync(dirname(artifactPath), { recursive: true });
 rmSync(artifactPath, { force: true });
 ensureAttestationBuilder(builderName);
 
-execFileSync(
-  "docker",
-  [
+const buildArguments = [
     "buildx",
     "build",
     "--builder",
@@ -36,11 +38,15 @@ execFileSync(
     "--tag",
     `registry.sdkwork.com/apps/sdkwork-memory:${version}`,
     "--provenance=mode=max",
-    "--sbom=true",
     "--output",
     `type=oci,dest=${artifactPath}`,
     ".",
-  ],
+  ];
+if (embedSbom) buildArguments.splice(buildArguments.length - 3, 0, "--sbom=true");
+
+execFileSync(
+  "docker",
+  buildArguments,
   { cwd: root, stdio: "inherit" },
 );
 
