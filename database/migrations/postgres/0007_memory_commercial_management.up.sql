@@ -12,12 +12,12 @@ CREATE TABLE IF NOT EXISTS ai_entity (
   space_id BIGINT NOT NULL REFERENCES ai_space(id),
   entity_type VARCHAR(64) NOT NULL,
   canonical_name VARCHAR(256) NOT NULL,
-  aliases_json JSONB,
-  attributes_json JSONB,
+  aliases_json TEXT,
+  attributes_json TEXT,
   sensitivity_level VARCHAR(32) NOT NULL DEFAULT 'internal',
   status VARCHAR(32) NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
   version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -39,14 +39,14 @@ CREATE TABLE IF NOT EXISTS ai_edge (
   source_entity_id BIGINT NOT NULL REFERENCES ai_entity(id),
   target_entity_id BIGINT NOT NULL REFERENCES ai_entity(id),
   relation_type VARCHAR(64) NOT NULL,
-  weight DECIMAL(8,4),
+  weight DOUBLE PRECISION,
   source_memory_id BIGINT REFERENCES ai_record(id),
-  valid_from TIMESTAMPTZ,
-  valid_to TIMESTAMPTZ,
+  valid_from TEXT,
+  valid_to TEXT,
   status VARCHAR(32) NOT NULL,
-  metadata_json JSONB,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL,
+  metadata_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
   version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -71,9 +71,9 @@ CREATE TABLE IF NOT EXISTS ai_policy (
   scope VARCHAR(32) NOT NULL,
   scope_ref VARCHAR(128),
   status VARCHAR(32) NOT NULL,
-  policy_json JSONB NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL,
+  policy_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
   version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -94,12 +94,12 @@ CREATE TABLE IF NOT EXISTS ai_subject (
   display_name VARCHAR(200) NOT NULL,
   default_space_id BIGINT REFERENCES ai_space(id),
   status VARCHAR(32) NOT NULL,
-  metadata_json JSONB,
+  metadata_json TEXT,
   created_by BIGINT,
   updated_by BIGINT,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL,
-  deleted_at TIMESTAMPTZ,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleted_at TEXT,
   version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -136,19 +136,19 @@ CREATE TABLE IF NOT EXISTS ai_memory_binding (
   target_external_ref_id VARCHAR(128),
   target_external_ref_source VARCHAR(64),
   binding_role VARCHAR(32) NOT NULL,
-  capability_codes_json JSONB,
+  capability_codes_json TEXT,
   retrieval_profile_id BIGINT REFERENCES ai_retrieval_profile(id),
   policy_assignment_id BIGINT,
-  strength DECIMAL(5,4),
-  valid_from TIMESTAMPTZ,
-  valid_to TIMESTAMPTZ,
+  strength DOUBLE PRECISION,
+  valid_from TEXT,
+  valid_to TEXT,
   status VARCHAR(32) NOT NULL,
-  metadata_json JSONB,
+  metadata_json TEXT,
   created_by BIGINT,
   updated_by BIGINT,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL,
-  deleted_at TIMESTAMPTZ,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleted_at TEXT,
   version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -187,14 +187,14 @@ CREATE TABLE IF NOT EXISTS ai_capability_binding (
   implementation_profile_id BIGINT REFERENCES ai_implementation_profile(id),
   policy_assignment_id BIGINT,
   status VARCHAR(32) NOT NULL,
-  valid_from TIMESTAMPTZ,
-  valid_to TIMESTAMPTZ,
-  metadata_json JSONB,
+  valid_from TEXT,
+  valid_to TEXT,
+  metadata_json TEXT,
   created_by BIGINT,
   updated_by BIGINT,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL,
-  deleted_at TIMESTAMPTZ,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleted_at TEXT,
   version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -221,13 +221,13 @@ CREATE TABLE IF NOT EXISTS ai_policy_assignment (
   priority INTEGER NOT NULL DEFAULT 0,
   inheritance_mode VARCHAR(32) NOT NULL,
   status VARCHAR(32) NOT NULL,
-  valid_from TIMESTAMPTZ,
-  valid_to TIMESTAMPTZ,
+  valid_from TEXT,
+  valid_to TEXT,
   created_by BIGINT,
   updated_by BIGINT,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL,
-  deleted_at TIMESTAMPTZ,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleted_at TEXT,
   version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -253,13 +253,13 @@ CREATE TABLE IF NOT EXISTS ai_relation_rebuild_job (
   scope_type VARCHAR(32) NOT NULL,
   scope_id VARCHAR(128),
   idempotency_key VARCHAR(128),
-  input_json JSONB,
-  result_json JSONB,
-  error_json JSONB,
-  started_at TIMESTAMPTZ,
-  finished_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL,
+  input_json TEXT,
+  result_json TEXT,
+  error_json TEXT,
+  started_at TEXT,
+  finished_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
   version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -282,20 +282,20 @@ CREATE TABLE IF NOT EXISTS ai_commercial_readiness_snapshot (
   uuid VARCHAR(64) NOT NULL,
   tenant_id BIGINT NOT NULL,
   implementation_profile_id BIGINT REFERENCES ai_implementation_profile(id),
-  score DECIMAL(5,4) NOT NULL,
+  score DOUBLE PRECISION NOT NULL,
   state VARCHAR(32) NOT NULL,
-  contract_coverage_json JSONB,
-  management_coverage_json JSONB,
-  runtime_conformance_json JSONB,
-  privacy_coverage_json JSONB,
-  audit_coverage_json JSONB,
-  sdk_coverage_json JSONB,
-  evaluation_coverage_json JSONB,
-  observability_coverage_json JSONB,
-  migration_coverage_json JSONB,
-  blocking_findings_json JSONB,
-  warning_findings_json JSONB,
-  created_at TIMESTAMPTZ NOT NULL
+  contract_coverage_json TEXT,
+  management_coverage_json TEXT,
+  runtime_conformance_json TEXT,
+  privacy_coverage_json TEXT,
+  audit_coverage_json TEXT,
+  sdk_coverage_json TEXT,
+  evaluation_coverage_json TEXT,
+  observability_coverage_json TEXT,
+  migration_coverage_json TEXT,
+  blocking_findings_json TEXT,
+  warning_findings_json TEXT,
+  created_at TEXT NOT NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_commercial_readiness_uuid

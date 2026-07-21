@@ -44,7 +44,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "2996e5e378749e18438f79646ff602775ce7fdb9cdd912bbb49cd29e864fdec1"
+      "sha256": "0af9aa9c9acea6e70999c2595b2932a3cc3a91d73ef6cf9cd29a01ad90aa8c65"
     },
     {
       "path": "sdkwork-sdk.json",
@@ -324,7 +324,7 @@
     },
     {
       "path": "src/types/memory-eval-run-request.ts",
-      "sha256": "9d0f2203d4ce12ac5040e9192fc8324f16786670fd9c13a06cf99231cbb8307b"
+      "sha256": "f6c93d088a6afe126148ac8ddc6821c18aea69f13f17f00a401174b05636716d"
     },
     {
       "path": "src/types/memory-eval-run.ts",

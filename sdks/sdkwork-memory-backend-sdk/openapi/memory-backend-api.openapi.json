@@ -14998,7 +14998,11 @@
         ],
         "properties": {
           "evalType": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "retrieval_quality"
+            ],
+            "description": "Executable evaluation engine. Additional evaluation types remain unavailable until a production worker implementation exists."
           },
           "datasetRef": {
             "anyOf": [

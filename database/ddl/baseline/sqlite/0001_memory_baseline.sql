@@ -889,3 +889,26 @@ SELECT id, uuid, tenant_id, space_id,
        coalesce(predicate, '')
 FROM ai_record
 WHERE status <> 'deleted';
+
+-- source: database/migrations/sqlite/0009_memory_outbox_delivery_lease.up.sql
+ALTER TABLE ai_outbox_event ADD COLUMN lease_owner TEXT;
+ALTER TABLE ai_outbox_event ADD COLUMN lease_token TEXT;
+ALTER TABLE ai_outbox_event ADD COLUMN lease_expires_at TEXT;
+ALTER TABLE ai_outbox_event ADD COLUMN next_attempt_at TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_ai_outbox_event_delivery_lease
+  ON ai_outbox_event (publish_state, next_attempt_at, lease_expires_at, id);
+
+-- source: database/migrations/sqlite/0010_memory_job_execution_lease.up.sql
+ALTER TABLE ai_learning_job ADD COLUMN lease_owner TEXT;
+ALTER TABLE ai_learning_job ADD COLUMN lease_token TEXT;
+ALTER TABLE ai_learning_job ADD COLUMN lease_expires_at TEXT;
+
+ALTER TABLE ai_eval_run ADD COLUMN lease_owner TEXT;
+ALTER TABLE ai_eval_run ADD COLUMN lease_token TEXT;
+ALTER TABLE ai_eval_run ADD COLUMN lease_expires_at TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_ai_learning_job_execution_lease
+  ON ai_learning_job (state, lease_expires_at, priority, id);
+CREATE INDEX IF NOT EXISTS idx_ai_eval_run_execution_lease
+  ON ai_eval_run (state, lease_expires_at, id);

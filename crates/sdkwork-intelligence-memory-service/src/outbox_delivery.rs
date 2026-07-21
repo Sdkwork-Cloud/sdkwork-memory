@@ -3,7 +3,7 @@ use sdkwork_utils_rust::{format_datetime, is_blank};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OutboxDeliveryMode {
-    Log,
+    Disabled,
     Http,
 }
 
@@ -12,12 +12,11 @@ pub struct OutboxDeliveryConfig {
     pub webhook_url: Option<String>,
     /// Stored for diagnostics and configuration inspection; the actual
     /// timeout is baked into `http_client` at construction time.
-    #[allow(dead_code)]
     pub timeout_seconds: u64,
     pub max_retries: u32,
     /// Shared HTTP client with connection pooling — created once and reused
     /// across all outbox delivery attempts to avoid per-request overhead.
-    pub http_client: reqwest::Client,
+    http_client: tokio::sync::OnceCell<reqwest::Client>,
 }
 
 impl OutboxDeliveryConfig {
@@ -25,14 +24,11 @@ impl OutboxDeliveryConfig {
         let mode = std::env::var("SDKWORK_MEMORY_OUTBOX_DELIVERY_MODE")
             .ok()
             .map(|value| value.trim().to_ascii_lowercase())
-            .map(|value| {
-                if value == "http" {
-                    OutboxDeliveryMode::Http
-                } else {
-                    OutboxDeliveryMode::Log
-                }
+            .map(|value| match value.as_str() {
+                "http" => OutboxDeliveryMode::Http,
+                _ => OutboxDeliveryMode::Disabled,
             })
-            .unwrap_or(OutboxDeliveryMode::Log);
+            .unwrap_or(OutboxDeliveryMode::Disabled);
         let webhook_url = std::env::var("SDKWORK_MEMORY_OUTBOX_DELIVERY_URL")
             .ok()
             .filter(|value| !is_blank(Some(value.as_str())))
@@ -40,11 +36,7 @@ impl OutboxDeliveryConfig {
                 match crate::endpoint_validation::validate_outbound_url(value.trim()) {
                     Ok(()) => Some(value),
                     Err(reason) => {
-                        tracing::error!(
-                            url = %value,
-                            reason = %reason,
-                            "outbox delivery URL rejected at startup"
-                        );
+                        tracing::error!(reason = %reason, "outbox delivery URL rejected at startup");
                         None
                     }
                 }
@@ -53,22 +45,17 @@ impl OutboxDeliveryConfig {
             .ok()
             .and_then(|value| sdkwork_utils_rust::parse_int(&value))
             .unwrap_or(10)
-            .max(1) as u64;
+            .clamp(1, 60) as u64;
         let max_retries = std::env::var("SDKWORK_MEMORY_OUTBOX_MAX_RETRIES")
             .ok()
             .and_then(|value| sdkwork_utils_rust::parse_int(&value))
             .unwrap_or(5) as u32;
-        let http_client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(timeout_seconds))
-            .pool_max_idle_per_host(16)
-            .build()
-            .unwrap_or_else(|_| reqwest::Client::new());
         Self {
             mode,
             webhook_url,
             timeout_seconds,
             max_retries,
-            http_client,
+            http_client: tokio::sync::OnceCell::new(),
         }
     }
 
@@ -83,6 +70,31 @@ pub fn production_outbox_delivery_ready() -> bool {
         return true;
     }
     OutboxDeliveryConfig::from_env().production_ready()
+}
+
+pub async fn validate_outbox_runtime_config() -> Result<(), String> {
+    if !crate::platform::is_production_like_environment() {
+        return Ok(());
+    }
+    let config = OutboxDeliveryConfig::from_env();
+    if !matches!(config.mode, OutboxDeliveryMode::Http) {
+        return Err(
+            "SDKWORK_MEMORY_OUTBOX_DELIVERY_MODE=http is required in production-like environments"
+                .to_string(),
+        );
+    }
+    let url = config.webhook_url.as_deref().ok_or_else(|| {
+        "SDKWORK_MEMORY_OUTBOX_DELIVERY_URL must be a valid approved HTTPS endpoint in production-like environments"
+            .to_string()
+    })?;
+    crate::endpoint_validation::build_pinned_http_client(
+        url,
+        std::time::Duration::from_secs(config.timeout_seconds),
+        1,
+    )
+    .await
+    .map(|_| ())
+    .map_err(|reason| format!("outbox delivery endpoint rejected: {reason}"))
 }
 
 pub fn build_cloud_event_envelope(row: &NativeSqlScopedOutboxEvent) -> serde_json::Value {
@@ -109,29 +121,27 @@ pub async fn deliver_outbox_event(
     row: &NativeSqlScopedOutboxEvent,
     config: &OutboxDeliveryConfig,
 ) -> Result<(), String> {
-    let envelope = build_cloud_event_envelope(row);
     match config.mode {
-        OutboxDeliveryMode::Log => {
-            tracing::info!(
-                tenant_id = row.tenant_id,
-                outbox_id = %row.outbox.outbox_id,
-                event_type = %row.outbox.event_type,
-                aggregate_id = %row.outbox.aggregate_id,
-                delivery_mode = "log",
-                envelope = %envelope,
-                "memory domain outbox event delivered"
-            );
-            Ok(())
-        }
+        OutboxDeliveryMode::Disabled => Err("outbox delivery is disabled".to_string()),
         OutboxDeliveryMode::Http => {
+            let envelope = build_cloud_event_envelope(row);
             let url = config.webhook_url.as_deref().ok_or_else(|| {
                 "SDKWORK_MEMORY_OUTBOX_DELIVERY_URL is required when delivery mode is http"
                     .to_string()
             })?;
-            crate::endpoint_validation::validate_outbound_url(url)
-                .map_err(|reason| format!("outbox delivery URL rejected: {reason}"))?;
-            let response = config
+            let client = config
                 .http_client
+                .get_or_try_init(|| async {
+                    crate::endpoint_validation::build_pinned_http_client(
+                        url,
+                        std::time::Duration::from_secs(config.timeout_seconds),
+                        16,
+                    )
+                    .await
+                    .map(|(_, client)| client)
+                })
+                .await?;
+            let response = client
                 .post(url)
                 .header("content-type", "application/json")
                 .json(&envelope)
@@ -167,6 +177,9 @@ mod tests {
     fn cloud_event_envelope_includes_tenant_and_event_type() {
         let row = NativeSqlScopedOutboxEvent {
             tenant_id: 100_001,
+            lease_owner: None,
+            lease_token: None,
+            lease_expires_at: None,
             outbox: NativeSqlMemoryOutboxEvent {
                 outbox_id: "9001".to_string(),
                 aggregate_type: "ai_record".to_string(),

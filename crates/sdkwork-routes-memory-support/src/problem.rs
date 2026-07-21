@@ -1,11 +1,11 @@
 use axum::{
-    http::StatusCode,
+    http::{header, HeaderName, HeaderValue, StatusCode},
     response::{IntoResponse, Response},
+    Json,
 };
 use sdkwork_memory_contract::{MemoryServiceError, MemoryServiceErrorKind};
-use sdkwork_web_core::{
-    problem_response, ProblemCorrelation, WebFrameworkError, WebFrameworkErrorKind,
-};
+use sdkwork_utils_rust::{SdkWorkProblemDetail, SdkWorkResultCode, SDKWORK_TRACE_ID_HEADER};
+use sdkwork_web_core::trace::resolve_problem_trace_id;
 
 use crate::correlation::MemoryProblemCorrelation;
 
@@ -14,7 +14,6 @@ pub type MemoryApiResult<T> = Result<T, MemoryApiError>;
 #[derive(Debug, Clone)]
 pub struct MemoryApiError {
     status: StatusCode,
-    #[allow(dead_code)]
     code: String,
     detail: String,
 }
@@ -36,26 +35,45 @@ impl MemoryApiError {
         )
     }
 
-    fn framework_error(&self) -> WebFrameworkError {
-        let kind = match self.status {
-            StatusCode::BAD_REQUEST => WebFrameworkErrorKind::BadRequest,
-            StatusCode::UNAUTHORIZED => WebFrameworkErrorKind::MissingCredentials,
-            StatusCode::FORBIDDEN => WebFrameworkErrorKind::Forbidden,
-            StatusCode::NOT_FOUND => WebFrameworkErrorKind::NotFound,
-            StatusCode::CONFLICT => WebFrameworkErrorKind::Conflict,
-            StatusCode::PAYLOAD_TOO_LARGE => WebFrameworkErrorKind::PayloadTooLarge,
-            StatusCode::TOO_MANY_REQUESTS => WebFrameworkErrorKind::RateLimitExceeded,
-            StatusCode::SERVICE_UNAVAILABLE => WebFrameworkErrorKind::DependencyUnavailable,
-            StatusCode::REQUEST_TIMEOUT => WebFrameworkErrorKind::RequestTimeout,
-            StatusCode::METHOD_NOT_ALLOWED => WebFrameworkErrorKind::MethodNotAllowed,
-            StatusCode::NOT_IMPLEMENTED => WebFrameworkErrorKind::NotImplemented,
-            _ if self.status.is_server_error() => WebFrameworkErrorKind::InternalServerError,
-            _ => WebFrameworkErrorKind::BadRequest,
-        };
-        WebFrameworkError {
-            kind,
-            message: self.detail.clone(),
-            retry_after_seconds: None,
+    pub fn invalid_parameter(detail: impl Into<String>) -> Self {
+        Self::new(StatusCode::BAD_REQUEST, "invalid_parameter", detail)
+    }
+
+    fn result_code(&self) -> SdkWorkResultCode {
+        match self.code.as_str() {
+            "validation_error" => SdkWorkResultCode::ValidationError,
+            "malformed_request" => SdkWorkResultCode::MalformedRequest,
+            "invalid_parameter" => SdkWorkResultCode::InvalidParameter,
+            "missing_required_field" => SdkWorkResultCode::MissingRequiredField,
+            "authentication_required" | "missing_app_request_context"
+            | "missing_backend_request_context" | "missing_open_request_context" => {
+                SdkWorkResultCode::AuthenticationRequired
+            }
+            "invalid_token" => SdkWorkResultCode::InvalidToken,
+            "forbidden" | "permission_required" => SdkWorkResultCode::PermissionRequired,
+            "tenant_access_denied" => SdkWorkResultCode::TenantAccessDenied,
+            "not_found" => SdkWorkResultCode::NotFound,
+            "method_not_allowed" => SdkWorkResultCode::MethodNotAllowed,
+            "request_timeout" => SdkWorkResultCode::RequestTimeout,
+            "conflict" => SdkWorkResultCode::Conflict,
+            "payload_too_large" => SdkWorkResultCode::PayloadTooLarge,
+            "rate_limited" => SdkWorkResultCode::RateLimitExceeded,
+            "quota_exceeded" => SdkWorkResultCode::QuotaExceeded,
+            "dependency_unavailable" => SdkWorkResultCode::ServiceUnavailable,
+            "storage_error" => SdkWorkResultCode::InternalError,
+            _ => match self.status {
+                StatusCode::BAD_REQUEST => SdkWorkResultCode::ValidationError,
+                StatusCode::UNAUTHORIZED => SdkWorkResultCode::AuthenticationRequired,
+                StatusCode::FORBIDDEN => SdkWorkResultCode::PermissionRequired,
+                StatusCode::NOT_FOUND => SdkWorkResultCode::NotFound,
+                StatusCode::METHOD_NOT_ALLOWED => SdkWorkResultCode::MethodNotAllowed,
+                StatusCode::REQUEST_TIMEOUT => SdkWorkResultCode::RequestTimeout,
+                StatusCode::CONFLICT => SdkWorkResultCode::Conflict,
+                StatusCode::PAYLOAD_TOO_LARGE => SdkWorkResultCode::PayloadTooLarge,
+                StatusCode::TOO_MANY_REQUESTS => SdkWorkResultCode::RateLimitExceeded,
+                StatusCode::SERVICE_UNAVAILABLE => SdkWorkResultCode::ServiceUnavailable,
+                _ => SdkWorkResultCode::InternalError,
+            },
         }
     }
 }
@@ -103,14 +121,32 @@ impl From<MemoryServiceError> for MemoryApiProblem {
 impl IntoResponse for MemoryApiProblem {
     fn into_response(self) -> Response {
         let correlation = MemoryProblemCorrelation::current();
-        let request_id = correlation.as_ref().map(|value| value.request_id.as_str());
         let trace_id = correlation
             .as_ref()
-            .and_then(|value| value.trace_id.as_deref());
-        problem_response(
-            &self.error.framework_error(),
-            ProblemCorrelation::new(request_id, trace_id),
+            .and_then(|value| value.trace_id.clone())
+            .or_else(|| {
+                correlation.as_ref().map(|value| {
+                    resolve_problem_trace_id(value.request_id.as_str(), None)
+                })
+            })
+            .unwrap_or_else(|| "unknown".to_owned());
+        let result_code = self.error.result_code();
+        let mut problem =
+            SdkWorkProblemDetail::platform(result_code, self.error.detail, trace_id.clone());
+        problem.status = self.error.status.as_u16();
+        let mut response = (
+            self.error.status,
+            [(header::CONTENT_TYPE, "application/problem+json")],
+            Json(problem),
         )
+            .into_response();
+        if let (Ok(name), Ok(value)) = (
+            HeaderName::from_bytes(SDKWORK_TRACE_ID_HEADER.as_bytes()),
+            HeaderValue::from_str(&trace_id),
+        ) {
+            response.headers_mut().insert(name, value);
+        }
+        response
     }
 }
 
@@ -133,6 +169,10 @@ mod tests {
             "validation_error",
             "spaceId query parameter is required",
         ))
+    }
+
+    async fn invalid_parameter_handler() -> Result<&'static str, MemoryApiProblem> {
+        Err(super::MemoryApiError::invalid_parameter("invalid page_size").into())
     }
 
     #[tokio::test]
@@ -167,5 +207,35 @@ mod tests {
             "4bf92f3577b34da6a3ce929d0e0e4736"
         );
         assert_eq!(40001, payload["code"].as_i64().unwrap());
+    }
+
+    #[tokio::test]
+    async fn problem_response_preserves_invalid_parameter_code() {
+        let app = Router::new()
+            .route("/test", get(invalid_parameter_handler))
+            .layer(from_fn(problem_correlation_middleware));
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/test")
+                    .header(REQUEST_ID_HEADER, "req-memory-2")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            response.headers()[axum::http::header::CONTENT_TYPE],
+            "application/problem+json"
+        );
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(40003, payload["code"].as_i64().unwrap());
+        assert_eq!("Invalid parameter", payload["title"]);
     }
 }

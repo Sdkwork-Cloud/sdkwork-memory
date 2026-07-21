@@ -29,7 +29,9 @@ The only supported profile IDs are:
 - Container image: `registry.sdkwork.com/apps/sdkwork-memory` from `deployments/docker/Dockerfile`.
 - Kubernetes descriptors: `deployments/kubernetes/`, including migration job, Deployment, HPA, PDB, ingress, and Prometheus rules.
 - Database: PostgreSQL is required; run migrations through `pnpm db:migrate` or the Kubernetes migration job.
-- Drive exports: privacy export jobs upload through SDKWork Drive using deployment-managed credentials.
+- Distributed web state: production requires Redis for rate limiting, idempotency, and concurrent admission; readiness fails when Redis or IAM dependencies are unavailable.
+- Background work: Outbox, learning, and eval execution use database-fenced leases and bounded concurrency across replicas.
+- Drive exports: privacy export jobs use SDKWork Drive credentials and a bounded single-buffer upload; streaming multipart is not yet implemented.
 - Verification: `pnpm verify` and release-readiness checks must pass before publication.
 
 ## Local Development

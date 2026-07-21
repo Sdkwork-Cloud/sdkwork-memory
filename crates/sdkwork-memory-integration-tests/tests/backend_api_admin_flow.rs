@@ -159,8 +159,14 @@ async fn backend_api_admin_config_persists_in_sql_tables() {
             "POST",
             "/backend/v3/api/memory/eval_runs",
             json!({
-                "evalType": "retrieval",
-                "metrics": { "hitRate": 0.9 }
+                "evalType": "retrieval_quality",
+                "config": {
+                    "cases": [{
+                        "spaceId": "1",
+                        "query": "seed memory",
+                        "expectedMemoryIds": ["1"]
+                    }]
+                }
             }),
         ))
         .await
@@ -177,7 +183,7 @@ async fn backend_api_admin_config_persists_in_sql_tables() {
         .await
         .unwrap()
         .expect("eval run should exist in ai_eval_run");
-    assert_eq!(eval_row.eval_type, "retrieval");
+    assert_eq!(eval_row.eval_type, "retrieval_quality");
 
     let binding = app
         .clone()
@@ -409,7 +415,7 @@ async fn backend_api_supersede_memory_replays_result_without_duplicate_side_effe
 
     let old_record = app
         .clone()
-        .oneshot(authed_get("/backend/v3/api/memory/memories/100?spaceId=1"))
+        .oneshot(authed_get("/backend/v3/api/memory/memories/100?space_id=1"))
         .await
         .unwrap();
     assert_eq!(old_record.status(), StatusCode::OK);

@@ -106,7 +106,7 @@ async fn app_api_forget_and_export_jobs_round_trip_via_dual_token() {
         .clone()
         .oneshot(authed_get(
             "2001",
-            &format!("/app/v3/api/memory/memories/{memory_id}?spaceId=2"),
+            &format!("/app/v3/api/memory/memories/{memory_id}?space_id=2"),
         ))
         .await
         .unwrap();

@@ -1,6 +1,13 @@
+use crate::sqlx_compat as sqlx;
 use sqlx::Row;
 
 use crate::store::{now_text, NativeSqlMemoryStore, NativeSqlStoreError};
+
+const PROVIDER_HEALTH_ADVISORY_LOCK_ID: i64 = 0x4D45_4D48_5052_4F42;
+
+pub struct NativeSqlProviderHealthLease<'a> {
+    _transaction: Option<sqlx::Transaction<'a, sqlx::Any>>,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct NativeSqlMemoryIndexRow {
@@ -136,6 +143,7 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_index (
+              id,
               uuid,
               tenant_id,
               space_id,
@@ -149,9 +157,10 @@ impl NativeSqlMemoryStore {
               updated_at,
               version
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(index_uuid)
         .bind(tenant_id)
         .bind(space_id)
@@ -335,13 +344,14 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_retrieval_profile (
-              uuid, tenant_id, space_id, name, strategy, retrievers_json,
+              id, uuid, tenant_id, space_id, name, strategy, retrievers_json,
               fusion_policy_json, rerank_policy_json,
               top_k, context_budget_tokens, status, created_at, updated_at, version
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(profile_uuid)
         .bind(tenant_id)
         .bind(space_id)
@@ -536,13 +546,14 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_implementation_profile (
-              uuid, tenant_id, name, implementation_kind, role, status,
+              id, uuid, tenant_id, name, implementation_kind, role, status,
               capability_json, config_json, rollout_json,
               created_at, updated_at, version
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(profile_uuid)
         .bind(tenant_id)
         .bind(name)
@@ -798,14 +809,15 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_provider_binding (
-              uuid, tenant_id, provider_kind, provider_code, display_name,
+              id, uuid, tenant_id, provider_kind, provider_code, display_name,
               endpoint_ref, secret_ref, model_ref,
               capabilities_json, config_json, health_state, last_health_at,
               created_at, updated_at, version
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(binding_uuid)
         .bind(tenant_id)
         .bind(provider_kind)
@@ -825,23 +837,46 @@ impl NativeSqlMemoryStore {
         Ok(())
     }
 
-    pub async fn list_distinct_tenant_ids_with_provider_bindings(
+    pub async fn try_acquire_provider_health_lease(
         &self,
+    ) -> Result<Option<NativeSqlProviderHealthLease<'_>>, NativeSqlStoreError> {
+        if self.dialect() == crate::MemorySqlDialect::Sqlite {
+            return Ok(Some(NativeSqlProviderHealthLease { _transaction: None }));
+        }
+
+        let mut transaction = self.begin_tx().await?;
+        let acquired: bool = sqlx::query_scalar("SELECT pg_try_advisory_xact_lock(?)")
+            .bind(PROVIDER_HEALTH_ADVISORY_LOCK_ID)
+            .fetch_one(&mut *transaction)
+            .await?;
+        Ok(acquired.then_some(NativeSqlProviderHealthLease {
+            _transaction: Some(transaction),
+        }))
+    }
+
+    pub async fn list_tenant_ids_with_provider_bindings_page(
+        &self,
+        after_tenant_id: Option<i64>,
+        page_size: i32,
     ) -> Result<Vec<i64>, NativeSqlStoreError> {
+        let page_size = page_size.clamp(1, sdkwork_utils_rust::MAX_LIST_PAGE_SIZE) as i64;
         let rows = sqlx::query(
             r#"
             SELECT DISTINCT tenant_id
             FROM ai_provider_binding
+            WHERE tenant_id > ?
             ORDER BY tenant_id ASC
+            LIMIT ?
             "#,
         )
+        .bind(after_tenant_id.unwrap_or(-1))
+        .bind(page_size + 1)
         .fetch_all(self.pool())
         .await?;
 
-        Ok(rows
-            .into_iter()
-            .map(|row| sqlx::Row::try_get::<i64, _>(&row, "tenant_id").unwrap_or(0))
-            .collect())
+        rows.into_iter()
+            .map(|row| sqlx::Row::try_get::<i64, _>(&row, "tenant_id").map_err(Into::into))
+            .collect()
     }
 
     pub async fn list_mem_provider_bindings_for_tenant(
@@ -986,11 +1021,12 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_eval_run (
-              uuid, tenant_id, eval_type, state, metrics_json, created_at, updated_at
+              id, uuid, tenant_id, eval_type, state, metrics_json, created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(eval_run_uuid)
         .bind(tenant_id)
         .bind(eval_type)
@@ -1011,12 +1047,13 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_eval_run (
-              uuid, tenant_id, eval_type, state, dataset_ref, profile_ref,
+              id, uuid, tenant_id, eval_type, state, dataset_ref, profile_ref,
               result_json, created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(command.eval_run_uuid)
         .bind(command.tenant_id)
         .bind(command.eval_type)

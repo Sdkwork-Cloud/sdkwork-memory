@@ -907,7 +907,7 @@ impl MemoryOpenApi for OpenMemoryService {
         )
         .await?;
         let scope = Self::scope(&context, space_id)?;
-        let page_size = platform::clamp_page_size(query.page_size);
+        let page_size = platform::validated_page_size(query.page_size)?;
         let page_size_usize = usize::try_from(page_size).unwrap_or(20);
         let sensitivity_scope =
             access::sensitivity_read_scope(&context, authorization.actor_is_space_owner);
@@ -1979,7 +1979,7 @@ impl MemoryOpenApi for OpenMemoryService {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let space_id = access::require_list_space_id(query.space_id)?;
         access::assert_actor_can_access_space(&self.runtime_data_plane, &context, space_id).await?;
-        let page_size = platform::clamp_page_size(query.page_size);
+        let page_size = platform::validated_page_size(query.page_size)?;
         let page = self
             .runtime_data_plane
             .list_candidates(ListMemoryCandidatesQuery {

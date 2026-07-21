@@ -43,9 +43,6 @@ foreach ($LanguageValue in $Languages) {
             throw "Refusing to clean SDK output outside language workspace: $ResolvedOutputPath"
         }
 
-        if (Test-Path $OutputPath) {
-            Remove-Item -LiteralPath $OutputPath -Recurse -Force
-        }
         Write-Host "Generating $Language SDK at $OutputPath" -ForegroundColor Cyan
         & node $GeneratorPath generate `
             -i $InputPath `

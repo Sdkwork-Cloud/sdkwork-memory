@@ -49,12 +49,13 @@ export interface MemoryPcModuleDefinition {
 
 export interface MemoryPageInfo {
   cursor?: string;
-  hasNext?: boolean;
+  hasMore?: boolean;
   mode: "cursor" | "offset";
   nextCursor?: string;
   page?: number;
   pageSize?: number;
-  total?: number;
+  totalItems?: string;
+  totalPages?: number;
 }
 
 export interface MemoryPageResult {

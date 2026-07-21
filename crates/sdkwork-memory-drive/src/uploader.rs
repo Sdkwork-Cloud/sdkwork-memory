@@ -39,7 +39,7 @@ impl DriveUploaderMemoryExportAdapter {
 impl MemoryDriveExportUploader for DriveUploaderMemoryExportAdapter {
     async fn upload_export(
         &self,
-        request: MemoryDriveExportUploadRequest,
+        mut request: MemoryDriveExportUploadRequest,
     ) -> MemorySpiResult<MemoryDriveExportUploadResult> {
         if request.user_id.is_none() {
             return Err(MemorySpiError::PortOperationFailed {
@@ -50,23 +50,15 @@ impl MemoryDriveExportUploader for DriveUploaderMemoryExportAdapter {
 
         let now_epoch_ms = to_unix_millis(now());
         let checksum = sha256_hash(&request.body);
+        let body = std::mem::take(&mut request.body);
+        let command = upload_command(&request, body, now_epoch_ms, &self.app_id);
 
         let completed = match &self.object_store {
             MemoryDriveObjectStore::Local(store) => {
-                self.uploader
-                    .upload_bytes(
-                        store.as_ref(),
-                        upload_command(&request, now_epoch_ms, &self.app_id),
-                    )
-                    .await
+                self.uploader.upload_bytes(store.as_ref(), command).await
             }
             MemoryDriveObjectStore::S3(store) => {
-                self.uploader
-                    .upload_bytes(
-                        store.as_ref(),
-                        upload_command(&request, now_epoch_ms, &self.app_id),
-                    )
-                    .await
+                self.uploader.upload_bytes(store.as_ref(), command).await
             }
         }
         .map_err(map_drive_service_error)?;
@@ -81,6 +73,7 @@ impl MemoryDriveExportUploader for DriveUploaderMemoryExportAdapter {
 
 fn upload_command(
     request: &MemoryDriveExportUploadRequest,
+    body: Vec<u8>,
     now_epoch_ms: i64,
     app_id: &str,
 ) -> UploadBytesCommand {
@@ -118,7 +111,7 @@ fn upload_command(
             operator_id: user_id,
             now_epoch_ms,
         },
-        body: request.body.clone(),
+        body,
         uploaded_at_epoch_ms: now_epoch_ms,
     }
 }

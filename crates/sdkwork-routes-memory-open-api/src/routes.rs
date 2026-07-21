@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query},
+    extract::Path,
     http::StatusCode,
     response::Response,
     routing::{get, post},
@@ -12,7 +12,7 @@ use sdkwork_memory_contract::{
     MemoryRecordPatch, MemoryRecordRequest, MemoryRetrievalRequest, MemorySpaceScopeQuery,
 };
 use sdkwork_routes_memory_support::{
-    created_resource_json, no_content_json, ok_page_json, ok_resource_json,
+    created_resource_json, no_content_json, ok_page_json, ok_resource_json, MemoryQuery as Query,
 };
 use std::sync::Arc;
 

@@ -1,5 +1,6 @@
 //! Privacy-oriented forget, export, and LIKE helpers for native SQL storage.
 
+use crate::sqlx_compat as sqlx;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::Row;
@@ -273,9 +274,11 @@ impl NativeSqlMemoryStore {
         space_ids: &[i64],
         include_events: bool,
         sensitivity_scope: i32,
+        max_payload_bytes: usize,
     ) -> Result<ExportCollectedPayload, NativeSqlStoreError> {
         let mut records = Vec::new();
         let mut events = Vec::new();
+        let mut payload_bytes = 0_usize;
 
         let max_export_records = std::env::var("SDKWORK_MEMORY_EXPORT_MAX_RECORDS")
             .ok()
@@ -324,7 +327,7 @@ impl NativeSqlMemoryStore {
                             ),
                         });
                     }
-                    records.push(json!({
+                    let value = json!({
                         "memoryId": row.memory_id,
                         "spaceId": row.space_id,
                         "scope": row.scope,
@@ -332,7 +335,9 @@ impl NativeSqlMemoryStore {
                         "canonicalText": row.canonical_text,
                         "sensitivityLevel": row.sensitivity_level,
                         "createdAt": row.created_at,
-                    }));
+                    });
+                    account_export_value(&value, &mut payload_bytes, max_payload_bytes)?;
+                    records.push(value);
                 }
                 if !has_more {
                     break;
@@ -374,7 +379,9 @@ impl NativeSqlMemoryStore {
                                 ),
                             });
                         }
-                        events.push(Self::map_export_event(row));
+                        let value = Self::map_export_event(row);
+                        account_export_value(&value, &mut payload_bytes, max_payload_bytes)?;
+                        events.push(value);
                     }
                     if !has_more {
                         break;
@@ -455,4 +462,21 @@ impl NativeSqlMemoryStore {
         .rows_affected();
         Ok(purged as u32)
     }
+}
+
+fn account_export_value(
+    value: &Value,
+    payload_bytes: &mut usize,
+    max_payload_bytes: usize,
+) -> Result<(), NativeSqlStoreError> {
+    let value_bytes = serde_json::to_vec(value)?.len();
+    *payload_bytes = payload_bytes.saturating_add(value_bytes).saturating_add(1);
+    if *payload_bytes > max_payload_bytes {
+        return Err(NativeSqlStoreError::InvariantViolation {
+            message: format!(
+                "export payload byte limit exceeded (max {max_payload_bytes} bytes per job)"
+            ),
+        });
+    }
+    Ok(())
 }

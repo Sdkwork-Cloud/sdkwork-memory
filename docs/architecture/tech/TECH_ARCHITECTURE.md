@@ -4,7 +4,7 @@ Status: active current-state Canon
 
 Owner: SDKWork Memory maintainers
 
-Updated: 2026-07-20
+Updated: 2026-07-21
 
 ## Authority
 
@@ -73,10 +73,12 @@ Both surfaces reuse visual primitives but do not share SDK clients, session cont
 
 - Canonical evidence is stored in `ai_event`, `ai_record`, and `ai_record_source`.
 - Learning jobs use `ai_learning_job`; extraction history is keyset-paginated by tenant, type, optional space, and stable row id.
+- Outbox, learning, and evaluation workers use persisted owner/token/expiry leases. Heartbeats extend current leases, and stale completion is fenced at the SQL update.
 - Forget, export, consolidation, retention, and migration jobs persist typed snapshots in `ai_audit_log`; App history also constrains the authenticated actor in SQL.
 - Entities, edges, policies, subjects, bindings, capability bindings, assignments, and readiness snapshots use dedicated `ai_` tables.
 - Search indexes and provider projections are derived and rebuildable. Canonical relational data remains authoritative.
 - Outbox writes are part of mutation boundaries where domain event delivery is required.
+- PostgreSQL and SQLite share one logical storage model through `sqlx::Any`: application-generated Snowflake IDs, validated JSON/UTC instants stored as text, and floating algorithm scores stored as `DOUBLE PRECISION`/`REAL`.
 
 ## Security And Privacy
 
@@ -85,6 +87,8 @@ Both surfaces reuse visual primitives but do not share SDK clients, session cont
 - Restricted sensitivity access fails closed. Provider calls receive only the authorized projection.
 - Forget workflows physically remove targeted canonical and derived data according to scope and record an auditable result.
 - Export applies sensitivity filtering and uses the approved Drive uploader for Drive targets.
+- Export collection is keyset-paginated and byte-bounded. Inline export defaults to 4 MiB and Drive export to 64 MiB, with a 256 MiB absolute cap. The current Drive SPI is a bounded single-buffer upload, not streaming multipart.
+- Outbound provider and Outbox HTTP clients validate every resolved address, reject non-public or mixed DNS answers, pin validated addresses, and disable redirects.
 - `ProblemDetail` exposes numeric code and server trace id; the PC never displays raw response bodies, tokens, or headers.
 - Production PC artifacts exclude source maps and repository-private runtime state.
 
@@ -98,6 +102,8 @@ Both surfaces reuse visual primitives but do not share SDK clients, session cont
 | `cloud.production` | platform-managed production deployment |
 
 The server publishes profile-bound runtime artifacts. The PC publishes a cloud browser ZIP with deterministic file order/timestamps, SHA-256, SPDX SBOM, provenance, and CI OIDC attestation. Publishing, deployment, and rollback remain separate workflow phases.
+
+Production-like HTTP surfaces require shared Redis stores for rate limiting, idempotency, and concurrent admission, plus IAM database readiness. The gateway applies a bounded request deadline, body limit, and local concurrency ceiling. This repository remains a release candidate until immutable OCI/browser artifacts, signatures, attestations, deployment smoke tests, load evidence, and rollback records pass the release gates.
 
 ## Verification
 

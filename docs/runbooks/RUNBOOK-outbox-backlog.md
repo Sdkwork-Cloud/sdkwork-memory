@@ -2,46 +2,43 @@
 
 Status: active  
 Owner: SDKWork Memory operators  
-Specs: EVENT_SPEC.md, DATABASE_SPEC.md
+Specs: `EVENT_SPEC.md`, `DATABASE_SPEC.md`
 
 ## Scope
 
-Handle growing outbox backlog, stuck `processing` rows, or repeated delivery failures for domain events emitted by Memory mutations.
+Handle growing outbox backlog, expired delivery leases, or repeated delivery failures for Memory domain events.
 
 ## Architecture
 
-1. Mutations append rows to `ai_outbox_event` with `publish_state = pending`.
-2. The outbox publisher claims batches with `FOR UPDATE SKIP LOCKED`, moving rows to `processing`.
-3. The delivery adapter posts CloudEvents-style envelopes (log or HTTP webhook).
-4. Successful delivery calls `ack_outbox_delivery_success` (`processing` → `published`).
-5. Failed delivery calls `record_outbox_delivery_failure` (retry to `pending` or terminal `failed`).
-6. Stale `processing` rows are requeued by `requeue_stale_processing_outbox_events`.
+1. Mutations append `pending` rows in the same transaction as domain state.
+2. The publisher claims bounded batches and writes `lease_owner`, `lease_token`, and `lease_expires_at` while moving rows to `processing`.
+3. HTTP delivery emits a CloudEvents-style envelope and renews the lease while the request is in flight.
+4. Success and failure updates require the current unexpired token. Failed attempts return to `pending` with `next_attempt_at`, or enter terminal `failed` state.
+5. Expired processing leases are requeued. An old worker cannot acknowledge after another worker takes ownership.
 
 ## Signals
 
-- `memory_outbox_pending_total` rising for extended periods
+- `memory_outbox_pending_total` rising for an extended period
 - `memory_outbox_delivery_failed_total` increasing
-- `memory_outbox_publish_failed_total` (claim failures) non-zero
-- Rows stuck in `processing` beyond `SDKWORK_MEMORY_OUTBOX_STALE_PROCESSING_SECS` (default 300)
+- `memory_outbox_publish_failed_total` non-zero
+- `memory_outbox_dead_letter_total` increasing
+- `processing` rows whose `lease_expires_at` is in the past
 
 ## Investigation
 
-1. Confirm outbox publisher is running (embedded in standalone-gateway bootstrap or dedicated worker).
-2. Inspect delivery mode: `SDKWORK_MEMORY_OUTBOX_DELIVERY_MODE` (`log` or `http`).
-3. For HTTP mode, verify `SDKWORK_MEMORY_OUTBOX_DELIVERY_URL` reachability and TLS.
-4. Query backlog by state:
+1. Confirm the publisher is running in the standalone gateway replicas.
+2. Production requires `SDKWORK_MEMORY_OUTBOX_DELIVERY_MODE=http`; disabled mode intentionally leaves rows pending.
+3. Verify `SDKWORK_MEMORY_OUTBOX_DELIVERY_URL`, TLS, DNS answers, and egress policy without recording the URL or payload in tickets.
+4. Query state and lease age:
 
 ```sql
 SELECT publish_state, COUNT(*)
 FROM ai_outbox_event
 GROUP BY publish_state
 ORDER BY publish_state;
-```
 
-5. Sample oldest pending rows (tenant-scoped, no payload secrets in tickets):
-
-```sql
-SELECT tenant_id, uuid, event_type, retry_count, created_at
+SELECT tenant_id, uuid, event_type, retry_count, next_attempt_at,
+       lease_owner, lease_expires_at, created_at
 FROM ai_outbox_event
 WHERE publish_state IN ('pending', 'processing', 'failed')
 ORDER BY created_at ASC
@@ -50,11 +47,11 @@ LIMIT 20;
 
 ## Mitigation
 
-- **Transient webhook errors**: wait for automatic retry; confirm `SDKWORK_MEMORY_OUTBOX_MAX_RETRIES` (default 5).
-- **Stuck processing**: restart publisher or wait for stale requeue; verify no long-running DB transactions holding locks.
-- **Terminal failed rows**: fix downstream consumer, then manually requeue or replay from audit if policy allows.
-- **Claim failures**: check DB connectivity and replica lag; scale publisher only after confirming SKIP LOCKED claim path is healthy.
+- For transient downstream errors, allow scheduled retry and confirm `SDKWORK_MEMORY_OUTBOX_MAX_RETRIES`.
+- For expired leases, verify database time and worker health; normal requeue should recover without manual updates.
+- For terminal failures, fix the consumer and use an approved, audited replay procedure. Never edit payloads in place.
+- Scale publisher concurrency only after checking database capacity and downstream rate limits.
 
 ## Escalation
 
-Platform SRE → Memory service owner → downstream event consumer owner.
+Platform SRE -> Memory service owner -> downstream event consumer owner.

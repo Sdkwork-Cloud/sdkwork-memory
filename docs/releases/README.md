@@ -4,7 +4,7 @@ Status: active release Canon
 
 Owner: SDKWork Memory release maintainers
 
-Updated: 2026-07-20
+Updated: 2026-07-21
 
 ## Release Matrix
 
@@ -37,7 +37,8 @@ The PC packaging command must produce the same SHA-256 when run twice against id
 6. The immutable artifact is uploaded to the declared release URL.
 7. Console and Admin smoke tests pass against the published runtime config.
 8. Monitoring, stop conditions, and rollback owner are recorded.
-9. Only then may the PC package publication state and app publish status move from draft to active.
+9. PostgreSQL lifecycle/plugin conformance, container non-root health, and bounded load/soak checks pass from the release commit.
+10. Only then may any server, container, PC package, or app publish status move from internal/draft to active.
 
 Local hashes, reserved URLs, or `signatureState=pending-ci-attestation` do not satisfy gates 5-7.
 

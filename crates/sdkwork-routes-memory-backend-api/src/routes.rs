@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Path, Query},
+    extract::Path,
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, patch, post},
@@ -15,7 +15,9 @@ use sdkwork_memory_contract::{
     MemoryRetentionJobRequest, MemoryRetrievalProfileRequest, MemoryReviewRequest,
     MemorySpaceRequest, MemorySpaceScopeQuery,
 };
-use sdkwork_routes_memory_support::{created_resource_json, ok_page_json, ok_resource_json};
+use sdkwork_routes_memory_support::{
+    created_resource_json, ok_page_json, ok_resource_json, MemoryQuery as Query,
+};
 use std::sync::Arc;
 
 use crate::{auth::require_backend_context, paths, BackendApiProblem};

@@ -43,6 +43,77 @@ fn authed_get_request(uri: &str) -> Request<Body> {
 }
 
 #[tokio::test]
+async fn app_api_pagination_accepts_only_canonical_bounded_query_parameters() {
+    let _env = lock_integration_test_env();
+    let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
+    let app = wrap_router_with_iam_database_web_framework(
+        IamWebRequestContextResolver::new(None),
+        build_router_with_app_api(OpenMemoryService::new(store)),
+    );
+
+    for uri in [
+        "/app/v3/api/memory/spaces?page_size=0",
+        "/app/v3/api/memory/spaces?page_size=-1",
+        "/app/v3/api/memory/spaces?page_size=201",
+        "/app/v3/api/memory/spaces?pageSize=20",
+        "/app/v3/api/memory/spaces?limit=20",
+        "/app/v3/api/memory/spaces?size=20",
+        "/app/v3/api/memory/spaces?page_size=20&page_size=20",
+        "/app/v3/api/memory/spaces?page_size=twenty",
+        "/app/v3/api/memory/memories?spaceId=2",
+    ] {
+        let response = app
+            .clone()
+            .oneshot(authed_get_request(uri))
+            .await
+            .expect("pagination validation response");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{uri}");
+        assert_eq!(
+            response
+                .headers()
+                .get(axum::http::header::CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok()),
+            Some("application/problem+json"),
+            "{uri}"
+        );
+        let body = to_bytes(response.into_body(), 64 * 1024)
+            .await
+            .expect("bounded pagination problem body");
+        let problem: serde_json::Value =
+            serde_json::from_slice(&body).expect("pagination problem json");
+        assert_eq!(problem["status"], 400, "{uri}");
+        assert_eq!(problem["code"], 40003, "{uri}");
+        assert_eq!(problem["title"], "Invalid parameter", "{uri}");
+        assert_eq!(
+            problem["type"],
+            "https://docs.sdkwork.com/problems/40003",
+            "{uri}"
+        );
+        assert!(
+            problem["traceId"]
+                .as_str()
+                .is_some_and(|trace_id| !trace_id.is_empty()),
+            "{uri}"
+        );
+    }
+
+    let default_page = app
+        .clone()
+        .oneshot(authed_get_request("/app/v3/api/memory/spaces"))
+        .await
+        .expect("default page response");
+    assert_eq!(default_page.status(), StatusCode::OK);
+
+    let bounded_page = app
+        .oneshot(authed_get_request(
+            "/app/v3/api/memory/spaces?page_size=200",
+        ))
+        .await
+        .expect("bounded page response");
+    assert_eq!(bounded_page.status(), StatusCode::OK);
+}
+
+#[tokio::test]
 async fn app_api_mvp_flow_space_memory_and_retrieval_via_dual_token() {
     let _env = lock_integration_test_env();
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
@@ -264,7 +335,7 @@ async fn app_api_candidate_approve_promotes_memory_and_links_event_sources() {
         let candidates = app
             .clone()
             .oneshot(authed_get_request(&format!(
-                "/app/v3/api/memory/candidates?spaceId={space_id}"
+                "/app/v3/api/memory/candidates?space_id={space_id}"
             )))
             .await
             .unwrap();
@@ -307,7 +378,7 @@ async fn app_api_candidate_approve_promotes_memory_and_links_event_sources() {
     let memories = app
         .clone()
         .oneshot(authed_get_request(&format!(
-            "/app/v3/api/memory/memories?spaceId={space_id}"
+            "/app/v3/api/memory/memories?space_id={space_id}"
         )))
         .await
         .unwrap();

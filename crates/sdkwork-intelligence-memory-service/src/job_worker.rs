@@ -3,14 +3,15 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use futures::stream::{self, StreamExt};
 use sdkwork_memory_contract::{
     MemoryExtractionRequest, MemoryLearningJob, MemoryMigrationJobRequest, MemoryOpenApi,
     MemoryOpenApiRequestContext, MemoryRetentionJobRequest, MemoryRetrievalRequest,
     MemoryServiceError,
 };
 use sdkwork_memory_plugin_native_sql::{
-    ConsolidateDuplicateRecordsCommand, InsertLearningJobCommand, NativeSqlEvalRunRow,
-    NativeSqlLearningJobRow, NativeSqlMemoryStore,
+    ConsolidateDuplicateRecordsCommand, InsertLearningJobCommand, NativeSqlClaimedEvalRun,
+    NativeSqlEvalRunRow, NativeSqlLearningJobRow, NativeSqlMemoryStore,
 };
 use sdkwork_memory_spi::MemoryScopeContext;
 use sdkwork_utils_rust::is_blank;
@@ -43,7 +44,17 @@ fn spawn_learning_job_worker(
     mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
 ) {
     tokio::spawn(async move {
-        let poll_interval = platform::read_env_u64("SDKWORK_MEMORY_JOB_POLL_INTERVAL_SECS", 2);
+        let worker_id = match platform::next_numeric_id() {
+            Ok(id) => format!("memory-learning-{id}"),
+            Err(error) => {
+                tracing::error!(error = %error.detail, "memory learning worker ID initialization failed");
+                return;
+            }
+        };
+        let lease_duration_seconds =
+            platform::read_env_u64("SDKWORK_MEMORY_JOB_LEASE_DURATION_SECS", 900).max(30);
+        let poll_interval =
+            platform::read_env_u64("SDKWORK_MEMORY_JOB_POLL_INTERVAL_SECS", 2).max(1);
         loop {
             tokio::select! {
                 _ = shutdown_rx.changed() => {
@@ -53,7 +64,11 @@ fn spawn_learning_job_worker(
                     }
                 }
                 _ = tokio::time::sleep(Duration::from_secs(poll_interval)) => {
-                    if let Err(error) = process_learning_job_batch(&service).await {
+                    if let Err(error) = process_learning_job_batch(
+                        service.clone(),
+                        &worker_id,
+                        lease_duration_seconds,
+                    ).await {
                         tracing::warn!(error = %error, "memory learning job worker batch failed");
                     }
                 }
@@ -67,7 +82,17 @@ fn spawn_eval_run_worker(
     mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
 ) {
     tokio::spawn(async move {
-        let poll_interval = platform::read_env_u64("SDKWORK_MEMORY_EVAL_POLL_INTERVAL_SECS", 5);
+        let worker_id = match platform::next_numeric_id() {
+            Ok(id) => format!("memory-eval-{id}"),
+            Err(error) => {
+                tracing::error!(error = %error.detail, "memory eval worker ID initialization failed");
+                return;
+            }
+        };
+        let lease_duration_seconds =
+            platform::read_env_u64("SDKWORK_MEMORY_EVAL_LEASE_DURATION_SECS", 900).max(30);
+        let poll_interval =
+            platform::read_env_u64("SDKWORK_MEMORY_EVAL_POLL_INTERVAL_SECS", 5).max(1);
         loop {
             tokio::select! {
                 _ = shutdown_rx.changed() => {
@@ -77,7 +102,11 @@ fn spawn_eval_run_worker(
                     }
                 }
                 _ = tokio::time::sleep(Duration::from_secs(poll_interval)) => {
-                    if let Err(error) = process_eval_run_batch(&service).await {
+                    if let Err(error) = process_eval_run_batch(
+                        service.clone(),
+                        &worker_id,
+                        lease_duration_seconds,
+                    ).await {
                         tracing::warn!(error = %error, "memory eval run worker batch failed");
                     }
                 }
@@ -91,7 +120,8 @@ fn spawn_provider_health_probe(
     mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
 ) {
     tokio::spawn(async move {
-        let poll_interval = platform::read_env_u64("SDKWORK_MEMORY_PROVIDER_HEALTH_PROBE_SECS", 60);
+        let poll_interval =
+            platform::read_env_u64("SDKWORK_MEMORY_PROVIDER_HEALTH_PROBE_SECS", 60).max(1);
         loop {
             tokio::select! {
                 _ = shutdown_rx.changed() => {
@@ -110,20 +140,91 @@ fn spawn_provider_health_probe(
     });
 }
 
-async fn process_learning_job_batch(service: &OpenMemoryService) -> Result<(), String> {
-    let stale_secs = platform::read_env_u64("SDKWORK_MEMORY_JOB_STALE_SECS", 900);
+async fn process_learning_job_batch(
+    service: Arc<OpenMemoryService>,
+    worker_id: &str,
+    lease_duration_seconds: u64,
+) -> Result<(), String> {
     let _ = service
         .store
-        .requeue_stale_running_learning_jobs(stale_secs)
+        .requeue_stale_running_learning_jobs(lease_duration_seconds)
         .await
         .map_err(|error| error.to_string())?;
+    let lease_token = platform::next_numeric_id()
+        .map_err(|error| error.detail)?
+        .to_string();
+    let concurrency = platform::read_env_u64("SDKWORK_MEMORY_JOB_CONCURRENCY", 8).clamp(1, 32);
     let jobs = service
         .store
-        .claim_queued_learning_jobs(16)
+        .claim_queued_learning_jobs(
+            i32::try_from(concurrency).unwrap_or(8),
+            worker_id,
+            &lease_token,
+            lease_duration_seconds,
+        )
         .await
         .map_err(|error| error.to_string())?;
+    let mut tasks = tokio::task::JoinSet::new();
     for job in jobs {
-        if let Err(error) = execute_learning_job(service, &job).await {
+        tasks.spawn(process_claimed_learning_job(
+            service.clone(),
+            job,
+            lease_duration_seconds,
+        ));
+    }
+    while let Some(result) = tasks.join_next().await {
+        result.map_err(|error| format!("memory learning job task failed: {error}"))?;
+    }
+    Ok(())
+}
+
+async fn process_claimed_learning_job(
+    service: Arc<OpenMemoryService>,
+    job: NativeSqlLearningJobRow,
+    lease_duration_seconds: u64,
+) {
+    let (Some(lease_owner), Some(lease_token)) =
+        (job.lease_owner.as_deref(), job.lease_token.as_deref())
+    else {
+        tracing::error!(job_uuid = %job.job_uuid, "claimed learning job is missing lease identity");
+        return;
+    };
+    let heartbeat_seconds = (lease_duration_seconds / 3).max(1);
+    let mut heartbeat = tokio::time::interval(Duration::from_secs(heartbeat_seconds));
+    heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    heartbeat.tick().await;
+    let execution = execute_learning_job(&service, &job);
+    tokio::pin!(execution);
+    let outcome = loop {
+        tokio::select! {
+            result = &mut execution => break Some(result),
+            _ = heartbeat.tick() => {
+                match service.store.renew_learning_job_lease(
+                    job.tenant_id,
+                    &job.job_uuid,
+                    lease_owner,
+                    lease_token,
+                    lease_duration_seconds,
+                ).await {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        tracing::warn!(job_uuid = %job.job_uuid, "learning job execution fenced after lease loss");
+                        break None;
+                    }
+                    Err(error) => {
+                        tracing::error!(job_uuid = %job.job_uuid, error = %error, "learning job lease renewal failed");
+                        break None;
+                    }
+                }
+            }
+        }
+    };
+    let Some(outcome) = outcome else {
+        return;
+    };
+    let (state, result_json, error_json) = match outcome {
+        Ok(result) => ("succeeded", Some(result), None),
+        Err(error) => {
             tracing::warn!(
                 tenant_id = job.tenant_id,
                 job_uuid = %job.job_uuid,
@@ -131,19 +232,32 @@ async fn process_learning_job_batch(service: &OpenMemoryService) -> Result<(), S
                 error = %error,
                 "memory learning job failed"
             );
-            let _ = service
-                .store
-                .finish_learning_job(
-                    job.tenant_id,
-                    &job.job_uuid,
-                    "failed",
-                    None,
-                    Some(&serde_json::json!({ "message": error }).to_string()),
-                )
-                .await;
+            (
+                "failed",
+                None,
+                Some(serde_json::json!({ "message": error }).to_string()),
+            )
+        }
+    };
+    match service
+        .store
+        .finish_learning_job(
+            job.tenant_id,
+            &job.job_uuid,
+            lease_owner,
+            lease_token,
+            state,
+            result_json.as_deref(),
+            error_json.as_deref(),
+        )
+        .await
+    {
+        Ok(Some(_)) => {}
+        Ok(None) => tracing::warn!(job_uuid = %job.job_uuid, "learning job completion was fenced"),
+        Err(error) => {
+            tracing::error!(job_uuid = %job.job_uuid, error = %error, "learning job completion persistence failed")
         }
     }
-    Ok(())
 }
 
 fn assert_learning_job_space_id(
@@ -189,7 +303,7 @@ fn background_job_context(
 async fn execute_learning_job(
     service: &OpenMemoryService,
     job: &NativeSqlLearningJobRow,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let input = job
         .input_json
         .as_deref()
@@ -336,42 +450,126 @@ async fn execute_learning_job(
         }
         other => return Err(format!("unsupported learning job type: {other}")),
     };
-    service
+    Ok(result)
+}
+
+async fn process_eval_run_batch(
+    service: Arc<OpenMemoryService>,
+    worker_id: &str,
+    lease_duration_seconds: u64,
+) -> Result<(), String> {
+    let _ = service
         .store
-        .finish_learning_job(
-            job.tenant_id,
-            &job.job_uuid,
-            "succeeded",
-            Some(&result),
-            None,
+        .requeue_stale_running_eval_runs(lease_duration_seconds)
+        .await
+        .map_err(|error| error.to_string())?;
+    let lease_token = platform::next_numeric_id()
+        .map_err(|error| error.detail)?
+        .to_string();
+    let concurrency = platform::read_env_u64("SDKWORK_MEMORY_EVAL_CONCURRENCY", 4).clamp(1, 16);
+    let runs = service
+        .store
+        .claim_queued_eval_runs(
+            i32::try_from(concurrency).unwrap_or(4),
+            worker_id,
+            &lease_token,
+            lease_duration_seconds,
         )
         .await
         .map_err(|error| error.to_string())?;
+    let mut tasks = tokio::task::JoinSet::new();
+    for run in runs {
+        tasks.spawn(process_claimed_eval_run(
+            service.clone(),
+            run,
+            lease_duration_seconds,
+        ));
+    }
+    while let Some(result) = tasks.join_next().await {
+        result.map_err(|error| format!("memory eval task failed: {error}"))?;
+    }
     Ok(())
 }
 
-async fn process_eval_run_batch(service: &OpenMemoryService) -> Result<(), String> {
-    let stale_secs = platform::read_env_u64("SDKWORK_MEMORY_EVAL_STALE_SECS", 900);
-    let _ = service
+async fn process_claimed_eval_run(
+    service: Arc<OpenMemoryService>,
+    run: NativeSqlClaimedEvalRun,
+    lease_duration_seconds: u64,
+) {
+    let heartbeat_seconds = (lease_duration_seconds / 3).max(1);
+    let mut heartbeat = tokio::time::interval(Duration::from_secs(heartbeat_seconds));
+    heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    heartbeat.tick().await;
+    let execution = evaluate_claimed_run(&service, &run);
+    tokio::pin!(execution);
+    let outcome = loop {
+        tokio::select! {
+            result = &mut execution => break Some(result),
+            _ = heartbeat.tick() => {
+                match service.store.renew_eval_run_lease(
+                    run.tenant_id,
+                    &run.eval_run_uuid,
+                    &run.lease_owner,
+                    &run.lease_token,
+                    lease_duration_seconds,
+                ).await {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        tracing::warn!(eval_run_uuid = %run.eval_run_uuid, "eval run execution fenced after lease loss");
+                        break None;
+                    }
+                    Err(error) => {
+                        tracing::error!(eval_run_uuid = %run.eval_run_uuid, error = %error, "eval run lease renewal failed");
+                        break None;
+                    }
+                }
+            }
+        }
+    };
+    let (state, metrics, result) = match outcome {
+        Some(Ok(outcome)) => outcome,
+        Some(Err(error)) => {
+            tracing::error!(eval_run_uuid = %run.eval_run_uuid, error = %error, "eval run execution failed before completion");
+            return;
+        }
+        None => return,
+    };
+    match service
         .store
-        .requeue_stale_running_eval_runs(stale_secs)
+        .update_eval_run_state(
+            run.tenant_id,
+            &run.eval_run_uuid,
+            &run.lease_owner,
+            &run.lease_token,
+            state,
+            metrics.as_deref(),
+            Some(&result),
+        )
         .await
-        .map_err(|error| error.to_string())?;
-    let runs = service
+    {
+        Ok(true) => {}
+        Ok(false) => {
+            tracing::warn!(eval_run_uuid = %run.eval_run_uuid, "eval run completion was fenced")
+        }
+        Err(error) => {
+            tracing::error!(eval_run_uuid = %run.eval_run_uuid, error = %error, "eval run completion persistence failed")
+        }
+    }
+}
+
+async fn evaluate_claimed_run(
+    service: &OpenMemoryService,
+    run: &NativeSqlClaimedEvalRun,
+) -> Result<(&'static str, Option<String>, String), String> {
+    let row = service
         .store
-        .claim_queued_eval_runs(8)
+        .retrieve_mem_eval_run_for_tenant(run.tenant_id, &run.eval_run_uuid)
         .await
-        .map_err(|error| error.to_string())?;
-    for (tenant_id, eval_uuid, eval_type) in runs {
-        let row = service
-            .store
-            .retrieve_mem_eval_run_for_tenant(tenant_id, &eval_uuid)
-            .await
-            .map_err(|error| error.to_string())?
-            .ok_or_else(|| format!("claimed eval run {eval_uuid} no longer exists"))?;
-        let (state, metrics, result) = match eval_type.as_str() {
-            "retrieval_quality" => match run_retrieval_quality_eval(service, tenant_id, &row).await
-            {
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| format!("claimed eval run {} no longer exists", run.eval_run_uuid))?;
+    Ok(match run.eval_type.as_str() {
+        "retrieval_quality" => {
+            match run_retrieval_quality_eval(service, run.tenant_id, &row).await {
                 Ok(output) => ("succeeded", Some(output.metrics), output.result),
                 Err(error) => (
                     "failed",
@@ -383,30 +581,19 @@ async fn process_eval_run_batch(service: &OpenMemoryService) -> Result<(), Strin
                     })
                     .to_string(),
                 ),
-            },
-            other => {
-                let result = serde_json::json!({
-                    "evalType": other,
-                    "status": "skipped",
-                    "reason": "eval type is not implemented"
-                })
-                .to_string();
-                ("skipped", None, result)
             }
-        };
-        service
-            .store
-            .update_eval_run_state(
-                tenant_id,
-                &eval_uuid,
-                state,
-                metrics.as_deref(),
-                Some(&result),
-            )
-            .await
-            .map_err(|error| error.to_string())?;
-    }
-    Ok(())
+        }
+        other => (
+            "skipped",
+            None,
+            serde_json::json!({
+                "evalType": other,
+                "status": "skipped",
+                "reason": "eval type is not implemented"
+            })
+            .to_string(),
+        ),
+    })
 }
 
 async fn run_retrieval_quality_eval(
@@ -799,54 +986,100 @@ fn percentile_95_nearest_rank(latencies_ms: &[u64]) -> u64 {
 }
 
 async fn probe_provider_bindings(service: &OpenMemoryService) -> Result<(), String> {
-    let tenants = service
+    let Some(_lease) = service
         .store
-        .list_distinct_tenant_ids_with_provider_bindings()
+        .try_acquire_provider_health_lease()
         .await
-        .map_err(|error| error.to_string())?;
-    for tenant_id in tenants {
-        let mut cursor = None;
-        loop {
-            let rows = service
-                .store
-                .list_mem_provider_bindings_for_tenant(
-                    tenant_id,
-                    sdkwork_utils_rust::MAX_LIST_PAGE_SIZE,
-                    cursor.as_deref(),
-                )
-                .await
-                .map_err(|error| error.to_string())?;
-            let page_size = usize::try_from(sdkwork_utils_rust::MAX_LIST_PAGE_SIZE).unwrap_or(200);
-            let has_more = rows.len() > page_size;
-            for row in rows.iter().take(page_size) {
-                let health = probe_binding_endpoint(row.endpoint_ref.as_deref()).await;
-                let now = platform::current_timestamp();
-                let _ = service
+        .map_err(|error| error.to_string())?
+    else {
+        tracing::debug!("provider health probe skipped because another replica holds the lease");
+        return Ok(());
+    };
+
+    let page_size = sdkwork_utils_rust::MAX_LIST_PAGE_SIZE;
+    let page_size_usize = usize::try_from(page_size).unwrap_or(200);
+    let mut tenant_cursor = None;
+    loop {
+        let tenants = service
+            .store
+            .list_tenant_ids_with_provider_bindings_page(tenant_cursor, page_size)
+            .await
+            .map_err(|error| error.to_string())?;
+        let has_more_tenants = tenants.len() > page_size_usize;
+        for tenant_id in tenants.iter().take(page_size_usize).copied() {
+            let mut binding_cursor = None;
+            loop {
+                let rows = service
                     .store
-                    .update_mem_provider_binding_for_tenant(
+                    .list_mem_provider_bindings_for_tenant(
                         tenant_id,
-                        &row.binding_uuid,
-                        None,
-                        None,
-                        Some(health.as_str()),
-                        None,
-                        None,
-                        None,
-                        None,
-                        None,
-                        Some(Some(now.as_str())),
+                        page_size,
+                        binding_cursor.as_deref(),
                     )
-                    .await;
+                    .await
+                    .map_err(|error| error.to_string())?;
+                let has_more_bindings = rows.len() > page_size_usize;
+                probe_provider_binding_batch(
+                    service,
+                    tenant_id,
+                    rows.iter().take(page_size_usize),
+                )
+                .await;
+                if !has_more_bindings {
+                    break;
+                }
+                binding_cursor = rows
+                    .get(page_size_usize.saturating_sub(1))
+                    .map(|row| row.binding_uuid.clone());
             }
-            if !has_more {
-                break;
-            }
-            cursor = rows
-                .get(page_size.saturating_sub(1))
-                .map(|row| row.binding_uuid.clone());
         }
+        if !has_more_tenants {
+            break;
+        }
+        tenant_cursor = tenants.get(page_size_usize.saturating_sub(1)).copied();
     }
     Ok(())
+}
+
+async fn probe_provider_binding_batch<'a>(
+    service: &OpenMemoryService,
+    tenant_id: i64,
+    rows: impl Iterator<Item = &'a sdkwork_memory_plugin_native_sql::NativeSqlProviderBindingRow>,
+) {
+    let concurrency = usize::try_from(
+        platform::read_env_u64("SDKWORK_MEMORY_PROVIDER_HEALTH_CONCURRENCY", 8).clamp(1, 32),
+    )
+    .unwrap_or(8);
+    stream::iter(rows)
+        .for_each_concurrent(concurrency, |row| async move {
+            let health = probe_binding_endpoint(row.endpoint_ref.as_deref()).await;
+            let now = platform::current_timestamp();
+            if let Err(error) = service
+                .store
+                .update_mem_provider_binding_for_tenant(
+                    tenant_id,
+                    &row.binding_uuid,
+                    None,
+                    None,
+                    Some(health.as_str()),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some(Some(now.as_str())),
+                )
+                .await
+            {
+                tracing::warn!(
+                    tenant_id,
+                    binding_id = %row.binding_uuid,
+                    error = %error,
+                    "provider health state update failed"
+                );
+            }
+        })
+        .await;
 }
 
 async fn probe_binding_endpoint(endpoint_ref: Option<&str>) -> String {
@@ -856,23 +1089,26 @@ async fn probe_binding_endpoint(endpoint_ref: Option<&str>) -> String {
 
     if let Err(reason) = crate::endpoint_validation::validate_outbound_url(url) {
         tracing::warn!(
-            url = %url,
             reason = %reason,
             "provider health probe rejected unsafe endpoint URL"
         );
         return "unhealthy".to_string();
     }
 
-    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
-    let client = CLIENT.get_or_init(|| {
-        reqwest::Client::builder()
-            .timeout(Duration::from_secs(5))
-            .pool_max_idle_per_host(8)
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .unwrap_or_else(|_| reqwest::Client::new())
-    });
-    match client.get(url).send().await {
+    let (resolved_url, client) = match crate::endpoint_validation::build_pinned_http_client(
+        url,
+        Duration::from_secs(5),
+        1,
+    )
+    .await
+    {
+        Ok(target) => target,
+        Err(reason) => {
+            tracing::warn!(reason = %reason, "provider health probe rejected endpoint resolution");
+            return "unhealthy".to_string();
+        }
+    };
+    match client.get(resolved_url).send().await {
         Ok(response) if response.status().is_success() => "healthy".to_string(),
         Ok(_) => "degraded".to_string(),
         Err(_) => "unhealthy".to_string(),

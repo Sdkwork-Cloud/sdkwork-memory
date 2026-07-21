@@ -1,3 +1,4 @@
+use crate::sqlx_compat as sqlx;
 use sdkwork_database_config::{DatabaseConfig, DatabaseEngine};
 use sdkwork_database_sqlx::any::create_any_pool;
 use sqlx::AnyPool;

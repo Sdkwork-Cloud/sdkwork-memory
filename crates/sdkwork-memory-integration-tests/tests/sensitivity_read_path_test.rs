@@ -64,7 +64,7 @@ async fn list_and_retrieve_hide_private_memories_from_non_owner_tenant_actors() 
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri("/mem/v3/api/memory/memories?spaceId=10")
+                .uri("/mem/v3/api/memory/memories?space_id=10")
                 .extension(peer_context.clone())
                 .body(Body::empty())
                 .unwrap(),
@@ -82,7 +82,7 @@ async fn list_and_retrieve_hide_private_memories_from_non_owner_tenant_actors() 
             Request::builder()
                 .method("GET")
                 .uri(format!(
-                    "/mem/v3/api/memory/memories/{memory_id}?spaceId=10"
+                    "/mem/v3/api/memory/memories/{memory_id}?space_id=10"
                 ))
                 .extension(peer_context)
                 .body(Body::empty())

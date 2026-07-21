@@ -26,6 +26,8 @@ async fn api_server_bootstrap_auth_and_healthz_contracts() {
     let previous_bypass = std::env::var("SDKWORK_MEMORY_DEV_AUTH_BYPASS").ok();
     let previous_database_url = std::env::var("SDKWORK_MEMORY_DATABASE_URL").ok();
     let previous_iam_database_url = std::env::var("SDKWORK_IAM_DATABASE_URL").ok();
+    let previous_outbox_mode = std::env::var("SDKWORK_MEMORY_OUTBOX_DELIVERY_MODE").ok();
+    let previous_outbox_url = std::env::var("SDKWORK_MEMORY_OUTBOX_DELIVERY_URL").ok();
 
     std::env::set_var("SDKWORK_MEMORY_ENVIRONMENT", "development");
     std::env::set_var("SDKWORK_MEMORY_DEV_AUTH_BYPASS", "true");
@@ -86,15 +88,17 @@ async fn api_server_bootstrap_auth_and_healthz_contracts() {
     std::env::set_var("SDKWORK_MEMORY_CONFIG_PROFILE", "production");
     std::env::remove_var("SDKWORK_MEMORY_DEV_AUTH_BYPASS");
     std::env::remove_var("SDKWORK_IAM_DATABASE_URL");
+    std::env::set_var("SDKWORK_MEMORY_OUTBOX_DELIVERY_MODE", "disabled");
+    std::env::remove_var("SDKWORK_MEMORY_OUTBOX_DELIVERY_URL");
     std::env::set_var("SDKWORK_MEMORY_DATABASE_URL", "sqlite::memory:");
 
     let production_bootstrap = sdkwork_api_memory_standalone_gateway::build_router().await;
     let Err(error) = production_bootstrap else {
-        panic!("production bootstrap must reject sqlite database configuration");
+        panic!("production bootstrap must reject disabled outbox delivery");
     };
     assert!(
-        error.contains("PostgreSQL is required"),
-        "production sqlite rejection must explain postgres requirement"
+        error.contains("SDKWORK_MEMORY_OUTBOX_DELIVERY_MODE=http is required"),
+        "production startup must fail closed when durable outbox delivery is disabled"
     );
 
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
@@ -136,6 +140,11 @@ async fn api_server_bootstrap_auth_and_healthz_contracts() {
     restore_optional_env("SDKWORK_MEMORY_DEV_AUTH_BYPASS", previous_bypass);
     restore_optional_env("SDKWORK_MEMORY_DATABASE_URL", previous_database_url);
     restore_optional_env("SDKWORK_IAM_DATABASE_URL", previous_iam_database_url);
+    restore_optional_env(
+        "SDKWORK_MEMORY_OUTBOX_DELIVERY_MODE",
+        previous_outbox_mode,
+    );
+    restore_optional_env("SDKWORK_MEMORY_OUTBOX_DELIVERY_URL", previous_outbox_url);
 }
 
 #[tokio::test]

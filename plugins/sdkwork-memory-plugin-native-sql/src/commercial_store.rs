@@ -1,5 +1,7 @@
 //! Commercial memory management store methods (subjects, bindings, capabilities).
 
+use crate::sqlx_compat as sqlx;
+use sdkwork_memory_spi::{MemoryMutationJournal, MemoryScopeContext};
 use sqlx::Row;
 
 use crate::store::{now_text, NativeSqlMemoryStore, NativeSqlStoreError};
@@ -89,6 +91,273 @@ pub struct UpdateSubjectCommand<'a> {
 }
 
 impl NativeSqlMemoryStore {
+    pub async fn insert_subject_with_journal(
+        &self,
+        cmd: InsertSubjectCommand<'_>,
+        scope: &MemoryScopeContext,
+        journal: &MemoryMutationJournal,
+    ) -> Result<(), NativeSqlStoreError> {
+        validate_commercial_journal(cmd.uuid, cmd.tenant_id, scope, journal)?;
+        let now = now_text();
+        let mut tx = self.begin_tx().await?;
+        sqlx::query(
+            r#"
+            INSERT INTO ai_subject (
+              id, uuid, tenant_id, organization_id, subject_type, subject_ref,
+              display_name, default_space_id, status, metadata_json,
+              created_at, updated_at, version
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 1)
+            "#,
+        )
+        .bind(cmd.id)
+        .bind(cmd.uuid)
+        .bind(cmd.tenant_id)
+        .bind(cmd.organization_id)
+        .bind(cmd.subject_type)
+        .bind(cmd.subject_ref)
+        .bind(cmd.display_name)
+        .bind(cmd.default_space_id)
+        .bind(cmd.metadata_json)
+        .bind(&now)
+        .bind(&now)
+        .execute(&mut *tx)
+        .await?;
+        crate::canonical_data::append_journal_on_tx(self, &mut tx, scope, journal).await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn update_subject_with_journal(
+        &self,
+        tenant_id: i64,
+        subject_uuid: &str,
+        cmd: UpdateSubjectCommand<'_>,
+        scope: &MemoryScopeContext,
+        journal: &MemoryMutationJournal,
+    ) -> Result<bool, NativeSqlStoreError> {
+        validate_commercial_journal(subject_uuid, tenant_id, scope, journal)?;
+        let now = now_text();
+        let mut tx = self.begin_tx().await?;
+        let result = sqlx::query(
+            r#"
+            UPDATE ai_subject
+            SET display_name = COALESCE(?, display_name),
+                default_space_id = COALESCE(?, default_space_id),
+                status = COALESCE(?, status),
+                metadata_json = COALESCE(?, metadata_json),
+                updated_at = ?,
+                version = version + 1
+            WHERE tenant_id = ? AND uuid = ? AND deleted_at IS NULL
+            "#,
+        )
+        .bind(cmd.display_name)
+        .bind(cmd.default_space_id)
+        .bind(cmd.status)
+        .bind(cmd.metadata_json)
+        .bind(&now)
+        .bind(tenant_id)
+        .bind(subject_uuid)
+        .execute(&mut *tx)
+        .await?;
+        append_commercial_journal_if_changed(self, &mut tx, scope, journal, result.rows_affected())
+            .await?;
+        tx.commit().await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn delete_subject_with_journal(
+        &self,
+        tenant_id: i64,
+        subject_uuid: &str,
+        scope: &MemoryScopeContext,
+        journal: &MemoryMutationJournal,
+    ) -> Result<bool, NativeSqlStoreError> {
+        validate_commercial_journal(subject_uuid, tenant_id, scope, journal)?;
+        let now = now_text();
+        let mut tx = self.begin_tx().await?;
+        let result = sqlx::query(
+            r#"
+            UPDATE ai_subject
+            SET status = 'deleted', deleted_at = ?, updated_at = ?, version = version + 1
+            WHERE tenant_id = ? AND uuid = ? AND deleted_at IS NULL
+            "#,
+        )
+        .bind(&now)
+        .bind(&now)
+        .bind(tenant_id)
+        .bind(subject_uuid)
+        .execute(&mut *tx)
+        .await?;
+        append_commercial_journal_if_changed(self, &mut tx, scope, journal, result.rows_affected())
+            .await?;
+        tx.commit().await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_binding_with_journal(
+        &self,
+        id: i64,
+        uuid: &str,
+        tenant_id: i64,
+        space_id: Option<i64>,
+        binding_kind: &str,
+        binding_role: &str,
+        source_subject_id: Option<i64>,
+        target_subject_id: Option<i64>,
+        target_space_id: Option<i64>,
+        capability_codes_json: Option<&str>,
+        valid_from: Option<&str>,
+        valid_to: Option<&str>,
+        metadata_json: Option<&str>,
+        scope: &MemoryScopeContext,
+        journal: &MemoryMutationJournal,
+    ) -> Result<(), NativeSqlStoreError> {
+        validate_commercial_journal(uuid, tenant_id, scope, journal)?;
+        let now = now_text();
+        let mut tx = self.begin_tx().await?;
+        sqlx::query(
+            r#"
+            INSERT INTO ai_memory_binding (
+              id, uuid, tenant_id, space_id, binding_kind, binding_role,
+              source_subject_id, target_subject_id, target_space_id,
+              capability_codes_json, status, valid_from, valid_to,
+              metadata_json, created_at, updated_at, version
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, 1)
+            "#,
+        )
+        .bind(id)
+        .bind(uuid)
+        .bind(tenant_id)
+        .bind(space_id)
+        .bind(binding_kind)
+        .bind(binding_role)
+        .bind(source_subject_id)
+        .bind(target_subject_id)
+        .bind(target_space_id)
+        .bind(capability_codes_json)
+        .bind(valid_from)
+        .bind(valid_to)
+        .bind(metadata_json)
+        .bind(&now)
+        .bind(&now)
+        .execute(&mut *tx)
+        .await?;
+        crate::canonical_data::append_journal_on_tx(self, &mut tx, scope, journal).await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn delete_binding_with_journal(
+        &self,
+        tenant_id: i64,
+        binding_uuid: &str,
+        scope: &MemoryScopeContext,
+        journal: &MemoryMutationJournal,
+    ) -> Result<bool, NativeSqlStoreError> {
+        validate_commercial_journal(binding_uuid, tenant_id, scope, journal)?;
+        let now = now_text();
+        let mut tx = self.begin_tx().await?;
+        let result = sqlx::query(
+            r#"
+            UPDATE ai_memory_binding
+            SET status = 'deleted', deleted_at = ?, updated_at = ?, version = version + 1
+            WHERE tenant_id = ? AND uuid = ? AND deleted_at IS NULL
+            "#,
+        )
+        .bind(&now)
+        .bind(&now)
+        .bind(tenant_id)
+        .bind(binding_uuid)
+        .execute(&mut *tx)
+        .await?;
+        append_commercial_journal_if_changed(self, &mut tx, scope, journal, result.rows_affected())
+            .await?;
+        tx.commit().await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn insert_capability_binding_with_journal(
+        &self,
+        id: i64,
+        uuid: &str,
+        tenant_id: i64,
+        capability_code: &str,
+        target_type: &str,
+        target_id: i64,
+        mode: &str,
+        priority: i32,
+        valid_from: Option<&str>,
+        valid_to: Option<&str>,
+        metadata_json: Option<&str>,
+        scope: &MemoryScopeContext,
+        journal: &MemoryMutationJournal,
+    ) -> Result<(), NativeSqlStoreError> {
+        validate_commercial_journal(uuid, tenant_id, scope, journal)?;
+        let now = now_text();
+        let mut tx = self.begin_tx().await?;
+        sqlx::query(
+            r#"
+            INSERT INTO ai_capability_binding (
+              id, uuid, tenant_id, capability_code, target_type, target_id,
+              mode, priority, status, valid_from, valid_to, metadata_json,
+              created_at, updated_at, version
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, 1)
+            "#,
+        )
+        .bind(id)
+        .bind(uuid)
+        .bind(tenant_id)
+        .bind(capability_code)
+        .bind(target_type)
+        .bind(target_id)
+        .bind(mode)
+        .bind(priority)
+        .bind(valid_from)
+        .bind(valid_to)
+        .bind(metadata_json)
+        .bind(&now)
+        .bind(&now)
+        .execute(&mut *tx)
+        .await?;
+        crate::canonical_data::append_journal_on_tx(self, &mut tx, scope, journal).await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn delete_capability_binding_with_journal(
+        &self,
+        tenant_id: i64,
+        cap_uuid: &str,
+        scope: &MemoryScopeContext,
+        journal: &MemoryMutationJournal,
+    ) -> Result<bool, NativeSqlStoreError> {
+        validate_commercial_journal(cap_uuid, tenant_id, scope, journal)?;
+        let now = now_text();
+        let mut tx = self.begin_tx().await?;
+        let result = sqlx::query(
+            r#"
+            UPDATE ai_capability_binding
+            SET status = 'deleted', deleted_at = ?, updated_at = ?, version = version + 1
+            WHERE tenant_id = ? AND uuid = ? AND deleted_at IS NULL
+            "#,
+        )
+        .bind(&now)
+        .bind(&now)
+        .bind(tenant_id)
+        .bind(cap_uuid)
+        .execute(&mut *tx)
+        .await?;
+        append_commercial_journal_if_changed(self, &mut tx, scope, journal, result.rows_affected())
+            .await?;
+        tx.commit().await?;
+        Ok(result.rows_affected() > 0)
+    }
+
     pub async fn insert_subject(
         &self,
         cmd: InsertSubjectCommand<'_>,
@@ -604,6 +873,37 @@ impl NativeSqlMemoryStore {
         .await?;
         Ok(rows.into_iter().map(map_capability_binding_row).collect())
     }
+}
+
+fn validate_commercial_journal(
+    resource_id: &str,
+    tenant_id: i64,
+    scope: &MemoryScopeContext,
+    journal: &MemoryMutationJournal,
+) -> Result<(), NativeSqlStoreError> {
+    if scope.tenant_id != tenant_id
+        || journal.aggregate_id != resource_id
+        || journal.audit_resource_id != resource_id
+    {
+        return Err(NativeSqlStoreError::InvariantViolation {
+            message: "commercial mutation journal scope and resource must match the business row"
+                .to_string(),
+        });
+    }
+    Ok(())
+}
+
+async fn append_commercial_journal_if_changed(
+    store: &NativeSqlMemoryStore,
+    tx: &mut sqlx::Transaction<'_, sqlx::Any>,
+    scope: &MemoryScopeContext,
+    journal: &MemoryMutationJournal,
+    rows_affected: u64,
+) -> Result<(), NativeSqlStoreError> {
+    if rows_affected > 0 {
+        crate::canonical_data::append_journal_on_tx(store, tx, scope, journal).await?;
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

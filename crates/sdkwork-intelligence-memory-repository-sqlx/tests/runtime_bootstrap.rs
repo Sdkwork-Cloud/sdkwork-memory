@@ -207,3 +207,35 @@ async fn bootstrap_memory_runtime_from_env_with_sqlite() {
         None => std::env::remove_var("SDKWORK_MEMORY_RETRIEVAL_STRATEGY"),
     }
 }
+
+#[tokio::test]
+#[allow(clippy::await_holding_lock)]
+async fn production_runtime_rejects_sqlite_before_pool_creation() {
+    let _guard = env_test_lock();
+    let previous_environment = std::env::var("SDKWORK_MEMORY_ENVIRONMENT").ok();
+    let previous_profile = std::env::var("SDKWORK_MEMORY_CONFIG_PROFILE").ok();
+    let previous_url = std::env::var("SDKWORK_MEMORY_DATABASE_URL").ok();
+
+    std::env::set_var("SDKWORK_MEMORY_ENVIRONMENT", "production");
+    std::env::set_var("SDKWORK_MEMORY_CONFIG_PROFILE", "production");
+    std::env::set_var("SDKWORK_MEMORY_DATABASE_URL", "sqlite::memory:");
+
+    let error = match bootstrap_memory_runtime_from_env().await {
+        Ok(_) => panic!("production SQLite runtime must be rejected"),
+        Err(error) => error,
+    };
+    assert!(error.contains("PostgreSQL is required"));
+
+    match previous_environment {
+        Some(value) => std::env::set_var("SDKWORK_MEMORY_ENVIRONMENT", value),
+        None => std::env::remove_var("SDKWORK_MEMORY_ENVIRONMENT"),
+    }
+    match previous_profile {
+        Some(value) => std::env::set_var("SDKWORK_MEMORY_CONFIG_PROFILE", value),
+        None => std::env::remove_var("SDKWORK_MEMORY_CONFIG_PROFILE"),
+    }
+    match previous_url {
+        Some(value) => std::env::set_var("SDKWORK_MEMORY_DATABASE_URL", value),
+        None => std::env::remove_var("SDKWORK_MEMORY_DATABASE_URL"),
+    }
+}

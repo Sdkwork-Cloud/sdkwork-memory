@@ -4,8 +4,10 @@ pub mod correlation;
 pub mod metrics;
 pub mod principal;
 pub mod problem;
+pub mod query;
 pub mod readiness;
 pub mod response;
+pub mod web_runtime;
 
 use async_trait::async_trait;
 use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
@@ -20,6 +22,7 @@ pub use metrics::{
 };
 pub use principal::{parse_principal_optional_u64, parse_principal_u64};
 pub use problem::{MemoryApiError, MemoryApiProblem, MemoryApiResult};
+pub use query::{MemoryQuery, INVALID_QUERY_DETAIL};
 pub use readiness::memory_dependency_ready_check;
 pub use response::{
     created_resource_json, finish_created_resource_response, finish_no_content_response,
@@ -28,6 +31,7 @@ pub use response::{
     success_created_resource_response, success_no_content_response, success_page_response,
     success_resource_response,
 };
+pub use web_runtime::harden_memory_web_framework_layer;
 
 const PRODUCTION_AUTH_UNAVAILABLE: &str = "production memory auth requires IAM PostgreSQL database";
 

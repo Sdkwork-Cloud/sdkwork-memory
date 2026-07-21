@@ -1,41 +1,52 @@
 //! Optional Postgres contract tests — set `SDKWORK_MEMORY_POSTGRES_TEST_URL` to run.
 
 use sdkwork_database_config::{DatabaseConfig, DatabaseEngine};
-use sdkwork_memory_plugin_native_sql::NativeSqlMemoryStore;
+use sdkwork_memory_plugin_native_sql::{
+    NativeSqlAppendOutboxEventCommand, NativeSqlCreateSpaceCommand, NativeSqlMemoryStore,
+};
 use sdkwork_memory_spi::{
     AppendMemoryEventCommand, AppendMemoryRetrievalTraceCommand, CreateMemoryRecordCommand,
     MemoryContextPackSnapshot, MemoryEventStorePort, MemoryRecordStorePort,
     MemoryRetrievalHitDraft, MemoryRetrievalTraceStorePort, MemoryScopeContext,
     RetrieveMemoryRetrievalTraceQuery,
 };
-
-async fn postgres_store() -> Option<NativeSqlMemoryStore> {
+async fn postgres_store(space_ids: &[i64]) -> Option<NativeSqlMemoryStore> {
     let url = match std::env::var("SDKWORK_MEMORY_POSTGRES_TEST_URL") {
         Ok(url) if !url.trim().is_empty() => url,
-        _ => {
-            eprintln!(
-                "skip postgres contract test: set SDKWORK_MEMORY_POSTGRES_TEST_URL to a writable database"
-            );
-            return None;
-        }
+        _ => return None,
     };
-
     let config = DatabaseConfig {
         engine: DatabaseEngine::Postgres,
         url,
-        max_connections: 2,
+        max_connections: 4,
         ..DatabaseConfig::default()
     };
-    Some(
-        NativeSqlMemoryStore::connect(&config)
+    let store = NativeSqlMemoryStore::connect(&config)
+        .await
+        .expect("postgres connect and migration must succeed");
+    for &space_id in space_ids {
+        store
+            .create_space_record(
+                100_001,
+                space_id,
+                &NativeSqlCreateSpaceCommand {
+                    organization_id: None,
+                    owner_subject_type: "user".to_string(),
+                    owner_subject_id: format!("postgres-contract-{space_id}"),
+                    space_type: "personal".to_string(),
+                    display_name: format!("PostgreSQL contract {space_id}"),
+                    default_scope: "user".to_string(),
+                },
+            )
             .await
-            .expect("postgres connect and migration must succeed"),
-    )
+            .expect("create PostgreSQL contract space");
+    }
+    Some(store)
 }
 
 #[tokio::test]
 async fn postgres_store_applies_phase1_migration_when_url_configured() {
-    let Some(store) = postgres_store().await else {
+    let Some(store) = postgres_store(&[42]).await else {
         return;
     };
     store.ping().await.expect("postgres ping must succeed");
@@ -65,8 +76,34 @@ async fn postgres_store_applies_phase1_migration_when_url_configured() {
 }
 
 #[tokio::test]
+async fn postgres_provider_health_advisory_lease_is_exclusive_and_released() {
+    let Some(store) = postgres_store(&[]).await else {
+        return;
+    };
+
+    let first = store
+        .try_acquire_provider_health_lease()
+        .await
+        .expect("acquire first provider-health lease")
+        .expect("first provider-health lease must be available");
+    assert!(store
+        .try_acquire_provider_health_lease()
+        .await
+        .expect("contending provider-health lease query")
+        .is_none());
+
+    drop(first);
+
+    assert!(store
+        .try_acquire_provider_health_lease()
+        .await
+        .expect("provider-health lease query after release")
+        .is_some());
+}
+
+#[tokio::test]
 async fn postgres_store_rebuilds_search_index_for_space_scope() {
-    let Some(store) = postgres_store().await else {
+    let Some(store) = postgres_store(&[77]).await else {
         return;
     };
 
@@ -104,7 +141,7 @@ async fn postgres_store_rebuilds_search_index_for_space_scope() {
 
 #[tokio::test]
 async fn postgres_store_claims_eval_runs_atomically() {
-    let Some(store) = postgres_store().await else {
+    let Some(store) = postgres_store(&[]).await else {
         return;
     };
 
@@ -115,21 +152,84 @@ async fn postgres_store_claims_eval_runs_atomically() {
         .await
         .expect("seed eval run");
 
-    let first = store.claim_queued_eval_runs(4).await.expect("first claim");
+    let first = store
+        .claim_queued_eval_runs(4, "eval-worker-a", "eval-lease-a", 30)
+        .await
+        .expect("first claim");
     assert!(
-        first.iter().any(|(_, uuid, _)| uuid == eval_uuid),
+        first.iter().any(|run| run.eval_run_uuid == eval_uuid),
         "first claim must include seeded eval run"
     );
-    let second = store.claim_queued_eval_runs(4).await.expect("second claim");
+    let second = store
+        .claim_queued_eval_runs(4, "eval-worker-b", "eval-lease-b", 30)
+        .await
+        .expect("second claim");
     assert!(
-        !second.iter().any(|(_, uuid, _)| uuid == eval_uuid),
+        !second.iter().any(|run| run.eval_run_uuid == eval_uuid),
         "second claim must not re-select the same eval run"
     );
+    assert!(!store
+        .update_eval_run_state(
+            tenant_id,
+            eval_uuid,
+            "eval-worker-a",
+            "wrong-token",
+            "succeeded",
+            None,
+            Some(r#"{"status":"wrong-token"}"#),
+        )
+        .await
+        .expect("fence wrong eval token"));
+
+    sqlx::query(
+        "UPDATE ai_eval_run SET lease_expires_at = '1970-01-01T00:00:00.000Z' WHERE tenant_id = $1 AND uuid = $2",
+    )
+    .bind(tenant_id)
+    .bind(eval_uuid)
+    .execute(store.pool())
+    .await
+    .expect("expire eval lease");
+    assert_eq!(
+        store
+            .requeue_stale_running_eval_runs(30)
+            .await
+            .expect("requeue expired eval lease"),
+        1
+    );
+    let replacement = store
+        .claim_queued_eval_runs(4, "eval-worker-b", "eval-lease-b", 30)
+        .await
+        .expect("replacement eval claim");
+    assert!(replacement.iter().any(|run| run.eval_run_uuid == eval_uuid));
+    assert!(!store
+        .update_eval_run_state(
+            tenant_id,
+            eval_uuid,
+            "eval-worker-a",
+            "eval-lease-a",
+            "succeeded",
+            None,
+            Some(r#"{"status":"stale"}"#),
+        )
+        .await
+        .expect("fence stale eval completion"));
+    assert!(store
+        .update_eval_run_state(
+            tenant_id,
+            eval_uuid,
+            "eval-worker-b",
+            "eval-lease-b",
+            "succeeded",
+            None,
+            Some(r#"{"status":"current"}"#),
+        )
+        .await
+        .expect("complete eval with current lease"));
 }
 
 #[tokio::test]
 async fn postgres_store_persists_retrieval_trace_boolean_fields() {
-    let Some(store) = postgres_store().await else {
+    let Some(store) = postgres_store(&[88]).await else {
         return;
     };
 
@@ -196,4 +296,93 @@ async fn postgres_store_persists_retrieval_trace_boolean_fields() {
             .unwrap_or(false),
         "postgres truncated boolean must roundtrip as true"
     );
+}
+
+#[tokio::test]
+async fn postgres_store_fences_expired_outbox_delivery_leases() {
+    let Some(store) = postgres_store(&[99]).await else {
+        return;
+    };
+    let scope = MemoryScopeContext::for_test(100_001, 99);
+    store
+        .append_outbox_event(NativeSqlAppendOutboxEventCommand {
+            scope: &scope,
+            outbox_id: "pg-outbox-lease-1",
+            aggregate_type: "ai_record",
+            aggregate_id: "pg-record-lease-1",
+            event_type: "memory.record.created",
+            event_version: "1",
+            payload_json: r#"{"memoryId":"pg-record-lease-1"}"#,
+        })
+        .await
+        .expect("append PostgreSQL outbox event");
+
+    let first = store
+        .claim_global_pending_outbox_events(1, "publisher-a", "lease-a", 30)
+        .await
+        .expect("first PostgreSQL outbox claim");
+    assert_eq!(first.len(), 1);
+    assert!(store
+        .ack_outbox_delivery_success(
+            scope.tenant_id,
+            "pg-outbox-lease-1",
+            "publisher-a",
+            "wrong-token",
+        )
+        .await
+        .expect("fenced PostgreSQL acknowledgement")
+        .is_none());
+    assert!(store
+        .renew_outbox_delivery_lease(
+            scope.tenant_id,
+            "pg-outbox-lease-1",
+            "publisher-a",
+            "lease-a",
+            30,
+        )
+        .await
+        .expect("renew PostgreSQL outbox lease"));
+
+    sqlx::query(
+        "UPDATE ai_outbox_event SET lease_expires_at = '1970-01-01T00:00:00.000Z' WHERE tenant_id = $1 AND uuid = $2",
+    )
+    .bind(scope.tenant_id)
+    .bind("pg-outbox-lease-1")
+    .execute(store.pool())
+    .await
+    .expect("expire PostgreSQL outbox lease");
+    assert_eq!(
+        store
+            .requeue_stale_processing_outbox_events(30)
+            .await
+            .expect("requeue expired PostgreSQL outbox lease"),
+        1
+    );
+
+    let second = store
+        .claim_global_pending_outbox_events(1, "publisher-b", "lease-b", 30)
+        .await
+        .expect("replacement PostgreSQL outbox claim");
+    assert_eq!(second.len(), 1);
+    assert!(store
+        .ack_outbox_delivery_success(
+            scope.tenant_id,
+            "pg-outbox-lease-1",
+            "publisher-a",
+            "lease-a",
+        )
+        .await
+        .expect("stale PostgreSQL acknowledgement")
+        .is_none());
+    let published = store
+        .ack_outbox_delivery_success(
+            scope.tenant_id,
+            "pg-outbox-lease-1",
+            "publisher-b",
+            "lease-b",
+        )
+        .await
+        .expect("current PostgreSQL acknowledgement")
+        .expect("current lease must publish the event");
+    assert_eq!(published.publish_state, "published");
 }

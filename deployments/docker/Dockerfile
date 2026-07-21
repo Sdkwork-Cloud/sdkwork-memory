@@ -1,24 +1,32 @@
 # Multi-stage build with layer caching optimization.
 # Stage 1: Build the release binary with cargo.
 FROM rust:1-bookworm AS builder
-WORKDIR /src
+WORKDIR /workspace/sdkwork-memory
 
 # Copy manifest files first to leverage Docker layer caching for dependency
 # compilation.  Only source changes trigger a full rebuild.
-COPY Cargo.toml Cargo.lock ./
-COPY crates/ ./crates/
-COPY plugins/ ./plugins/
-COPY database/ ./database/
-COPY apis/ ./apis/
-COPY sdks/ ./sdks/
-COPY etc/ ./etc/
-COPY specs/ ./specs/
-COPY tools/ ./tools/
-COPY docs/ ./docs/
-COPY scripts/ ./scripts/
-COPY deployments/ ./deployments/
-COPY tests/ ./tests/
-COPY .env.example .env.postgres.example ./
+COPY sdkwork-memory/Cargo.toml sdkwork-memory/Cargo.lock ./
+COPY sdkwork-memory/crates/ ./crates/
+COPY sdkwork-memory/plugins/ ./plugins/
+COPY sdkwork-memory/database/ ./database/
+COPY sdkwork-memory/apis/ ./apis/
+COPY sdkwork-memory/sdks/ ./sdks/
+COPY sdkwork-memory/etc/ ./etc/
+COPY sdkwork-memory/specs/ ./specs/
+COPY sdkwork-memory/tools/ ./tools/
+COPY sdkwork-memory/docs/ ./docs/
+COPY sdkwork-memory/scripts/ ./scripts/
+COPY sdkwork-memory/deployments/ ./deployments/
+COPY sdkwork-memory/tests/ ./tests/
+COPY sdkwork-memory/.env.example sdkwork-memory/.env.postgres.example ./
+
+# Locked local path dependency closure from `cargo metadata --locked`.
+COPY sdkwork-database/ /workspace/sdkwork-database/
+COPY sdkwork-drive/ /workspace/sdkwork-drive/
+COPY sdkwork-iam/ /workspace/sdkwork-iam/
+COPY sdkwork-id/ /workspace/sdkwork-id/
+COPY sdkwork-utils/ /workspace/sdkwork-utils/
+COPY sdkwork-web-framework/ /workspace/sdkwork-web-framework/
 
 # Build the release binary with OpenTelemetry support.
 RUN cargo build --release -p sdkwork-api-memory-standalone-gateway --features otel
@@ -35,8 +43,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY --from=builder /src/target/release/sdkwork-api-memory-standalone-gateway /usr/local/bin/sdkwork-api-memory-standalone-gateway
-COPY --from=builder /src/database /app/database
+COPY --from=builder /workspace/sdkwork-memory/target/release/sdkwork-api-memory-standalone-gateway /usr/local/bin/sdkwork-api-memory-standalone-gateway
+COPY --from=builder /workspace/sdkwork-memory/database /app/database
 ENV SDKWORK_MEMORY_APP_ROOT=/app
 ENV SDKWORK_MEMORY_ENVIRONMENT=production
 ENV SDKWORK_MEMORY_CONFIG_PROFILE=production

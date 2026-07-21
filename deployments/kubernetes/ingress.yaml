@@ -9,7 +9,7 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"
-    nginx.ingress.kubernetes.io/proxy-body-size: "32m"
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
     cert-manager.io/cluster-issuer: "sdkwork-prod-issuer"
 spec:
@@ -22,7 +22,21 @@ spec:
     - host: api.sdkwork.com
       http:
         paths:
-          - path: /apps/sdkwork-memory
+          - path: /mem/v3/api
+            pathType: Prefix
+            backend:
+              service:
+                name: sdkwork-api-memory-standalone-gateway
+                port:
+                  name: http
+          - path: /app/v3/api
+            pathType: Prefix
+            backend:
+              service:
+                name: sdkwork-api-memory-standalone-gateway
+                port:
+                  name: http
+          - path: /backend/v3/api
             pathType: Prefix
             backend:
               service:

@@ -1,7 +1,7 @@
 //! SDKWork Memory database pool bootstrap via `sdkwork-database`.
 
 use sdkwork_database_config::{DatabaseConfig, DatabaseEngine};
-use sdkwork_database_id::{NodeAllocatorConfig, SnowflakeNodeAllocator};
+use sdkwork_database_id::{NodeAllocatorConfig, SnowflakeIdGenerator, SnowflakeNodeAllocator};
 use sdkwork_database_sqlx::create_pool_from_config;
 use sdkwork_memory_plugin_native_sql::{
     normalize_memory_database_config, NativeSqlMemoryStore, NativeSqlPhase1Runtime,
@@ -98,7 +98,7 @@ pub async fn bootstrap_memory_data_plane_from_env() -> Result<MemoryDataPlane, S
 
     // Allocate a Snowflake node_id from the database before creating the
     // store. This prevents ID collisions in multi-instance deployments.
-    allocate_and_init_snowflake_node(&pool).await?;
+    let id_generator = allocate_and_init_snowflake_node(&pool).await?;
 
     // Create the phase-1 runtime from the shared pool to avoid duplicate connections.
     let (phase1, host_pool) = if config.engine == DatabaseEngine::Postgres {
@@ -107,7 +107,7 @@ pub async fn bootstrap_memory_data_plane_from_env() -> Result<MemoryDataPlane, S
                 .await
                 .map_err(|error| format!("memory database migrate failed: {error}"))?;
         }
-        let store = open_native_sql_store_from_pool(&pool)
+        let store = open_native_sql_store_from_pool(&pool, id_generator.clone())
             .await
             .map_err(|error| error.to_string())?;
         let phase1 = NativeSqlPhase1Runtime::from_store(store);
@@ -118,7 +118,7 @@ pub async fn bootstrap_memory_data_plane_from_env() -> Result<MemoryDataPlane, S
             .map_err(|error| error.to_string())?;
         (phase1, None)
     } else {
-        let store = open_native_sql_store_from_pool(&pool)
+        let store = open_native_sql_store_from_pool(&pool, id_generator)
             .await
             .map_err(|error| error.to_string())?;
         let phase1 = NativeSqlPhase1Runtime::from_store(store);
@@ -137,7 +137,9 @@ pub async fn bootstrap_memory_data_plane_from_env() -> Result<MemoryDataPlane, S
 ///
 /// Falls back to env/hostname hash if database allocation fails (e.g.
 /// in dev/test environments without a persistent database).
-async fn allocate_and_init_snowflake_node(pool: &MemoryDatabasePool) -> Result<(), String> {
+async fn allocate_and_init_snowflake_node(
+    pool: &MemoryDatabasePool,
+) -> Result<SnowflakeIdGenerator, String> {
     let config = NodeAllocatorConfig::from_service_name("memory-service");
     match SnowflakeNodeAllocator::allocate_process_generator(pool, &config).await {
         Ok((generator, lease)) => {
@@ -146,11 +148,12 @@ async fn allocate_and_init_snowflake_node(pool: &MemoryDatabasePool) -> Result<(
                 node_id,
                 "memory snowflake node_id allocated from database registry"
             );
-            sdkwork_intelligence_memory_service::platform::init_id_generator(
-                generator,
-                Some(lease),
-            );
-            Ok(())
+            Ok(
+                sdkwork_intelligence_memory_service::platform::init_id_generator(
+                    generator,
+                    Some(lease),
+                ),
+            )
         }
         Err(error) => {
             if sdkwork_intelligence_memory_service::platform::memory_id_fallback_is_forbidden() {
@@ -163,7 +166,8 @@ async fn allocate_and_init_snowflake_node(pool: &MemoryDatabasePool) -> Result<(
                     "memory snowflake database node_id allocation failed; \
                      dev fallback will be used on first ID generation"
                 );
-                Ok(())
+                sdkwork_intelligence_memory_service::platform::shared_id_generator()
+                    .map_err(|fallback_error| fallback_error.detail)
             }
         }
     }

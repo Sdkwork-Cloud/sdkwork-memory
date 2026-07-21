@@ -60,7 +60,7 @@ pub struct MemorySubject {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CreateSubjectCommand {
     #[serde(
         skip_deserializing,
@@ -90,7 +90,7 @@ pub struct CreateSubjectCommand {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct UpdateSubjectCommand {
     pub display_name: Option<String>,
     #[serde(
@@ -106,7 +106,7 @@ pub struct UpdateSubjectCommand {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ListSubjectsQuery {
     #[serde(
         skip_deserializing,
@@ -199,7 +199,7 @@ pub struct MemoryBinding {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CreateBindingCommand {
     #[serde(
         skip_deserializing,
@@ -248,7 +248,7 @@ pub struct CreateBindingCommand {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ListBindingsQuery {
     #[serde(
         skip_deserializing,
@@ -346,7 +346,7 @@ pub struct MemoryCapabilityBinding {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CreateCapabilityBindingCommand {
     #[serde(
         skip_deserializing,
@@ -373,7 +373,7 @@ pub struct CreateCapabilityBindingCommand {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ListCapabilityBindingsQuery {
     #[serde(
         skip_deserializing,
@@ -428,7 +428,7 @@ pub struct MemoryResolvedCapabilityList {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ResolveCapabilitiesQuery {
     #[serde(
         skip_deserializing,
@@ -475,7 +475,7 @@ pub struct MemoryEntity {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CreateEntityCommand {
     #[serde(
         skip_deserializing,
@@ -503,7 +503,7 @@ fn default_internal_sensitivity() -> String {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct UpdateEntityCommand {
     pub canonical_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -515,7 +515,7 @@ pub struct UpdateEntityCommand {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ListEntitiesQuery {
     #[serde(
         skip_deserializing,
@@ -578,7 +578,7 @@ pub struct MemoryEdge {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CreateEdgeCommand {
     #[serde(
         skip_deserializing,
@@ -605,7 +605,7 @@ pub struct CreateEdgeCommand {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct UpdateEdgeCommand {
     pub relation_type: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -620,7 +620,7 @@ pub struct UpdateEdgeCommand {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ListEdgesQuery {
     #[serde(
         skip_deserializing,
@@ -679,7 +679,7 @@ pub struct MemoryPolicy {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CreatePolicyCommand {
     #[serde(
         skip_deserializing,
@@ -695,7 +695,7 @@ pub struct CreatePolicyCommand {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct UpdatePolicyCommand {
     pub policy_type: Option<String>,
     pub scope: Option<String>,
@@ -707,7 +707,7 @@ pub struct UpdatePolicyCommand {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ListPoliciesQuery {
     #[serde(
         skip_deserializing,
@@ -785,7 +785,7 @@ pub struct MemoryPolicyAssignment {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CreatePolicyAssignmentCommand {
     #[serde(
         skip_deserializing,
@@ -810,7 +810,7 @@ pub struct CreatePolicyAssignmentCommand {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct UpdatePolicyAssignmentCommand {
     pub priority: Option<i32>,
     pub inheritance_mode: Option<PolicyInheritanceMode>,
@@ -822,7 +822,7 @@ pub struct UpdatePolicyAssignmentCommand {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ListPolicyAssignmentsQuery {
     #[serde(
         skip_deserializing,
@@ -902,7 +902,7 @@ pub struct MemoryCommercialReadiness {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RebuildCommercialReadinessCommand {
     #[serde(
         skip_deserializing,

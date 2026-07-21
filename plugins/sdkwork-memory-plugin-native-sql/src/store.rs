@@ -1,5 +1,7 @@
+use crate::sqlx_compat as sqlx;
 use async_trait::async_trait;
 use sdkwork_database_config::DatabaseConfig;
+use sdkwork_database_id::SnowflakeIdGenerator;
 use sdkwork_memory_spi::{
     AppendMemoryAuditCommand, AppendMemoryEventCommand, AppendMemoryOutboxCommand,
     AppendMemoryRetrievalTraceCommand, ApproveMemoryCandidateCommand, CreateCanonicalMemoryCommand,
@@ -28,6 +30,7 @@ use sdkwork_memory_spi::{
 use serde_json::Value;
 use sqlx::any::AnyRow;
 use sqlx::{AnyPool, Row};
+use std::sync::OnceLock;
 use thiserror::Error;
 
 use crate::pool_backend::{connect_any_pool, MemorySqlDialect};
@@ -86,6 +89,7 @@ pub struct PromoteApprovedCandidateCommand<'a> {
 pub struct NativeSqlMemoryStore {
     pool: AnyPool,
     dialect: MemorySqlDialect,
+    id_generator: SnowflakeIdGenerator,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -110,8 +114,20 @@ impl NativeSqlMemoryStore {
         config: &DatabaseConfig,
         apply_migration: bool,
     ) -> Result<Self, NativeSqlStoreError> {
+        Self::open_pool_with_id_generator(config, apply_migration, development_id_generator()).await
+    }
+
+    pub async fn open_pool_with_id_generator(
+        config: &DatabaseConfig,
+        apply_migration: bool,
+        id_generator: SnowflakeIdGenerator,
+    ) -> Result<Self, NativeSqlStoreError> {
         let (pool, dialect) = connect_any_pool(config).await?;
-        let store = Self { pool, dialect };
+        let store = Self {
+            pool,
+            dialect,
+            id_generator,
+        };
         if apply_migration {
             store.apply_phase1_migration().await?;
         }
@@ -128,14 +144,25 @@ impl NativeSqlMemoryStore {
     }
 
     pub async fn from_any_pool(pool: AnyPool, dialect: MemorySqlDialect) -> Self {
-        Self { pool, dialect }
+        Self {
+            pool,
+            dialect,
+            id_generator: development_id_generator(),
+        }
     }
 
     pub async fn from_database_pool(
         pool: &sdkwork_database_sqlx::DatabasePool,
     ) -> Result<Self, NativeSqlStoreError> {
+        Self::from_database_pool_with_id_generator(pool, development_id_generator()).await
+    }
+
+    pub async fn from_database_pool_with_id_generator(
+        pool: &sdkwork_database_sqlx::DatabasePool,
+        id_generator: SnowflakeIdGenerator,
+    ) -> Result<Self, NativeSqlStoreError> {
         let config = crate::pool_backend::normalize_memory_database_config(pool.config().clone());
-        Self::open_pool(&config, false).await
+        Self::open_pool_with_id_generator(&config, false, id_generator).await
     }
 
     pub async fn install_sqlite_phase1_schema(pool: &AnyPool) -> Result<(), NativeSqlStoreError> {
@@ -149,6 +176,12 @@ impl NativeSqlMemoryStore {
 
     pub fn dialect(&self) -> MemorySqlDialect {
         self.dialect
+    }
+
+    pub(crate) fn next_row_id(&self) -> Result<i64, NativeSqlStoreError> {
+        self.id_generator
+            .generate()
+            .map_err(|error| NativeSqlStoreError::IdGeneration(error.to_string()))
     }
 
     async fn apply_phase1_migration(&self) -> Result<(), NativeSqlStoreError> {
@@ -211,6 +244,18 @@ impl NativeSqlMemoryStore {
                     "../../../database/migrations/postgres/0007_memory_commercial_management.up.sql"
                 ),
             ),
+            (
+                "0008",
+                include_str!(
+                    "../../../database/migrations/postgres/0008_memory_outbox_delivery_lease.up.sql"
+                ),
+            ),
+            (
+                "0009",
+                include_str!(
+                    "../../../database/migrations/postgres/0009_memory_job_execution_lease.up.sql"
+                ),
+            ),
         ];
         self.apply_embedded_sql_migrations(MIGRATIONS).await
     }
@@ -235,10 +280,20 @@ impl NativeSqlMemoryStore {
                 )"
             }
         };
-        sqlx::query(create_tracking_table).execute(&self.pool).await?;
+        let mut transaction = self.pool.begin().await?;
+        if self.dialect == MemorySqlDialect::Postgres {
+            // Serialize the compatibility migration path across concurrent process startups.
+            // Production uses the root lifecycle runner, but tests and local tools may still
+            // initialize this plugin directly against the same PostgreSQL database.
+            sqlx::query("SELECT pg_advisory_xact_lock(714895751361736729)")
+                .execute(&mut *transaction)
+                .await?;
+        }
+        sqlx::query(create_tracking_table)
+            .execute(&mut *transaction)
+            .await?;
 
         for (version, migration_sql) in migrations {
-            let mut transaction = self.pool.begin().await?;
             let already_applied = sqlx::query_scalar::<_, i32>(
                 "SELECT 1 FROM ops_memory_schema_version WHERE version = ? LIMIT 1",
             )
@@ -247,7 +302,6 @@ impl NativeSqlMemoryStore {
             .await?;
 
             if already_applied.is_some() {
-                transaction.rollback().await?;
                 continue;
             }
 
@@ -263,8 +317,8 @@ impl NativeSqlMemoryStore {
                 .bind(version)
                 .execute(&mut *transaction)
                 .await?;
-            transaction.commit().await?;
         }
+        transaction.commit().await?;
 
         Ok(())
     }
@@ -308,6 +362,7 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_event (
+              id,
               uuid,
               tenant_id,
               space_id,
@@ -323,9 +378,10 @@ impl NativeSqlMemoryStore {
               ingestion_status,
               created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received', ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'received', ?)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(event_id)
         .bind(scope.tenant_id)
         .bind(scope.space_id)
@@ -480,6 +536,7 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_record (
+              id,
               uuid,
               tenant_id,
               space_id,
@@ -501,9 +558,10 @@ impl NativeSqlMemoryStore {
               updated_at,
               version
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1.0, 1, 0, 0.5, 0.5, 'active', ?, ?, ?, 1)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1.0, 1, 0, 0.5, 0.5, 'active', ?, ?, ?, 1)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(memory_id)
         .bind(scope.tenant_id)
         .bind(scope.space_id)
@@ -1230,6 +1288,7 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_event (
+              id,
               uuid,
               tenant_id,
               space_id,
@@ -1245,9 +1304,10 @@ impl NativeSqlMemoryStore {
               ingestion_status,
               created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, 'memory.event.appended', 'api', ?, ?, ?, 'internal', 'received', ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'memory.event.appended', 'api', ?, ?, ?, 'internal', 'received', ?)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(event_id)
         .bind(scope.tenant_id)
         .bind(scope.space_id)
@@ -1325,6 +1385,7 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_record (
+              id,
               uuid,
               tenant_id,
               space_id,
@@ -1344,9 +1405,10 @@ impl NativeSqlMemoryStore {
               created_at,
               updated_at
             )
-            VALUES (?, ?, ?, 'user', 'semantic', ?, 'is', ?, ?, 1.0, 1, 0, 0.5, 0.5, 'active', 'internal', ?, ?)
+            VALUES (?, ?, ?, ?, 'user', 'semantic', ?, 'is', ?, ?, 1.0, 1, 0, 0.5, 0.5, 'active', 'internal', ?, ?)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(memory_id)
         .bind(scope.tenant_id)
         .bind(scope.space_id)
@@ -1696,6 +1758,7 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_audit_log (
+              id,
               uuid,
               tenant_id,
               actor_type,
@@ -1706,9 +1769,10 @@ impl NativeSqlMemoryStore {
               result,
               created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(audit_id)
         .bind(scope.tenant_id)
         .bind(actor_type)
@@ -1885,6 +1949,7 @@ impl NativeSqlMemoryStore {
     /// Create a record within an existing transaction (no ensure_space check).
     #[allow(clippy::too_many_arguments)]
     pub async fn create_record_on_tx(
+        &self,
         tx: &mut sqlx::Transaction<'_, sqlx::Any>,
         scope: &MemoryScopeContext,
         memory_id: &str,
@@ -1899,15 +1964,16 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_record (
-              uuid, tenant_id, space_id, user_id, scope, memory_type,
+              id, uuid, tenant_id, space_id, user_id, scope, memory_type,
               subject, predicate, object_text, canonical_text,
               confidence, evidence_count, contradiction_count,
               importance_score, recency_score,
               status, sensitivity_level, created_at, updated_at, version
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1.0, 1, 0, 0.5, 0.5, 'active', ?, ?, ?, 1)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1.0, 1, 0, 0.5, 0.5, 'active', ?, ?, ?, 1)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(memory_id)
         .bind(scope.tenant_id)
         .bind(scope.space_id)
@@ -1929,6 +1995,7 @@ impl NativeSqlMemoryStore {
     /// Append an outbox event within an existing transaction (no idempotency check).
     #[allow(clippy::too_many_arguments)]
     pub async fn append_outbox_on_tx(
+        &self,
         tx: &mut sqlx::Transaction<'_, sqlx::Any>,
         scope: &MemoryScopeContext,
         outbox_id: &str,
@@ -1941,13 +2008,14 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_outbox_event (
-              uuid, tenant_id, aggregate_type, aggregate_id,
+              id, uuid, tenant_id, aggregate_type, aggregate_id,
               event_type, event_version, payload_json,
               publish_state, retry_count, created_at, updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, ?)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(outbox_id)
         .bind(scope.tenant_id)
         .bind(aggregate_type)
@@ -1964,6 +2032,7 @@ impl NativeSqlMemoryStore {
 
     /// Append an audit log entry within an existing transaction.
     pub async fn append_audit_on_tx(
+        &self,
         tx: &mut sqlx::Transaction<'_, sqlx::Any>,
         scope: &MemoryScopeContext,
         audit_id: &str,
@@ -1979,12 +2048,13 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_audit_log (
-              uuid, tenant_id, actor_type, actor_id,
+              id, uuid, tenant_id, actor_type, actor_id,
               action, resource_type, resource_id, result, created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(audit_id)
         .bind(scope.tenant_id)
         .bind(actor_type)
@@ -2056,6 +2126,7 @@ impl NativeSqlMemoryStore {
     }
 
     pub async fn append_record_source_on_tx(
+        &self,
         tx: &mut sqlx::Transaction<'_, sqlx::Any>,
         scope: &MemoryScopeContext,
         source_id: &str,
@@ -2067,6 +2138,7 @@ impl NativeSqlMemoryStore {
         let result = sqlx::query(
             r#"
             INSERT INTO ai_record_source (
+              id,
               uuid,
               tenant_id,
               memory_id,
@@ -2076,6 +2148,7 @@ impl NativeSqlMemoryStore {
               created_at
             )
             SELECT
+              ?,
               ?,
               ?,
               record.id,
@@ -2094,6 +2167,7 @@ impl NativeSqlMemoryStore {
               AND record.status <> 'deleted'
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(source_id)
         .bind(scope.tenant_id)
         .bind(source_role)
@@ -2310,7 +2384,7 @@ impl NativeSqlMemoryStore {
         }
 
         if command.create_record {
-            Self::create_record_on_tx(
+            self.create_record_on_tx(
                 &mut tx,
                 command.scope,
                 command.memory_uuid,
@@ -2324,7 +2398,7 @@ impl NativeSqlMemoryStore {
             )
             .await?;
             for (source_id, event_id, confidence) in command.evidence_links {
-                Self::append_record_source_on_tx(
+                self.append_record_source_on_tx(
                     &mut tx,
                     command.scope,
                     source_id,
@@ -2365,7 +2439,7 @@ impl NativeSqlMemoryStore {
             )
             .await?;
             if let Some(journal) = journal {
-                append_journal_on_tx(&mut tx, command.scope, journal).await?;
+                append_journal_on_tx(self, &mut tx, command.scope, journal).await?;
             }
         }
         tx.commit().await.map_err(NativeSqlStoreError::from)?;
@@ -2390,6 +2464,7 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_audit_log (
+              id,
               uuid,
               tenant_id,
               actor_type,
@@ -2401,9 +2476,10 @@ impl NativeSqlMemoryStore {
               metadata_json,
               created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(audit_id)
         .bind(scope.tenant_id)
         .bind(actor_type)
@@ -2520,6 +2596,7 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_audit_log (
+              id,
               uuid,
               tenant_id,
               actor_type,
@@ -2530,9 +2607,10 @@ impl NativeSqlMemoryStore {
               metadata_json,
               created_at
             )
-            VALUES (?, ?, 'system', 'admin.config.save', ?, ?, 'active', ?, ?)
+            VALUES (?, ?, ?, 'system', 'admin.config.save', ?, ?, 'active', ?, ?)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(audit_id)
         .bind(tenant_id)
         .bind(resource_type)
@@ -2662,6 +2740,7 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_outbox_event (
+              id,
               uuid,
               tenant_id,
               aggregate_type,
@@ -2673,9 +2752,10 @@ impl NativeSqlMemoryStore {
               created_at,
               updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(command.outbox_id)
         .bind(command.scope.tenant_id)
         .bind(command.aggregate_type)
@@ -2817,6 +2897,9 @@ impl NativeSqlMemoryStore {
             .into_iter()
             .map(|row| NativeSqlScopedOutboxEvent {
                 tenant_id: row.get("tenant_id"),
+                lease_owner: None,
+                lease_token: None,
+                lease_expires_at: None,
                 outbox: NativeSqlMemoryOutboxEvent {
                     outbox_id: row.get("uuid"),
                     aggregate_type: row.get("aggregate_type"),
@@ -2837,35 +2920,56 @@ impl NativeSqlMemoryStore {
     pub async fn claim_global_pending_outbox_events(
         &self,
         limit: u32,
+        lease_owner: &str,
+        lease_token: &str,
+        lease_duration_seconds: u64,
     ) -> Result<Vec<NativeSqlScopedOutboxEvent>, NativeSqlStoreError> {
         match self.dialect {
             MemorySqlDialect::Postgres => {
-                self.claim_global_pending_outbox_events_postgres(limit)
-                    .await
+                self.claim_global_pending_outbox_events_postgres(
+                    limit,
+                    lease_owner,
+                    lease_token,
+                    lease_duration_seconds,
+                )
+                .await
             }
-            MemorySqlDialect::Sqlite => self.claim_global_pending_outbox_events_sqlite(limit).await,
+            MemorySqlDialect::Sqlite => {
+                self.claim_global_pending_outbox_events_sqlite(
+                    limit,
+                    lease_owner,
+                    lease_token,
+                    lease_duration_seconds,
+                )
+                .await
+            }
         }
     }
 
     async fn claim_global_pending_outbox_events_postgres(
         &self,
         limit: u32,
+        lease_owner: &str,
+        lease_token: &str,
+        lease_duration_seconds: u64,
     ) -> Result<Vec<NativeSqlScopedOutboxEvent>, NativeSqlStoreError> {
         let row_limit = i64::from(limit.max(1));
         let timestamp = now_text();
+        let lease_expires_at = timestamp_after_seconds(lease_duration_seconds.max(5));
         let rows = sqlx::query(
             r#"
             UPDATE ai_outbox_event AS o
             SET publish_state = 'processing',
+                lease_owner = ?,
+                lease_token = ?,
+                lease_expires_at = ?,
+                next_attempt_at = NULL,
                 updated_at = ?
             FROM (
               SELECT id
               FROM ai_outbox_event
               WHERE publish_state = 'pending'
-                AND (
-                  retry_count = 0
-                  OR updated_at + (POWER(2, LEAST(retry_count, 5)) * INTERVAL '1 second') <= NOW()
-                )
+                AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
               ORDER BY created_at ASC, id ASC
               LIMIT ?
               FOR UPDATE SKIP LOCKED
@@ -2884,6 +2988,10 @@ impl NativeSqlMemoryStore {
               o.retry_count
             "#,
         )
+        .bind(lease_owner)
+        .bind(lease_token)
+        .bind(&lease_expires_at)
+        .bind(&timestamp)
         .bind(&timestamp)
         .bind(row_limit)
         .fetch_all(&self.pool)
@@ -2893,6 +3001,9 @@ impl NativeSqlMemoryStore {
             .into_iter()
             .map(|row| NativeSqlScopedOutboxEvent {
                 tenant_id: row.get("tenant_id"),
+                lease_owner: Some(lease_owner.to_string()),
+                lease_token: Some(lease_token.to_string()),
+                lease_expires_at: Some(lease_expires_at.clone()),
                 outbox: NativeSqlMemoryOutboxEvent {
                     outbox_id: row.get("uuid"),
                     aggregate_type: row.get("aggregate_type"),
@@ -2911,9 +3022,13 @@ impl NativeSqlMemoryStore {
     async fn claim_global_pending_outbox_events_sqlite(
         &self,
         limit: u32,
+        lease_owner: &str,
+        lease_token: &str,
+        lease_duration_seconds: u64,
     ) -> Result<Vec<NativeSqlScopedOutboxEvent>, NativeSqlStoreError> {
         let row_limit = i64::from(limit.max(1));
         let mut tx = self.pool.begin().await?;
+        let timestamp = now_text();
         let rows = sqlx::query(
             r#"
             SELECT
@@ -2930,21 +3045,12 @@ impl NativeSqlMemoryStore {
               retry_count
             FROM ai_outbox_event
             WHERE publish_state = 'pending'
-              AND (
-                retry_count = 0
-                OR datetime(updated_at, '+' ||
-                  CASE retry_count
-                    WHEN 1 THEN '2'
-                    WHEN 2 THEN '4'
-                    WHEN 3 THEN '8'
-                    WHEN 4 THEN '16'
-                    ELSE '32'
-                  END || ' seconds') <= datetime('now')
-              )
+              AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
             ORDER BY created_at ASC, id ASC
             LIMIT ?
             "#,
         )
+        .bind(&timestamp)
         .bind(row_limit)
         .fetch_all(&mut *tx)
         .await?;
@@ -2954,7 +3060,7 @@ impl NativeSqlMemoryStore {
             return Ok(Vec::new());
         }
 
-        let timestamp = now_text();
+        let lease_expires_at = timestamp_after_seconds(lease_duration_seconds.max(5));
         let mut claimed = Vec::with_capacity(rows.len());
         for row in rows {
             let row_id: i64 = row.get("id");
@@ -2962,10 +3068,17 @@ impl NativeSqlMemoryStore {
                 r#"
                 UPDATE ai_outbox_event
                 SET publish_state = 'processing',
+                    lease_owner = ?,
+                    lease_token = ?,
+                    lease_expires_at = ?,
+                    next_attempt_at = NULL,
                     updated_at = ?
                 WHERE id = ? AND publish_state = 'pending'
                 "#,
             )
+            .bind(lease_owner)
+            .bind(lease_token)
+            .bind(&lease_expires_at)
             .bind(&timestamp)
             .bind(row_id)
             .execute(&mut *tx)
@@ -2973,6 +3086,9 @@ impl NativeSqlMemoryStore {
             if updated.rows_affected() > 0 {
                 claimed.push(NativeSqlScopedOutboxEvent {
                     tenant_id: row.get("tenant_id"),
+                    lease_owner: Some(lease_owner.to_string()),
+                    lease_token: Some(lease_token.to_string()),
+                    lease_expires_at: Some(lease_expires_at.clone()),
                     outbox: NativeSqlMemoryOutboxEvent {
                         outbox_id: row.get("uuid"),
                         aggregate_type: row.get("aggregate_type"),
@@ -3141,23 +3257,37 @@ impl NativeSqlMemoryStore {
         &self,
         tenant_id: i64,
         outbox_id: &str,
+        lease_owner: &str,
+        lease_token: &str,
     ) -> Result<Option<NativeSqlMemoryOutboxEvent>, NativeSqlStoreError> {
         let timestamp = now_text();
-        sqlx::query(
+        let updated = sqlx::query(
             r#"
             UPDATE ai_outbox_event
             SET publish_state = 'published',
                 published_at = ?,
+                lease_owner = NULL,
+                lease_token = NULL,
+                lease_expires_at = NULL,
+                next_attempt_at = NULL,
                 updated_at = ?
             WHERE tenant_id = ? AND uuid = ? AND publish_state = 'processing'
+              AND lease_owner = ? AND lease_token = ? AND lease_expires_at > ?
             "#,
         )
         .bind(&timestamp)
         .bind(&timestamp)
         .bind(tenant_id)
         .bind(outbox_id)
+        .bind(lease_owner)
+        .bind(lease_token)
+        .bind(&timestamp)
         .execute(&self.pool)
         .await?;
+
+        if updated.rows_affected() == 0 {
+            return Ok(None);
+        }
 
         self.retrieve_outbox_event(
             &MemoryScopeContext {
@@ -3175,27 +3305,71 @@ impl NativeSqlMemoryStore {
         &self,
         tenant_id: i64,
         outbox_id: &str,
+        lease_owner: &str,
+        lease_token: &str,
         max_retries: u32,
     ) -> Result<Option<NativeSqlMemoryOutboxEvent>, NativeSqlStoreError> {
         let timestamp = now_text();
-        sqlx::query(
+        let mut transaction = self.pool.begin().await?;
+        let retry_query = if self.dialect == MemorySqlDialect::Postgres {
+            r#"
+            SELECT retry_count FROM ai_outbox_event
+            WHERE tenant_id = ? AND uuid = ? AND publish_state = 'processing'
+              AND lease_owner = ? AND lease_token = ? AND lease_expires_at > ?
+            FOR UPDATE
+            "#
+        } else {
+            r#"
+            SELECT retry_count FROM ai_outbox_event
+            WHERE tenant_id = ? AND uuid = ? AND publish_state = 'processing'
+              AND lease_owner = ? AND lease_token = ? AND lease_expires_at > ?
+            "#
+        };
+        let current_retry = sqlx::query_scalar::<_, i64>(retry_query)
+            .bind(tenant_id)
+            .bind(outbox_id)
+            .bind(lease_owner)
+            .bind(lease_token)
+            .bind(&timestamp)
+            .fetch_optional(&mut *transaction)
+            .await?;
+        let Some(current_retry) = current_retry else {
+            transaction.rollback().await?;
+            return Ok(None);
+        };
+        let next_retry = current_retry.saturating_add(1);
+        let failed = next_retry >= i64::from(max_retries.max(1));
+        let backoff_seconds = 1_u64 << u32::try_from(next_retry.clamp(1, 5)).unwrap_or(5);
+        let next_attempt_at = (!failed).then(|| timestamp_after_seconds(backoff_seconds));
+        let updated = sqlx::query(
             r#"
             UPDATE ai_outbox_event
-            SET retry_count = retry_count + 1,
-                publish_state = CASE
-                  WHEN retry_count + 1 >= ? THEN 'failed'
-                  ELSE 'pending'
-                END,
+            SET retry_count = ?,
+                publish_state = ?,
+                lease_owner = NULL,
+                lease_token = NULL,
+                lease_expires_at = NULL,
+                next_attempt_at = ?,
                 updated_at = ?
             WHERE tenant_id = ? AND uuid = ? AND publish_state = 'processing'
+              AND lease_owner = ? AND lease_token = ?
             "#,
         )
-        .bind(i64::from(max_retries.max(1)))
+        .bind(next_retry)
+        .bind(if failed { "failed" } else { "pending" })
+        .bind(next_attempt_at.as_deref())
         .bind(&timestamp)
         .bind(tenant_id)
         .bind(outbox_id)
-        .execute(&self.pool)
+        .bind(lease_owner)
+        .bind(lease_token)
+        .execute(&mut *transaction)
         .await?;
+        if updated.rows_affected() == 0 {
+            transaction.rollback().await?;
+            return Ok(None);
+        }
+        transaction.commit().await?;
 
         self.retrieve_outbox_event(
             &MemoryScopeContext {
@@ -3211,29 +3385,56 @@ impl NativeSqlMemoryStore {
 
     pub async fn requeue_stale_processing_outbox_events(
         &self,
-        stale_after_seconds: u64,
+        _stale_after_seconds: u64,
     ) -> Result<u64, NativeSqlStoreError> {
-        let stale_seconds = stale_after_seconds.max(30) as i64;
-        let cutoff_ms =
-            sdkwork_utils_rust::to_unix_millis(sdkwork_utils_rust::now()) - stale_seconds * 1_000;
-        let cutoff = sdkwork_utils_rust::format_datetime(
-            sdkwork_utils_rust::from_unix_millis(cutoff_ms).unwrap_or_else(sdkwork_utils_rust::now),
-            None,
-        );
+        let timestamp = now_text();
         let result = sqlx::query(
             r#"
             UPDATE ai_outbox_event
             SET publish_state = 'pending',
+                lease_owner = NULL,
+                lease_token = NULL,
+                lease_expires_at = NULL,
                 updated_at = ?
             WHERE publish_state = 'processing'
-              AND updated_at <= ?
+              AND (lease_expires_at IS NULL OR lease_expires_at <= ?)
             "#,
         )
-        .bind(now_text())
-        .bind(cutoff)
+        .bind(&timestamp)
+        .bind(&timestamp)
         .execute(&self.pool)
         .await?;
         Ok(result.rows_affected())
+    }
+
+    pub async fn renew_outbox_delivery_lease(
+        &self,
+        tenant_id: i64,
+        outbox_id: &str,
+        lease_owner: &str,
+        lease_token: &str,
+        lease_duration_seconds: u64,
+    ) -> Result<bool, NativeSqlStoreError> {
+        let timestamp = now_text();
+        let lease_expires_at = timestamp_after_seconds(lease_duration_seconds.max(5));
+        let updated = sqlx::query(
+            r#"
+            UPDATE ai_outbox_event
+            SET lease_expires_at = ?, updated_at = ?
+            WHERE tenant_id = ? AND uuid = ? AND publish_state = 'processing'
+              AND lease_owner = ? AND lease_token = ? AND lease_expires_at > ?
+            "#,
+        )
+        .bind(lease_expires_at)
+        .bind(&timestamp)
+        .bind(tenant_id)
+        .bind(outbox_id)
+        .bind(lease_owner)
+        .bind(lease_token)
+        .bind(&timestamp)
+        .execute(&self.pool)
+        .await?;
+        Ok(updated.rows_affected() == 1)
     }
 
     pub async fn create_candidate(
@@ -3244,6 +3445,7 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_candidate (
+              id,
               uuid,
               tenant_id,
               space_id,
@@ -3258,9 +3460,10 @@ impl NativeSqlMemoryStore {
               created_at,
               updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(&command.candidate_id)
         .bind(command.scope.tenant_id)
         .bind(command.scope.space_id)
@@ -3359,6 +3562,7 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_habit (
+              id,
               uuid,
               tenant_id,
               space_id,
@@ -3375,7 +3579,7 @@ impl NativeSqlMemoryStore {
               created_at,
               updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (tenant_id, space_id, user_id, habit_key)
             DO UPDATE SET
               uuid = excluded.uuid,
@@ -3391,6 +3595,7 @@ impl NativeSqlMemoryStore {
               version = ai_habit.version + 1
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(&command.habit_id)
         .bind(command.scope.tenant_id)
         .bind(command.scope.space_id)
@@ -3498,6 +3703,7 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_retrieval_trace (
+              id,
               uuid,
               tenant_id,
               space_id,
@@ -3511,9 +3717,10 @@ impl NativeSqlMemoryStore {
               metadata_json,
               created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(&command.trace_id)
         .bind(command.scope.tenant_id)
         .bind(command.scope.space_id)
@@ -3565,6 +3772,7 @@ impl NativeSqlMemoryStore {
             sqlx::query(
                 r#"
                 INSERT INTO ai_retrieval_hit (
+                  id,
                   uuid,
                   tenant_id,
                   retrieval_trace_id,
@@ -3577,9 +3785,10 @@ impl NativeSqlMemoryStore {
                   status,
                   created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 "#,
             )
+            .bind(self.next_row_id()?)
             .bind(&hit.hit_id)
             .bind(command.scope.tenant_id)
             .bind(trace_row_id)
@@ -3599,6 +3808,7 @@ impl NativeSqlMemoryStore {
             sqlx::query(
                 r#"
                 INSERT INTO ai_context_pack (
+                  id,
                   uuid,
                   tenant_id,
                   retrieval_trace_id,
@@ -3609,9 +3819,10 @@ impl NativeSqlMemoryStore {
                   truncated,
                   created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 "#,
             )
+            .bind(self.next_row_id()?)
             .bind(&context_pack.context_pack_id)
             .bind(command.scope.tenant_id)
             .bind(trace_row_id)
@@ -3761,7 +3972,9 @@ impl NativeSqlMemoryStore {
             ),
             (
                 "0003",
-                include_str!("../../../database/migrations/sqlite/0003_memory_tenant_preference.up.sql"),
+                include_str!(
+                    "../../../database/migrations/sqlite/0003_memory_tenant_preference.up.sql"
+                ),
             ),
             (
                 "0004",
@@ -3769,11 +3982,15 @@ impl NativeSqlMemoryStore {
             ),
             (
                 "0005",
-                include_str!("../../../database/migrations/sqlite/0005_memory_record_fulltext_search.up.sql"),
+                include_str!(
+                    "../../../database/migrations/sqlite/0005_memory_record_fulltext_search.up.sql"
+                ),
             ),
             (
                 "0006",
-                include_str!("../../../database/migrations/sqlite/0006_memory_eval_run_extend.up.sql"),
+                include_str!(
+                    "../../../database/migrations/sqlite/0006_memory_eval_run_extend.up.sql"
+                ),
             ),
             (
                 "0007",
@@ -3783,7 +4000,21 @@ impl NativeSqlMemoryStore {
             ),
             (
                 "0008",
-                include_str!("../../../database/migrations/sqlite/0008_memory_fts_predicate.up.sql"),
+                include_str!(
+                    "../../../database/migrations/sqlite/0008_memory_fts_predicate.up.sql"
+                ),
+            ),
+            (
+                "0009",
+                include_str!(
+                    "../../../database/migrations/sqlite/0009_memory_outbox_delivery_lease.up.sql"
+                ),
+            ),
+            (
+                "0010",
+                include_str!(
+                    "../../../database/migrations/sqlite/0010_memory_job_execution_lease.up.sql"
+                ),
             ),
         ];
         self.apply_embedded_sql_migrations(MIGRATIONS).await
@@ -4140,6 +4371,7 @@ impl NativeSqlMemoryStore {
         sqlx::query(
             r#"
             INSERT INTO ai_context_pack (
+              id,
               uuid,
               tenant_id,
               retrieval_trace_id,
@@ -4150,9 +4382,10 @@ impl NativeSqlMemoryStore {
               truncated,
               created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(context_pack_id)
         .bind(tenant_id)
         .bind(trace_row_id)
@@ -4743,6 +4976,7 @@ impl NativeSqlMemoryStore {
         let result = sqlx::query(
             r#"
             INSERT INTO ai_record_source (
+              id,
               uuid,
               tenant_id,
               memory_id,
@@ -4752,6 +4986,7 @@ impl NativeSqlMemoryStore {
               created_at
             )
             SELECT
+              ?,
               ?,
               ?,
               record.id,
@@ -4768,6 +5003,7 @@ impl NativeSqlMemoryStore {
               AND record.status <> 'deleted'
             "#,
         )
+        .bind(self.next_row_id()?)
         .bind(source_id)
         .bind(tenant_id)
         .bind(source_role)
@@ -4917,6 +5153,32 @@ impl NativeSqlMemoryStore {
             .bind(tenant_id)
             .fetch_one(self.pool())
             .await?;
+        Ok(count)
+    }
+
+    pub async fn count_succeeded_retrieval_quality_evals_for_tenant(
+        &self,
+        tenant_id: i64,
+    ) -> Result<i64, NativeSqlStoreError> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM ai_eval_run WHERE tenant_id = ? AND eval_type = 'retrieval_quality' AND state = 'succeeded'",
+        )
+        .bind(tenant_id)
+        .fetch_one(self.pool())
+        .await?;
+        Ok(count)
+    }
+
+    pub async fn count_succeeded_migration_jobs_for_tenant(
+        &self,
+        tenant_id: i64,
+    ) -> Result<i64, NativeSqlStoreError> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM ai_learning_job WHERE tenant_id = ? AND job_type = 'migration_job' AND state = 'succeeded'",
+        )
+        .bind(tenant_id)
+        .fetch_one(self.pool())
+        .await?;
         Ok(count)
     }
 
@@ -5833,6 +6095,9 @@ pub struct NativeSqlMemoryAuditRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeSqlScopedOutboxEvent {
     pub tenant_id: i64,
+    pub lease_owner: Option<String>,
+    pub lease_token: Option<String>,
+    pub lease_expires_at: Option<String>,
     pub outbox: NativeSqlMemoryOutboxEvent,
 }
 
@@ -5868,6 +6133,8 @@ pub enum NativeSqlStoreError {
     Pool(#[from] sdkwork_database_sqlx::PoolError),
     #[error("native SQL store JSON payload error: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("native SQL store ID generation error: {0}")]
+    IdGeneration(String),
     #[error("native SQL event append conflict for tenant {tenant_id} event {event_id}")]
     EventConflict { tenant_id: i64, event_id: String },
     #[error("native SQL outbox append conflict for tenant {tenant_id} outbox event {outbox_id}")]
@@ -5876,6 +6143,21 @@ pub enum NativeSqlStoreError {
     IdempotencyConflict { idempotency_key: String },
     #[error("native SQL store invariant violation: {message}")]
     InvariantViolation { message: String },
+}
+
+fn development_id_generator() -> SnowflakeIdGenerator {
+    static GENERATOR: OnceLock<SnowflakeIdGenerator> = OnceLock::new();
+    GENERATOR
+        .get_or_init(|| {
+            let node_id = std::env::var("SDKWORK_MEMORY_SNOWFLAKE_NODE_ID")
+                .ok()
+                .and_then(|value| sdkwork_utils_rust::parse_int(&value))
+                .and_then(|value| u16::try_from(value).ok())
+                .unwrap_or(0);
+            SnowflakeIdGenerator::new(node_id)
+                .expect("validated development snowflake node ID must initialize")
+        })
+        .clone()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -6032,6 +6314,16 @@ fn sqlite_int_to_bool(value: i64) -> bool {
 
 pub(crate) fn now_text() -> String {
     sdkwork_utils_rust::format_datetime(sdkwork_utils_rust::now(), None)
+}
+
+pub(crate) fn timestamp_after_seconds(seconds: u64) -> String {
+    let now_millis = sdkwork_utils_rust::to_unix_millis(sdkwork_utils_rust::now());
+    let delta_millis = i64::try_from(seconds.saturating_mul(1_000)).unwrap_or(i64::MAX);
+    let target = now_millis.saturating_add(delta_millis);
+    sdkwork_utils_rust::format_datetime(
+        sdkwork_utils_rust::from_unix_millis(target).unwrap_or_else(sdkwork_utils_rust::now),
+        None,
+    )
 }
 
 fn stable_hash(value: &str) -> String {

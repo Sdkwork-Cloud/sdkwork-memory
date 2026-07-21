@@ -1,0 +1,198 @@
+//! Portable SQLx Any queries with PostgreSQL-compatible numbered placeholders.
+
+use std::collections::HashMap;
+use std::sync::{OnceLock, RwLock};
+
+pub(crate) use ::sqlx::{any, Any, AnyPool, Error, Row, Transaction};
+
+const MAX_CACHED_QUERY_SHAPES: usize = 2048;
+static NORMALIZED_SQL: OnceLock<RwLock<HashMap<String, &'static str>>> = OnceLock::new();
+
+pub(crate) fn query<'q, DB>(
+    sql: &str,
+) -> ::sqlx::query::Query<'q, DB, <DB as ::sqlx::Database>::Arguments<'q>>
+where
+    DB: ::sqlx::Database,
+{
+    ::sqlx::query(normalized_sql(sql))
+}
+
+pub(crate) fn query_scalar<'q, DB, O>(
+    sql: &str,
+) -> ::sqlx::query::QueryScalar<'q, DB, O, <DB as ::sqlx::Database>::Arguments<'q>>
+where
+    DB: ::sqlx::Database,
+    (O,): for<'row> ::sqlx::FromRow<'row, DB::Row>,
+{
+    ::sqlx::query_scalar(normalized_sql(sql))
+}
+
+fn normalized_sql(sql: &str) -> &'static str {
+    let cache = NORMALIZED_SQL.get_or_init(|| RwLock::new(HashMap::new()));
+    if let Some(value) = cache.read().expect("SQL cache read lock").get(sql) {
+        return value;
+    }
+
+    let normalized = number_placeholders(sql);
+    let mut write = cache.write().expect("SQL cache write lock");
+    if let Some(value) = write.get(sql) {
+        return value;
+    }
+    assert!(
+        write.len() < MAX_CACHED_QUERY_SHAPES,
+        "native SQL query-shape cache exceeded its static bound"
+    );
+    let value = Box::leak(normalized.into_boxed_str());
+    write.insert(sql.to_string(), value);
+    value
+}
+
+fn number_placeholders(sql: &str) -> String {
+    let chars = sql.as_bytes();
+    let mut output = String::with_capacity(sql.len() + 16);
+    let mut index = 0usize;
+    let mut placeholder = 1usize;
+    let mut state = SqlLexState::Normal;
+
+    while index < chars.len() {
+        match state {
+            SqlLexState::Normal => {
+                if chars[index] == b'\'' {
+                    state = SqlLexState::SingleQuoted;
+                    output.push('\'');
+                    index += 1;
+                } else if chars[index] == b'"' {
+                    state = SqlLexState::DoubleQuoted;
+                    output.push('"');
+                    index += 1;
+                } else if chars[index..].starts_with(b"--") {
+                    state = SqlLexState::LineComment;
+                    output.push_str("--");
+                    index += 2;
+                } else if chars[index..].starts_with(b"/*") {
+                    state = SqlLexState::BlockComment;
+                    output.push_str("/*");
+                    index += 2;
+                } else if chars[index] == b'$' {
+                    if let Some(end) = dollar_quote_tag_end(chars, index) {
+                        let tag = sql[index..=end].to_string();
+                        output.push_str(&tag);
+                        index = end + 1;
+                        state = SqlLexState::DollarQuoted(tag);
+                    } else {
+                        output.push('$');
+                        index += 1;
+                    }
+                } else if chars[index] == b'?'
+                    && !matches!(chars.get(index + 1), Some(b'|') | Some(b'&'))
+                {
+                    output.push('$');
+                    output.push_str(&placeholder.to_string());
+                    placeholder += 1;
+                    index += 1;
+                } else {
+                    output.push(chars[index] as char);
+                    index += 1;
+                }
+            }
+            SqlLexState::SingleQuoted => {
+                output.push(chars[index] as char);
+                if chars[index] == b'\'' {
+                    if chars.get(index + 1) == Some(&b'\'') {
+                        output.push('\'');
+                        index += 2;
+                    } else {
+                        index += 1;
+                        state = SqlLexState::Normal;
+                    }
+                } else {
+                    index += 1;
+                }
+            }
+            SqlLexState::DoubleQuoted => {
+                output.push(chars[index] as char);
+                if chars[index] == b'"' {
+                    if chars.get(index + 1) == Some(&b'"') {
+                        output.push('"');
+                        index += 2;
+                    } else {
+                        index += 1;
+                        state = SqlLexState::Normal;
+                    }
+                } else {
+                    index += 1;
+                }
+            }
+            SqlLexState::LineComment => {
+                output.push(chars[index] as char);
+                if chars[index] == b'\n' {
+                    state = SqlLexState::Normal;
+                }
+                index += 1;
+            }
+            SqlLexState::BlockComment => {
+                if chars[index..].starts_with(b"*/") {
+                    output.push_str("*/");
+                    index += 2;
+                    state = SqlLexState::Normal;
+                } else {
+                    output.push(chars[index] as char);
+                    index += 1;
+                }
+            }
+            SqlLexState::DollarQuoted(ref tag) => {
+                if sql[index..].starts_with(tag) {
+                    output.push_str(tag);
+                    index += tag.len();
+                    state = SqlLexState::Normal;
+                } else {
+                    output.push(chars[index] as char);
+                    index += 1;
+                }
+            }
+        }
+    }
+    output
+}
+
+fn dollar_quote_tag_end(chars: &[u8], start: usize) -> Option<usize> {
+    let mut index = start + 1;
+    while index < chars.len() && (chars[index].is_ascii_alphanumeric() || chars[index] == b'_') {
+        index += 1;
+    }
+    (chars.get(index) == Some(&b'$')).then_some(index)
+}
+
+#[derive(Clone)]
+enum SqlLexState {
+    Normal,
+    SingleQuoted,
+    DoubleQuoted,
+    LineComment,
+    BlockComment,
+    DollarQuoted(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::number_placeholders;
+
+    #[test]
+    fn numbers_bind_markers_without_touching_literals_or_comments() {
+        let sql =
+            "SELECT '?' AS literal, value FROM sample -- ? comment\nWHERE a = ? AND b = ? /* ? */";
+        assert_eq!(
+            number_placeholders(sql),
+            "SELECT '?' AS literal, value FROM sample -- ? comment\nWHERE a = $1 AND b = $2 /* ? */"
+        );
+    }
+
+    #[test]
+    fn preserves_postgres_json_and_dollar_quoted_operators() {
+        let sql = "SELECT payload ?| array['a'] FROM sample WHERE id = ?; $$ ? $$";
+        assert_eq!(
+            number_placeholders(sql),
+            "SELECT payload ?| array['a'] FROM sample WHERE id = $1; $$ ? $$"
+        );
+    }
+}

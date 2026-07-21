@@ -58,7 +58,7 @@ export function createMemoryAdminResourceRegistry(client: MemoryAdminSdkClient):
     ]),
     providerHealth: itemSource(() => client.memory.providerHealth.retrieve()),
     evalRuns: withActions(listSource((query) => client.memory.evalRuns.list(toListParams(query))), [
-      action("create", "Create evaluation run", { evalType: "retrieval", datasetRef: "", status: "queued" }, (context) => client.memory.evalRuns.create(context.body as unknown as Parameters<typeof client.memory.evalRuns.create>[0], idempotency(context)), { idempotent: true }),
+      action("create", "Create evaluation run", { evalType: "retrieval_quality", config: { cases: [] } }, (context) => client.memory.evalRuns.create(context.body as unknown as Parameters<typeof client.memory.evalRuns.create>[0], idempotency(context)), { idempotent: true }),
     ]),
     auditLogs: listSource((query) => client.memory.auditLogs.list(toListParams(query))),
     subjects: withActions(listSource((query) => client.memory.subjects.list(toListParams(query))), [
@@ -109,7 +109,7 @@ function withActions(source: MemoryResourceDataSource, actions: readonly MemoryR
 }
 
 function actionSource(actions: readonly MemoryResourceAction[]): MemoryResourceDataSource {
-  return { actions, kind: "retrieve", async load() { return { items: [], pageInfo: { mode: "cursor", hasNext: false } }; } };
+  return { actions, kind: "retrieve", async load() { return { items: [], pageInfo: { mode: "cursor", hasMore: false } }; } };
 }
 
 function selectedId(context: MemoryResourceActionContext, ...keys: string[]): string {

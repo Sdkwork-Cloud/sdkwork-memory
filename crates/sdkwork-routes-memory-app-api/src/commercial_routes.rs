@@ -1,7 +1,7 @@
 //! Commercial entity and policy assignment routes for the App API.
 
 use axum::{
-    extract::{Path, Query},
+    extract::Path,
     response::Response,
     routing::{get, patch},
     Extension, Json, Router,
@@ -12,7 +12,9 @@ use sdkwork_memory_contract::{
     ListPolicyAssignmentsQuery, MemoryAppRequestContext, UpdateEntityCommand,
     UpdatePolicyAssignmentCommand,
 };
-use sdkwork_routes_memory_support::{created_resource_json, ok_page_json, ok_resource_json};
+use sdkwork_routes_memory_support::{
+    created_resource_json, ok_page_json, ok_resource_json, MemoryQuery as Query,
+};
 
 use crate::{auth::require_app_context, paths, routes::AppState, ApiProblem};
 

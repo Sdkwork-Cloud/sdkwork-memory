@@ -99,16 +99,13 @@ function resolvePreservedReleaseChecksum(existingManifest) {
         "container-x64-cloud-container-docker-image",
       ].includes(pkg.id)
       && pkg.enabled !== false
+      && pkg.metadata?.releaseEvidenceState === "verified-ci"
+      && typeof pkg.url === "string"
+      && pkg.url.startsWith("oci://")
       && !isPlaceholderChecksum(pkg.checksum)
     ) {
       return pkg.checksum;
     }
-  }
-
-  const checksumFile = readJsonIfExists("deployments/artifacts/checksums.json");
-  const digest = checksumFile?.artifacts?.[0]?.digest;
-  if (digest && !isPlaceholderChecksum(digest)) {
-    return digest;
   }
 
   return null;
@@ -446,12 +443,17 @@ Add local plugins only when this repository needs checked-in plugin metadata. Do
 }
 
 function writeAppManifest() {
-  const preservedChecksum = resolvePreservedReleaseChecksum(
-    readJsonIfExists("sdkwork.app.config.json"),
-  );
+  const existingManifest = readJsonIfExists("sdkwork.app.config.json");
+  // Materialization must never promote a candidate based only on a previously
+  // observed checksum. Production publication is an explicit release action
+  // after every gate in docs/releases/README.md has passed.
+  const preservedChecksum = undefined;
+  const preservedPublishedAt = existingManifest?.release?.notes?.find(
+    (note) => note?.version === version && note?.metadata?.contractState === "production-ready",
+  )?.publishedAt;
   const packageIds = [
-    "container-x64-standalone-container-docker-image",
-    "container-x64-cloud-container-docker-image",
+    "container-x64-standalone-container-oci",
+    "container-x64-cloud-container-oci",
   ];
   const defaultPackageId = packageIds[1];
   const manifest = {
@@ -553,7 +555,7 @@ function writeAppManifest() {
       }
     },
     publish: {
-      status: preservedChecksum ? "ACTIVE" : "DRAFT",
+      status: preservedChecksum ? "ACTIVE" : "INTERNAL",
       installSkill: {
         name: "sdkwork-skills-app"
       },
@@ -582,29 +584,34 @@ function writeAppManifest() {
             packageFormat: "DOCKER_IMAGE",
             platform: "API",
             ...(preservedChecksum ? {
-              url: `https://registry.sdkwork.com/apps/sdkwork-memory@sha256:${preservedChecksum}`,
+              url: `oci://registry.sdkwork.com/apps/sdkwork-memory@sha256:${preservedChecksum}`,
               enabled: true
             } : {
+              url: "oci://registry.sdkwork.com/apps/sdkwork-memory:0.1.0-rc.1",
               enabled: false
             }),
-            metadata: {
-              image: "registry.sdkwork.com/apps/sdkwork-memory:0.1.0",
-              digestRequiredBeforeRelease: true,
-              ...(!preservedChecksum ? { publicationState: "awaiting-ci-image-digest" } : {})
-            },
             architecture: "x64",
             profileBinding: "fixed",
             deploymentProfile,
             runtimeTarget: "container",
-            checksumAlgorithm: "SHA-256",
-            ...(preservedChecksum ? { checksum: preservedChecksum } : {})
+            metadata: {
+              image: preservedChecksum
+                ? "registry.sdkwork.com/apps/sdkwork-memory:0.1.0"
+                : "registry.sdkwork.com/apps/sdkwork-memory:0.1.0-rc.1",
+              digestRequiredBeforeRelease: true,
+              releaseEvidenceState: preservedChecksum ? "verified-ci" : "pending-ci"
+            },
+            ...(preservedChecksum ? {
+              checksumAlgorithm: "SHA-256",
+              checksum: preservedChecksum
+            } : {})
           }
         )),
         metadata: {
           workspaceRoot: "sdkwork-memory",
           framework: "rust-service",
           packageManager: "cargo",
-          contractState: "production-ready"
+          contractState: preservedChecksum ? "production-ready" : "release-candidate"
         }
       }
     },
@@ -618,23 +625,35 @@ function writeAppManifest() {
         {
           version,
           releaseChannel: "DEV",
-          title: `SDKWork Memory ${version} Production Ready`,
-          summary: "Production-ready Memory service and PC operations foundation with security, privacy, observability, and release supply-chain gates.",
-          content: "SDKWork Memory delivers embedding-optional retrieval, tenant-scoped governance, isolated Console and Admin SDK boundaries, Kubernetes rollout assets, Prometheus metrics, and SPDX SBOM release evidence.",
+          title: preservedChecksum
+            ? `SDKWork Memory ${version} Production Ready`
+            : `SDKWork Memory ${version} Internal Release Candidate`,
+          summary: preservedChecksum
+            ? "Production-ready Memory service and PC operations foundation with verified release supply-chain evidence."
+            : "Internal validation candidate for the Memory service and PC operations surfaces; production publication remains blocked until immutable container, migration, PostgreSQL, load, recovery, and security evidence is complete.",
+          content: preservedChecksum
+            ? "SDKWork Memory delivers embedding-optional retrieval, tenant-scoped governance, isolated Console and Admin SDK boundaries, and verified release evidence."
+            : "SDKWork Memory currently provides an embedding-optional native SQL baseline, tenant-scoped governance, isolated Console and Admin SDK boundaries, and draft Kubernetes assets. It is not approved for production publication.",
           highlights: [
             "Space-isolated memory access with fail-closed production auth",
-            "Inline and Drive-backed privacy export with outbox handoff",
-            "Kubernetes migration Job, HPA, PDB, and Prometheus scraping",
-            "SPDX SBOM and SHA-256 release checksum pipeline"
+            preservedChecksum
+              ? "Privacy export and durable outbox flows"
+              : "Privacy export and outbox flows under production hardening",
+            preservedChecksum
+              ? "Kubernetes migration, autoscaling, disruption, and monitoring descriptors"
+              : "Draft Kubernetes migration, autoscaling, disruption, and monitoring descriptors",
+            preservedChecksum
+              ? "Verified SBOM, signature, and immutable OCI digest evidence"
+              : "Release evidence pipeline pending immutable OCI publication and signing"
           ],
           packageIds,
-          publishedAt: "2026-06-23T00:00:00Z",
+          ...(preservedChecksum && preservedPublishedAt ? { publishedAt: preservedPublishedAt } : {}),
           current: true,
           forceUpdate: false,
           minSupportedVersion: version,
           metadata: {
-            draft: false,
-            contractState: "production-ready"
+            draft: !preservedChecksum,
+            contractState: preservedChecksum ? "production-ready" : "release-candidate"
           }
         }
       ]
@@ -2538,7 +2557,11 @@ function baseSchemas() {
       type: "object",
       required: ["evalType"],
       properties: {
-        evalType: { type: "string" },
+        evalType: {
+          type: "string",
+          enum: ["retrieval_quality"],
+          description: "Executable evaluation engine. Additional evaluation types remain unavailable until a production worker implementation exists."
+        },
         datasetRef: nullableString,
         profileRef: nullableString,
         config: nullableJsonObject

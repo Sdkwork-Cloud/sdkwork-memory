@@ -1,7 +1,7 @@
 //! Commercial entity and edge routes for the Open API.
 
 use axum::{
-    extract::{Path, Query},
+    extract::Path,
     response::Response,
     routing::get,
     Extension, Json, Router,
@@ -11,7 +11,7 @@ use sdkwork_memory_contract::{
     MemoryOpenApiRequestContext, UpdateEdgeCommand, UpdateEntityCommand,
 };
 use sdkwork_routes_memory_support::{
-    created_resource_json, no_content_json, ok_page_json, ok_resource_json,
+    created_resource_json, no_content_json, ok_page_json, ok_resource_json, MemoryQuery as Query,
 };
 
 use crate::{auth::require_context, paths, routes::OpenState, ApiProblem};

@@ -41,7 +41,7 @@ impl OpenMemoryService {
             ));
         }
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let page_size = platform::clamp_page_size(query.page_size);
+        let page_size = platform::validated_page_size(query.page_size)?;
         let rows = self
             .store
             .list_governance_jobs_for_tenant(
@@ -197,8 +197,8 @@ impl OpenMemoryService {
         platform::memory_cursor_page_info(page_size, has_more, next_cursor)
     }
 
-    fn page_size_from_query(query: &ListAdminResourcesQuery) -> i32 {
-        crate::platform::clamp_page_size(query.page_size)
+    fn page_size_from_query(query: &ListAdminResourcesQuery) -> MemoryServiceResult<i32> {
+        crate::platform::validated_page_size(query.page_size)
     }
 
     fn parse_row_id(id: &str) -> MemoryServiceResult<u64> {
@@ -439,7 +439,7 @@ impl OpenMemoryService {
         query: ListAdminResourcesQuery,
     ) -> MemoryServiceResult<MemoryIndexList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let page_size = Self::page_size_from_query(&query);
+        let page_size = Self::page_size_from_query(&query)?;
         self.store
             .ensure_default_keyword_index_for_tenant(tenant_id)
             .await
@@ -625,7 +625,7 @@ impl OpenMemoryService {
         query: ListAdminResourcesQuery,
     ) -> MemoryServiceResult<MemoryRetrievalProfileList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let page_size = Self::page_size_from_query(&query);
+        let page_size = Self::page_size_from_query(&query)?;
         self.store
             .ensure_default_retrieval_profile_for_tenant(tenant_id)
             .await
@@ -753,7 +753,7 @@ impl OpenMemoryService {
         query: ListAdminResourcesQuery,
     ) -> MemoryServiceResult<MemoryImplementationProfileList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let page_size = Self::page_size_from_query(&query);
+        let page_size = Self::page_size_from_query(&query)?;
         self.store
             .ensure_default_implementation_profile_for_tenant(tenant_id)
             .await
@@ -871,7 +871,7 @@ impl OpenMemoryService {
         query: ListAdminResourcesQuery,
     ) -> MemoryServiceResult<MemoryProviderBindingList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let page_size = Self::page_size_from_query(&query);
+        let page_size = Self::page_size_from_query(&query)?;
         let rows = self
             .store
             .list_mem_provider_bindings_for_tenant(tenant_id, page_size, query.cursor.as_deref())
@@ -963,7 +963,7 @@ impl OpenMemoryService {
         query: ListAdminResourcesQuery,
     ) -> MemoryServiceResult<MemoryEvalRunList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let page_size = Self::page_size_from_query(&query);
+        let page_size = Self::page_size_from_query(&query)?;
         let rows = self
             .store
             .list_mem_eval_runs_for_tenant(tenant_id, page_size, query.cursor.as_deref())
@@ -989,29 +989,29 @@ impl OpenMemoryService {
     ) -> MemoryServiceResult<MemoryEvalRun> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let eval_type = request.eval_type.trim();
-        if eval_type.is_empty() {
-            return Err(MemoryServiceError::validation("evalType must not be blank"));
+        if eval_type != "retrieval_quality" {
+            return Err(MemoryServiceError::validation(
+                "evalType must be retrieval_quality; other evaluation engines are not implemented",
+            ));
         }
-        if eval_type == "retrieval_quality" {
-            crate::job_worker::validate_retrieval_quality_eval_request(request.config.as_ref())
-                .map_err(MemoryServiceError::validation)?;
-            if let Some(profile_ref) = request.profile_ref.as_deref() {
-                let profile_id = profile_ref.parse::<u64>().map_err(|_| {
-                    MemoryServiceError::validation(
-                        "profileRef must be a numeric retrieval profile id",
-                    )
-                })?;
-                let profile_exists = self
-                    .store
-                    .retrieve_mem_retrieval_profile_for_tenant(tenant_id, &profile_id.to_string())
-                    .await
-                    .map_err(OpenMemoryService::map_store_error)?
-                    .is_some();
-                if !profile_exists {
-                    return Err(MemoryServiceError::validation(format!(
-                        "retrieval profile {profile_id} was not found for the eval tenant"
-                    )));
-                }
+        crate::job_worker::validate_retrieval_quality_eval_request(request.config.as_ref())
+            .map_err(MemoryServiceError::validation)?;
+        if let Some(profile_ref) = request.profile_ref.as_deref() {
+            let profile_id = profile_ref.parse::<u64>().map_err(|_| {
+                MemoryServiceError::validation(
+                    "profileRef must be a numeric retrieval profile id",
+                )
+            })?;
+            let profile_exists = self
+                .store
+                .retrieve_mem_retrieval_profile_for_tenant(tenant_id, &profile_id.to_string())
+                .await
+                .map_err(OpenMemoryService::map_store_error)?
+                .is_some();
+            if !profile_exists {
+                return Err(MemoryServiceError::validation(format!(
+                    "retrieval profile {profile_id} was not found for the eval tenant"
+                )));
             }
         }
         let eval_run_id = self.next_id()?.to_string();
@@ -1101,7 +1101,7 @@ impl OpenMemoryService {
     ) -> MemoryServiceResult<MemoryLearningJobList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
         let space_id = query.space_id.map(platform::space_id_i64).transpose()?;
-        let page_size = platform::clamp_page_size(query.page_size);
+        let page_size = platform::validated_page_size(query.page_size)?;
         let rows = self
             .store
             .list_learning_jobs_for_tenant(

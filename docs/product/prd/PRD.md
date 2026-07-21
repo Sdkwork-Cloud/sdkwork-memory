@@ -4,7 +4,7 @@ Status: active current-state Canon
 
 Owner: SDKWork Memory maintainers
 
-Updated: 2026-07-20
+Updated: 2026-07-21
 
 ## Product Intent
 
@@ -51,6 +51,8 @@ Generated route manifests and authority OpenAPI files are the operation inventor
 - Embeddings are optional. Native SQL retrieval remains operational when external providers are absent or degraded.
 - Restricted and sensitive data access fails closed and is constrained before the store query or provider call.
 - Exports use approved Drive integration when a Drive target is requested. Credentials and provider secrets are references, never repository data.
+- Export memory is bounded: inline defaults to 4 MiB, Drive defaults to 64 MiB, and neither path may exceed the 256 MiB hard cap until streaming multipart is implemented and verified.
+- Cluster workers use database-fenced leases; an expired Outbox, learning, or evaluation worker cannot acknowledge or complete work after takeover.
 
 ## Quality And Operations Targets
 
@@ -66,7 +68,7 @@ Generated route manifests and authority OpenAPI files are the operation inventor
 
 ## Release State
 
-The server release authority and deployment profiles are implemented and validated by the root manifest and workflow. The PC browser artifact is a reproducible release candidate with checksum, SBOM, and provenance generation. PC publication remains `DRAFT` until a formal release run produces the required OIDC attestation/signature, uploads the immutable artifact, and completes smoke checks. A draft package must not be represented as already deployed.
+The application is an internal release candidate, not an active production release. Server/container and PC packaging definitions exist, and local contract evidence is generated, but publication remains blocked until CI produces immutable artifacts for the release commit, detached signatures/OIDC attestations, byte-bound SBOM and provenance, PostgreSQL and container smoke evidence, load/soak evidence, and a recorded rollback exercise. Candidate packages must not be represented as deployed or production-ready.
 
 ## Explicit Non-Goals
 

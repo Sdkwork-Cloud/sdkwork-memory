@@ -45,6 +45,7 @@ fn authed_json(method: &str, uri: &str, body: serde_json::Value) -> Request<Body
 async fn backend_commercial_entity_edge_policy_and_readiness_flow() {
     let _env = lock_integration_test_env();
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
+    let pool = store.pool().clone();
     let app = wrap_router_with_iam_database_web_framework(
         IamWebRequestContextResolver::new(None),
         build_router_with_backend_api(OpenMemoryService::new(store)),
@@ -56,7 +57,6 @@ async fn backend_commercial_entity_edge_policy_and_readiness_flow() {
             "POST",
             "/backend/v3/api/memory/entities",
             json!({
-                "tenantId": "100001",
                 "spaceId": "1",
                 "entityType": "person",
                 "canonicalName": "Alice Example"
@@ -77,7 +77,6 @@ async fn backend_commercial_entity_edge_policy_and_readiness_flow() {
             "POST",
             "/backend/v3/api/memory/entities",
             json!({
-                "tenantId": "100001",
                 "spaceId": "1",
                 "entityType": "person",
                 "canonicalName": "Bob Example"
@@ -99,7 +98,6 @@ async fn backend_commercial_entity_edge_policy_and_readiness_flow() {
             "POST",
             "/backend/v3/api/memory/edges",
             json!({
-                "tenantId": "100001",
                 "spaceId": "1",
                 "sourceEntityId": entity_a_id,
                 "targetEntityId": entity_b_id,
@@ -116,7 +114,6 @@ async fn backend_commercial_entity_edge_policy_and_readiness_flow() {
             "POST",
             "/backend/v3/api/memory/policies",
             json!({
-                "tenantId": "100001",
                 "policyType": "retrieval",
                 "scope": "tenant",
                 "policy": { "allowLearning": true }
@@ -137,7 +134,6 @@ async fn backend_commercial_entity_edge_policy_and_readiness_flow() {
             "POST",
             "/backend/v3/api/memory/policy_assignments",
             json!({
-                "tenantId": "100001",
                 "policyId": policy_id,
                 "targetType": "space",
                 "targetId": "1",
@@ -154,7 +150,6 @@ async fn backend_commercial_entity_edge_policy_and_readiness_flow() {
             "POST",
             "/backend/v3/api/memory/capabilities/resolve",
             json!({
-                "tenantId": "100001",
                 "targetType": "space",
                 "targetId": "1"
             }),
@@ -171,7 +166,7 @@ async fn backend_commercial_entity_edge_policy_and_readiness_flow() {
         .oneshot(authed_json(
             "POST",
             "/backend/v3/api/memory/commercial_readiness/rebuild",
-            json!({ "tenantId": "100001" }),
+            json!({}),
         ))
         .await
         .unwrap();
@@ -187,9 +182,7 @@ async fn backend_commercial_entity_edge_policy_and_readiness_flow() {
 
     let list = app
         .clone()
-        .oneshot(authed_get(
-            "/backend/v3/api/memory/entities?tenantId=100001&spaceId=1",
-        ))
+        .oneshot(authed_get("/backend/v3/api/memory/entities?space_id=1"))
         .await
         .unwrap();
     assert_eq!(list.status(), StatusCode::OK);
@@ -197,4 +190,22 @@ async fn backend_commercial_entity_edge_policy_and_readiness_flow() {
     let list_json: serde_json::Value = serde_json::from_slice(&list_body).unwrap();
     api_envelope::assert_cursor_page_info(&list_json);
     assert_eq!(api_envelope::items(&list_json).as_array().unwrap().len(), 2);
+
+    let graph_outbox_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_outbox_event WHERE tenant_id = ? AND event_type IN ('memory.entity.created', 'memory.edge.created')",
+    )
+    .bind(100_001_i64)
+    .fetch_one(&pool)
+    .await
+    .expect("count graph outbox events");
+    let graph_audit_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_audit_log WHERE tenant_id = ? AND action IN ('memory.entity.created', 'memory.edge.created') AND actor_id = ?",
+    )
+    .bind(100_001_i64)
+    .bind("9001")
+    .fetch_one(&pool)
+    .await
+    .expect("count graph audit events");
+    assert_eq!(graph_outbox_count, 3);
+    assert_eq!(graph_audit_count, 3);
 }

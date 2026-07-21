@@ -1,5 +1,6 @@
 //! Coarse-grained canonical memory mutations with durable journal side effects.
 
+use crate::sqlx_compat as sqlx;
 use sdkwork_memory_spi::{
     CreateCanonicalMemoryCommand, DeleteCanonicalMemoryCommand, MemoryCanonicalRecord,
     MemoryDeletionReceipt, MemoryMutationJournal, MemoryRecordQuotaAdmission, MemoryScopeContext,
@@ -47,7 +48,7 @@ impl NativeSqlMemoryStore {
                 max_active_records,
             });
         }
-        Self::create_record_on_tx(
+        self.create_record_on_tx(
             &mut tx,
             &command.scope,
             &command.memory_id,
@@ -60,7 +61,7 @@ impl NativeSqlMemoryStore {
             &command.sensitivity_level,
         )
         .await?;
-        append_journal_on_tx(&mut tx, &command.scope, &command.journal).await?;
+        append_journal_on_tx(self, &mut tx, &command.scope, &command.journal).await?;
         sync_record_fts_on_tx(
             self.dialect(),
             &mut tx,
@@ -241,7 +242,7 @@ impl NativeSqlMemoryStore {
             });
         }
 
-        Self::create_record_on_tx(
+        self.create_record_on_tx(
             &mut tx,
             &command.scope,
             &command.new_memory_id,
@@ -296,8 +297,8 @@ impl NativeSqlMemoryStore {
         .bind(command.scope.space_id)
         .execute(&mut *tx)
         .await?;
-        append_journal_on_tx(&mut tx, &command.scope, &command.superseded_journal).await?;
-        append_journal_on_tx(&mut tx, &command.scope, &command.created_journal).await?;
+        append_journal_on_tx(self, &mut tx, &command.scope, &command.superseded_journal).await?;
+        append_journal_on_tx(self, &mut tx, &command.scope, &command.created_journal).await?;
         sync_record_fts_on_tx(
             self.dialect(),
             &mut tx,
@@ -343,7 +344,7 @@ impl NativeSqlMemoryStore {
             tx.rollback().await.map_err(NativeSqlStoreError::from)?;
             return Ok(None);
         }
-        append_journal_on_tx(&mut tx, &command.scope, &command.journal).await?;
+        append_journal_on_tx(self, &mut tx, &command.scope, &command.journal).await?;
         if matches!(self.dialect(), MemorySqlDialect::Sqlite) {
             let row = sqlx::query(
                 r#"
@@ -399,7 +400,7 @@ impl NativeSqlMemoryStore {
                 already_deleted: false,
             });
         }
-        append_journal_on_tx(&mut tx, &command.scope, &command.journal).await?;
+        append_journal_on_tx(self, &mut tx, &command.scope, &command.journal).await?;
         remove_record_fts_on_tx(self.dialect(), &mut tx, &command.scope, &command.memory_id)
             .await?;
         tx.commit().await.map_err(NativeSqlStoreError::from)?;
@@ -595,31 +596,34 @@ pub(crate) async fn remove_record_fts_on_tx(
 }
 
 pub(crate) async fn append_journal_on_tx(
+    store: &NativeSqlMemoryStore,
     tx: &mut sqlx::Transaction<'_, sqlx::Any>,
     scope: &sdkwork_memory_spi::MemoryScopeContext,
     journal: &MemoryMutationJournal,
 ) -> Result<(), NativeSqlStoreError> {
-    NativeSqlMemoryStore::append_outbox_on_tx(
-        tx,
-        scope,
-        &journal.outbox_id,
-        &journal.aggregate_type,
-        &journal.aggregate_id,
-        &journal.event_type,
-        &journal.event_version,
-        &journal.payload_json,
-    )
-    .await?;
-    NativeSqlMemoryStore::append_audit_on_tx(
-        tx,
-        scope,
-        &journal.audit_id,
-        &journal.audit_action,
-        &journal.audit_resource_type,
-        &journal.audit_resource_id,
-        &journal.audit_result,
-    )
-    .await
+    store
+        .append_outbox_on_tx(
+            tx,
+            scope,
+            &journal.outbox_id,
+            &journal.aggregate_type,
+            &journal.aggregate_id,
+            &journal.event_type,
+            &journal.event_version,
+            &journal.payload_json,
+        )
+        .await?;
+    store
+        .append_audit_on_tx(
+            tx,
+            scope,
+            &journal.audit_id,
+            &journal.audit_action,
+            &journal.audit_resource_type,
+            &journal.audit_resource_id,
+            &journal.audit_result,
+        )
+        .await
 }
 
 pub(crate) fn validate_journal(

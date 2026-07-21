@@ -1,7 +1,7 @@
 //! Commercial management route handlers for the backend API.
 
 use axum::{
-    extract::{Path, Query},
+    extract::Path,
     response::{IntoResponse, Response},
     routing::{get, post},
     Extension, Json, Router,
@@ -17,7 +17,7 @@ use sdkwork_memory_contract::{
 };
 use sdkwork_routes_memory_support::{
     success_created_resource_response, success_no_content_response, success_page_response,
-    success_resource_response,
+    success_resource_response, MemoryQuery as Query,
 };
 
 use crate::{auth::require_backend_context, paths, routes::BackendState, BackendApiProblem};

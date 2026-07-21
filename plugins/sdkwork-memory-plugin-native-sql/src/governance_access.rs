@@ -1,5 +1,6 @@
 //! Bounded governance facts for service-owned authorization and quota policy.
 
+use crate::sqlx_compat as sqlx;
 use async_trait::async_trait;
 use sdkwork_memory_spi::{
     CountActiveMemoryRecordsQuery, CountUserOwnedMemorySpacesQuery, MemoryActorSpaceBindingFact,

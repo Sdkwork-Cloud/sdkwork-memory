@@ -47,7 +47,7 @@ Backend routes cover subjects, bindings, capability bindings, and capability res
 
 ## Privacy export and Drive
 
-Export jobs that target Drive upload payloads through SDKWork Drive (`sdkwork-memory-drive`). Integrators must not bypass Drive with direct object-store writes. Inline export remains available for development when Drive is not configured.
+Export jobs that target Drive upload through SDKWork Drive (`sdkwork-memory-drive`). Integrators must not bypass Drive with direct object-store writes. Inline export is bounded to 4 MiB by default; Drive export is bounded to 64 MiB by default and currently uses a single bounded upload buffer. Larger exports must wait for the reviewed streaming multipart SPI rather than raising limits beyond the 256 MiB hard cap.
 
 ## List pagination
 
@@ -55,7 +55,7 @@ All list endpoints return `SdkWorkApiResponse` with `data.items` and `data.pageI
 
 ## Database lifecycle
 
-Production deployments apply schema through the Kubernetes migration Job (`db-migrate`). Runtime pods keep `SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE=false`. Canonical DDL lives in `database/ddl/baseline/`; plugin migrations in `plugins/sdkwork-memory-plugin-native-sql/migrations/` are folded into baseline during materialization.
+Production deployments apply schema through the Kubernetes migration Job (`db-migrate`). Runtime pods keep `SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE=false`. The only migration authority is `database/migrations/{postgres,sqlite}`; `database/ddl/baseline/` is generated with `pnpm db:materialize:baseline`. Plugin migration directories contain no SQL authority.
 
 ## Further reading
 

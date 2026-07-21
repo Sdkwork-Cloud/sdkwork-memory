@@ -7,12 +7,11 @@ use axum::{
 };
 use sdkwork_intelligence_memory_repository_sqlx::bootstrap_memory_runtime_from_env;
 use sdkwork_intelligence_memory_service::{
-    platform, render_memory_domain_prometheus, OpenMemoryService,
+    platform, render_memory_domain_prometheus, validate_outbox_runtime_config, OpenMemoryService,
 };
 use sdkwork_api_memory_assembly::assemble_api_router;
 use sdkwork_routes_memory_support::{
-    memory_dependency_ready_check, memory_http_metrics, memory_metric_environment_label,
-    refresh_memory_http_metric_dimensions,
+    memory_http_metrics, memory_metric_environment_label, refresh_memory_http_metric_dimensions,
 };
 use sdkwork_web_bootstrap::{healthz_handler, livez_handler, readyz_handler};
 use std::sync::Arc;
@@ -67,6 +66,7 @@ async fn metrics(Extension(product): Extension<Arc<OpenMemoryService>>) -> impl 
 
 pub async fn build_router() -> Result<MemoryApplication, String> {
     refresh_memory_http_metric_dimensions();
+    validate_outbox_runtime_config().await?;
     let runtime = bootstrap_memory_runtime_from_env().await?;
     info!(
         profile_id = %runtime.core_runtime.profile().profile_id,
@@ -107,12 +107,7 @@ pub async fn build_router() -> Result<MemoryApplication, String> {
             "/readyz",
             get({
                 let readiness = readiness.clone();
-                move || async move {
-                    if !memory_dependency_ready_check().await {
-                        return readyz_handler(Some(readiness.clone())).await;
-                    }
-                    readyz_handler(Some(readiness)).await
-                }
+                move || async move { readyz_handler(Some(readiness)).await }
             }),
         )
         .merge(business_router)

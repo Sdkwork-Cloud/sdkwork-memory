@@ -1,5 +1,6 @@
 //! Commercial readiness snapshot store methods.
 
+use crate::sqlx_compat as sqlx;
 use sqlx::Row;
 
 use crate::store::{now_text, NativeSqlMemoryStore, NativeSqlStoreError};

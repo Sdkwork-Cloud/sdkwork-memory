@@ -276,7 +276,7 @@ pub struct MemoryRecordList {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct MemorySpaceScopeQuery {
     #[serde(
         serialize_with = "serialize_u64_as_string",
@@ -286,7 +286,7 @@ pub struct MemorySpaceScopeQuery {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ListMemoriesQuery {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub q: Option<String>,
@@ -581,7 +581,7 @@ pub struct MemoryLearningJobList {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ListJobsQuery {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
@@ -709,7 +709,7 @@ pub struct MemoryReviewRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ListHabitsQuery {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub q: Option<String>,
@@ -724,7 +724,7 @@ pub struct ListHabitsQuery {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ListAuditLogsQuery {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
@@ -735,7 +735,7 @@ pub struct ListAuditLogsQuery {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ListCandidatesQuery {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
@@ -753,7 +753,7 @@ pub struct MemoryEventList {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ListEventsQuery {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
@@ -771,7 +771,7 @@ pub struct MemoryRetrievalTraceList {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ListRetrievalTracesQuery {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
@@ -823,7 +823,7 @@ pub struct MemoryRecordSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ListMemorySourcesQuery {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub q: Option<String>,

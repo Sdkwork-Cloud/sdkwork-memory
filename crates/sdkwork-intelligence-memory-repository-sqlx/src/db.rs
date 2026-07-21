@@ -1,4 +1,5 @@
 use sdkwork_database_config::DatabaseConfig;
+use sdkwork_database_id::SnowflakeIdGenerator;
 use sdkwork_database_sqlx::{create_pool_from_config, DatabasePool, PoolError};
 use sdkwork_memory_plugin_native_sql::{
     pool_backend::normalize_memory_database_config, NativeSqlMemoryStore,
@@ -16,6 +17,7 @@ pub async fn connect_memory_pool_from_env() -> Result<MemoryDatabasePool, PoolEr
 
 pub async fn open_native_sql_store_from_pool(
     pool: &MemoryDatabasePool,
+    id_generator: SnowflakeIdGenerator,
 ) -> Result<NativeSqlMemoryStore, String> {
     if pool.as_sqlite().is_none() && pool.as_postgres().is_none() {
         let configured_engine = std::env::var("SDKWORK_MEMORY_DATABASE_ENGINE").ok();
@@ -30,7 +32,7 @@ pub async fn open_native_sql_store_from_pool(
         ));
     }
 
-    NativeSqlMemoryStore::from_database_pool(pool)
+    NativeSqlMemoryStore::from_database_pool_with_id_generator(pool, id_generator)
         .await
         .map_err(|error| error.to_string())
 }

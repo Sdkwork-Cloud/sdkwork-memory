@@ -13,6 +13,7 @@ $WorkspaceRoot = (Get-Item (Join-Path $MemoryRoot "..")).FullName
 $GeneratorPath = Join-Path $WorkspaceRoot "sdkwork-sdk-generator\bin\sdkgen.js"
 $InputPath = Join-Path $FamilyRoot "openapi\memory-app-api.openapi.json"
 $SdkName = "sdkwork-memory-app-sdk"
+$ClientName = "SdkworkMemoryAppClient"
 $ApiPrefix = "/app/v3/api"
 $PackageName = "@sdkwork/memory-app-sdk"
 
@@ -43,9 +44,6 @@ foreach ($LanguageValue in $Languages) {
             throw "Refusing to clean SDK output outside language workspace: $ResolvedOutputPath"
         }
 
-        if (Test-Path $OutputPath) {
-            Remove-Item -LiteralPath $OutputPath -Recurse -Force
-        }
         Write-Host "Generating $Language SDK at $OutputPath" -ForegroundColor Cyan
         & node $GeneratorPath generate `
             -i $InputPath `
@@ -57,6 +55,7 @@ foreach ($LanguageValue in $Languages) {
             --base-url $BaseUrl `
             --api-prefix $ApiPrefix `
             --package-name $PackageName `
+            --client-name $ClientName `
             --standard-profile sdkwork-v3 `
             --sdk-root $FamilyRoot `
             --sdk-name $SdkName `

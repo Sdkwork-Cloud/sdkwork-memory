@@ -1,23 +1,24 @@
-# ADR-002: Outbox Exponential Backoff and Dead Letter Queue
+# ADR-002: Fenced Outbox Delivery, Backoff, and Dead Letter State
 
 - Status: Accepted
-- Date: 2026-06-27
+- Date: 2026-07-21
 - Deciders: Memory Platform Team
 
 ## Context
 
-The outbox publisher retried failed events on every poll cycle (every 2 seconds) without any delay based on retry count. This caused excessive load on downstream sinks and the database when events repeatedly failed. Events that exceeded `max_retries` were marked as `failed` but there was no alerting or metric to surface this.
+Outbox delivery must remain correct when multiple replicas claim work, an HTTP request runs slowly, or a worker stops after delivery but before acknowledgement. Retry timing must also behave identically through the PostgreSQL and SQLite `sqlx::Any` profile.
 
 ## Decision
 
-1. **Exponential backoff in SQL**: Modify the `claim_global_pending_outbox_events` queries (both PostgreSQL and SQLite) to only claim pending events where `retry_count = 0` or the `updated_at` plus an exponential delay (2^n seconds, capped at 32 seconds) has elapsed. This requires no schema migration.
-
-2. **Dead letter metric**: Add `memory_outbox_dead_letter_total` Prometheus counter incremented when an event transitions to `failed` state. Add a critical Prometheus alert rule (`MemoryOutboxDeadLetter`) that fires when the counter increases within 5 minutes.
+1. Persist `next_attempt_at` and claim only pending rows whose retry schedule is due. Failures use exponential delay from 2 to 32 seconds.
+2. Every claim writes `lease_owner`, `lease_token`, and `lease_expires_at`. Renewal, success acknowledgement, and failure recording require the current unexpired owner/token pair.
+3. PostgreSQL claims use `FOR UPDATE SKIP LOCKED`; SQLite claims use one write transaction and conditional updates.
+4. The publisher uses bounded concurrency, renews leases while delivery is in flight, disables redirects, and uses the shared SSRF-protected pinned HTTP client.
+5. Exhausted retries enter terminal `failed` state and increment `memory_outbox_dead_letter_total`.
 
 ## Consequences
 
-- **Positive**: Failed events are retried with exponentially increasing delays, reducing load on downstream systems.
-- **Positive**: Dead letter events are immediately surfaced through metrics and alerts, enabling rapid operational response.
-- **Positive**: No schema migration required — backoff is computed from existing `retry_count` and `updated_at` columns.
-- **Negative**: Events with high retry counts may take up to 32 seconds before the next attempt, slightly delaying recovery after transient failures resolve.
-- **Mitigation**: The cap at 32 seconds ensures eventual retry; operators can manually requeue failed events once the root cause is resolved.
+- Expired workers cannot overwrite the result of a replacement worker.
+- Retry and expiry behavior is observable from stored timestamps rather than inferred from `updated_at`.
+- Consumers must remain idempotent because the transactional outbox provides at-least-once delivery, not impossible-to-prove exactly-once delivery.
+- Lease and retry columns require reviewed forward and down migrations on both engines.

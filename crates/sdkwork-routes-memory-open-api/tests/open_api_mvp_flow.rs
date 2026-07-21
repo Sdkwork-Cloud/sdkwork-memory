@@ -176,7 +176,7 @@ async fn open_api_mvp_flow_event_extraction_candidates_and_feedback() {
             .oneshot(
                 Request::builder()
                     .method("GET")
-                    .uri("/mem/v3/api/memory/candidates?spaceId=2")
+                    .uri("/mem/v3/api/memory/candidates?space_id=2")
                     .extension(open_context())
                     .body(Body::empty())
                     .unwrap(),

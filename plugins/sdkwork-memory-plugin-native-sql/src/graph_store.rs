@@ -1,5 +1,7 @@
 //! Graph entity and edge store methods for commercial memory management.
 
+use crate::sqlx_compat as sqlx;
+use sdkwork_memory_spi::{MemoryMutationJournal, MemoryScopeContext};
 use sdkwork_utils_rust::MAX_LIST_PAGE_SIZE;
 use sqlx::Row;
 
@@ -87,6 +89,195 @@ pub struct UpdateEdgeCommand<'a> {
 }
 
 impl NativeSqlMemoryStore {
+    pub async fn insert_entity_with_journal(
+        &self,
+        cmd: InsertEntityCommand<'_>,
+        scope: &MemoryScopeContext,
+        journal: &MemoryMutationJournal,
+    ) -> Result<(), NativeSqlStoreError> {
+        validate_graph_journal(cmd.uuid, scope, cmd.tenant_id, Some(cmd.space_id), journal)?;
+        let now = now_text();
+        let mut tx = self.begin_tx().await?;
+        sqlx::query(
+            r#"
+            INSERT INTO ai_entity (
+              id, uuid, tenant_id, space_id, entity_type, canonical_name,
+              aliases_json, attributes_json, sensitivity_level, status,
+              created_at, updated_at, version
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, 1)
+            "#,
+        )
+        .bind(cmd.id)
+        .bind(cmd.uuid)
+        .bind(cmd.tenant_id)
+        .bind(cmd.space_id)
+        .bind(cmd.entity_type)
+        .bind(cmd.canonical_name)
+        .bind(cmd.aliases_json)
+        .bind(cmd.attributes_json)
+        .bind(cmd.sensitivity_level)
+        .bind(&now)
+        .bind(&now)
+        .execute(&mut *tx)
+        .await?;
+        crate::canonical_data::append_journal_on_tx(self, &mut tx, scope, journal).await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn update_entity_with_journal(
+        &self,
+        tenant_id: i64,
+        entity_uuid: &str,
+        cmd: UpdateEntityCommand<'_>,
+        scope: &MemoryScopeContext,
+        journal: &MemoryMutationJournal,
+    ) -> Result<bool, NativeSqlStoreError> {
+        validate_graph_journal(entity_uuid, scope, tenant_id, None, journal)?;
+        let now = now_text();
+        let mut tx = self.begin_tx().await?;
+        let result = sqlx::query(
+            r#"
+            UPDATE ai_entity
+            SET canonical_name = COALESCE(?, canonical_name),
+                aliases_json = COALESCE(?, aliases_json),
+                attributes_json = COALESCE(?, attributes_json),
+                sensitivity_level = COALESCE(?, sensitivity_level),
+                status = COALESCE(?, status),
+                updated_at = ?,
+                version = version + 1
+            WHERE tenant_id = ? AND uuid = ? AND status <> 'deleted'
+            "#,
+        )
+        .bind(cmd.canonical_name)
+        .bind(cmd.aliases_json)
+        .bind(cmd.attributes_json)
+        .bind(cmd.sensitivity_level)
+        .bind(cmd.status)
+        .bind(&now)
+        .bind(tenant_id)
+        .bind(entity_uuid)
+        .execute(&mut *tx)
+        .await?;
+        if result.rows_affected() > 0 {
+            crate::canonical_data::append_journal_on_tx(self, &mut tx, scope, journal).await?;
+        }
+        tx.commit().await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn insert_edge_with_journal(
+        &self,
+        cmd: InsertEdgeCommand<'_>,
+        scope: &MemoryScopeContext,
+        journal: &MemoryMutationJournal,
+    ) -> Result<(), NativeSqlStoreError> {
+        validate_graph_journal(cmd.uuid, scope, cmd.tenant_id, Some(cmd.space_id), journal)?;
+        let now = now_text();
+        let mut tx = self.begin_tx().await?;
+        sqlx::query(
+            r#"
+            INSERT INTO ai_edge (
+              id, uuid, tenant_id, space_id, source_entity_id, target_entity_id,
+              relation_type, weight, status, valid_from, valid_to, metadata_json,
+              created_at, updated_at, version
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, 1)
+            "#,
+        )
+        .bind(cmd.id)
+        .bind(cmd.uuid)
+        .bind(cmd.tenant_id)
+        .bind(cmd.space_id)
+        .bind(cmd.source_entity_id)
+        .bind(cmd.target_entity_id)
+        .bind(cmd.relation_type)
+        .bind(cmd.weight)
+        .bind(cmd.valid_from)
+        .bind(cmd.valid_to)
+        .bind(cmd.metadata_json)
+        .bind(&now)
+        .bind(&now)
+        .execute(&mut *tx)
+        .await?;
+        crate::canonical_data::append_journal_on_tx(self, &mut tx, scope, journal).await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn update_edge_with_journal(
+        &self,
+        tenant_id: i64,
+        edge_uuid: &str,
+        cmd: UpdateEdgeCommand<'_>,
+        scope: &MemoryScopeContext,
+        journal: &MemoryMutationJournal,
+    ) -> Result<bool, NativeSqlStoreError> {
+        validate_graph_journal(edge_uuid, scope, tenant_id, None, journal)?;
+        let now = now_text();
+        let mut tx = self.begin_tx().await?;
+        let result = sqlx::query(
+            r#"
+            UPDATE ai_edge
+            SET relation_type = COALESCE(?, relation_type),
+                weight = COALESCE(?, weight),
+                status = COALESCE(?, status),
+                valid_from = COALESCE(?, valid_from),
+                valid_to = COALESCE(?, valid_to),
+                metadata_json = COALESCE(?, metadata_json),
+                updated_at = ?,
+                version = version + 1
+            WHERE tenant_id = ? AND uuid = ? AND status <> 'deleted'
+            "#,
+        )
+        .bind(cmd.relation_type)
+        .bind(cmd.weight)
+        .bind(cmd.status)
+        .bind(cmd.valid_from)
+        .bind(cmd.valid_to)
+        .bind(cmd.metadata_json)
+        .bind(&now)
+        .bind(tenant_id)
+        .bind(edge_uuid)
+        .execute(&mut *tx)
+        .await?;
+        if result.rows_affected() > 0 {
+            crate::canonical_data::append_journal_on_tx(self, &mut tx, scope, journal).await?;
+        }
+        tx.commit().await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn delete_edge_with_journal(
+        &self,
+        tenant_id: i64,
+        edge_uuid: &str,
+        scope: &MemoryScopeContext,
+        journal: &MemoryMutationJournal,
+    ) -> Result<bool, NativeSqlStoreError> {
+        validate_graph_journal(edge_uuid, scope, tenant_id, None, journal)?;
+        let now = now_text();
+        let mut tx = self.begin_tx().await?;
+        let result = sqlx::query(
+            r#"
+            UPDATE ai_edge
+            SET status = 'deleted', updated_at = ?, version = version + 1
+            WHERE tenant_id = ? AND uuid = ? AND status <> 'deleted'
+            "#,
+        )
+        .bind(&now)
+        .bind(tenant_id)
+        .bind(edge_uuid)
+        .execute(&mut *tx)
+        .await?;
+        if result.rows_affected() > 0 {
+            crate::canonical_data::append_journal_on_tx(self, &mut tx, scope, journal).await?;
+        }
+        tx.commit().await?;
+        Ok(result.rows_affected() > 0)
+    }
+
     pub async fn resolve_entity_internal_id(
         &self,
         tenant_id: i64,
@@ -488,6 +679,26 @@ impl NativeSqlMemoryStore {
         .await?;
         Ok(row.get("total"))
     }
+}
+
+fn validate_graph_journal(
+    resource_id: &str,
+    scope: &MemoryScopeContext,
+    tenant_id: i64,
+    space_id: Option<i64>,
+    journal: &MemoryMutationJournal,
+) -> Result<(), NativeSqlStoreError> {
+    if scope.tenant_id != tenant_id
+        || space_id.is_some_and(|space_id| scope.space_id != space_id)
+        || journal.aggregate_id != resource_id
+        || journal.audit_resource_id != resource_id
+    {
+        return Err(NativeSqlStoreError::InvariantViolation {
+            message: "graph mutation journal scope and resource must match the business row"
+                .to_string(),
+        });
+    }
+    Ok(())
 }
 
 fn map_entity_row(row: sqlx::any::AnyRow) -> NativeSqlEntityRow {

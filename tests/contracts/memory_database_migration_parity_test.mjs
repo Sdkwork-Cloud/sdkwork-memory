@@ -39,6 +39,16 @@ for (const engine of ["postgres", "sqlite"]) {
 
   if (engine === "postgres") {
     assert.doesNotMatch(migrationSql, /\bbigserial\b|\bserial\b/u, "PostgreSQL IDs must be application generated");
+    assert.doesNotMatch(
+      migrationSql,
+      /\b(?:numeric|decimal)\s*\(/u,
+      "native SQL Any profile floating-point scores must use DOUBLE PRECISION",
+    );
+    assert.doesNotMatch(
+      migrationSql,
+      /\bjsonb\b|\btimestamptz\b/u,
+      "PostgreSQL native-sql storage must retain the cross-engine TEXT physical profile used by SQLx Any",
+    );
   } else {
     assert.doesNotMatch(migrationSql, /\bid\s+integer\s+primary\s+key\b/u, "SQLite business IDs must not use rowid allocation");
   }
@@ -54,4 +64,21 @@ for (const engine of ["postgres", "sqlite"]) {
   );
   const legacySql = fs.readdirSync(pluginMigrationRoot).filter((name) => name.endsWith(".sql"));
   assert.deepEqual(legacySql, [], `${pluginMigrationRoot} must not remain a second migration authority`);
+}
+
+const nativeSqlRoot = path.join(root, "plugins", "sdkwork-memory-plugin-native-sql");
+for (const sourceDirectory of ["src", "tests"]) {
+  const sourceRoot = path.join(nativeSqlRoot, sourceDirectory);
+  for (const sourceName of fs.readdirSync(sourceRoot).filter((name) => name.endsWith(".rs"))) {
+    const source = fs.readFileSync(path.join(sourceRoot, sourceName), "utf8");
+    for (const match of source.matchAll(/insert\s+into\s+(ai_[a-z_]+)\s*\(([^)]+)\)/giu)) {
+      const table = match[1].toLowerCase();
+      if (table.endsWith("_fts") || table === "ai_schema_migration") continue;
+      const columns = match[2].split(",").map((column) => column.trim().toLowerCase());
+      assert.ok(
+        columns.includes("id"),
+        `${sourceDirectory}/${sourceName} insert into ${table} must bind an approved application-generated id`,
+      );
+    }
+  }
 }

@@ -34,7 +34,7 @@ const fixtureItems = [
 const fixtureDataSource = {
   kind: "list" as const,
   actions: [{ id: "forget", label: "Forget selected memory", bodyTemplate: { spaceId: "space_demo", reason: "" }, dangerous: true, requireAuditReason: true, auditReasonField: "reason", requireIdempotencyKey: true, requiresSelection: true, execute: async () => ({ accepted: true }) }],
-  load: async () => ({ items: fixtureItems, pageInfo: { mode: "cursor" as const, nextCursor: "fixture-next", hasNext: true } }),
+  load: async () => ({ items: fixtureItems, pageInfo: { mode: "cursor" as const, nextCursor: "fixture-next", hasMore: true } }),
 };
 const fixtureRegistry = new Proxy({}, { get: () => fixtureDataSource }) as MemoryResourceRegistry;
 

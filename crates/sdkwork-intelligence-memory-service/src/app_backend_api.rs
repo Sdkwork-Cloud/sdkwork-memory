@@ -434,7 +434,7 @@ impl MemoryAppApi for OpenMemoryService {
         query: ListSpacesQuery,
     ) -> MemoryServiceResult<MemorySpaceList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let page_size = crate::platform::clamp_page_size(query.page_size);
+        let page_size = crate::platform::validated_page_size(query.page_size)?;
         let cursor_space_id = self
             .resolve_space_list_cursor(tenant_id, query.cursor.as_deref())
             .await?;
@@ -643,7 +643,7 @@ impl MemoryAppApi for OpenMemoryService {
         )
         .await?;
 
-        let page_size = crate::platform::clamp_page_size(query.page_size);
+        let page_size = crate::platform::validated_page_size(query.page_size)?;
         let rows = self
             .store
             .list_record_sources_for_memory(
@@ -849,7 +849,7 @@ impl MemoryAppApi for OpenMemoryService {
             .actor_id
             .map(|value| value.to_string())
             .ok_or_else(|| MemoryServiceError::forbidden("authenticated actor is required"))?;
-        let page_size = platform::clamp_page_size(query.page_size);
+        let page_size = platform::validated_page_size(query.page_size)?;
         let rows = self
             .store
             .list_governance_jobs_for_tenant(
@@ -932,6 +932,7 @@ impl MemoryAppApi for OpenMemoryService {
             .iter()
             .all(|authorization| authorization.actor_is_space_owner);
         let sensitivity_scope = access::sensitivity_read_scope(&open_context, all_owner);
+        let max_payload_bytes = export_payload_byte_limit(request.drive_target_ref.is_some());
         let payload = self
             .store
             .collect_export_payload_for_spaces(
@@ -939,6 +940,7 @@ impl MemoryAppApi for OpenMemoryService {
                 &space_ids,
                 request.include_events.unwrap_or(false),
                 sensitivity_scope,
+                max_payload_bytes,
             )
             .await
             .map_err(OpenMemoryService::map_store_error)?;
@@ -948,6 +950,8 @@ impl MemoryAppApi for OpenMemoryService {
         let exported_records = payload.records.len() as u32;
         let exported_events = payload.events.len() as u32;
         let export_body = Self::encode_export_payload(&request.format, &payload)?;
+        validate_export_payload_size(&export_body, max_payload_bytes)?;
+        drop(payload);
 
         if let Some(drive_target_ref) = &request.drive_target_ref {
             let uploader = self.drive_export_uploader.as_ref().ok_or_else(|| {
@@ -956,7 +960,7 @@ impl MemoryAppApi for OpenMemoryService {
                 )
             })?;
             let export_ref = format!("export-job-{job_id}");
-            let export_bytes = export_payload_bytes(&export_body)?;
+            let export_bytes = export_payload_bytes(export_body)?;
             let upload = uploader
                 .upload_export(MemoryDriveExportUploadRequest {
                     tenant_id,
@@ -1095,7 +1099,7 @@ impl MemoryAppApi for OpenMemoryService {
             .actor_id
             .map(|value| value.to_string())
             .ok_or_else(|| MemoryServiceError::forbidden("authenticated actor is required"))?;
-        let page_size = platform::clamp_page_size(query.page_size);
+        let page_size = platform::validated_page_size(query.page_size)?;
         let rows = self
             .store
             .list_governance_jobs_for_tenant(
@@ -1152,7 +1156,7 @@ impl MemoryAppApi for OpenMemoryService {
             space_id,
         )
         .await?;
-        let page_size = crate::platform::clamp_page_size(query.page_size);
+        let page_size = crate::platform::validated_page_size(query.page_size)?;
         let page = self
             .runtime_data_plane
             .list_candidates(ListMemoryCandidatesQuery {
@@ -1332,7 +1336,7 @@ impl MemoryAppApi for OpenMemoryService {
             space_id,
         )
         .await?;
-        let page_size = crate::platform::clamp_page_size(query.page_size);
+        let page_size = crate::platform::validated_page_size(query.page_size)?;
         let rows = self
             .store
             .list_habits_for_tenant(
@@ -1537,7 +1541,7 @@ impl MemoryBackendApi for OpenMemoryService {
         query: ListSpacesQuery,
     ) -> MemoryServiceResult<MemorySpaceList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let page_size = crate::platform::clamp_page_size(query.page_size);
+        let page_size = crate::platform::validated_page_size(query.page_size)?;
         let cursor_space_id = self
             .resolve_space_list_cursor(tenant_id, query.cursor.as_deref())
             .await?;
@@ -1643,7 +1647,7 @@ impl MemoryBackendApi for OpenMemoryService {
         query: ListEventsQuery,
     ) -> MemoryServiceResult<MemoryEventList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let page_size = crate::platform::clamp_page_size(query.page_size);
+        let page_size = crate::platform::validated_page_size(query.page_size)?;
         let rows = self
             .store
             .list_open_api_events_for_tenant(
@@ -1688,7 +1692,7 @@ impl MemoryBackendApi for OpenMemoryService {
         query: ListCandidatesQuery,
     ) -> MemoryServiceResult<MemoryCandidateList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let page_size = crate::platform::clamp_page_size(query.page_size);
+        let page_size = crate::platform::validated_page_size(query.page_size)?;
         let page = self
             .runtime_data_plane
             .list_candidates(ListMemoryCandidatesQuery {
@@ -1795,7 +1799,7 @@ impl MemoryBackendApi for OpenMemoryService {
         query: ListRetrievalTracesQuery,
     ) -> MemoryServiceResult<MemoryRetrievalTraceList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let page_size = crate::platform::clamp_page_size(query.page_size);
+        let page_size = crate::platform::validated_page_size(query.page_size)?;
         let rows = self
             .store
             .list_retrieval_traces_for_tenant(
@@ -1850,7 +1854,7 @@ impl MemoryBackendApi for OpenMemoryService {
         query: ListAuditLogsQuery,
     ) -> MemoryServiceResult<MemoryAuditLogList> {
         let tenant_id = platform::tenant_id_i64(context.tenant_id)?;
-        let page_size = crate::platform::clamp_page_size(query.page_size);
+        let page_size = crate::platform::validated_page_size(query.page_size)?;
         let rows = self
             .store
             .list_audit_logs_for_tenant(
@@ -2168,12 +2172,80 @@ fn map_audit_log(row: NativeSqlAuditLogRow) -> MemoryServiceResult<MemoryAuditLo
     })
 }
 
-fn export_payload_bytes(payload: &serde_json::Value) -> MemoryServiceResult<Vec<u8>> {
+fn export_payload_bytes(payload: serde_json::Value) -> MemoryServiceResult<Vec<u8>> {
     match payload {
-        serde_json::Value::String(body) => Ok(body.as_bytes().to_vec()),
-        other => serde_json::to_vec(other).map_err(|error| {
+        serde_json::Value::String(body) => Ok(body.into_bytes()),
+        other => serde_json::to_vec(&other).map_err(|error| {
             MemoryServiceError::storage(format!("export payload encode failed: {error}"))
         }),
+    }
+}
+
+const ABSOLUTE_MAX_EXPORT_BYTES: usize = 256 * 1024 * 1024;
+
+fn export_payload_byte_limit(drive_export: bool) -> usize {
+    let (key, default) = if drive_export {
+        ("SDKWORK_MEMORY_DRIVE_EXPORT_MAX_BYTES", 64 * 1024 * 1024)
+    } else {
+        ("SDKWORK_MEMORY_INLINE_EXPORT_MAX_BYTES", 4 * 1024 * 1024)
+    };
+    std::env::var(key)
+        .ok()
+        .and_then(|value| sdkwork_utils_rust::parse_int(&value))
+        .and_then(|value| usize::try_from(value).ok())
+        .unwrap_or(default)
+        .clamp(1_024, ABSOLUTE_MAX_EXPORT_BYTES)
+}
+
+fn validate_export_payload_size(
+    payload: &serde_json::Value,
+    max_payload_bytes: usize,
+) -> MemoryServiceResult<()> {
+    let mut writer = ExportSizeGuard {
+        bytes: 0,
+        max_bytes: max_payload_bytes,
+    };
+    let encoded = match payload {
+        serde_json::Value::String(body) => body.len(),
+        other => {
+            serde_json::to_writer(&mut writer, other).map_err(|error| {
+                if writer.bytes > writer.max_bytes {
+                    MemoryServiceError::validation(format!(
+                        "export payload exceeds the configured {max_payload_bytes} byte limit"
+                    ))
+                } else {
+                    MemoryServiceError::storage(format!(
+                        "export payload size validation failed: {error}"
+                    ))
+                }
+            })?;
+            writer.bytes
+        }
+    };
+    if encoded > max_payload_bytes {
+        return Err(MemoryServiceError::validation(format!(
+            "export payload exceeds the configured {max_payload_bytes} byte limit"
+        )));
+    }
+    Ok(())
+}
+
+struct ExportSizeGuard {
+    bytes: usize,
+    max_bytes: usize,
+}
+
+impl std::io::Write for ExportSizeGuard {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        self.bytes = self.bytes.saturating_add(buffer.len());
+        if self.bytes > self.max_bytes {
+            return Err(std::io::Error::other("export payload byte limit exceeded"));
+        }
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
     }
 }
 

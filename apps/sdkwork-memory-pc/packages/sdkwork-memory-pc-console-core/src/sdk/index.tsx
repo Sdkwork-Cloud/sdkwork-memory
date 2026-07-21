@@ -23,9 +23,7 @@ export function createMemoryConsoleResourceRegistry(client: MemoryConsoleSdkClie
       action("create", "Create space", { ownerSubjectType: "user", ownerSubjectId: "", spaceType: "personal", displayName: "" }, (context) => client.memory.spaces.create(context.body as unknown as Parameters<typeof client.memory.spaces.create>[0], idempotency(context)), { idempotent: true }),
       action("update", "Update space", { ownerSubjectType: "user", ownerSubjectId: "", spaceType: "personal", displayName: "", lifecycleStatus: "active", version: "" }, (context) => client.memory.spaces.update(selectedId(context, "spaceId"), context.body as unknown as Parameters<typeof client.memory.spaces.update>[1]), { selection: true }),
     ]),
-    memories: withActions(listSource((query) => query.spaceId
-      ? client.memory.list({ ...toListParams(query), spaceId: query.spaceId })
-      : Promise.resolve({ items: [], pageInfo: { mode: "cursor", hasNext: false } })), [
+    memories: withActions(listSource((query) => client.memory.list({ ...toListParams(query), spaceId: requireSpaceId(query) })), [
       action("create", "Create memory", { spaceId: "", scope: "user", memoryType: "semantic", canonicalText: "", sensitivityLevel: "internal" }, (context) => client.memory.create(context.body as unknown as Parameters<typeof client.memory.create>[0], idempotency(context)), { idempotent: true }),
       action("update", "Update memory", { spaceId: "", canonicalText: "", subject: "", summaryText: "", metadata: {} }, (context) => { const { spaceId, ...patch } = context.body; return client.memory.update(selectedId(context, "memoryId"), patch as unknown as Parameters<typeof client.memory.update>[1], { spaceId: String(spaceId ?? "") }); }, { selection: true }),
       action("delete", "Delete memory", { spaceId: "" }, (context) => client.memory.delete(selectedId(context, "memoryId"), { spaceId: String(context.body.spaceId ?? "") }), { dangerous: true, selection: true }),
@@ -77,7 +75,12 @@ function withActions(source: MemoryResourceDataSource, actions: readonly MemoryR
 }
 
 function actionSource(actions: readonly MemoryResourceAction[]): MemoryResourceDataSource {
-  return { actions, kind: "retrieve", async load() { return { items: [], pageInfo: { mode: "cursor", hasNext: false } }; } };
+  return { actions, kind: "retrieve", async load() { return { items: [], pageInfo: { mode: "cursor", hasMore: false } }; } };
+}
+
+function requireSpaceId(query: MemoryListQuery): string {
+  if (query.spaceId?.trim()) return query.spaceId.trim();
+  throw Object.assign(new Error("spaceId is required"), { code: 40003 });
 }
 
 function selectedId(context: MemoryResourceActionContext, ...keys: string[]): string {

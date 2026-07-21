@@ -68,11 +68,24 @@ spec:
                   fieldPath: metadata.name
             - name: SDKWORK_MEMORY_APPLICATION_PUBLIC_INGRESS_BIND
               value: "0.0.0.0:8080"
-            # API rate limits (per-pod).
+            # Pod-local admission ceilings; distributed rate limiting and
+            # idempotency use the Redis store configured below.
             - name: SDKWORK_MEMORY_MAX_BODY_BYTES
               value: "1048576"
             - name: SDKWORK_MEMORY_MAX_CONCURRENCY
               value: "256"
+            - name: SDKWORK_MEMORY_HTTP_REQUEST_TIMEOUT_SECS
+              value: "30"
+            - name: SDKWORK_MEMORY_WEB_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: sdkwork-memory-redis
+                  key: redis-url
+            - name: SDKWORK_MEMORY_CORS_ALLOWED_ORIGINS
+              valueFrom:
+                configMapKeyRef:
+                  name: sdkwork-memory-runtime
+                  key: cors-allowed-origins
             # Database connection pool tuning.
             - name: SDKWORK_MEMORY_DB_MAX_CONNECTIONS
               value: "20"
@@ -84,6 +97,31 @@ spec:
             # node IDs per pod. See DATABASE_SPEC §6.10.
             - name: SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE
               value: "false"
+            - name: SDKWORK_MEMORY_OUTBOX_DELIVERY_MODE
+              value: http
+            - name: SDKWORK_MEMORY_OUTBOX_DELIVERY_CONCURRENCY
+              value: "16"
+            - name: SDKWORK_MEMORY_OUTBOX_DELIVERY_TIMEOUT_SECS
+              value: "10"
+            - name: SDKWORK_MEMORY_OUTBOX_LEASE_DURATION_SECS
+              value: "30"
+            - name: SDKWORK_MEMORY_OUTBOX_DELIVERY_URL
+              valueFrom:
+                secretKeyRef:
+                  name: sdkwork-memory-outbox
+                  key: delivery-url
+            - name: SDKWORK_MEMORY_JOB_CONCURRENCY
+              value: "8"
+            - name: SDKWORK_MEMORY_JOB_LEASE_DURATION_SECS
+              value: "900"
+            - name: SDKWORK_MEMORY_EVAL_CONCURRENCY
+              value: "4"
+            - name: SDKWORK_MEMORY_EVAL_LEASE_DURATION_SECS
+              value: "900"
+            - name: SDKWORK_MEMORY_INLINE_EXPORT_MAX_BYTES
+              value: "4194304"
+            - name: SDKWORK_MEMORY_DRIVE_EXPORT_MAX_BYTES
+              value: "67108864"
             - name: SDKWORK_MEMORY_DATABASE_URL
               valueFrom:
                 secretKeyRef:

@@ -220,17 +220,18 @@ assert(
 const adminTables = readText('plugins/sdkwork-memory-plugin-native-sql/src/admin_tables.rs');
 const nativeSqlStore = readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs');
 assert(
-  nativeSqlStore.includes('V202606100002__memory_phase1_indexes.sql'),
-  'native-sql store must apply schema-registry phase1 index migration',
+  nativeSqlStore.includes('database/migrations/postgres/0002_memory_indexes.up.sql') &&
+    nativeSqlStore.includes('database/migrations/sqlite/0002_memory_indexes.up.sql'),
+  'native-sql compatibility bootstrap must consume canonical root index migrations',
 );
 assert(
   fs.existsSync(
     path.join(
       repoRoot,
-      'plugins/sdkwork-memory-plugin-native-sql/migrations/sqlite/V202606100002__memory_phase1_indexes.sql',
+      'database/migrations/sqlite/0002_memory_indexes.up.sql',
     ),
   ),
-  'sqlite phase1 index migration must exist per DATABASE_SPEC schema-registry alignment',
+  'canonical SQLite phase1 index migration must exist per DATABASE_SPEC',
 );
 for (const [needle, message] of [
   ['implementation_profile_id', 'native-sql admin tables must persist index implementation_profile_id'],
@@ -273,10 +274,10 @@ assert(
   'standalone-gateway must expose /readyz readiness endpoint',
 );
 assert(
-  readText('crates/sdkwork-api-memory-standalone-gateway/src/bootstrap.rs').includes(
+  readText('crates/sdkwork-api-memory-standalone-gateway/src/readiness.rs').includes(
     'memory_dependency_ready_check',
   ),
-  'standalone-gateway /readyz must validate IAM database dependency in production',
+  'standalone-gateway composite readiness must validate IAM and Redis dependencies',
 );
 assert(
   readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs').includes(
@@ -370,8 +371,13 @@ assert(
   'release readiness gate script must exist for commercial deployment',
 );
 assert(
-  readText('scripts/generate-release-sbom.mjs').includes('syncReleaseChecksumToAppManifest'),
-  'release SBOM script must sync SHA-256 checksum into sdkwork.app.config.json',
+  readText('scripts/release/workflow-supply-chain-evidence.mjs').includes(
+    'createSbomProvenanceAndEvidence',
+  ) &&
+    readText('scripts/release/workflow-supply-chain-evidence.mjs').includes(
+      'verifyReleaseEvidence',
+    ),
+  'release workflow must create and verify byte-bound SBOM, provenance, checksum, and signature evidence',
 );
 assert(
   readText('scripts/package-release-artifact.mjs').includes('release-manifest.json'),
@@ -435,7 +441,7 @@ assert(
 );
 assert(
   readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs').includes(
-    'append_journal_on_tx(&mut tx, command.scope, journal)',
+    'append_journal_on_tx(self, &mut tx, command.scope, journal)',
   ),
   'native-sql candidate promotion must append outbox/audit before its transaction commits',
 );
@@ -1094,10 +1100,27 @@ for (const engine of ['postgres', 'sqlite']) {
   }
   const migrationSqlFiles = fs
     .readdirSync(migrationDir)
-    .filter((name) => name.endsWith('.sql'));
+    .filter((name) => name.endsWith('.sql'))
+    .sort();
   assert(
-    migrationSqlFiles.length === 0,
-    `database/migrations/${engine}/ must stay empty during initialization (found ${migrationSqlFiles.join(', ')})`,
+    migrationSqlFiles.some((name) => name.endsWith('.up.sql')),
+    `database/migrations/${engine}/ must own canonical migrations`,
+  );
+  for (const upFile of migrationSqlFiles.filter((name) => name.endsWith('.up.sql'))) {
+    const downFile = upFile.replace(/\.up\.sql$/u, '.down.sql');
+    assert(
+      migrationSqlFiles.includes(downFile),
+      `database/migrations/${engine}/${upFile} must have paired ${downFile}`,
+    );
+  }
+  const pluginMigrationDir = path.join(
+    repoRoot,
+    'plugins/sdkwork-memory-plugin-native-sql/migrations',
+    engine,
+  );
+  assert(
+    fs.readdirSync(pluginMigrationDir).every((name) => !name.endsWith('.sql')),
+    `plugins/sdkwork-memory-plugin-native-sql/migrations/${engine} must not remain a second SQL authority`,
   );
 }
 

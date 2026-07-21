@@ -94,6 +94,14 @@ impl MemoryServiceError {
         }
     }
 
+    pub fn invalid_parameter(detail: impl Into<String>) -> Self {
+        Self {
+            kind: MemoryServiceErrorKind::Validation,
+            code: "invalid_parameter".to_string(),
+            detail: detail.into(),
+        }
+    }
+
     pub fn forbidden(detail: impl Into<String>) -> Self {
         Self {
             kind: MemoryServiceErrorKind::Forbidden,

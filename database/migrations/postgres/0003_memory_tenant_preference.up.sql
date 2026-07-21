@@ -5,9 +5,9 @@ CREATE TABLE IF NOT EXISTS ai_tenant_preference (
   tenant_id BIGINT NOT NULL,
   user_id BIGINT,
   preference_key TEXT NOT NULL,
-  preference_json JSONB NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL,
+  preference_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
   version BIGINT NOT NULL DEFAULT 0
 );
 

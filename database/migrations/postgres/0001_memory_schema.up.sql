@@ -9,13 +9,13 @@ CREATE TABLE IF NOT EXISTS ai_space (
   display_name VARCHAR(200) NOT NULL,
   default_scope VARCHAR(32) NOT NULL,
   lifecycle_status VARCHAR(32) NOT NULL,
-  metadata_json JSONB,
-  policy_json JSONB,
+  metadata_json TEXT,
+  policy_json TEXT,
   created_by BIGINT,
   updated_by BIGINT,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL,
-  deleted_at TIMESTAMPTZ,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleted_at TEXT,
   version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -40,12 +40,12 @@ CREATE TABLE IF NOT EXISTS ai_event (
   event_type VARCHAR(64) NOT NULL,
   source_type VARCHAR(64) NOT NULL,
   source_ref VARCHAR(256),
-  event_time TIMESTAMPTZ NOT NULL,
-  payload_json JSONB NOT NULL,
+  event_time TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
   payload_hash VARCHAR(128) NOT NULL,
   sensitivity_level VARCHAR(32) NOT NULL,
   ingestion_status VARCHAR(32) NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL
+  created_at TEXT NOT NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_event_uuid
@@ -69,26 +69,26 @@ CREATE TABLE IF NOT EXISTS ai_record (
   canonical_text TEXT NOT NULL,
   summary_text TEXT,
   language VARCHAR(16),
-  confidence DECIMAL(5,4) NOT NULL,
+  confidence DOUBLE PRECISION NOT NULL,
   evidence_count INTEGER NOT NULL DEFAULT 0,
   contradiction_count INTEGER NOT NULL DEFAULT 0,
-  importance_score DECIMAL(5,4) NOT NULL,
-  recency_score DECIMAL(5,4) NOT NULL,
-  habit_strength DECIMAL(5,4),
-  valid_from TIMESTAMPTZ,
-  valid_to TIMESTAMPTZ,
-  expires_at TIMESTAMPTZ,
+  importance_score DOUBLE PRECISION NOT NULL,
+  recency_score DOUBLE PRECISION NOT NULL,
+  habit_strength DOUBLE PRECISION,
+  valid_from TEXT,
+  valid_to TEXT,
+  expires_at TEXT,
   status VARCHAR(32) NOT NULL,
   sensitivity_level VARCHAR(32) NOT NULL,
-  metadata_json JSONB,
-  tags_json JSONB,
+  metadata_json TEXT,
+  tags_json TEXT,
   supersedes_memory_id BIGINT REFERENCES ai_record(id),
   superseded_by_memory_id BIGINT REFERENCES ai_record(id),
   created_by BIGINT,
   updated_by BIGINT,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL,
-  deleted_at TIMESTAMPTZ,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleted_at TEXT,
   version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -105,8 +105,8 @@ CREATE TABLE IF NOT EXISTS ai_record_source (
   memory_id BIGINT NOT NULL REFERENCES ai_record(id),
   event_id BIGINT NOT NULL REFERENCES ai_event(id),
   source_role VARCHAR(32) NOT NULL,
-  confidence_delta DECIMAL(5,4),
-  created_at TIMESTAMPTZ NOT NULL
+  confidence_delta DOUBLE PRECISION,
+  created_at TEXT NOT NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_record_source_pair
@@ -121,18 +121,18 @@ CREATE TABLE IF NOT EXISTS ai_candidate (
   candidate_type VARCHAR(32) NOT NULL,
   memory_type VARCHAR(32) NOT NULL,
   proposed_text TEXT NOT NULL,
-  proposed_payload_json JSONB,
+  proposed_payload_json TEXT,
   target_memory_id BIGINT REFERENCES ai_record(id),
-  evidence_json JSONB,
-  confidence DECIMAL(5,4) NOT NULL,
-  novelty_score DECIMAL(5,4),
-  risk_score DECIMAL(5,4),
+  evidence_json TEXT,
+  confidence DOUBLE PRECISION NOT NULL,
+  novelty_score DOUBLE PRECISION,
+  risk_score DOUBLE PRECISION,
   decision_state VARCHAR(32) NOT NULL,
   decision_reason VARCHAR(256),
   decided_by BIGINT,
-  decided_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL,
+  decided_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
   version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -149,15 +149,15 @@ CREATE TABLE IF NOT EXISTS ai_habit (
   habit_type VARCHAR(64) NOT NULL,
   description TEXT NOT NULL,
   stage VARCHAR(32) NOT NULL,
-  strength DECIMAL(5,4) NOT NULL,
-  confidence DECIMAL(5,4) NOT NULL,
+  strength DOUBLE PRECISION NOT NULL,
+  confidence DOUBLE PRECISION NOT NULL,
   support_count INTEGER NOT NULL DEFAULT 0,
-  last_signal_at TIMESTAMPTZ,
+  last_signal_at TEXT,
   promoted_memory_id BIGINT REFERENCES ai_record(id),
-  decay_after TIMESTAMPTZ,
-  metadata_json JSONB,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL,
+  decay_after TEXT,
+  metadata_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
   version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -173,12 +173,12 @@ CREATE TABLE IF NOT EXISTS ai_retrieval_trace (
   actor_id VARCHAR(128),
   query_text TEXT,
   query_hash VARCHAR(128) NOT NULL,
-  retrievers_json JSONB,
+  retrievers_json TEXT,
   latency_ms INTEGER,
   result_count INTEGER NOT NULL DEFAULT 0,
   degraded BOOLEAN NOT NULL DEFAULT FALSE,
-  metadata_json JSONB,
-  created_at TIMESTAMPTZ NOT NULL
+  metadata_json TEXT,
+  created_at TEXT NOT NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_retrieval_trace_uuid
@@ -192,11 +192,11 @@ CREATE TABLE IF NOT EXISTS ai_retrieval_hit (
   memory_id BIGINT REFERENCES ai_record(id),
   retriever_name VARCHAR(64) NOT NULL,
   result_rank INTEGER NOT NULL,
-  raw_score DECIMAL(10,6),
-  fused_score DECIMAL(10,6),
-  explanation_json JSONB,
+  raw_score DOUBLE PRECISION,
+  fused_score DOUBLE PRECISION,
+  explanation_json TEXT,
   status VARCHAR(32) NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL
+  created_at TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_ai_retrieval_hit_trace_rank
@@ -209,10 +209,10 @@ CREATE TABLE IF NOT EXISTS ai_context_pack (
   retrieval_trace_id BIGINT REFERENCES ai_retrieval_trace(id),
   actor_id VARCHAR(128),
   query_text TEXT,
-  pack_json JSONB NOT NULL,
+  pack_json TEXT NOT NULL,
   estimated_tokens INTEGER NOT NULL,
   truncated BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at TIMESTAMPTZ NOT NULL
+  created_at TEXT NOT NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_context_pack_uuid
@@ -229,10 +229,10 @@ CREATE TABLE IF NOT EXISTS ai_index (
   schema_version VARCHAR(32) NOT NULL,
   status VARCHAR(32) NOT NULL,
   rebuild_cursor VARCHAR(256),
-  config_json JSONB,
-  last_rebuilt_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL,
+  config_json TEXT,
+  last_rebuilt_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
   version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -246,14 +246,14 @@ CREATE TABLE IF NOT EXISTS ai_retrieval_profile (
   space_id BIGINT,
   name VARCHAR(160) NOT NULL,
   strategy VARCHAR(64) NOT NULL,
-  retrievers_json JSONB NOT NULL,
-  fusion_policy_json JSONB,
-  rerank_policy_json JSONB,
+  retrievers_json TEXT NOT NULL,
+  fusion_policy_json TEXT,
+  rerank_policy_json TEXT,
   top_k INTEGER NOT NULL,
   context_budget_tokens INTEGER NOT NULL,
   status VARCHAR(32) NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
   version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -268,11 +268,11 @@ CREATE TABLE IF NOT EXISTS ai_implementation_profile (
   implementation_kind VARCHAR(64) NOT NULL,
   role VARCHAR(32) NOT NULL,
   status VARCHAR(32) NOT NULL,
-  capability_json JSONB NOT NULL,
-  config_json JSONB,
-  rollout_json JSONB,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL,
+  capability_json TEXT NOT NULL,
+  config_json TEXT,
+  rollout_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
   version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -289,12 +289,12 @@ CREATE TABLE IF NOT EXISTS ai_provider_binding (
   endpoint_ref VARCHAR(256),
   secret_ref VARCHAR(256),
   model_ref VARCHAR(256),
-  capabilities_json JSONB NOT NULL,
-  config_json JSONB,
+  capabilities_json TEXT NOT NULL,
+  config_json TEXT,
   health_state VARCHAR(32) NOT NULL,
-  last_health_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL,
+  last_health_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
   version BIGINT NOT NULL DEFAULT 0
 );
 
@@ -307,9 +307,9 @@ CREATE TABLE IF NOT EXISTS ai_eval_run (
   tenant_id BIGINT NOT NULL,
   eval_type VARCHAR(64) NOT NULL,
   state VARCHAR(32) NOT NULL,
-  metrics_json JSONB,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL
+  metrics_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_eval_run_uuid
@@ -328,8 +328,8 @@ CREATE TABLE IF NOT EXISTS ai_audit_log (
   trace_id VARCHAR(128),
   result VARCHAR(32) NOT NULL,
   reason VARCHAR(256),
-  metadata_json JSONB,
-  created_at TIMESTAMPTZ NOT NULL
+  metadata_json TEXT,
+  created_at TEXT NOT NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_audit_log_uuid
@@ -343,12 +343,12 @@ CREATE TABLE IF NOT EXISTS ai_outbox_event (
   aggregate_id VARCHAR(128) NOT NULL,
   event_type VARCHAR(128) NOT NULL,
   event_version VARCHAR(32) NOT NULL,
-  payload_json JSONB NOT NULL,
+  payload_json TEXT NOT NULL,
   publish_state VARCHAR(32) NOT NULL,
-  published_at TIMESTAMPTZ,
+  published_at TEXT,
   retry_count INTEGER NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_ai_outbox_event_uuid

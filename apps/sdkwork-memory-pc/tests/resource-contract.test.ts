@@ -6,9 +6,16 @@ import { createMemoryConsoleResourceRegistry, type MemoryConsoleSdkClient } from
 
 describe("Memory resource contracts", () => {
   it("normalizes SDKWork list data without client-side pagination", () => {
-    const result = normalizeMemoryPage({ items: [{ id: "1" }, { id: "2" }], pageInfo: { mode: "cursor", nextCursor: "next" } });
+    const result = normalizeMemoryPage({ items: [{ id: "1" }, { id: "2" }], pageInfo: { mode: "cursor", nextCursor: "next", hasMore: true } });
     expect(result.items).toHaveLength(2);
     expect(result.pageInfo.nextCursor).toBe("next");
+    expect(result.pageInfo.hasMore).toBe(true);
+  });
+
+  it("rejects malformed SDK list data instead of fabricating an empty page", () => {
+    expect(() => normalizeMemoryPage(undefined)).toThrow("Memory SDK contract violation");
+    expect(() => normalizeMemoryPage({ items: "invalid", pageInfo: { mode: "cursor" } })).toThrow("data.items");
+    expect(() => normalizeMemoryPage({ items: [], pageInfo: { mode: "cursor", pageSize: 201 } })).toThrow("pageInfo.pageSize");
   });
 
   it("passes console pagination to the generated app SDK", async () => {
@@ -17,6 +24,14 @@ describe("Memory resource contracts", () => {
     const source = createMemoryConsoleResourceRegistry(client).spaces;
     await source?.load({ q: "preference", cursor: "opaque", pageSize: 50 });
     expect(list).toHaveBeenCalledWith({ q: "preference", cursor: "opaque", pageSize: 50 });
+  });
+
+  it("rejects a missing required memory space without calling the App SDK", async () => {
+    const list = vi.fn();
+    const client = { memory: { list } } as unknown as MemoryConsoleSdkClient;
+    const source = createMemoryConsoleResourceRegistry(client).memories;
+    await expect(source?.load({ pageSize: 20 })).rejects.toMatchObject({ code: 40003 });
+    expect(list).not.toHaveBeenCalled();
   });
 
   it("passes admin pagination to the generated backend SDK", async () => {

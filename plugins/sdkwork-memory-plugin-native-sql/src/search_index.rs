@@ -1,5 +1,6 @@
 //! Full-text search index maintenance and query helpers.
 
+use crate::sqlx_compat as sqlx;
 use sdkwork_memory_spi::{MemoryScopeContext, MemorySensitivityReadScope};
 
 use crate::pool_backend::MemorySqlDialect;

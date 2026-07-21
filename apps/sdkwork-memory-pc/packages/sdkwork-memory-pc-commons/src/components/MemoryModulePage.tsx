@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMemoryI18n } from "../i18n/runtime.tsx";
 import type { MemoryListQuery, MemoryPageResult, MemoryPcModuleDefinition, MemoryPcResourceKey, MemoryResourceAction, MemoryResourceRegistry } from "../types.ts";
 
-const DEFAULT_PAGE: MemoryPageResult = { items: [], pageInfo: { mode: "cursor", hasNext: false } };
+const DEFAULT_PAGE: MemoryPageResult = { items: [], pageInfo: { mode: "cursor", hasMore: false } };
 
 export interface MemoryModulePageProps {
   module: MemoryPcModuleDefinition;
@@ -243,7 +243,7 @@ export function MemoryModulePage({ module, registry }: MemoryModulePageProps) {
       </div>
 
       <footer className="pagination-bar">
-        <span>{typeof page.pageInfo.total === "number" ? page.pageInfo.total.toLocaleString() : `${page.items.length}`}</span>
+        <span>{page.pageInfo.totalItems ?? `${page.items.length}`}</span>
         <div>
           <button className="icon-button" type="button" disabled={cursorHistory.length === 0} title={translate("memory.commons.previous")} aria-label={translate("memory.commons.previous")} onClick={openPreviousPage}><ChevronLeft size={17} /></button>
           <button className="icon-button" type="button" disabled={!nextCursor} title={translate("memory.commons.next")} aria-label={translate("memory.commons.next")} onClick={openNextPage}><ChevronRight size={17} /></button>

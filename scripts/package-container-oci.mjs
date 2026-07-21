@@ -5,6 +5,7 @@ import { mkdirSync, rmSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
+const workspaceRoot = resolve(root, "..");
 const version = required(process.env.SDKWORK_PACKAGE_VERSION, "SDKWORK_PACKAGE_VERSION");
 const sourceRevision = gitValue(["rev-parse", "HEAD"]);
 const builderName = process.env.SDKWORK_CONTAINER_BUILDER ?? "sdkwork-memory-release";
@@ -28,7 +29,7 @@ const buildArguments = [
     "--builder",
     builderName,
     "--file",
-    "deployments/docker/Dockerfile",
+    "sdkwork-memory/deployments/docker/Dockerfile",
     "--platform",
     "linux/amd64",
     "--build-arg",
@@ -40,14 +41,14 @@ const buildArguments = [
     "--provenance=mode=max",
     "--output",
     `type=oci,dest=${artifactPath}`,
-    ".",
+    workspaceRoot,
   ];
 if (embedSbom) buildArguments.splice(buildArguments.length - 3, 0, "--sbom=true");
 
 execFileSync(
   "docker",
   buildArguments,
-  { cwd: root, stdio: "inherit" },
+  { cwd: workspaceRoot, stdio: "inherit" },
 );
 
 const sizeBytes = statSync(artifactPath).size;

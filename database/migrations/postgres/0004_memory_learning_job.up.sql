@@ -9,13 +9,13 @@ CREATE TABLE IF NOT EXISTS ai_learning_job (
   state VARCHAR(32) NOT NULL,
   priority INT NOT NULL DEFAULT 0,
   idempotency_key VARCHAR(128),
-  input_json JSONB,
-  result_json JSONB,
-  error_json JSONB,
-  started_at TIMESTAMPTZ,
-  finished_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL,
+  input_json TEXT,
+  result_json TEXT,
+  error_json TEXT,
+  started_at TEXT,
+  finished_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
   version BIGINT NOT NULL DEFAULT 0
 );
 

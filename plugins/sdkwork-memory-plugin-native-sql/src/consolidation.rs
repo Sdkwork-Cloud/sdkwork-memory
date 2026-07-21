@@ -2,6 +2,7 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use crate::sqlx_compat as sqlx;
 use sdkwork_memory_spi::{MemoryMutationJournal, MemoryScopeContext};
 use serde_json::Value;
 use sqlx::Row;
@@ -228,7 +229,7 @@ impl NativeSqlMemoryStore {
                     deduplicated,
                 )?;
                 validate_journal(&duplicate_uuid, &journal)?;
-                append_journal_on_tx(&mut tx, command.scope, &journal).await?;
+                append_journal_on_tx(self, &mut tx, command.scope, &journal).await?;
 
                 batch.superseded_records = checked_add(batch.superseded_records, 1)?;
                 batch.transferred_sources = checked_add(batch.transferred_sources, transferred)?;

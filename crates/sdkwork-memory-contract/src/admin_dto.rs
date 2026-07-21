@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(deny_unknown_fields)]
 pub struct ListAdminResourcesQuery {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,

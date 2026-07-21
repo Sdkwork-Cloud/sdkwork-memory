@@ -4,8 +4,9 @@ use axum::Router;
 use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
 use sdkwork_memory_contract::MemoryAppRequestContext;
 use sdkwork_routes_memory_support::{
-    memory_http_metrics, memory_web_auth_mode_from_env, parse_principal_optional_u64,
-    parse_principal_u64, with_problem_correlation, MemoryWebAuthMode, ProductionFailClosedResolver,
+    harden_memory_web_framework_layer, memory_http_metrics, memory_web_auth_mode_from_env,
+    parse_principal_optional_u64, parse_principal_u64, with_problem_correlation,
+    MemoryWebAuthMode, ProductionFailClosedResolver,
 };
 use sdkwork_web_axum::{with_web_request_context, WebFrameworkLayer};
 use sdkwork_web_core::{
@@ -86,7 +87,7 @@ where
         .validate_public_path_prefixes(&memory_app_api_public_path_prefixes())
         .expect("memory app-api public prefixes must not cover protected manifest routes");
 
-    WebFrameworkLayer::new(resolver)
+    let layer = WebFrameworkLayer::new(resolver)
         .with_profile(WebRequestContextProfile {
             app_api_prefix: paths::PREFIX.to_owned(),
             public_path_prefixes: memory_app_api_public_path_prefixes(),
@@ -94,7 +95,8 @@ where
         })
         .with_route_manifest(route_manifest)
         .with_domain_injector(Arc::new(MemoryAppContextInjector))
-        .with_metrics(memory_http_metrics())
+        .with_metrics(memory_http_metrics());
+    harden_memory_web_framework_layer(layer, route_manifest)
 }
 
 pub async fn wrap_router_with_web_framework_from_env<S>(router: Router<S>) -> Router<S>

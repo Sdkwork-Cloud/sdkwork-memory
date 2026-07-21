@@ -15,13 +15,16 @@ pub mod privacy;
 pub mod readiness_store;
 pub mod search_index;
 mod space_data;
+mod sqlx_compat;
 pub mod store;
 
 pub use admin_tables::*;
 pub use commercial_store::*;
 pub use consolidation::*;
 pub use graph_store::*;
-pub use learning_jobs::{InsertLearningJobCommand, NativeSqlLearningJobRow};
+pub use learning_jobs::{
+    InsertLearningJobCommand, NativeSqlClaimedEvalRun, NativeSqlLearningJobRow,
+};
 pub use manifest::{
     build_native_sql_audit_store, build_native_sql_candidate_store, build_native_sql_event_store,
     build_native_sql_governance_access, build_native_sql_habit_store,

@@ -46,11 +46,19 @@ static ID_GENERATOR: OnceLock<IdGeneratorHolder> = OnceLock::new();
 ///
 /// The `lease` must be kept alive for as long as the process generates IDs.
 /// It is stored in the global holder and dropped when the process exits.
-pub fn init_id_generator(generator: SnowflakeIdGenerator, lease: Option<NodeLease>) {
+pub fn init_id_generator(
+    generator: SnowflakeIdGenerator,
+    lease: Option<NodeLease>,
+) -> SnowflakeIdGenerator {
     let _ = ID_GENERATOR.set(IdGeneratorHolder {
         generator,
         _lease: lease,
     });
+    ID_GENERATOR
+        .get()
+        .expect("snowflake generator must be initialized")
+        .generator
+        .clone()
 }
 
 /// Fallback: resolve a node_id from env var or a random value.
@@ -96,6 +104,10 @@ fn id_generator() -> MemoryServiceResult<&'static SnowflakeIdGenerator> {
         }
     });
     Ok(&holder.generator)
+}
+
+pub fn shared_id_generator() -> MemoryServiceResult<SnowflakeIdGenerator> {
+    id_generator().cloned()
 }
 
 pub fn next_numeric_id() -> MemoryServiceResult<u64> {
@@ -228,12 +240,16 @@ mod id_policy_tests {
     }
 }
 
-/// Clamps a page size to the platform range \[1, `MAX_PAGE_SIZE`\], defaulting to
-/// `DEFAULT_PAGE_SIZE` when `None`.
-pub fn clamp_page_size(page_size: Option<i32>) -> i32 {
-    page_size
-        .unwrap_or(DEFAULT_PAGE_SIZE)
-        .clamp(1, MAX_PAGE_SIZE)
+/// Validates a page size against the platform range, defaulting to
+/// `DEFAULT_PAGE_SIZE` when absent.
+pub fn validated_page_size(page_size: Option<i32>) -> MemoryServiceResult<i32> {
+    let page_size = page_size.unwrap_or(DEFAULT_PAGE_SIZE);
+    if !(1..=MAX_PAGE_SIZE).contains(&page_size) {
+        return Err(MemoryServiceError::invalid_parameter(format!(
+            "page_size must be between 1 and {MAX_PAGE_SIZE}"
+        )));
+    }
+    Ok(page_size)
 }
 
 /// OpenAPI `topK` maximum for retrieval requests.
@@ -314,5 +330,22 @@ mod tests {
         assert!(first.starts_with("sha256:"));
         assert_eq!(first.len(), "sha256:".len() + 64);
         assert!(!first.contains("preferred editor"));
+    }
+
+    #[test]
+    fn page_size_uses_default_and_rejects_out_of_range_values() {
+        assert_eq!(validated_page_size(None).unwrap(), DEFAULT_PAGE_SIZE);
+        assert_eq!(validated_page_size(Some(1)).unwrap(), 1);
+        assert_eq!(
+            validated_page_size(Some(MAX_PAGE_SIZE)).unwrap(),
+            MAX_PAGE_SIZE
+        );
+        assert!(validated_page_size(Some(0)).is_err());
+        assert!(validated_page_size(Some(-1)).is_err());
+        assert!(validated_page_size(Some(MAX_PAGE_SIZE + 1)).is_err());
+        assert_eq!(
+            validated_page_size(Some(0)).unwrap_err().code,
+            "invalid_parameter"
+        );
     }
 }

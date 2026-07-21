@@ -6,9 +6,10 @@ use sdkwork_database_config::{DatabaseConfig, DatabaseEngine};
 use sdkwork_memory_plugin_native_sql::{
     build_native_sql_candidate_store, build_native_sql_habit_store,
     build_native_sql_retrieval_trace_store, ConsolidateDuplicateRecordsCommand,
-    InsertLearningJobCommand, InsertMemoryEvalRunCommand, NativeSqlAppendOutboxEventCommand,
-    NativeSqlCreateSpaceCommand, NativeSqlMemoryStore, NativeSqlStoreError,
-    PromoteApprovedCandidateCommand,
+    InsertEntityCommand, InsertLearningJobCommand, InsertMemoryEvalRunCommand,
+    NativeSqlAppendOutboxEventCommand, NativeSqlCreateSpaceCommand, NativeSqlMemoryStore,
+    NativeSqlStoreError, PromoteApprovedCandidateCommand, UpdateEntityCommand,
+    SENSITIVITY_READ_OWNER,
 };
 use sdkwork_memory_spi::{
     AppendMemoryAuditCommand, AppendMemoryEventCommand, AppendMemoryOutboxCommand,
@@ -45,6 +46,186 @@ fn mutation_journal(memory_id: &str, suffix: &str) -> MemoryMutationJournal {
         audit_resource_id: memory_id.to_string(),
         audit_result: "accepted".to_string(),
     }
+}
+
+#[tokio::test]
+async fn sqlite_provider_health_scan_uses_stable_bounded_keyset_pages() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite()
+        .await
+        .expect("create SQLite provider-health store");
+
+    for tenant_id in [10_i64, 20, 30, 40] {
+        store
+            .insert_mem_provider_binding(
+                tenant_id,
+                &format!("binding-{tenant_id}-1"),
+                "embedding",
+                "test",
+                "Test provider",
+                "[]",
+                None,
+                None,
+                None,
+                None,
+                "unknown",
+                None,
+            )
+            .await
+            .expect("insert provider binding");
+    }
+
+    let first_tenant_page = store
+        .list_tenant_ids_with_provider_bindings_page(None, 2)
+        .await
+        .expect("first tenant page");
+    assert_eq!(first_tenant_page, vec![10, 20, 30]);
+    let second_tenant_page = store
+        .list_tenant_ids_with_provider_bindings_page(Some(first_tenant_page[1]), 2)
+        .await
+        .expect("second tenant page");
+    assert_eq!(second_tenant_page, vec![30, 40]);
+
+    for suffix in [2, 3] {
+        store
+            .insert_mem_provider_binding(
+                10,
+                &format!("binding-10-{suffix}"),
+                "embedding",
+                &format!("test-{suffix}"),
+                "Test provider",
+                "[]",
+                None,
+                None,
+                None,
+                None,
+                "unknown",
+                None,
+            )
+            .await
+            .expect("insert paged provider binding");
+    }
+    let first_binding_page = store
+        .list_mem_provider_bindings_for_tenant(10, 2, None)
+        .await
+        .expect("first provider binding page");
+    assert_eq!(first_binding_page.len(), 3);
+    let second_binding_page = store
+        .list_mem_provider_bindings_for_tenant(10, 2, Some(&first_binding_page[1].binding_uuid))
+        .await
+        .expect("second provider binding page");
+    assert_eq!(second_binding_page.len(), 1);
+    assert_eq!(second_binding_page[0].binding_uuid, "binding-10-3");
+}
+
+#[tokio::test]
+async fn sqlite_graph_mutation_rolls_back_when_atomic_journal_fails() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite()
+        .await
+        .expect("create SQLite graph journal store");
+    store
+        .create_space_record(
+            1,
+            7,
+            &NativeSqlCreateSpaceCommand {
+                organization_id: None,
+                owner_subject_type: "tenant".to_string(),
+                owner_subject_id: "1".to_string(),
+                space_type: "workspace".to_string(),
+                display_name: "Graph journal space".to_string(),
+                default_scope: "tenant".to_string(),
+            },
+        )
+        .await
+        .expect("create graph journal space");
+    let scope = MemoryScopeContext {
+        tenant_id: 1,
+        space_id: 7,
+        organization_id: None,
+        user_id: Some(9),
+    };
+    let created = MemoryMutationJournal {
+        outbox_id: "graph-outbox-created".to_string(),
+        aggregate_type: "ai_entity".to_string(),
+        aggregate_id: "graph-entity-1".to_string(),
+        event_type: "memory.entity.created".to_string(),
+        event_version: "1".to_string(),
+        payload_json: r#"{"resourceId":"graph-entity-1"}"#.to_string(),
+        audit_id: "graph-audit-created".to_string(),
+        audit_action: "memory.entity.created".to_string(),
+        audit_resource_type: "entity".to_string(),
+        audit_resource_id: "graph-entity-1".to_string(),
+        audit_result: "accepted".to_string(),
+    };
+    store
+        .insert_entity_with_journal(
+            InsertEntityCommand {
+                id: 701,
+                uuid: "graph-entity-1",
+                tenant_id: 1,
+                space_id: 7,
+                entity_type: "person",
+                canonical_name: "Before",
+                aliases_json: None,
+                attributes_json: None,
+                sensitivity_level: "internal",
+            },
+            &scope,
+            &created,
+        )
+        .await
+        .expect("journaled entity insert");
+
+    let conflicting_update = MemoryMutationJournal {
+        outbox_id: created.outbox_id.clone(),
+        aggregate_type: "ai_entity".to_string(),
+        aggregate_id: "graph-entity-1".to_string(),
+        event_type: "memory.entity.updated".to_string(),
+        event_version: "1".to_string(),
+        payload_json: r#"{"resourceId":"graph-entity-1"}"#.to_string(),
+        audit_id: "graph-audit-update".to_string(),
+        audit_action: "memory.entity.updated".to_string(),
+        audit_resource_type: "entity".to_string(),
+        audit_resource_id: "graph-entity-1".to_string(),
+        audit_result: "accepted".to_string(),
+    };
+    assert!(store
+        .update_entity_with_journal(
+            1,
+            "graph-entity-1",
+            UpdateEntityCommand {
+                canonical_name: Some("After"),
+                aliases_json: None,
+                attributes_json: None,
+                sensitivity_level: None,
+                status: None,
+            },
+            &scope,
+            &conflicting_update,
+        )
+        .await
+        .is_err());
+
+    let entity = store
+        .retrieve_entity(1, "graph-entity-1")
+        .await
+        .expect("retrieve graph entity")
+        .expect("graph entity remains after rollback");
+    assert_eq!(entity.canonical_name, "Before");
+    assert_eq!(entity.version, 1);
+    let outbox_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ai_outbox_event WHERE aggregate_id = ?")
+            .bind("graph-entity-1")
+            .fetch_one(store.pool())
+            .await
+            .expect("count graph outbox");
+    let audit_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ai_audit_log WHERE resource_id = ?")
+            .bind("graph-entity-1")
+            .fetch_one(store.pool())
+            .await
+            .expect("count graph audit");
+    assert_eq!(outbox_count, 1);
+    assert_eq!(audit_count, 1);
 }
 
 #[tokio::test]
@@ -126,6 +307,113 @@ async fn sqlite_job_history_uses_store_level_cursor_and_tenant_filters() {
             .collect::<Vec<_>>(),
         vec!["102", "101"]
     );
+}
+
+#[tokio::test]
+async fn sqlite_privacy_export_rejects_payloads_over_the_byte_budget() {
+    let store = new_contract_store().await;
+    let scope = MemoryScopeContext::for_test(1, 1);
+    store
+        .create_record(
+            &scope,
+            "export-byte-limit-record",
+            "export",
+            &"sensitive export content ".repeat(32),
+        )
+        .await
+        .unwrap();
+
+    let error = store
+        .collect_export_payload_for_spaces(1, &[1], false, SENSITIVITY_READ_OWNER, 128)
+        .await
+        .expect_err("export must reject content above its byte budget");
+    assert!(error.to_string().contains("byte limit exceeded"));
+}
+
+#[tokio::test]
+async fn sqlite_learning_job_completion_is_fenced_by_execution_lease() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite().await.unwrap();
+    store
+        .insert_learning_job(InsertLearningJobCommand {
+            tenant_id: 77,
+            job_uuid: "lease-job-1",
+            space_id: None,
+            job_type: "retention",
+            state: "queued",
+            priority: 0,
+            idempotency_key: None,
+            input_json: Some(r#"{"dryRun":true}"#),
+        })
+        .await
+        .unwrap();
+
+    let first = store
+        .claim_queued_learning_jobs(1, "job-worker-a", "job-lease-a", 30)
+        .await
+        .unwrap();
+    assert_eq!(first.len(), 1);
+    assert!(store
+        .finish_learning_job(
+            77,
+            "lease-job-1",
+            "job-worker-a",
+            "wrong-token",
+            "succeeded",
+            Some(r#"{"status":"wrong"}"#),
+            None,
+        )
+        .await
+        .unwrap()
+        .is_none());
+    assert!(store
+        .renew_learning_job_lease(77, "lease-job-1", "job-worker-a", "job-lease-a", 30)
+        .await
+        .unwrap());
+
+    sqlx::query(
+        "UPDATE ai_learning_job SET lease_expires_at = '1970-01-01T00:00:00.000Z' WHERE tenant_id = ? AND uuid = ?",
+    )
+    .bind(77_i64)
+    .bind("lease-job-1")
+    .execute(store.pool())
+    .await
+    .unwrap();
+    assert_eq!(
+        store.requeue_stale_running_learning_jobs(30).await.unwrap(),
+        1
+    );
+    let replacement = store
+        .claim_queued_learning_jobs(1, "job-worker-b", "job-lease-b", 30)
+        .await
+        .unwrap();
+    assert_eq!(replacement.len(), 1);
+    assert!(store
+        .finish_learning_job(
+            77,
+            "lease-job-1",
+            "job-worker-a",
+            "job-lease-a",
+            "succeeded",
+            Some(r#"{"status":"stale"}"#),
+            None,
+        )
+        .await
+        .unwrap()
+        .is_none());
+    let completed = store
+        .finish_learning_job(
+            77,
+            "lease-job-1",
+            "job-worker-b",
+            "job-lease-b",
+            "succeeded",
+            Some(r#"{"status":"current"}"#),
+            None,
+        )
+        .await
+        .unwrap()
+        .expect("current lease must complete learning job");
+    assert_eq!(completed.state, "succeeded");
 }
 
 #[tokio::test]
@@ -220,11 +508,14 @@ async fn sqlite_eval_run_persists_dataset_profile_config_and_lifecycle_timestamp
         .await
         .unwrap();
 
-    let claimed = store.claim_queued_eval_runs(1).await.unwrap();
-    assert_eq!(
-        claimed,
-        vec![(77, "501".to_string(), "retrieval_quality".to_string())]
-    );
+    let claimed = store
+        .claim_queued_eval_runs(1, "eval-worker", "eval-lease", 30)
+        .await
+        .unwrap();
+    assert_eq!(claimed.len(), 1);
+    assert_eq!(claimed[0].tenant_id, 77);
+    assert_eq!(claimed[0].eval_run_uuid, "501");
+    assert_eq!(claimed[0].eval_type, "retrieval_quality");
     let running = store
         .retrieve_mem_eval_run_for_tenant(77, "501")
         .await
@@ -243,6 +534,8 @@ async fn sqlite_eval_run_persists_dataset_profile_config_and_lifecycle_timestamp
         .update_eval_run_state(
             77,
             "501",
+            "eval-worker",
+            "eval-lease",
             "succeeded",
             Some(r#"{"recallAtK":1.0}"#),
             Some(r#"{"status":"completed"}"#),
@@ -1625,17 +1918,18 @@ async fn sqlite_hard_delete_cleans_foreign_key_dependents_and_fts() {
     .await
     .unwrap();
     let mut tx = store.begin_tx().await.unwrap();
-    NativeSqlMemoryStore::append_record_source_on_tx(
-        &mut tx,
-        &scope,
-        "hard-delete-source",
-        "hard-delete-target",
-        "hard-delete-event",
-        "evidence",
-        Some(1.0),
-    )
-    .await
-    .unwrap();
+    store
+        .append_record_source_on_tx(
+            &mut tx,
+            &scope,
+            "hard-delete-source",
+            "hard-delete-target",
+            "hard-delete-event",
+            "evidence",
+            Some(1.0),
+        )
+        .await
+        .unwrap();
     tx.commit().await.unwrap();
     MemoryHabitStorePort::upsert(&store, habit_command(scope.clone(), "hard-delete-habit", 1))
         .await
@@ -1660,10 +1954,11 @@ async fn sqlite_hard_delete_cleans_foreign_key_dependents_and_fts() {
     sqlx::query(
         r#"
         INSERT INTO ai_retrieval_trace (
-          uuid, tenant_id, space_id, query_hash, created_at
-        ) VALUES (?, ?, ?, ?, ?)
+          id, uuid, tenant_id, space_id, query_hash, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?)
         "#,
     )
+    .bind(910_001_i64)
     .bind("hard-delete-trace")
     .bind(scope.tenant_id)
     .bind(scope.space_id)
@@ -1675,15 +1970,16 @@ async fn sqlite_hard_delete_cleans_foreign_key_dependents_and_fts() {
     sqlx::query(
         r#"
         INSERT INTO ai_retrieval_hit (
-          uuid, tenant_id, retrieval_trace_id, memory_id, retriever_name,
+          id, uuid, tenant_id, retrieval_trace_id, memory_id, retriever_name,
           result_rank, explanation_json, status, created_at
         )
-        SELECT ?, ?, trace.id, record.id, ?, ?, ?, ?, ?
+        SELECT ?, ?, ?, trace.id, record.id, ?, ?, ?, ?, ?
         FROM ai_retrieval_trace trace
         JOIN ai_record record ON record.tenant_id = trace.tenant_id
         WHERE trace.tenant_id = ? AND trace.uuid = ? AND record.uuid = ?
         "#,
     )
+    .bind(910_002_i64)
     .bind("hard-delete-hit")
     .bind(scope.tenant_id)
     .bind("native_sql")
@@ -1697,18 +1993,19 @@ async fn sqlite_hard_delete_cleans_foreign_key_dependents_and_fts() {
     .execute(store.pool())
     .await
     .unwrap();
-    for (entity_id, canonical_name) in [
-        ("hard-delete-source-entity", "source"),
-        ("hard-delete-target-entity", "target"),
+    for (row_id, entity_id, canonical_name) in [
+        (910_003_i64, "hard-delete-source-entity", "source"),
+        (910_004_i64, "hard-delete-target-entity", "target"),
     ] {
         sqlx::query(
             r#"
             INSERT INTO ai_entity (
-              uuid, tenant_id, space_id, entity_type, canonical_name,
+              id, uuid, tenant_id, space_id, entity_type, canonical_name,
               sensitivity_level, status, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             "#,
         )
+        .bind(row_id)
         .bind(entity_id)
         .bind(scope.tenant_id)
         .bind(scope.space_id)
@@ -1725,10 +2022,10 @@ async fn sqlite_hard_delete_cleans_foreign_key_dependents_and_fts() {
     sqlx::query(
         r#"
         INSERT INTO ai_edge (
-          uuid, tenant_id, space_id, source_entity_id, target_entity_id,
+          id, uuid, tenant_id, space_id, source_entity_id, target_entity_id,
           relation_type, source_memory_id, status, created_at, updated_at
         )
-        SELECT ?, ?, ?, source.id, target.id, ?, record.id, ?, ?, ?
+        SELECT ?, ?, ?, ?, source.id, target.id, ?, record.id, ?, ?, ?
         FROM ai_entity source
         JOIN ai_entity target ON target.tenant_id = source.tenant_id
         JOIN ai_record record ON record.tenant_id = source.tenant_id
@@ -1736,6 +2033,7 @@ async fn sqlite_hard_delete_cleans_foreign_key_dependents_and_fts() {
           AND target.uuid = ? AND record.uuid = ?
         "#,
     )
+    .bind(910_005_i64)
     .bind("hard-delete-edge")
     .bind(scope.tenant_id)
     .bind(scope.space_id)
@@ -1753,14 +2051,15 @@ async fn sqlite_hard_delete_cleans_foreign_key_dependents_and_fts() {
     sqlx::query(
         r#"
         INSERT INTO ai_memory_binding (
-          uuid, tenant_id, binding_kind, source_memory_id, target_memory_id,
+          id, uuid, tenant_id, binding_kind, source_memory_id, target_memory_id,
           binding_role, status, created_at, updated_at
         )
-        SELECT ?, ?, ?, record.id, record.id, ?, ?, ?, ?
+        SELECT ?, ?, ?, ?, record.id, record.id, ?, ?, ?, ?
         FROM ai_record record
         WHERE record.tenant_id = ? AND record.uuid = ?
         "#,
     )
+    .bind(910_006_i64)
     .bind("hard-delete-binding")
     .bind(scope.tenant_id)
     .bind("derived")
@@ -3220,18 +3519,38 @@ async fn sqlite_store_claim_global_pending_outbox_events_publishes_once() {
         .await
         .unwrap();
 
-    let first = store.claim_global_pending_outbox_events(10).await.unwrap();
+    let first = store
+        .claim_global_pending_outbox_events(10, "publisher-a", "lease-a", 30)
+        .await
+        .unwrap();
     assert_eq!(first.len(), 2);
     assert!(first
         .iter()
         .all(|row| row.outbox.publish_state == "processing"));
 
-    let second = store.claim_global_pending_outbox_events(10).await.unwrap();
+    let second = store
+        .claim_global_pending_outbox_events(10, "publisher-b", "lease-b", 30)
+        .await
+        .unwrap();
     assert!(second.is_empty());
+
+    let fenced = store
+        .ack_outbox_delivery_success(1, "out-claim-1", "publisher-a", "wrong-token")
+        .await
+        .unwrap();
+    assert!(
+        fenced.is_none(),
+        "a stale lease token must not acknowledge a row"
+    );
 
     for row in &first {
         let published = store
-            .ack_outbox_delivery_success(row.tenant_id, &row.outbox.outbox_id)
+            .ack_outbox_delivery_success(
+                row.tenant_id,
+                &row.outbox.outbox_id,
+                row.lease_owner.as_deref().unwrap(),
+                row.lease_token.as_deref().unwrap(),
+            )
             .await
             .unwrap()
             .expect("ack must return published row");
@@ -3258,12 +3577,15 @@ async fn sqlite_store_outbox_delivery_failure_requeues_until_max_retries() {
         .await
         .unwrap();
 
-    let claimed = store.claim_global_pending_outbox_events(10).await.unwrap();
+    let claimed = store
+        .claim_global_pending_outbox_events(10, "publisher-a", "lease-1", 30)
+        .await
+        .unwrap();
     assert_eq!(claimed.len(), 1);
     assert_eq!(claimed[0].outbox.publish_state, "processing");
 
     let first_failure = store
-        .record_outbox_delivery_failure(1, "out-retry", 3)
+        .record_outbox_delivery_failure(1, "out-retry", "publisher-a", "lease-1", 3)
         .await
         .unwrap()
         .expect("first failure row");
@@ -3271,16 +3593,19 @@ async fn sqlite_store_outbox_delivery_failure_requeues_until_max_retries() {
     assert_eq!(first_failure.retry_count, 1);
 
     // Exponential backoff prevents immediate re-claim after failure.
-    // Fast-forward the updated_at timestamp so the backoff window has elapsed.
-    sqlx::query("UPDATE ai_outbox_event SET updated_at = datetime('now', '-10 seconds') WHERE uuid = 'out-retry'")
+    // Fast-forward the explicit retry timestamp so the backoff window has elapsed.
+    sqlx::query("UPDATE ai_outbox_event SET next_attempt_at = '1970-01-01T00:00:00.000Z' WHERE uuid = 'out-retry'")
         .execute(store.pool())
         .await
         .unwrap();
 
-    let reclaimed = store.claim_global_pending_outbox_events(10).await.unwrap();
+    let reclaimed = store
+        .claim_global_pending_outbox_events(10, "publisher-a", "lease-2", 30)
+        .await
+        .unwrap();
     assert_eq!(reclaimed.len(), 1);
     let terminal_failure = store
-        .record_outbox_delivery_failure(1, "out-retry", 3)
+        .record_outbox_delivery_failure(1, "out-retry", "publisher-a", "lease-2", 3)
         .await
         .unwrap()
         .expect("second failure row");
@@ -3288,14 +3613,17 @@ async fn sqlite_store_outbox_delivery_failure_requeues_until_max_retries() {
     assert_eq!(terminal_failure.retry_count, 2);
 
     // Fast-forward again for the second retry's backoff window.
-    sqlx::query("UPDATE ai_outbox_event SET updated_at = datetime('now', '-10 seconds') WHERE uuid = 'out-retry'")
+    sqlx::query("UPDATE ai_outbox_event SET next_attempt_at = '1970-01-01T00:00:00.000Z' WHERE uuid = 'out-retry'")
         .execute(store.pool())
         .await
         .unwrap();
 
-    store.claim_global_pending_outbox_events(10).await.unwrap();
+    store
+        .claim_global_pending_outbox_events(10, "publisher-a", "lease-3", 30)
+        .await
+        .unwrap();
     let failed = store
-        .record_outbox_delivery_failure(1, "out-retry", 3)
+        .record_outbox_delivery_failure(1, "out-retry", "publisher-a", "lease-3", 3)
         .await
         .unwrap()
         .expect("terminal failure row");

@@ -1,5 +1,7 @@
 //! Policy and policy assignment store methods for commercial memory management.
 
+use crate::sqlx_compat as sqlx;
+use sdkwork_memory_spi::{MemoryMutationJournal, MemoryScopeContext};
 use sdkwork_utils_rust::MAX_LIST_PAGE_SIZE;
 use sqlx::Row;
 
@@ -79,6 +81,215 @@ pub struct UpdatePolicyAssignmentCommand<'a> {
 }
 
 impl NativeSqlMemoryStore {
+    pub async fn insert_policy_with_journal(
+        &self,
+        cmd: InsertPolicyCommand<'_>,
+        scope: &MemoryScopeContext,
+        journal: &MemoryMutationJournal,
+    ) -> Result<(), NativeSqlStoreError> {
+        validate_policy_journal(cmd.uuid, cmd.tenant_id, scope, journal)?;
+        let now = now_text();
+        let mut tx = self.begin_tx().await?;
+        sqlx::query(
+            r#"
+            INSERT INTO ai_policy (
+              id, uuid, tenant_id, policy_type, scope, scope_ref, status,
+              policy_json, created_at, updated_at, version
+            )
+            VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, 1)
+            "#,
+        )
+        .bind(cmd.id)
+        .bind(cmd.uuid)
+        .bind(cmd.tenant_id)
+        .bind(cmd.policy_type)
+        .bind(cmd.scope)
+        .bind(cmd.scope_ref)
+        .bind(cmd.policy_json)
+        .bind(&now)
+        .bind(&now)
+        .execute(&mut *tx)
+        .await?;
+        crate::canonical_data::append_journal_on_tx(self, &mut tx, scope, journal).await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn update_policy_with_journal(
+        &self,
+        tenant_id: i64,
+        policy_uuid: &str,
+        cmd: UpdatePolicyCommand<'_>,
+        scope: &MemoryScopeContext,
+        journal: &MemoryMutationJournal,
+    ) -> Result<bool, NativeSqlStoreError> {
+        validate_policy_journal(policy_uuid, tenant_id, scope, journal)?;
+        let now = now_text();
+        let mut tx = self.begin_tx().await?;
+        let result = sqlx::query(
+            r#"
+            UPDATE ai_policy
+            SET policy_type = COALESCE(?, policy_type),
+                scope = COALESCE(?, scope),
+                scope_ref = COALESCE(?, scope_ref),
+                policy_json = COALESCE(?, policy_json),
+                status = COALESCE(?, status),
+                updated_at = ?,
+                version = version + 1
+            WHERE tenant_id = ? AND uuid = ? AND status <> 'deleted'
+            "#,
+        )
+        .bind(cmd.policy_type)
+        .bind(cmd.scope)
+        .bind(cmd.scope_ref)
+        .bind(cmd.policy_json)
+        .bind(cmd.status)
+        .bind(&now)
+        .bind(tenant_id)
+        .bind(policy_uuid)
+        .execute(&mut *tx)
+        .await?;
+        append_policy_journal_if_changed(self, &mut tx, scope, journal, result.rows_affected())
+            .await?;
+        tx.commit().await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn delete_policy_with_journal(
+        &self,
+        tenant_id: i64,
+        policy_uuid: &str,
+        scope: &MemoryScopeContext,
+        journal: &MemoryMutationJournal,
+    ) -> Result<bool, NativeSqlStoreError> {
+        validate_policy_journal(policy_uuid, tenant_id, scope, journal)?;
+        let now = now_text();
+        let mut tx = self.begin_tx().await?;
+        let result = sqlx::query(
+            r#"
+            UPDATE ai_policy
+            SET status = 'deleted', updated_at = ?, version = version + 1
+            WHERE tenant_id = ? AND uuid = ? AND status <> 'deleted'
+            "#,
+        )
+        .bind(&now)
+        .bind(tenant_id)
+        .bind(policy_uuid)
+        .execute(&mut *tx)
+        .await?;
+        append_policy_journal_if_changed(self, &mut tx, scope, journal, result.rows_affected())
+            .await?;
+        tx.commit().await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn insert_policy_assignment_with_journal(
+        &self,
+        cmd: InsertPolicyAssignmentCommand<'_>,
+        scope: &MemoryScopeContext,
+        journal: &MemoryMutationJournal,
+    ) -> Result<(), NativeSqlStoreError> {
+        validate_policy_journal(cmd.uuid, cmd.tenant_id, scope, journal)?;
+        let now = now_text();
+        let mut tx = self.begin_tx().await?;
+        sqlx::query(
+            r#"
+            INSERT INTO ai_policy_assignment (
+              id, uuid, tenant_id, policy_id, target_type, target_id,
+              priority, inheritance_mode, status, valid_from, valid_to,
+              created_at, updated_at, version
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, 1)
+            "#,
+        )
+        .bind(cmd.id)
+        .bind(cmd.uuid)
+        .bind(cmd.tenant_id)
+        .bind(cmd.policy_id)
+        .bind(cmd.target_type)
+        .bind(cmd.target_id)
+        .bind(cmd.priority)
+        .bind(cmd.inheritance_mode)
+        .bind(cmd.valid_from)
+        .bind(cmd.valid_to)
+        .bind(&now)
+        .bind(&now)
+        .execute(&mut *tx)
+        .await?;
+        crate::canonical_data::append_journal_on_tx(self, &mut tx, scope, journal).await?;
+        tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn update_policy_assignment_with_journal(
+        &self,
+        tenant_id: i64,
+        assignment_uuid: &str,
+        cmd: UpdatePolicyAssignmentCommand<'_>,
+        scope: &MemoryScopeContext,
+        journal: &MemoryMutationJournal,
+    ) -> Result<bool, NativeSqlStoreError> {
+        validate_policy_journal(assignment_uuid, tenant_id, scope, journal)?;
+        let now = now_text();
+        let mut tx = self.begin_tx().await?;
+        let result = sqlx::query(
+            r#"
+            UPDATE ai_policy_assignment
+            SET priority = COALESCE(?, priority),
+                inheritance_mode = COALESCE(?, inheritance_mode),
+                status = COALESCE(?, status),
+                valid_from = COALESCE(?, valid_from),
+                valid_to = COALESCE(?, valid_to),
+                updated_at = ?,
+                version = version + 1
+            WHERE tenant_id = ? AND uuid = ? AND deleted_at IS NULL
+            "#,
+        )
+        .bind(cmd.priority)
+        .bind(cmd.inheritance_mode)
+        .bind(cmd.status)
+        .bind(cmd.valid_from)
+        .bind(cmd.valid_to)
+        .bind(&now)
+        .bind(tenant_id)
+        .bind(assignment_uuid)
+        .execute(&mut *tx)
+        .await?;
+        append_policy_journal_if_changed(self, &mut tx, scope, journal, result.rows_affected())
+            .await?;
+        tx.commit().await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn delete_policy_assignment_with_journal(
+        &self,
+        tenant_id: i64,
+        assignment_uuid: &str,
+        scope: &MemoryScopeContext,
+        journal: &MemoryMutationJournal,
+    ) -> Result<bool, NativeSqlStoreError> {
+        validate_policy_journal(assignment_uuid, tenant_id, scope, journal)?;
+        let now = now_text();
+        let mut tx = self.begin_tx().await?;
+        let result = sqlx::query(
+            r#"
+            UPDATE ai_policy_assignment
+            SET status = 'deleted', deleted_at = ?, updated_at = ?, version = version + 1
+            WHERE tenant_id = ? AND uuid = ? AND deleted_at IS NULL
+            "#,
+        )
+        .bind(&now)
+        .bind(&now)
+        .bind(tenant_id)
+        .bind(assignment_uuid)
+        .execute(&mut *tx)
+        .await?;
+        append_policy_journal_if_changed(self, &mut tx, scope, journal, result.rows_affected())
+            .await?;
+        tx.commit().await?;
+        Ok(result.rows_affected() > 0)
+    }
+
     pub async fn resolve_policy_internal_id(
         &self,
         tenant_id: i64,
@@ -454,6 +665,37 @@ impl NativeSqlMemoryStore {
         .await?;
         Ok(row.get("total"))
     }
+}
+
+fn validate_policy_journal(
+    resource_id: &str,
+    tenant_id: i64,
+    scope: &MemoryScopeContext,
+    journal: &MemoryMutationJournal,
+) -> Result<(), NativeSqlStoreError> {
+    if scope.tenant_id != tenant_id
+        || journal.aggregate_id != resource_id
+        || journal.audit_resource_id != resource_id
+    {
+        return Err(NativeSqlStoreError::InvariantViolation {
+            message: "policy mutation journal scope and resource must match the business row"
+                .to_string(),
+        });
+    }
+    Ok(())
+}
+
+async fn append_policy_journal_if_changed(
+    store: &NativeSqlMemoryStore,
+    tx: &mut sqlx::Transaction<'_, sqlx::Any>,
+    scope: &MemoryScopeContext,
+    journal: &MemoryMutationJournal,
+    rows_affected: u64,
+) -> Result<(), NativeSqlStoreError> {
+    if rows_affected > 0 {
+        crate::canonical_data::append_journal_on_tx(store, tx, scope, journal).await?;
+    }
+    Ok(())
 }
 
 fn map_policy_row(row: sqlx::any::AnyRow) -> NativeSqlPolicyRow {
