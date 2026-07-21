@@ -45,10 +45,10 @@ impl MemoryApiError {
             "malformed_request" => SdkWorkResultCode::MalformedRequest,
             "invalid_parameter" => SdkWorkResultCode::InvalidParameter,
             "missing_required_field" => SdkWorkResultCode::MissingRequiredField,
-            "authentication_required" | "missing_app_request_context"
-            | "missing_backend_request_context" | "missing_open_request_context" => {
-                SdkWorkResultCode::AuthenticationRequired
-            }
+            "authentication_required"
+            | "missing_app_request_context"
+            | "missing_backend_request_context"
+            | "missing_open_request_context" => SdkWorkResultCode::AuthenticationRequired,
             "invalid_token" => SdkWorkResultCode::InvalidToken,
             "forbidden" | "permission_required" => SdkWorkResultCode::PermissionRequired,
             "tenant_access_denied" => SdkWorkResultCode::TenantAccessDenied,
@@ -125,9 +125,9 @@ impl IntoResponse for MemoryApiProblem {
             .as_ref()
             .and_then(|value| value.trace_id.clone())
             .or_else(|| {
-                correlation.as_ref().map(|value| {
-                    resolve_problem_trace_id(value.request_id.as_str(), None)
-                })
+                correlation
+                    .as_ref()
+                    .map(|value| resolve_problem_trace_id(value.request_id.as_str(), None))
             })
             .unwrap_or_else(|| "unknown".to_owned());
         let result_code = self.error.result_code();
@@ -202,10 +202,7 @@ mod tests {
             .unwrap();
         let payload: serde_json::Value = serde_json::from_slice(&body).unwrap();
         assert!(payload.get("requestId").is_none());
-        assert_eq!(
-            payload["traceId"],
-            "4bf92f3577b34da6a3ce929d0e0e4736"
-        );
+        assert_eq!(payload["traceId"], "4bf92f3577b34da6a3ce929d0e0e4736");
         assert_eq!(40001, payload["code"].as_i64().unwrap());
     }
 

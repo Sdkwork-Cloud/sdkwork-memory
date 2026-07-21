@@ -1,4 +1,4 @@
-[workspace]
+﻿[workspace]
 resolver = "2"
 members = [
     "crates/sdkwork-api-memory-assembly",
@@ -25,7 +25,7 @@ members = [
 [workspace.package]
 edition = "2021"
 version = "0.1.0"
-license = "UNLICENSED"
+license = "AGPL-3.0-or-later"
 
 [workspace.dependencies]
 sdkwork-drive-workspace-service = { path = "../sdkwork-drive/crates/sdkwork-drive-workspace-service" }

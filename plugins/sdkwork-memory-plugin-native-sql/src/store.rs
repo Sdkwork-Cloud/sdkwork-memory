@@ -85,6 +85,15 @@ pub struct PromoteApprovedCandidateCommand<'a> {
     pub create_record: bool,
 }
 
+pub struct NativeSqlAppendRecordSourceCommand<'a> {
+    pub scope: &'a MemoryScopeContext,
+    pub source_id: &'a str,
+    pub memory_uuid: &'a str,
+    pub event_uuid: &'a str,
+    pub source_role: &'a str,
+    pub confidence_delta: Option<f64>,
+}
+
 #[derive(Debug, Clone)]
 pub struct NativeSqlMemoryStore {
     pool: AnyPool,
@@ -196,8 +205,8 @@ impl NativeSqlMemoryStore {
 
     async fn schema_is_initialized(&self) -> Result<bool, NativeSqlStoreError> {
         let latest_version = match self.dialect() {
-            MemorySqlDialect::Sqlite => "0008",
-            MemorySqlDialect::Postgres => "0007",
+            MemorySqlDialect::Sqlite => "0010",
+            MemorySqlDialect::Postgres => "0009",
         };
         match sqlx::query_scalar::<_, i32>(
             "SELECT 1 FROM ops_memory_schema_version WHERE version = ? LIMIT 1",
@@ -1993,17 +2002,11 @@ impl NativeSqlMemoryStore {
     }
 
     /// Append an outbox event within an existing transaction (no idempotency check).
-    #[allow(clippy::too_many_arguments)]
     pub async fn append_outbox_on_tx(
         &self,
         tx: &mut sqlx::Transaction<'_, sqlx::Any>,
         scope: &MemoryScopeContext,
-        outbox_id: &str,
-        aggregate_type: &str,
-        aggregate_id: &str,
-        event_type: &str,
-        event_version: &str,
-        payload_json: &str,
+        journal: &MemoryMutationJournal,
     ) -> Result<(), NativeSqlStoreError> {
         sqlx::query(
             r#"
@@ -2016,13 +2019,13 @@ impl NativeSqlMemoryStore {
             "#,
         )
         .bind(self.next_row_id()?)
-        .bind(outbox_id)
+        .bind(&journal.outbox_id)
         .bind(scope.tenant_id)
-        .bind(aggregate_type)
-        .bind(aggregate_id)
-        .bind(event_type)
-        .bind(event_version)
-        .bind(payload_json)
+        .bind(&journal.aggregate_type)
+        .bind(&journal.aggregate_id)
+        .bind(&journal.event_type)
+        .bind(&journal.event_version)
+        .bind(&journal.payload_json)
         .bind(now_text())
         .bind(now_text())
         .execute(&mut **tx)
@@ -2035,11 +2038,7 @@ impl NativeSqlMemoryStore {
         &self,
         tx: &mut sqlx::Transaction<'_, sqlx::Any>,
         scope: &MemoryScopeContext,
-        audit_id: &str,
-        action: &str,
-        resource_type: &str,
-        resource_id: &str,
-        result: &str,
+        journal: &MemoryMutationJournal,
     ) -> Result<(), NativeSqlStoreError> {
         let (actor_type, actor_id) = match scope.user_id {
             Some(user_id) => ("user", Some(user_id.to_string())),
@@ -2055,14 +2054,14 @@ impl NativeSqlMemoryStore {
             "#,
         )
         .bind(self.next_row_id()?)
-        .bind(audit_id)
+        .bind(&journal.audit_id)
         .bind(scope.tenant_id)
         .bind(actor_type)
         .bind(actor_id.as_deref())
-        .bind(action)
-        .bind(resource_type)
-        .bind(resource_id)
-        .bind(result)
+        .bind(&journal.audit_action)
+        .bind(&journal.audit_resource_type)
+        .bind(&journal.audit_resource_id)
+        .bind(&journal.audit_result)
         .bind(now_text())
         .execute(&mut **tx)
         .await?;
@@ -2128,12 +2127,7 @@ impl NativeSqlMemoryStore {
     pub async fn append_record_source_on_tx(
         &self,
         tx: &mut sqlx::Transaction<'_, sqlx::Any>,
-        scope: &MemoryScopeContext,
-        source_id: &str,
-        memory_uuid: &str,
-        event_uuid: &str,
-        source_role: &str,
-        confidence_delta: Option<f64>,
+        command: NativeSqlAppendRecordSourceCommand<'_>,
     ) -> Result<(), NativeSqlStoreError> {
         let result = sqlx::query(
             r#"
@@ -2168,15 +2162,15 @@ impl NativeSqlMemoryStore {
             "#,
         )
         .bind(self.next_row_id()?)
-        .bind(source_id)
-        .bind(scope.tenant_id)
-        .bind(source_role)
-        .bind(confidence_delta)
+        .bind(command.source_id)
+        .bind(command.scope.tenant_id)
+        .bind(command.source_role)
+        .bind(command.confidence_delta)
         .bind(now_text())
-        .bind(event_uuid)
-        .bind(scope.tenant_id)
-        .bind(scope.space_id)
-        .bind(memory_uuid)
+        .bind(command.event_uuid)
+        .bind(command.scope.tenant_id)
+        .bind(command.scope.space_id)
+        .bind(command.memory_uuid)
         .execute(&mut **tx)
         .await?;
 
@@ -2400,12 +2394,14 @@ impl NativeSqlMemoryStore {
             for (source_id, event_id, confidence) in command.evidence_links {
                 self.append_record_source_on_tx(
                     &mut tx,
-                    command.scope,
-                    source_id,
-                    command.memory_uuid,
-                    event_id,
-                    "evidence",
-                    *confidence,
+                    NativeSqlAppendRecordSourceCommand {
+                        scope: command.scope,
+                        source_id,
+                        memory_uuid: command.memory_uuid,
+                        event_uuid: event_id,
+                        source_role: "evidence",
+                        confidence_delta: *confidence,
+                    },
                 )
                 .await?;
             }

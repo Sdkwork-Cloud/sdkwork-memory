@@ -5,11 +5,11 @@ use axum::{
     routing::get,
     Router,
 };
+use sdkwork_api_memory_assembly::assemble_api_router;
 use sdkwork_intelligence_memory_repository_sqlx::bootstrap_memory_runtime_from_env;
 use sdkwork_intelligence_memory_service::{
     platform, render_memory_domain_prometheus, validate_outbox_runtime_config, OpenMemoryService,
 };
-use sdkwork_api_memory_assembly::assemble_api_router;
 use sdkwork_routes_memory_support::{
     memory_http_metrics, memory_metric_environment_label, refresh_memory_http_metric_dimensions,
 };
@@ -85,12 +85,14 @@ pub async fn build_router() -> Result<MemoryApplication, String> {
     {
         product = product.with_drive_export_uploader(uploader);
     }
+    product
+        .ready_check()
+        .await
+        .map_err(|_| "memory database schema preflight failed".to_owned())?;
     let product = Arc::new(product);
     let worker_shutdown_tx = OpenMemoryService::spawn_background_workers(&product);
 
-    let business_router = assemble_api_router(product.clone())
-        .await
-        .router;
+    let business_router = assemble_api_router(product.clone()).await.router;
 
     let readiness = Arc::new(MemoryReadinessCheck::new(product.clone()));
 
@@ -127,8 +129,14 @@ pub async fn build_router() -> Result<MemoryApplication, String> {
 }
 
 pub async fn run_database_migrate_only() -> Result<(), String> {
+    let previous_auto_migrate = std::env::var_os("SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE");
     std::env::set_var("SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE", "true");
-    sdkwork_memory_database_host::bootstrap_memory_database_from_env().await?;
+    let result = sdkwork_memory_database_host::bootstrap_memory_database_from_env().await;
+    match previous_auto_migrate {
+        Some(value) => std::env::set_var("SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE", value),
+        None => std::env::remove_var("SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE"),
+    }
+    result?;
     info!("memory database migration completed");
     Ok(())
 }

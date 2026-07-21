@@ -1,4 +1,4 @@
-# ADR-004: Commercial Memory Management Architecture
+# ADR-20260627: Commercial Memory Management Architecture
 
 - Status: Accepted
 - Date: 2026-06-27

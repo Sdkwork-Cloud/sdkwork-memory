@@ -323,6 +323,11 @@ Canonical SDKWORK specs path from this root:
 
 Do not copy root standard text into this repository. If these relative paths do not resolve, stop and report the broken workspace layout.
 
+## Documentation Canon
+
+- [Memory product PRD](docs/product/prd/PRD.md)
+- [Memory technical architecture](docs/architecture/tech/TECH_ARCHITECTURE.md)
+
 ## Application Identity
 
 Read \`sdkwork.app.config.json\` only when the task touches Memory application behavior, runtime config, SDK wiring, release metadata, app-owned capabilities, packaging, or deployment. For unrelated documentation or tooling work, do not expand into the full app manifest unless evidence requires it.

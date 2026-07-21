@@ -23,7 +23,8 @@ pub use commercial_store::*;
 pub use consolidation::*;
 pub use graph_store::*;
 pub use learning_jobs::{
-    InsertLearningJobCommand, NativeSqlClaimedEvalRun, NativeSqlLearningJobRow,
+    FinishLearningJobCommand, InsertLearningJobCommand, NativeSqlClaimedEvalRun,
+    NativeSqlLearningJobRow, UpdateEvalRunStateCommand,
 };
 pub use manifest::{
     build_native_sql_audit_store, build_native_sql_candidate_store, build_native_sql_event_store,

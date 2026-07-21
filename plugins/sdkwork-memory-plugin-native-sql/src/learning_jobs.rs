@@ -49,6 +49,26 @@ pub struct InsertLearningJobCommand<'a> {
     pub input_json: Option<&'a str>,
 }
 
+pub struct FinishLearningJobCommand<'a> {
+    pub tenant_id: i64,
+    pub job_uuid: &'a str,
+    pub lease_owner: &'a str,
+    pub lease_token: &'a str,
+    pub state: &'a str,
+    pub result_json: Option<&'a str>,
+    pub error_json: Option<&'a str>,
+}
+
+pub struct UpdateEvalRunStateCommand<'a> {
+    pub tenant_id: i64,
+    pub eval_run_uuid: &'a str,
+    pub lease_owner: &'a str,
+    pub lease_token: &'a str,
+    pub state: &'a str,
+    pub metrics_json: Option<&'a str>,
+    pub result_json: Option<&'a str>,
+}
+
 impl NativeSqlMemoryStore {
     pub async fn insert_learning_job(
         &self,
@@ -322,13 +342,7 @@ impl NativeSqlMemoryStore {
 
     pub async fn finish_learning_job(
         &self,
-        tenant_id: i64,
-        job_uuid: &str,
-        lease_owner: &str,
-        lease_token: &str,
-        state: &str,
-        result_json: Option<&str>,
-        error_json: Option<&str>,
+        command: FinishLearningJobCommand<'_>,
     ) -> Result<Option<NativeSqlLearningJobRow>, NativeSqlStoreError> {
         let now = now_text();
         let updated = sqlx::query(
@@ -347,22 +361,22 @@ impl NativeSqlMemoryStore {
               AND lease_owner = ? AND lease_token = ? AND lease_expires_at > ?
             "#,
         )
-        .bind(state)
-        .bind(result_json)
-        .bind(error_json)
+        .bind(command.state)
+        .bind(command.result_json)
+        .bind(command.error_json)
         .bind(&now)
         .bind(&now)
-        .bind(tenant_id)
-        .bind(job_uuid)
-        .bind(lease_owner)
-        .bind(lease_token)
+        .bind(command.tenant_id)
+        .bind(command.job_uuid)
+        .bind(command.lease_owner)
+        .bind(command.lease_token)
         .bind(&now)
         .execute(self.pool())
         .await?;
         if updated.rows_affected() == 0 {
             return Ok(None);
         }
-        self.retrieve_learning_job_for_tenant(tenant_id, job_uuid)
+        self.retrieve_learning_job_for_tenant(command.tenant_id, command.job_uuid)
             .await
     }
 
@@ -423,13 +437,7 @@ impl NativeSqlMemoryStore {
 
     pub async fn update_eval_run_state(
         &self,
-        tenant_id: i64,
-        eval_run_uuid: &str,
-        lease_owner: &str,
-        lease_token: &str,
-        state: &str,
-        metrics_json: Option<&str>,
-        result_json: Option<&str>,
+        command: UpdateEvalRunStateCommand<'_>,
     ) -> Result<bool, NativeSqlStoreError> {
         let now = now_text();
         let updated = sqlx::query(
@@ -447,15 +455,15 @@ impl NativeSqlMemoryStore {
               AND lease_owner = ? AND lease_token = ? AND lease_expires_at > ?
             "#,
         )
-        .bind(state)
-        .bind(metrics_json)
-        .bind(result_json)
+        .bind(command.state)
+        .bind(command.metrics_json)
+        .bind(command.result_json)
         .bind(&now)
         .bind(&now)
-        .bind(tenant_id)
-        .bind(eval_run_uuid)
-        .bind(lease_owner)
-        .bind(lease_token)
+        .bind(command.tenant_id)
+        .bind(command.eval_run_uuid)
+        .bind(command.lease_owner)
+        .bind(command.lease_token)
         .bind(&now)
         .execute(self.pool())
         .await?;

@@ -64,7 +64,7 @@
   },
   "verification": {
     "commands": [
-      "cargo test -p sdkwork-api-memory-standalone-gateway"
+      "cargo test --locked -p sdkwork-api-memory-standalone-gateway --features otel"
     ]
   }
 }

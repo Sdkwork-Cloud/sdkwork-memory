@@ -267,6 +267,10 @@ impl OpenMemoryService {
 
     pub async fn ready_check(&self) -> MemoryServiceResult<()> {
         self.store.ping().await.map_err(Self::map_store_error)?;
+        self.store
+            .verify_canonical_schema()
+            .await
+            .map_err(Self::map_store_error)?;
         tracing::debug!(
             profile_id = %self.core_runtime.profile().profile_id,
             primary_plugin_id = %self.core_runtime.profile().primary_plugin_id,

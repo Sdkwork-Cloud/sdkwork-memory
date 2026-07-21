@@ -40,8 +40,8 @@ mod query_wire_tests {
 
     #[test]
     fn query_contracts_accept_only_canonical_snake_case_names() {
-        let spaces: ListSpacesQuery = serde_json::from_value(json!({ "page_size": 20 }))
-            .expect("canonical page_size query");
+        let spaces: ListSpacesQuery =
+            serde_json::from_value(json!({ "page_size": 20 })).expect("canonical page_size query");
         assert_eq!(spaces.page_size, Some(20));
 
         let memories: ListMemoriesQuery = serde_json::from_value(json!({

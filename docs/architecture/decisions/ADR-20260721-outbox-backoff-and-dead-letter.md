@@ -1,4 +1,4 @@
-# ADR-002: Fenced Outbox Delivery, Backoff, and Dead Letter State
+# ADR-20260721: Fenced Outbox Delivery, Backoff, and Dead Letter State
 
 - Status: Accepted
 - Date: 2026-07-21

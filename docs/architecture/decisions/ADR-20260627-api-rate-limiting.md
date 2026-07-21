@@ -1,4 +1,4 @@
-# ADR-003: API Rate Limiting and Body Size Limits
+# ADR-20260627: API Rate Limiting and Body Size Limits
 
 - Status: Accepted
 - Date: 2026-06-27

@@ -101,6 +101,16 @@ pub struct InsertMemoryEvalRunCommand<'a> {
     pub config_json: Option<&'a str>,
 }
 
+pub struct ApplyImplementationProfileSwitchCommand<'a> {
+    pub preference_id: i64,
+    pub tenant_id: i64,
+    pub source_id: &'a str,
+    pub target_id: &'a str,
+    pub demote_source_primary: bool,
+    pub target_implementation_kind: &'a str,
+    pub target_implementation_profile_id: u64,
+}
+
 impl NativeSqlMemoryStore {
     pub async fn ensure_default_keyword_index_for_tenant(
         &self,
@@ -706,20 +716,14 @@ impl NativeSqlMemoryStore {
 
     pub async fn apply_implementation_profile_switch(
         &self,
-        preference_id: i64,
-        tenant_id: i64,
-        source_id: &str,
-        target_id: &str,
-        demote_source_primary: bool,
-        target_implementation_kind: &str,
-        target_implementation_profile_id: u64,
+        command: ApplyImplementationProfileSwitchCommand<'_>,
     ) -> Result<(), NativeSqlStoreError> {
         use crate::store::now_text;
         const ACTIVE_IMPLEMENTATION_PROFILE_KEY: &str = "implementation_profile.active";
         let mut tx = self.begin_tx().await?;
         let now = now_text();
 
-        if demote_source_primary {
+        if command.demote_source_primary {
             sqlx::query(
                 r#"
                 UPDATE ai_implementation_profile
@@ -731,8 +735,8 @@ impl NativeSqlMemoryStore {
                 "#,
             )
             .bind(&now)
-            .bind(tenant_id)
-            .bind(source_id)
+            .bind(command.tenant_id)
+            .bind(command.source_id)
             .execute(&mut *tx)
             .await?;
         }
@@ -748,14 +752,14 @@ impl NativeSqlMemoryStore {
             "#,
         )
         .bind(&now)
-        .bind(tenant_id)
-        .bind(target_id)
+        .bind(command.tenant_id)
+        .bind(command.target_id)
         .execute(&mut *tx)
         .await?;
 
         let active_profile_json = serde_json::json!({
-            "implementationProfileId": target_implementation_profile_id,
-            "implementationKind": target_implementation_kind,
+            "implementationProfileId": command.target_implementation_profile_id,
+            "implementationKind": command.target_implementation_kind,
             "migratedAt": now,
         });
         let preference_json = serde_json::to_string(&active_profile_json).map_err(|error| {
@@ -776,8 +780,8 @@ impl NativeSqlMemoryStore {
               version = ai_tenant_preference.version + 1
             "#,
         )
-        .bind(preference_id)
-        .bind(tenant_id)
+        .bind(command.preference_id)
+        .bind(command.tenant_id)
         .bind(bound_user_id)
         .bind(ACTIVE_IMPLEMENTATION_PROFILE_KEY)
         .bind(&preference_json)

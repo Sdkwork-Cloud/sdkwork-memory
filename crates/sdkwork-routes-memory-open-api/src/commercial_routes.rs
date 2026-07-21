@@ -1,11 +1,6 @@
 //! Commercial entity and edge routes for the Open API.
 
-use axum::{
-    extract::Path,
-    response::Response,
-    routing::get,
-    Extension, Json, Router,
-};
+use axum::{extract::Path, response::Response, routing::get, Extension, Json, Router};
 use sdkwork_memory_contract::{
     CreateEdgeCommand, CreateEntityCommand, ListEdgesQuery, ListEntitiesQuery,
     MemoryOpenApiRequestContext, UpdateEdgeCommand, UpdateEntityCommand,

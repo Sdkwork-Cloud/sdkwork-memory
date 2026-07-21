@@ -1,7 +1,9 @@
 //! Implementation profile migration — switches tenant primary profile and rebuilds indexes.
 
 use sdkwork_memory_contract::{MemoryMigrationJobRequest, MemoryServiceError, MemoryServiceResult};
-use sdkwork_memory_plugin_native_sql::NativeSqlMemoryStore;
+use sdkwork_memory_plugin_native_sql::{
+    ApplyImplementationProfileSwitchCommand, NativeSqlMemoryStore,
+};
 
 use crate::store_error::map_native_sql_store_error;
 
@@ -101,15 +103,15 @@ pub async fn execute_implementation_profile_migration(
     }
 
     store
-        .apply_implementation_profile_switch(
+        .apply_implementation_profile_switch(ApplyImplementationProfileSwitchCommand {
             preference_id,
             tenant_id,
-            &source_id,
-            &target_id,
-            source.role == "primary",
-            &target.implementation_kind,
-            request.target_implementation_profile_id,
-        )
+            source_id: &source_id,
+            target_id: &target_id,
+            demote_source_primary: source.role == "primary",
+            target_implementation_kind: &target.implementation_kind,
+            target_implementation_profile_id: request.target_implementation_profile_id,
+        })
         .await
         .map_err(map_native_sql_store_error)?;
 

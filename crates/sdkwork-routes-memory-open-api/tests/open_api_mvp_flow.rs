@@ -103,7 +103,10 @@ async fn open_api_mvp_flow_memory_retrieval_and_context_pack_without_embeddings(
     assert!(pack_item["pack"]["embeddingOptional"]
         .as_bool()
         .unwrap_or(false));
-    assert!(pack_item["pack"]["fragments"].as_array().unwrap().len() >= 1);
+    assert!(!pack_item["pack"]["fragments"]
+        .as_array()
+        .unwrap()
+        .is_empty());
 }
 
 #[tokio::test]

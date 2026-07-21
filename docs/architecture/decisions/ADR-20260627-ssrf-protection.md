@@ -1,4 +1,4 @@
-# ADR-005: SSRF Protection for Provider Health Probes
+# ADR-20260627: SSRF Protection for Provider Health Probes
 
 - Status: Accepted
 - Date: 2026-06-27

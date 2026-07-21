@@ -12,8 +12,7 @@ fn metric_environment() -> String {
 }
 
 fn metric_deployment_profile() -> String {
-    std::env::var("SDKWORK_MEMORY_DEPLOYMENT_PROFILE")
-        .unwrap_or_else(|_| "standalone".to_owned())
+    std::env::var("SDKWORK_MEMORY_DEPLOYMENT_PROFILE").unwrap_or_else(|_| "standalone".to_owned())
 }
 
 fn metric_runtime_target() -> String {

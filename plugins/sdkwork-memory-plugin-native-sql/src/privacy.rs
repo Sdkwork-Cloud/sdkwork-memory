@@ -47,6 +47,43 @@ impl NativeSqlMemoryStore {
         Ok(())
     }
 
+    pub async fn verify_canonical_schema(&self) -> Result<(), NativeSqlStoreError> {
+        sqlx::query(
+            r#"
+            SELECT
+              learning.lease_owner,
+              learning.lease_token,
+              learning.lease_expires_at,
+              evaluation.lease_owner,
+              evaluation.lease_token,
+              evaluation.lease_expires_at,
+              outbox.lease_owner,
+              outbox.lease_token,
+              outbox.lease_expires_at,
+              outbox.next_attempt_at,
+              readiness.migration_coverage_json
+            FROM ai_learning_job AS learning
+            CROSS JOIN ai_eval_run AS evaluation
+            CROSS JOIN ai_outbox_event AS outbox
+            CROSS JOIN ai_commercial_readiness_snapshot AS readiness
+            WHERE 1 = 0
+            "#,
+        )
+        .execute(self.pool())
+        .await?;
+
+        let search_schema_query = match self.dialect() {
+            crate::MemorySqlDialect::Postgres => {
+                "SELECT search_document FROM ai_record WHERE 1 = 0"
+            }
+            crate::MemorySqlDialect::Sqlite => "SELECT predicate FROM ai_record_fts WHERE 1 = 0",
+        };
+        sqlx::query(search_schema_query)
+            .execute(self.pool())
+            .await?;
+        Ok(())
+    }
+
     pub async fn forget_all_records_in_space(
         &self,
         scope: &MemoryScopeContext,

@@ -1,3 +1,5 @@
+#![allow(clippy::await_holding_lock)] // Process-wide test environment must remain serialized.
+
 use axum::body::{to_bytes, Body};
 use axum::http::{Request, StatusCode};
 use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
@@ -43,13 +45,67 @@ fn authed_json(method: &str, uri: &str, body: serde_json::Value) -> Request<Body
 
 #[tokio::test]
 async fn backend_commercial_entity_edge_policy_and_readiness_flow() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let pool = store.pool().clone();
     let app = wrap_router_with_iam_database_web_framework(
         IamWebRequestContextResolver::new(None),
         build_router_with_backend_api(OpenMemoryService::new(store)),
     );
+
+    let subject = app
+        .clone()
+        .oneshot(authed_json(
+            "POST",
+            "/backend/v3/api/memory/subjects",
+            json!({
+                "subjectType": "user",
+                "subjectRef": "user:commercial-9001",
+                "displayName": "Commercial operator",
+                "defaultSpaceId": "1"
+            }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(subject.status(), StatusCode::CREATED);
+    let subject_body = to_bytes(subject.into_body(), usize::MAX).await.unwrap();
+    let subject_json: serde_json::Value = serde_json::from_slice(&subject_body).unwrap();
+    let subject_id = api_envelope::item(&subject_json)["subjectId"]
+        .as_str()
+        .expect("subjectId");
+
+    let binding = app
+        .clone()
+        .oneshot(authed_json(
+            "POST",
+            "/backend/v3/api/memory/bindings",
+            json!({
+                "bindingKind": "access",
+                "bindingRole": "viewer",
+                "sourceSubjectId": subject_id,
+                "targetSpaceId": "1"
+            }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(binding.status(), StatusCode::CREATED);
+
+    let capability_binding = app
+        .clone()
+        .oneshot(authed_json(
+            "POST",
+            "/backend/v3/api/memory/capability_bindings",
+            json!({
+                "capabilityCode": "memory.read",
+                "targetType": "space",
+                "targetId": "1",
+                "mode": "allow",
+                "priority": 10
+            }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(capability_binding.status(), StatusCode::CREATED);
 
     let entity_a = app
         .clone()
@@ -208,4 +264,21 @@ async fn backend_commercial_entity_edge_policy_and_readiness_flow() {
     .expect("count graph audit events");
     assert_eq!(graph_outbox_count, 3);
     assert_eq!(graph_audit_count, 3);
+
+    let system_commercial_outbox_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_outbox_event WHERE tenant_id = ? AND event_type IN ('memory.subject.created', 'memory.binding.created', 'memory.capability_binding.created', 'memory.policy.created', 'memory.policy_assignment.created')",
+    )
+    .bind(100_001_i64)
+    .fetch_one(&pool)
+    .await
+    .expect("count system commercial outbox events");
+    let system_commercial_audit_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_audit_log WHERE tenant_id = ? AND actor_type = 'system' AND action IN ('memory.subject.created', 'memory.binding.created', 'memory.capability_binding.created', 'memory.policy.created', 'memory.policy_assignment.created')",
+    )
+    .bind(100_001_i64)
+    .fetch_one(&pool)
+    .await
+    .expect("count system commercial audit events");
+    assert_eq!(system_commercial_outbox_count, 5);
+    assert_eq!(system_commercial_audit_count, 5);
 }

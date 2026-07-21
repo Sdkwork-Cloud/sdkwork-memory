@@ -23,10 +23,9 @@ pub fn resolved_trace_id() -> String {
 
 fn attach_trace_header(response: &mut Response, trace_id: &str) {
     if let Ok(value) = HeaderValue::from_str(trace_id) {
-        response.headers_mut().insert(
-            HeaderName::from_static("x-sdkwork-trace-id"),
-            value,
-        );
+        response
+            .headers_mut()
+            .insert(HeaderName::from_static("x-sdkwork-trace-id"), value);
     }
 }
 
@@ -93,17 +92,11 @@ where
 }
 
 pub fn success_resource_response<T: Serialize>(value: T) -> Response {
-    success_response(
-        StatusCode::OK,
-        SdkWorkResourceData { item: value },
-    )
+    success_response(StatusCode::OK, SdkWorkResourceData { item: value })
 }
 
 pub fn success_created_resource_response<T: Serialize>(value: T) -> Response {
-    success_response(
-        StatusCode::CREATED,
-        SdkWorkResourceData { item: value },
-    )
+    success_response(StatusCode::CREATED, SdkWorkResourceData { item: value })
 }
 
 pub fn success_page_response<T: Serialize>(value: T) -> Response {

@@ -1,4 +1,4 @@
-# ADR-001: Background Worker Graceful Shutdown
+# ADR-20260627: Background Worker Graceful Shutdown
 
 - Status: Accepted
 - Date: 2026-06-27

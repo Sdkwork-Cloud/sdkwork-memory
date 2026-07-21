@@ -1,4 +1,4 @@
-# ADR-006: Restricted Sensitivity Access Control
+# ADR-20260627: Restricted Sensitivity Access Control
 
 - Status: Accepted
 - Date: 2026-06-27

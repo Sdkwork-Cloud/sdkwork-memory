@@ -3,33 +3,34 @@
 FROM rust:1-bookworm AS builder
 WORKDIR /workspace/sdkwork-memory
 
-# Copy manifest files first to leverage Docker layer caching for dependency
-# compilation.  Only source changes trigger a full rebuild.
+# The packaging script materializes this exact path dependency closure in a
+# bounded temporary context. Keep COPY declarations equally narrow so manual
+# builds cannot send unrelated workspace data to BuildKit.
 COPY sdkwork-memory/Cargo.toml sdkwork-memory/Cargo.lock ./
 COPY sdkwork-memory/crates/ ./crates/
 COPY sdkwork-memory/plugins/ ./plugins/
 COPY sdkwork-memory/database/ ./database/
-COPY sdkwork-memory/apis/ ./apis/
-COPY sdkwork-memory/sdks/ ./sdks/
-COPY sdkwork-memory/etc/ ./etc/
-COPY sdkwork-memory/specs/ ./specs/
-COPY sdkwork-memory/tools/ ./tools/
-COPY sdkwork-memory/docs/ ./docs/
-COPY sdkwork-memory/scripts/ ./scripts/
-COPY sdkwork-memory/deployments/ ./deployments/
-COPY sdkwork-memory/tests/ ./tests/
-COPY sdkwork-memory/.env.example sdkwork-memory/.env.postgres.example ./
 
 # Locked local path dependency closure from `cargo metadata --locked`.
-COPY sdkwork-database/ /workspace/sdkwork-database/
-COPY sdkwork-drive/ /workspace/sdkwork-drive/
-COPY sdkwork-iam/ /workspace/sdkwork-iam/
-COPY sdkwork-id/ /workspace/sdkwork-id/
-COPY sdkwork-utils/ /workspace/sdkwork-utils/
-COPY sdkwork-web-framework/ /workspace/sdkwork-web-framework/
+COPY sdkwork-database/Cargo.toml /workspace/sdkwork-database/Cargo.toml
+COPY sdkwork-database/crates/ /workspace/sdkwork-database/crates/
+COPY sdkwork-drive/Cargo.toml /workspace/sdkwork-drive/Cargo.toml
+COPY sdkwork-drive/crates/ /workspace/sdkwork-drive/crates/
+COPY sdkwork-drive/database/ /workspace/sdkwork-drive/database/
+COPY sdkwork-iam/Cargo.toml /workspace/sdkwork-iam/Cargo.toml
+COPY sdkwork-iam/crates/ /workspace/sdkwork-iam/crates/
+COPY sdkwork-iam/database/ /workspace/sdkwork-iam/database/
+COPY sdkwork-id/Cargo.toml /workspace/sdkwork-id/Cargo.toml
+COPY sdkwork-id/crates/ /workspace/sdkwork-id/crates/
+COPY sdkwork-utils/Cargo.toml /workspace/sdkwork-utils/Cargo.toml
+COPY sdkwork-utils/packages/sdkwork-utils-rust/ /workspace/sdkwork-utils/packages/sdkwork-utils-rust/
+COPY sdkwork-web-framework/Cargo.toml /workspace/sdkwork-web-framework/Cargo.toml
+COPY sdkwork-web-framework/crates/ /workspace/sdkwork-web-framework/crates/
+COPY sdkwork-web-framework/tests/architecture/ /workspace/sdkwork-web-framework/tests/architecture/
 
 # Build the release binary with OpenTelemetry support.
-RUN cargo build --release -p sdkwork-api-memory-standalone-gateway --features otel
+RUN cargo build --release --locked -p sdkwork-api-memory-standalone-gateway --features otel
+RUN test "$(od -An -tx1 -N4 target/release/sdkwork-api-memory-standalone-gateway | tr -d ' \n')" = "7f454c46"
 
 # Stage 2: Minimal runtime image.
 FROM debian:bookworm-slim
@@ -45,6 +46,7 @@ RUN apt-get update \
 WORKDIR /app
 COPY --from=builder /workspace/sdkwork-memory/target/release/sdkwork-api-memory-standalone-gateway /usr/local/bin/sdkwork-api-memory-standalone-gateway
 COPY --from=builder /workspace/sdkwork-memory/database /app/database
+RUN test "$(od -An -tx1 -N4 /usr/local/bin/sdkwork-api-memory-standalone-gateway | tr -d ' \n')" = "7f454c46"
 ENV SDKWORK_MEMORY_APP_ROOT=/app
 ENV SDKWORK_MEMORY_ENVIRONMENT=production
 ENV SDKWORK_MEMORY_CONFIG_PROFILE=production

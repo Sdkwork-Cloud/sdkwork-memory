@@ -25,7 +25,11 @@ pub fn memory_open_api_prefixes() -> Vec<String> {
 struct MemoryOpenApiContextInjector;
 
 impl sdkwork_web_core::DomainContextInjector for MemoryOpenApiContextInjector {
-    fn inject(&self, request: &mut axum::extract::Request, context: &sdkwork_web_core::WebRequestContext) {
+    fn inject(
+        &self,
+        request: &mut axum::extract::Request,
+        context: &sdkwork_web_core::WebRequestContext,
+    ) {
         if let Some(open_context) = memory_open_api_context_from_web_request(context) {
             request.extensions_mut().insert(open_context);
         }
@@ -117,7 +121,7 @@ where
             build_open_api_framework_layer(ProductionFailClosedResolver),
         ),
         MemoryWebAuthMode::IamDatabase(resolver) => {
-            wrap_router_with_iam_database_web_framework(resolver, router)
+            wrap_router_with_iam_database_web_framework(*resolver, router)
         }
     }
 }

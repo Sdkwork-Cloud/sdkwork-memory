@@ -107,7 +107,7 @@ where
             build_memory_backend_api_framework_layer(ProductionFailClosedResolver),
         ),
         MemoryWebAuthMode::IamDatabase(resolver) => {
-            wrap_router_with_iam_database_web_framework(resolver, router)
+            wrap_router_with_iam_database_web_framework(*resolver, router)
         }
     }
 }

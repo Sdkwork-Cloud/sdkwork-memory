@@ -1,3 +1,5 @@
+#![allow(clippy::await_holding_lock)] // Process-wide test environment must remain serialized.
+
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use sdkwork_intelligence_memory_service::OpenMemoryService;
@@ -25,12 +27,14 @@ async fn api_server_bootstrap_auth_and_healthz_contracts() {
     let previous_profile = std::env::var("SDKWORK_MEMORY_CONFIG_PROFILE").ok();
     let previous_bypass = std::env::var("SDKWORK_MEMORY_DEV_AUTH_BYPASS").ok();
     let previous_database_url = std::env::var("SDKWORK_MEMORY_DATABASE_URL").ok();
+    let previous_auto_migrate = std::env::var("SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE").ok();
     let previous_iam_database_url = std::env::var("SDKWORK_IAM_DATABASE_URL").ok();
     let previous_outbox_mode = std::env::var("SDKWORK_MEMORY_OUTBOX_DELIVERY_MODE").ok();
     let previous_outbox_url = std::env::var("SDKWORK_MEMORY_OUTBOX_DELIVERY_URL").ok();
 
     std::env::set_var("SDKWORK_MEMORY_ENVIRONMENT", "development");
     std::env::set_var("SDKWORK_MEMORY_DEV_AUTH_BYPASS", "true");
+    std::env::set_var("SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE", "true");
     std::env::set_var("SDKWORK_MEMORY_DATABASE_URL", "sqlite::memory:");
     let dev_app = sdkwork_api_memory_standalone_gateway::build_router()
         .await
@@ -139,12 +143,46 @@ async fn api_server_bootstrap_auth_and_healthz_contracts() {
     restore_optional_env("SDKWORK_MEMORY_CONFIG_PROFILE", previous_profile);
     restore_optional_env("SDKWORK_MEMORY_DEV_AUTH_BYPASS", previous_bypass);
     restore_optional_env("SDKWORK_MEMORY_DATABASE_URL", previous_database_url);
-    restore_optional_env("SDKWORK_IAM_DATABASE_URL", previous_iam_database_url);
     restore_optional_env(
-        "SDKWORK_MEMORY_OUTBOX_DELIVERY_MODE",
-        previous_outbox_mode,
+        "SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE",
+        previous_auto_migrate,
     );
+    restore_optional_env("SDKWORK_IAM_DATABASE_URL", previous_iam_database_url);
+    restore_optional_env("SDKWORK_MEMORY_OUTBOX_DELIVERY_MODE", previous_outbox_mode);
     restore_optional_env("SDKWORK_MEMORY_OUTBOX_DELIVERY_URL", previous_outbox_url);
+}
+
+#[tokio::test]
+async fn api_server_bootstrap_rejects_unmigrated_schema_before_workers_start() {
+    let _guard = env_test_lock();
+    let previous_environment = std::env::var("SDKWORK_MEMORY_ENVIRONMENT").ok();
+    let previous_profile = std::env::var("SDKWORK_MEMORY_CONFIG_PROFILE").ok();
+    let previous_bypass = std::env::var("SDKWORK_MEMORY_DEV_AUTH_BYPASS").ok();
+    let previous_database_url = std::env::var("SDKWORK_MEMORY_DATABASE_URL").ok();
+    let previous_auto_migrate = std::env::var("SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE").ok();
+
+    std::env::set_var("SDKWORK_MEMORY_ENVIRONMENT", "development");
+    std::env::set_var("SDKWORK_MEMORY_CONFIG_PROFILE", "development");
+    std::env::set_var("SDKWORK_MEMORY_DEV_AUTH_BYPASS", "true");
+    std::env::set_var("SDKWORK_MEMORY_DATABASE_URL", "sqlite::memory:");
+    std::env::set_var("SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE", "false");
+
+    let bootstrap = sdkwork_api_memory_standalone_gateway::build_router().await;
+    assert!(
+        bootstrap
+            .as_ref()
+            .is_err_and(|error| error.contains("memory database schema preflight failed")),
+        "gateway must fail before spawning workers when canonical migrations are missing"
+    );
+
+    restore_optional_env("SDKWORK_MEMORY_ENVIRONMENT", previous_environment);
+    restore_optional_env("SDKWORK_MEMORY_CONFIG_PROFILE", previous_profile);
+    restore_optional_env("SDKWORK_MEMORY_DEV_AUTH_BYPASS", previous_bypass);
+    restore_optional_env("SDKWORK_MEMORY_DATABASE_URL", previous_database_url);
+    restore_optional_env(
+        "SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE",
+        previous_auto_migrate,
+    );
 }
 
 #[tokio::test]

@@ -67,8 +67,11 @@ function requireExecutableReleaseLifecycle(config) {
 
 function requireCanonicalDockerfile(value) {
   for (const requiredText of [
-    "cargo build --release -p sdkwork-api-memory-standalone-gateway",
-    "/src/target/release/sdkwork-api-memory-standalone-gateway",
+    "cargo build --release --locked -p sdkwork-api-memory-standalone-gateway --features otel",
+    'RUN test "$(od -An -tx1 -N4 target/release/sdkwork-api-memory-standalone-gateway',
+    'RUN test "$(od -An -tx1 -N4 /usr/local/bin/sdkwork-api-memory-standalone-gateway',
+    "/workspace/sdkwork-memory/target/release/sdkwork-api-memory-standalone-gateway",
+    "USER 10001:10001",
     'CMD ["sdkwork-api-memory-standalone-gateway"]',
   ]) {
     if (!value.includes(requiredText)) fail(`Dockerfile is missing canonical runtime declaration: ${requiredText}`);

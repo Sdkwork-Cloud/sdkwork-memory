@@ -1,15 +1,16 @@
 //! JWT dual-token fixtures aligned with `sdkwork-web-framework` parsers.
 
-use sdkwork_memory_contract::runtime_env::env_test_lock;
 use sdkwork_utils_rust::sha256_hash;
 use sdkwork_web_core::{auth_token_jwt, encode_unsigned_test_jwt};
 use serde_json::json;
-use std::sync::MutexGuard;
+use tokio::sync::{Mutex, MutexGuard};
 
 pub const MEMORY_APP_ID: &str = "sdkwork-memory";
 pub const MEMORY_TEST_IDEMPOTENCY_KEY: &str = "memory-integration-idempotency-key";
 pub const DEFAULT_TENANT_ID: &str = "100001";
 pub const DEFAULT_SESSION_ID: &str = "s-1";
+
+static INTEGRATION_TEST_ENV_LOCK: Mutex<()> = Mutex::const_new(());
 
 /// Stable idempotency key scoped by HTTP method, path, and request body.
 pub fn memory_idempotency_key(method: &str, uri: &str, body: &str) -> String {
@@ -25,8 +26,8 @@ pub fn memory_content_sha256(body: &str) -> String {
 }
 
 /// Serializes env mutation and enables IAM JWT fallback for integration tests.
-pub fn lock_integration_test_env() -> MutexGuard<'static, ()> {
-    let guard = env_test_lock();
+pub async fn lock_integration_test_env() -> MutexGuard<'static, ()> {
+    let guard = INTEGRATION_TEST_ENV_LOCK.lock().await;
     std::env::set_var("SDKWORK_ENV", "dev");
     std::env::set_var("SDKWORK_IAM_ALLOW_DEV_AUTH_FALLBACK", "true");
     guard

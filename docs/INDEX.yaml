@@ -4,5 +4,10 @@ repository: sdkwork-memory
 canon:
   prd: docs/product/prd/PRD.md
   techArchitecture: docs/architecture/tech/TECH_ARCHITECTURE.md
-entries: []
+entries:
+  - id: ADR-20260721
+    path: docs/architecture/decisions/ADR-20260721-optimistic-concurrency.md
+    layer: work
+    audience: [architecture, engineering, api, data]
+    status: proposed
 domains: []

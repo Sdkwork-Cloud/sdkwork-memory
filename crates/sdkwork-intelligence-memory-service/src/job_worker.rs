@@ -10,8 +10,9 @@ use sdkwork_memory_contract::{
     MemoryServiceError,
 };
 use sdkwork_memory_plugin_native_sql::{
-    ConsolidateDuplicateRecordsCommand, InsertLearningJobCommand, NativeSqlClaimedEvalRun,
-    NativeSqlEvalRunRow, NativeSqlLearningJobRow, NativeSqlMemoryStore,
+    ConsolidateDuplicateRecordsCommand, FinishLearningJobCommand, InsertLearningJobCommand,
+    NativeSqlClaimedEvalRun, NativeSqlEvalRunRow, NativeSqlLearningJobRow, NativeSqlMemoryStore,
+    UpdateEvalRunStateCommand,
 };
 use sdkwork_memory_spi::MemoryScopeContext;
 use sdkwork_utils_rust::is_blank;
@@ -241,15 +242,15 @@ async fn process_claimed_learning_job(
     };
     match service
         .store
-        .finish_learning_job(
-            job.tenant_id,
-            &job.job_uuid,
+        .finish_learning_job(FinishLearningJobCommand {
+            tenant_id: job.tenant_id,
+            job_uuid: &job.job_uuid,
             lease_owner,
             lease_token,
             state,
-            result_json.as_deref(),
-            error_json.as_deref(),
-        )
+            result_json: result_json.as_deref(),
+            error_json: error_json.as_deref(),
+        })
         .await
     {
         Ok(Some(_)) => {}
@@ -536,15 +537,15 @@ async fn process_claimed_eval_run(
     };
     match service
         .store
-        .update_eval_run_state(
-            run.tenant_id,
-            &run.eval_run_uuid,
-            &run.lease_owner,
-            &run.lease_token,
+        .update_eval_run_state(UpdateEvalRunStateCommand {
+            tenant_id: run.tenant_id,
+            eval_run_uuid: &run.eval_run_uuid,
+            lease_owner: &run.lease_owner,
+            lease_token: &run.lease_token,
             state,
-            metrics.as_deref(),
-            Some(&result),
-        )
+            metrics_json: metrics.as_deref(),
+            result_json: Some(&result),
+        })
         .await
     {
         Ok(true) => {}
@@ -1019,12 +1020,8 @@ async fn probe_provider_bindings(service: &OpenMemoryService) -> Result<(), Stri
                     .await
                     .map_err(|error| error.to_string())?;
                 let has_more_bindings = rows.len() > page_size_usize;
-                probe_provider_binding_batch(
-                    service,
-                    tenant_id,
-                    rows.iter().take(page_size_usize),
-                )
-                .await;
+                probe_provider_binding_batch(service, tenant_id, rows.iter().take(page_size_usize))
+                    .await;
                 if !has_more_bindings {
                     break;
                 }

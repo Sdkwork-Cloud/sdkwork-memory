@@ -6,9 +6,24 @@ Owner: SDKWork Memory maintainers
 
 Updated: 2026-07-21
 
+Specs: `ARCHITECTURE_DECISION_SPEC.md`, `API_SPEC.md`, `SDK_SPEC.md`, `DATABASE_SPEC.md`, `SECURITY_SPEC.md`, `DEPLOYMENT_SPEC.md`
+
 ## Authority
 
 This document describes the implemented architecture. Machine-readable authority remains in `specs/component.spec.json`, authority OpenAPI files, route manifests, database contracts, `sdkwork.app.config.json`, and `sdkwork.workflow.json`. Dated `TECH-*` documents are archived design records unless this file links one as an active ADR.
+
+## Historical Design Shards
+
+These records preserve earlier designs and implementation evidence. They are reference material, not current capability or release authority:
+
+- [AI Memory architecture design](TECH-2026-06-10-ai-memory-architecture-design.md)
+- [Commercial memory management design](TECH-2026-06-10-commercial-memory-management-design.md)
+- [Memory implementation family baseline](TECH-2026-06-10-memory-implementation-family-baseline.md)
+- [Memory Open API and no-embedding MVP](TECH-2026-06-10-memory-open-api-and-no-embedding-mvp.md)
+- [Memory SPI plugin architecture](TECH-2026-06-10-memory-spi-plugin-architecture-design.md)
+- [Memory SPI plugin runtime plan](TECH-2026-06-10-memory-spi-plugin-runtime-implementation-plan.md)
+- [Commercial retrieval hardening](TECH-2026-07-20-memory-commercial-retrieval-hardening.md)
+- [Topology standard redirect](TECH-topology-standard.md)
 
 ## Runtime Shape
 

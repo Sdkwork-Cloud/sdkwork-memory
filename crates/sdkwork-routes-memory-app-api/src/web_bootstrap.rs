@@ -5,8 +5,8 @@ use sdkwork_iam_web_adapter::IamWebRequestContextResolver;
 use sdkwork_memory_contract::MemoryAppRequestContext;
 use sdkwork_routes_memory_support::{
     harden_memory_web_framework_layer, memory_http_metrics, memory_web_auth_mode_from_env,
-    parse_principal_optional_u64, parse_principal_u64, with_problem_correlation,
-    MemoryWebAuthMode, ProductionFailClosedResolver,
+    parse_principal_optional_u64, parse_principal_u64, with_problem_correlation, MemoryWebAuthMode,
+    ProductionFailClosedResolver,
 };
 use sdkwork_web_axum::{with_web_request_context, WebFrameworkLayer};
 use sdkwork_web_core::{
@@ -112,7 +112,7 @@ where
             build_memory_app_api_framework_layer(ProductionFailClosedResolver),
         ),
         MemoryWebAuthMode::IamDatabase(resolver) => {
-            wrap_router_with_iam_database_web_framework(resolver, router)
+            wrap_router_with_iam_database_web_framework(*resolver, router)
         }
     }
 }

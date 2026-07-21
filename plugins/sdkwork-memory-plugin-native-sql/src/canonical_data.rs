@@ -601,29 +601,8 @@ pub(crate) async fn append_journal_on_tx(
     scope: &sdkwork_memory_spi::MemoryScopeContext,
     journal: &MemoryMutationJournal,
 ) -> Result<(), NativeSqlStoreError> {
-    store
-        .append_outbox_on_tx(
-            tx,
-            scope,
-            &journal.outbox_id,
-            &journal.aggregate_type,
-            &journal.aggregate_id,
-            &journal.event_type,
-            &journal.event_version,
-            &journal.payload_json,
-        )
-        .await?;
-    store
-        .append_audit_on_tx(
-            tx,
-            scope,
-            &journal.audit_id,
-            &journal.audit_action,
-            &journal.audit_resource_type,
-            &journal.audit_resource_id,
-            &journal.audit_result,
-        )
-        .await
+    store.append_outbox_on_tx(tx, scope, journal).await?;
+    store.append_audit_on_tx(tx, scope, journal).await
 }
 
 pub(crate) fn validate_journal(

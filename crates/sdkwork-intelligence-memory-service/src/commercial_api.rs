@@ -62,17 +62,21 @@ impl super::open_api::OpenMemoryService {
         let mutation_scope = system_commercial_mutation_scope(tenant_id);
         let journal = commercial_mutation_journal("subject", &uuid, "created")?;
         self.store
-            .insert_subject_with_journal(InsertSubjectCommand {
-                id: id as i64,
-                uuid: &uuid,
-                tenant_id,
-                organization_id: cmd.organization_id.map(|v| v as i64),
-                subject_type,
-                subject_ref: &cmd.subject_ref,
-                display_name: &cmd.display_name,
-                default_space_id: cmd.default_space_id.map(|v| v as i64),
-                metadata_json: metadata_json.as_deref(),
-            }, &mutation_scope, &journal)
+            .insert_subject_with_journal(
+                InsertSubjectCommand {
+                    id: id as i64,
+                    uuid: &uuid,
+                    tenant_id,
+                    organization_id: cmd.organization_id.map(|v| v as i64),
+                    subject_type,
+                    subject_ref: &cmd.subject_ref,
+                    display_name: &cmd.display_name,
+                    default_space_id: cmd.default_space_id.map(|v| v as i64),
+                    metadata_json: metadata_json.as_deref(),
+                },
+                &mutation_scope,
+                &journal,
+            )
             .await
             .map_err(Self::map_store_error)?;
 
@@ -570,17 +574,21 @@ impl super::open_api::OpenMemoryService {
         let scope = commercial_mutation_scope(&context, tenant_id, space_id);
         let journal = commercial_mutation_journal("entity", &uuid, "created")?;
         self.store
-            .insert_entity_with_journal(StoreInsertEntityCommand {
-                id: id as i64,
-                uuid: &uuid,
-                tenant_id,
-                space_id,
-                entity_type: &cmd.entity_type,
-                canonical_name: &cmd.canonical_name,
-                aliases_json: aliases_json.as_deref(),
-                attributes_json: attributes_json.as_deref(),
-                sensitivity_level: &cmd.sensitivity_level,
-            }, &scope, &journal)
+            .insert_entity_with_journal(
+                StoreInsertEntityCommand {
+                    id: id as i64,
+                    uuid: &uuid,
+                    tenant_id,
+                    space_id,
+                    entity_type: &cmd.entity_type,
+                    canonical_name: &cmd.canonical_name,
+                    aliases_json: aliases_json.as_deref(),
+                    attributes_json: attributes_json.as_deref(),
+                    sensitivity_level: &cmd.sensitivity_level,
+                },
+                &scope,
+                &journal,
+            )
             .await
             .map_err(Self::map_store_error)?;
 
@@ -782,19 +790,23 @@ impl super::open_api::OpenMemoryService {
         let scope = commercial_mutation_scope(&context, tenant_id, space_id);
         let journal = commercial_mutation_journal("edge", &uuid, "created")?;
         self.store
-            .insert_edge_with_journal(StoreInsertEdgeCommand {
-                id: id as i64,
-                uuid: &uuid,
-                tenant_id,
-                space_id,
-                source_entity_id,
-                target_entity_id,
-                relation_type: &cmd.relation_type,
-                weight: cmd.weight,
-                valid_from: cmd.valid_from.as_deref(),
-                valid_to: cmd.valid_to.as_deref(),
-                metadata_json: metadata_json.as_deref(),
-            }, &scope, &journal)
+            .insert_edge_with_journal(
+                StoreInsertEdgeCommand {
+                    id: id as i64,
+                    uuid: &uuid,
+                    tenant_id,
+                    space_id,
+                    source_entity_id,
+                    target_entity_id,
+                    relation_type: &cmd.relation_type,
+                    weight: cmd.weight,
+                    valid_from: cmd.valid_from.as_deref(),
+                    valid_to: cmd.valid_to.as_deref(),
+                    metadata_json: metadata_json.as_deref(),
+                },
+                &scope,
+                &journal,
+            )
             .await
             .map_err(Self::map_store_error)?;
 
@@ -970,15 +982,19 @@ impl super::open_api::OpenMemoryService {
         let mutation_scope = system_commercial_mutation_scope(tenant_id);
         let journal = commercial_mutation_journal("policy", &uuid, "created")?;
         self.store
-            .insert_policy_with_journal(StoreInsertPolicyCommand {
-                id: id as i64,
-                uuid: &uuid,
-                tenant_id,
-                policy_type: &cmd.policy_type,
-                scope: &cmd.scope,
-                scope_ref: cmd.scope_ref.as_deref(),
-                policy_json: &policy_json,
-            }, &mutation_scope, &journal)
+            .insert_policy_with_journal(
+                StoreInsertPolicyCommand {
+                    id: id as i64,
+                    uuid: &uuid,
+                    tenant_id,
+                    policy_type: &cmd.policy_type,
+                    scope: &cmd.scope,
+                    scope_ref: cmd.scope_ref.as_deref(),
+                    policy_json: &policy_json,
+                },
+                &mutation_scope,
+                &journal,
+            )
             .await
             .map_err(Self::map_store_error)?;
 
@@ -1085,12 +1101,7 @@ impl super::open_api::OpenMemoryService {
         let journal = commercial_mutation_journal("policy", policy_id, "deleted")?;
         let deleted = self
             .store
-            .delete_policy_with_journal(
-                tenant_id_i64,
-                policy_id,
-                &mutation_scope,
-                &journal,
-            )
+            .delete_policy_with_journal(tenant_id_i64, policy_id, &mutation_scope, &journal)
             .await
             .map_err(Self::map_store_error)?;
         if !deleted {
@@ -1119,18 +1130,22 @@ impl super::open_api::OpenMemoryService {
         let mutation_scope = system_commercial_mutation_scope(tenant_id);
         let journal = commercial_mutation_journal("policy_assignment", &uuid, "created")?;
         self.store
-            .insert_policy_assignment_with_journal(StoreInsertPolicyAssignmentCommand {
-                id: id as i64,
-                uuid: &uuid,
-                tenant_id,
-                policy_id,
-                target_type: policy_target_type_str(cmd.target_type),
-                target_id: cmd.target_id as i64,
-                priority: cmd.priority,
-                inheritance_mode: policy_inheritance_mode_str(cmd.inheritance_mode),
-                valid_from: cmd.valid_from.as_deref(),
-                valid_to: cmd.valid_to.as_deref(),
-            }, &mutation_scope, &journal)
+            .insert_policy_assignment_with_journal(
+                StoreInsertPolicyAssignmentCommand {
+                    id: id as i64,
+                    uuid: &uuid,
+                    tenant_id,
+                    policy_id,
+                    target_type: policy_target_type_str(cmd.target_type),
+                    target_id: cmd.target_id as i64,
+                    priority: cmd.priority,
+                    inheritance_mode: policy_inheritance_mode_str(cmd.inheritance_mode),
+                    valid_from: cmd.valid_from.as_deref(),
+                    valid_to: cmd.valid_to.as_deref(),
+                },
+                &mutation_scope,
+                &journal,
+            )
             .await
             .map_err(Self::map_store_error)?;
 
@@ -1199,8 +1214,7 @@ impl super::open_api::OpenMemoryService {
     ) -> MemoryServiceResult<MemoryPolicyAssignment> {
         let tenant_id_i64 = platform::tenant_id_i64(tenant_id)?;
         let mutation_scope = system_commercial_mutation_scope(tenant_id_i64);
-        let journal =
-            commercial_mutation_journal("policy_assignment", assignment_id, "updated")?;
+        let journal = commercial_mutation_journal("policy_assignment", assignment_id, "updated")?;
         let updated = self
             .store
             .update_policy_assignment_with_journal(
@@ -1234,8 +1248,7 @@ impl super::open_api::OpenMemoryService {
     ) -> MemoryServiceResult<()> {
         let tenant_id_i64 = platform::tenant_id_i64(tenant_id)?;
         let mutation_scope = system_commercial_mutation_scope(tenant_id_i64);
-        let journal =
-            commercial_mutation_journal("policy_assignment", assignment_id, "deleted")?;
+        let journal = commercial_mutation_journal("policy_assignment", assignment_id, "deleted")?;
         let deleted = self
             .store
             .delete_policy_assignment_with_journal(
@@ -1359,8 +1372,8 @@ impl super::open_api::OpenMemoryService {
         let redis_configured = std::env::var("SDKWORK_MEMORY_WEB_REDIS_URL")
             .or_else(|_| std::env::var("SDKWORK_REDIS_URL"))
             .is_ok_and(|value| !value.trim().is_empty());
-        let postgres_runtime = self.store.dialect()
-            == sdkwork_memory_plugin_native_sql::MemorySqlDialect::Postgres;
+        let postgres_runtime =
+            self.store.dialect() == sdkwork_memory_plugin_native_sql::MemorySqlDialect::Postgres;
 
         let mut blocking_findings = Vec::new();
         let mut warning_findings = Vec::new();

@@ -49,7 +49,7 @@ fn authed_get(user_id: &str, uri: &str) -> Request<Body> {
 
 #[tokio::test]
 async fn open_api_rejects_cross_space_memory_access() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let service = Arc::new(OpenMemoryService::new(store));
     let open_app = build_router_with_shared_open_api(service);
@@ -112,7 +112,7 @@ async fn open_api_rejects_cross_space_memory_access() {
 
 #[tokio::test]
 async fn app_api_requires_space_id_for_memory_list() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamWebRequestContextResolver::new(None),
@@ -131,7 +131,7 @@ async fn app_api_requires_space_id_for_memory_list() {
 
 #[tokio::test]
 async fn learning_settings_persist_across_retrieve() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamWebRequestContextResolver::new(None),
@@ -167,7 +167,7 @@ async fn learning_settings_persist_across_retrieve() {
 
 #[tokio::test]
 async fn app_api_requires_space_id_for_candidate_list() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamWebRequestContextResolver::new(None),
@@ -183,7 +183,7 @@ async fn app_api_requires_space_id_for_candidate_list() {
 
 #[tokio::test]
 async fn open_api_rejects_cross_space_candidate_retrieve() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     store
         .create_space_record(
@@ -239,7 +239,7 @@ async fn open_api_rejects_cross_space_candidate_retrieve() {
 
 #[tokio::test]
 async fn app_api_lists_only_actor_owned_spaces() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamWebRequestContextResolver::new(None),
@@ -279,7 +279,7 @@ async fn app_api_lists_only_actor_owned_spaces() {
 
 #[tokio::test]
 async fn open_api_rejects_cross_space_memory_write() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     store
         .create_space_record(
@@ -329,7 +329,7 @@ async fn open_api_rejects_cross_space_memory_write() {
 
 #[tokio::test]
 async fn app_api_rejects_space_owner_impersonation() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamWebRequestContextResolver::new(None),
@@ -355,7 +355,7 @@ async fn app_api_rejects_space_owner_impersonation() {
 
 #[tokio::test]
 async fn open_api_rejects_write_to_missing_space() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let open_app = build_router_with_shared_open_api(Arc::new(OpenMemoryService::new(store)));
 
@@ -390,7 +390,7 @@ async fn open_api_rejects_write_to_missing_space() {
 
 #[tokio::test]
 async fn open_api_rejects_memory_create_when_space_record_quota_exceeded() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let previous_limit = std::env::var("SDKWORK_MEMORY_MAX_RECORDS_PER_SPACE").ok();
     std::env::set_var("SDKWORK_MEMORY_MAX_RECORDS_PER_SPACE", "1");
 
@@ -462,7 +462,7 @@ async fn open_api_rejects_memory_create_when_space_record_quota_exceeded() {
 
 #[tokio::test]
 async fn app_api_rejects_space_create_when_user_space_quota_exceeded() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let previous_limit = std::env::var("SDKWORK_MEMORY_MAX_SPACES_PER_USER").ok();
     std::env::set_var("SDKWORK_MEMORY_MAX_SPACES_PER_USER", "1");
 

@@ -27,29 +27,27 @@ where
     }
 
     let redis_url = memory_web_redis_url().unwrap_or_else(|error| panic!("{error}"));
-    let rate_limit_store = sdkwork_web_bootstrap::shared_rate_limit_store(
-        &redis_url,
-        "sdkwork:memory",
-    )
-    .unwrap_or_else(|error| panic!("invalid Memory Redis rate-limit configuration: {error}"));
-    let idempotency_store = sdkwork_web_bootstrap::shared_idempotency_store(
-        &redis_url,
-        "sdkwork:memory",
-    )
-    .unwrap_or_else(|error| panic!("invalid Memory Redis idempotency configuration: {error}"));
-    let concurrent_admission_store = sdkwork_web_bootstrap::shared_concurrent_admission_store(
-        &redis_url,
-        "sdkwork:memory",
-    )
-    .unwrap_or_else(|error| panic!("invalid Memory Redis admission configuration: {error}"));
+    let rate_limit_store =
+        sdkwork_web_bootstrap::shared_rate_limit_store(&redis_url, "sdkwork:memory")
+            .unwrap_or_else(|error| {
+                panic!("invalid Memory Redis rate-limit configuration: {error}")
+            });
+    let idempotency_store =
+        sdkwork_web_bootstrap::shared_idempotency_store(&redis_url, "sdkwork:memory")
+            .unwrap_or_else(|error| {
+                panic!("invalid Memory Redis idempotency configuration: {error}")
+            });
+    let concurrent_admission_store =
+        sdkwork_web_bootstrap::shared_concurrent_admission_store(&redis_url, "sdkwork:memory")
+            .unwrap_or_else(|error| {
+                panic!("invalid Memory Redis admission configuration: {error}")
+            });
     let cors_origins = sdkwork_web_bootstrap::cors_allowed_origins_from_env(&[
         "SDKWORK_MEMORY_CORS_ALLOWED_ORIGINS",
         "SDKWORK_CORS_ALLOWED_ORIGINS",
     ]);
-    let security_policy = sdkwork_web_bootstrap::security_policy_for_environment(
-        &WebEnvironment::Prod,
-        cors_origins,
-    );
+    let security_policy =
+        sdkwork_web_bootstrap::security_policy_for_environment(&WebEnvironment::Prod, cors_origins);
 
     layer
         .with_security_policy(security_policy)
@@ -107,10 +105,7 @@ impl AuditEmitter for MemoryIamAuditEmitter {
         let pool = shared_iam_postgres_pool().await.ok_or_else(|| {
             WebFrameworkError::dependency_unavailable("IAM audit database is unavailable")
         })?;
-        let action = fact
-            .operation_id
-            .as_deref()
-            .unwrap_or(fact.method.as_str());
+        let action = fact.operation_id.as_deref().unwrap_or(fact.method.as_str());
         sdkwork_iam_web_adapter::record_audit_event(
             pool.as_ref(),
             fact.tenant_id.as_deref().unwrap_or("0"),
@@ -182,7 +177,10 @@ mod tests {
     fn timeout_configuration_is_bounded() {
         let _guard = sdkwork_memory_contract::runtime_env::env_test_lock();
         std::env::set_var("SDKWORK_MEMORY_HTTP_REQUEST_TIMEOUT_SECS", "0");
-        assert_eq!(memory_request_timeout_seconds(), DEFAULT_REQUEST_TIMEOUT_SECONDS);
+        assert_eq!(
+            memory_request_timeout_seconds(),
+            DEFAULT_REQUEST_TIMEOUT_SECONDS
+        );
         std::env::set_var("SDKWORK_MEMORY_HTTP_REQUEST_TIMEOUT_SECS", "120");
         assert_eq!(memory_request_timeout_seconds(), 120);
         std::env::remove_var("SDKWORK_MEMORY_HTTP_REQUEST_TIMEOUT_SECS");

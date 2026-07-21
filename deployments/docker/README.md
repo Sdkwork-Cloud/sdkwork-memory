@@ -1,16 +1,25 @@
 # Docker Deployment
 
-Build and run the SDKWork Memory API server container from the repository root:
+Build, verify, load, and run the SDKWork Memory API server container from the repository root:
 
 ```powershell
-docker build -f deployments/docker/Dockerfile -t sdkwork-memory:local .
+$env:SDKWORK_PACKAGE_VERSION = "0.1.0-dev"
+$env:SDKWORK_CONTAINER_LOAD_IMAGE = "true"
+node scripts/package-container-oci.mjs
 docker run --rm -p 8080:8080 `
   -e SDKWORK_MEMORY_ENVIRONMENT=development `
+  -e SDKWORK_MEMORY_CONFIG_PROFILE=development `
+  -e SDKWORK_MEMORY_DEPLOYMENT_PROFILE=standalone `
   -e SDKWORK_MEMORY_DEV_AUTH_BYPASS=true `
+  -e SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE=true `
   -e SDKWORK_MEMORY_DATABASE_URL=sqlite::memory: `
-  sdkwork-memory:local
+  registry.sdkwork.com/apps/sdkwork-memory:0.1.0-dev
 ```
 
-The image exposes `SDKWORK_MEMORY_APPLICATION_PUBLIC_INGRESS_BIND` on `0.0.0.0:8080`, ships `/app/database` lifecycle assets, and defaults `SDKWORK_MEMORY_ENVIRONMENT=production` when no overrides are supplied.
+The packaging script constructs a bounded allowlist context containing the Memory workspace and its locked sibling Rust path dependencies. Direct builds from the application directory are unsupported because they cannot resolve that dependency closure. The script always emits and validates the OCI archive; validation checks the `linux/amd64` image config, non-root user, gateway command, bounded layer descriptors, and the ELF header of the gateway extracted from the runtime layer. `SDKWORK_CONTAINER_LOAD_IMAGE=true` additionally loads the same cached image into the local Docker daemon for smoke testing.
+
+The image exposes `SDKWORK_MEMORY_APPLICATION_PUBLIC_INGRESS_BIND` on `0.0.0.0:8080`, ships `/app/database` lifecycle assets, runs as UID/GID `10001:10001`, and defaults `SDKWORK_MEMORY_ENVIRONMENT=production` when no overrides are supplied. Development smoke runs may opt into runtime migration as shown above. Production runtime containers keep auto-migrate disabled and start only after the `db-migrate` job succeeds. Startup schema preflight prevents workers from starting against an unmigrated database, and `/readyz` rejects later loss of the canonical lease, commercial, or search schema.
+
+The release OCI contains SBOM and provenance attestations; Docker Desktop's legacy `docker load` importer cannot be used as the archive verifier because it does not support the attestation multi-index.
 
 For local development without Docker, use `pnpm dev`, which loads `etc/topology/standalone.development.env` through `scripts/memory-dev.mjs`.

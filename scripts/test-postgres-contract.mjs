@@ -64,6 +64,7 @@ try {
     "--test",
     "postgres_store_contract",
     "--",
+    "--test-threads=1",
     "--nocapture",
   ], {
     ...process.env,

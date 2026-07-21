@@ -107,7 +107,7 @@
       {
         "name": "Validate Memory contract and architecture",
         "shell": "pwsh",
-        "run": "pnpm test:postgres:contract && cargo test --workspace && node tools/check_sdkwork_memory_architecture_alignment.mjs && node scripts/release/workflow-supply-chain-evidence.mjs verify"
+        "run": "pnpm test:release-features && pnpm test:postgres:contract && cargo test --workspace && node tools/check_sdkwork_memory_architecture_alignment.mjs && node scripts/release/workflow-supply-chain-evidence.mjs verify"
       }
     ],
     "sign": [

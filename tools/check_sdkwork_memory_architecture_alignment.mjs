@@ -622,8 +622,37 @@ assert(
 );
 
 const dockerfile = readText('deployments/docker/Dockerfile');
-assert(dockerfile.includes('COPY --from=builder /src/database /app/database'), 'docker image must ship database lifecycle assets');
+assert(
+  dockerfile.includes(
+    'COPY --from=builder /workspace/sdkwork-memory/database /app/database',
+  ),
+  'docker image must ship database lifecycle assets from the application workspace',
+);
 assert(dockerfile.includes('SDKWORK_MEMORY_APP_ROOT=/app'), 'docker image must set SDKWORK_MEMORY_APP_ROOT');
+const dockerReadme = readText('deployments/docker/README.md');
+assert(
+  dockerReadme.includes('node scripts/package-container-oci.mjs')
+    && !dockerReadme.includes('docker build -f'),
+  'Docker documentation must use the bounded sibling-aware OCI packager',
+);
+const containerPackager = readText('scripts/package-container-oci.mjs');
+assert(
+  containerPackager.includes('maxContextBytes = 256 * 1024 * 1024')
+    && containerPackager.includes('maxContextFiles = 50_000'),
+  'OCI packaging must enforce byte and file-count context bounds',
+);
+assert(
+  containerPackager.includes('config?.architecture !== "amd64"')
+    && containerPackager.includes('config?.os !== "linux"')
+    && containerPackager.includes('config?.config?.User !== "10001:10001"')
+    && containerPackager.includes('OCI runtime binary is not an ELF executable'),
+  'OCI packaging must verify its platform, non-root identity, and runtime ELF content',
+);
+assert(
+  readText('crates/sdkwork-intelligence-memory-service/src/open_api.rs')
+    .includes('.verify_canonical_schema()'),
+  'service readiness must reject stale or missing canonical database schema',
+);
 
 const databaseManifest = readJson('database/database.manifest.json');
 assert(databaseManifest.tablePrefix === 'ai_', 'database manifest tablePrefix must be ai_');
@@ -711,6 +740,17 @@ assert(
 assert(
   packageJson.scripts?.['_sdkwork:test']?.includes('scripts/cargo-test-workspace.mjs'),
   'package.json _sdkwork:test must run scripts/cargo-test-workspace.mjs',
+);
+const releaseFeatureTest =
+  'cargo test --locked -p sdkwork-api-memory-standalone-gateway --features otel';
+assert(
+  packageJson.scripts?.['test:release-features'] === releaseFeatureTest,
+  'package.json must compile and test the production gateway otel feature',
+);
+assert(
+  packageJson.scripts?.['_sdkwork:verify']?.includes('pnpm test:release-features')
+    && packageJson.scripts?.['_sdkwork:test']?.includes('pnpm test:release-features'),
+  'root test and verify hooks must include production gateway feature coverage',
 );
 
 const appRoutesSource = readText('crates/sdkwork-routes-memory-app-api/src/routes.rs');

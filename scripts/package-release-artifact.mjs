@@ -2,9 +2,10 @@
 /**
  * Package SDKWork Memory server release artifacts for workflow targets.
  */
-import { execSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import {
   cpSync,
+  existsSync,
   mkdirSync,
   readFileSync,
   rmSync,
@@ -13,6 +14,9 @@ import {
 import { join, resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
+if (process.platform !== "linux" || process.arch !== "x64") {
+  throw new Error("the linux-x64 standalone archive must be packaged on a linux x64 runner");
+}
 const version =
   process.env.SDKWORK_PACKAGE_VERSION
   ?? JSON.parse(readFileSync(join(root, "sdkwork.app.config.json"), "utf8")).release
@@ -29,22 +33,21 @@ const archivePath = resolve(
 rmSync(stagingDir, { recursive: true, force: true });
 mkdirSync(stagingDir, { recursive: true });
 
-execSync("cargo build --release -p sdkwork-api-memory-standalone-gateway", {
+execFileSync("cargo", [
+  "build",
+  "--release",
+  "--locked",
+  "-p",
+  "sdkwork-api-memory-standalone-gateway",
+  "--features",
+  "otel",
+], {
   cwd: root,
   stdio: "inherit",
 });
 const releaseBinary = (() => {
-  for (const candidate of [
-    join(root, "target", "release", "sdkwork-api-memory-standalone-gateway.exe"),
-    join(root, "target", "release", "sdkwork-api-memory-standalone-gateway"),
-  ]) {
-    try {
-      readFileSync(candidate);
-      return candidate;
-    } catch {
-      // try next candidate
-    }
-  }
+  const candidate = join(root, "target", "release", "sdkwork-api-memory-standalone-gateway");
+  if (existsSync(candidate)) return candidate;
   throw new Error("release binary not found after cargo build");
 })();
 cpSync(releaseBinary, join(stagingDir, "sdkwork-api-memory-standalone-gateway"));
@@ -71,7 +74,13 @@ writeFileSync(
 );
 
 rmSync(archivePath, { force: true });
-execSync(`tar -czf "${archivePath}" -C "${artifactRoot}" "${`sdkwork-memory-${version}-linux-x64-standalone-server`}"`, {
+execFileSync("tar", [
+  "-czf",
+  archivePath,
+  "-C",
+  artifactRoot,
+  `sdkwork-memory-${version}-linux-x64-standalone-server`,
+], {
   cwd: root,
   stdio: "inherit",
 });

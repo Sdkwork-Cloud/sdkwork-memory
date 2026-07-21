@@ -42,7 +42,7 @@ fn authed_json(method: &str, uri: &str, body: serde_json::Value) -> Request<Body
 
 #[tokio::test]
 async fn backend_api_indexes_and_retrieval_profiles_return_phase1_defaults() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamWebRequestContextResolver::new(None),
@@ -91,7 +91,7 @@ async fn backend_api_indexes_and_retrieval_profiles_return_phase1_defaults() {
 
 #[tokio::test]
 async fn backend_api_migration_job_round_trip_via_dual_token() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamWebRequestContextResolver::new(None),
@@ -132,7 +132,7 @@ async fn backend_api_migration_job_round_trip_via_dual_token() {
 
 #[tokio::test]
 async fn backend_api_admin_config_persists_in_sql_tables() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamWebRequestContextResolver::new(None),
@@ -259,7 +259,7 @@ async fn backend_api_admin_config_persists_in_sql_tables() {
 async fn backend_api_governance_jobs_consolidation_and_retention_succeed() {
     use sdkwork_memory_spi::MemoryScopeContext;
 
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let scope = MemoryScopeContext {
         tenant_id: 100_001,
@@ -341,7 +341,7 @@ async fn backend_api_governance_jobs_consolidation_and_retention_succeed() {
 async fn backend_api_supersede_memory_replays_result_without_duplicate_side_effects() {
     use sdkwork_memory_spi::MemoryScopeContext;
 
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let scope = MemoryScopeContext {
         tenant_id: 100_001,
@@ -484,7 +484,7 @@ async fn backend_api_supersede_memory_replays_result_without_duplicate_side_effe
 async fn backend_api_supersede_quota_rejection_rolls_back_chain_and_journals() {
     use sdkwork_memory_spi::MemoryScopeContext;
 
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let previous_limit = std::env::var("SDKWORK_MEMORY_MAX_RECORDS_PER_SPACE").ok();
     std::env::set_var("SDKWORK_MEMORY_MAX_RECORDS_PER_SPACE", "1");
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;

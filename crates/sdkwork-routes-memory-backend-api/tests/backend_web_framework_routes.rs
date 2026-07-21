@@ -48,7 +48,7 @@ async fn backend_router_web_framework_rejects_unauthenticated_requests() {
 
 #[tokio::test]
 async fn backend_router_web_framework_accepts_dev_jwt_dual_tokens_before_handler() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let service = RecordingBackendApi::default();
     let app = wrap_router_with_iam_database_web_framework(
         IamWebRequestContextResolver::new(None),

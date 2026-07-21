@@ -2,11 +2,12 @@
 
 use sdkwork_database_config::{DatabaseConfig, DatabaseEngine};
 use sdkwork_memory_plugin_native_sql::{
-    NativeSqlAppendOutboxEventCommand, NativeSqlCreateSpaceCommand, NativeSqlMemoryStore,
+    InsertEntityCommand, NativeSqlAppendOutboxEventCommand, NativeSqlCreateSpaceCommand,
+    NativeSqlMemoryStore, UpdateEvalRunStateCommand,
 };
 use sdkwork_memory_spi::{
     AppendMemoryEventCommand, AppendMemoryRetrievalTraceCommand, CreateMemoryRecordCommand,
-    MemoryContextPackSnapshot, MemoryEventStorePort, MemoryRecordStorePort,
+    MemoryContextPackSnapshot, MemoryEventStorePort, MemoryMutationJournal, MemoryRecordStorePort,
     MemoryRetrievalHitDraft, MemoryRetrievalTraceStorePort, MemoryScopeContext,
     RetrieveMemoryRetrievalTraceQuery,
 };
@@ -50,6 +51,10 @@ async fn postgres_store_applies_phase1_migration_when_url_configured() {
         return;
     };
     store.ping().await.expect("postgres ping must succeed");
+    store
+        .verify_canonical_schema()
+        .await
+        .expect("postgres canonical schema must be ready");
 
     let scope = MemoryScopeContext::for_test(100_001, 42);
     MemoryEventStorePort::append(
@@ -99,6 +104,74 @@ async fn postgres_provider_health_advisory_lease_is_exclusive_and_released() {
         .await
         .expect("provider-health lease query after release")
         .is_some());
+}
+
+#[tokio::test]
+async fn postgres_graph_mutation_commits_business_outbox_and_audit_atomically() {
+    let Some(store) = postgres_store(&[89]).await else {
+        return;
+    };
+    let scope = MemoryScopeContext {
+        tenant_id: 100_001,
+        space_id: 89,
+        organization_id: None,
+        user_id: Some(9001),
+    };
+    let journal = MemoryMutationJournal {
+        outbox_id: "pg-graph-outbox-1".to_string(),
+        aggregate_type: "ai_entity".to_string(),
+        aggregate_id: "pg-graph-entity-1".to_string(),
+        event_type: "memory.entity.created".to_string(),
+        event_version: "1".to_string(),
+        payload_json: r#"{"resourceId":"pg-graph-entity-1"}"#.to_string(),
+        audit_id: "pg-graph-audit-1".to_string(),
+        audit_action: "memory.entity.created".to_string(),
+        audit_resource_type: "entity".to_string(),
+        audit_resource_id: "pg-graph-entity-1".to_string(),
+        audit_result: "accepted".to_string(),
+    };
+    store
+        .insert_entity_with_journal(
+            InsertEntityCommand {
+                id: 8_901,
+                uuid: "pg-graph-entity-1",
+                tenant_id: scope.tenant_id,
+                space_id: scope.space_id,
+                entity_type: "person",
+                canonical_name: "PostgreSQL graph entity",
+                aliases_json: None,
+                attributes_json: None,
+                sensitivity_level: "internal",
+            },
+            &scope,
+            &journal,
+        )
+        .await
+        .expect("journaled PostgreSQL graph insert");
+
+    let business_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ai_entity WHERE tenant_id = $1 AND uuid = $2")
+            .bind(scope.tenant_id)
+            .bind("pg-graph-entity-1")
+            .fetch_one(store.pool())
+            .await
+            .expect("count PostgreSQL graph entity");
+    let outbox_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ai_outbox_event WHERE tenant_id = $1 AND uuid = $2",
+    )
+    .bind(scope.tenant_id)
+    .bind("pg-graph-outbox-1")
+    .fetch_one(store.pool())
+    .await
+    .expect("count PostgreSQL graph outbox");
+    let audit_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ai_audit_log WHERE tenant_id = $1 AND uuid = $2")
+            .bind(scope.tenant_id)
+            .bind("pg-graph-audit-1")
+            .fetch_one(store.pool())
+            .await
+            .expect("count PostgreSQL graph audit");
+    assert_eq!((business_count, outbox_count, audit_count), (1, 1, 1));
 }
 
 #[tokio::test]
@@ -169,15 +242,15 @@ async fn postgres_store_claims_eval_runs_atomically() {
         "second claim must not re-select the same eval run"
     );
     assert!(!store
-        .update_eval_run_state(
+        .update_eval_run_state(UpdateEvalRunStateCommand {
             tenant_id,
-            eval_uuid,
-            "eval-worker-a",
-            "wrong-token",
-            "succeeded",
-            None,
-            Some(r#"{"status":"wrong-token"}"#),
-        )
+            eval_run_uuid: eval_uuid,
+            lease_owner: "eval-worker-a",
+            lease_token: "wrong-token",
+            state: "succeeded",
+            metrics_json: None,
+            result_json: Some(r#"{"status":"wrong-token"}"#),
+        })
         .await
         .expect("fence wrong eval token"));
 
@@ -202,27 +275,27 @@ async fn postgres_store_claims_eval_runs_atomically() {
         .expect("replacement eval claim");
     assert!(replacement.iter().any(|run| run.eval_run_uuid == eval_uuid));
     assert!(!store
-        .update_eval_run_state(
+        .update_eval_run_state(UpdateEvalRunStateCommand {
             tenant_id,
-            eval_uuid,
-            "eval-worker-a",
-            "eval-lease-a",
-            "succeeded",
-            None,
-            Some(r#"{"status":"stale"}"#),
-        )
+            eval_run_uuid: eval_uuid,
+            lease_owner: "eval-worker-a",
+            lease_token: "eval-lease-a",
+            state: "succeeded",
+            metrics_json: None,
+            result_json: Some(r#"{"status":"stale"}"#),
+        })
         .await
         .expect("fence stale eval completion"));
     assert!(store
-        .update_eval_run_state(
+        .update_eval_run_state(UpdateEvalRunStateCommand {
             tenant_id,
-            eval_uuid,
-            "eval-worker-b",
-            "eval-lease-b",
-            "succeeded",
-            None,
-            Some(r#"{"status":"current"}"#),
-        )
+            eval_run_uuid: eval_uuid,
+            lease_owner: "eval-worker-b",
+            lease_token: "eval-lease-b",
+            state: "succeeded",
+            metrics_json: None,
+            result_json: Some(r#"{"status":"current"}"#),
+        })
         .await
         .expect("complete eval with current lease"));
 }
@@ -318,10 +391,15 @@ async fn postgres_store_fences_expired_outbox_delivery_leases() {
         .expect("append PostgreSQL outbox event");
 
     let first = store
-        .claim_global_pending_outbox_events(1, "publisher-a", "lease-a", 30)
+        .claim_global_pending_outbox_events(100, "publisher-a", "lease-a", 30)
         .await
         .expect("first PostgreSQL outbox claim");
-    assert_eq!(first.len(), 1);
+    assert!(
+        first
+            .iter()
+            .any(|row| row.outbox.outbox_id == "pg-outbox-lease-1"),
+        "the global claim must include the lease-fencing fixture",
+    );
     assert!(store
         .ack_outbox_delivery_success(
             scope.tenant_id,

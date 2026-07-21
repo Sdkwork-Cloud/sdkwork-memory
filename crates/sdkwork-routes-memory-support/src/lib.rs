@@ -38,7 +38,7 @@ const PRODUCTION_AUTH_UNAVAILABLE: &str = "production memory auth requires IAM P
 /// How HTTP routers should resolve request context from environment.
 pub enum MemoryWebAuthMode {
     DevInline,
-    IamDatabase(IamWebRequestContextResolver),
+    IamDatabase(Box<IamWebRequestContextResolver>),
     ProductionFailClosed,
 }
 
@@ -56,8 +56,10 @@ pub async fn memory_web_auth_mode_from_env() -> MemoryWebAuthMode {
         return MemoryWebAuthMode::ProductionFailClosed;
     }
 
-    MemoryWebAuthMode::IamDatabase(sdkwork_iam_web_adapter::IamWebRequestContextResolver::new(
-        readiness::shared_iam_postgres_pool().await,
+    MemoryWebAuthMode::IamDatabase(Box::new(
+        sdkwork_iam_web_adapter::IamWebRequestContextResolver::new(
+            readiness::shared_iam_postgres_pool().await,
+        ),
     ))
 }
 

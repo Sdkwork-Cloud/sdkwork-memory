@@ -44,7 +44,10 @@ pub async fn memory_dependency_ready_check() -> bool {
     }
 
     let iam_ready = match shared_iam_postgres_pool().await {
-        Some(postgres) => sqlx::query("SELECT 1").execute(postgres.as_ref()).await.is_ok(),
+        Some(postgres) => sqlx::query("SELECT 1")
+            .execute(postgres.as_ref())
+            .await
+            .is_ok(),
         None => {
             tracing::warn!("memory readiness blocked: IAM database pool unavailable");
             false

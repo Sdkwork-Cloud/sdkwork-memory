@@ -39,4 +39,4 @@ Runtime pods set `SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE=false`; run the migration
 
 When an OpenTelemetry collector is available, set `OTEL_EXPORTER_OTLP_ENDPOINT` on the Deployment (release image is built with the `otel` feature). Apply `prometheus-rules.yaml` when Prometheus Operator is installed.
 
-`/readyz` checks Memory database connectivity and IAM PostgreSQL when `SDKWORK_MEMORY_ENVIRONMENT=production`. Outbox publishing uses `FOR UPDATE SKIP LOCKED` on PostgreSQL so multiple replicas do not double-publish events.
+`/readyz` checks Memory database connectivity, the current canonical Memory schema, and IAM PostgreSQL when `SDKWORK_MEMORY_ENVIRONMENT=production`. Outbox publishing uses `FOR UPDATE SKIP LOCKED` on PostgreSQL so multiple replicas do not double-publish events.

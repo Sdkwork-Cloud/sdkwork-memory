@@ -6,6 +6,8 @@ Owner: SDKWork Memory maintainers
 
 Updated: 2026-07-21
 
+Specs: `REQUIREMENTS_SPEC.md`, `DOCUMENTATION_SPEC.md`
+
 ## Product Intent
 
 SDKWork Memory is the tenant-isolated memory capability for SDKWork applications. It stores evidence, canonical memories, learned candidates and habits, retrieval traces, knowledge graph data, policies, and governance history without requiring an embedding provider. Provider integrations remain replaceable through SDKWork SPI contracts.

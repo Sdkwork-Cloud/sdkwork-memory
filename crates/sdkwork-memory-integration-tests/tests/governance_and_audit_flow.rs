@@ -49,7 +49,7 @@ fn authed_json_request(
 
 #[tokio::test]
 async fn app_api_forget_and_export_jobs_round_trip_via_dual_token() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamWebRequestContextResolver::new(None),
@@ -164,7 +164,7 @@ async fn app_api_forget_and_export_jobs_round_trip_via_dual_token() {
 
 #[tokio::test]
 async fn app_api_drive_export_job_uploads_through_drive() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamWebRequestContextResolver::new(None),
@@ -242,7 +242,7 @@ async fn app_api_drive_export_job_uploads_through_drive() {
 
 #[tokio::test]
 async fn backend_api_lists_audit_logs_after_open_api_feedback() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let service = Arc::new(OpenMemoryService::new(store));
     let open_app = build_open_router_with_product(service.clone());
@@ -332,7 +332,7 @@ async fn backend_api_lists_audit_logs_after_open_api_feedback() {
 
 #[tokio::test]
 async fn app_api_rejects_foreign_actor_retrieving_forget_job() {
-    let _env = lock_integration_test_env();
+    let _env = lock_integration_test_env().await;
     let store = sdkwork_memory_test_support::space_fixtures::new_seeded_in_memory_store().await;
     let app = wrap_router_with_iam_database_web_framework(
         IamWebRequestContextResolver::new(None),

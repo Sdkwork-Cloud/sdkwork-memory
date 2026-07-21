@@ -6,10 +6,10 @@ use sdkwork_database_config::{DatabaseConfig, DatabaseEngine};
 use sdkwork_memory_plugin_native_sql::{
     build_native_sql_candidate_store, build_native_sql_habit_store,
     build_native_sql_retrieval_trace_store, ConsolidateDuplicateRecordsCommand,
-    InsertEntityCommand, InsertLearningJobCommand, InsertMemoryEvalRunCommand,
-    NativeSqlAppendOutboxEventCommand, NativeSqlCreateSpaceCommand, NativeSqlMemoryStore,
-    NativeSqlStoreError, PromoteApprovedCandidateCommand, UpdateEntityCommand,
-    SENSITIVITY_READ_OWNER,
+    FinishLearningJobCommand, InsertEntityCommand, InsertLearningJobCommand,
+    InsertMemoryEvalRunCommand, NativeSqlAppendOutboxEventCommand, NativeSqlCreateSpaceCommand,
+    NativeSqlMemoryStore, NativeSqlStoreError, PromoteApprovedCandidateCommand,
+    UpdateEntityCommand, UpdateEvalRunStateCommand, SENSITIVITY_READ_OWNER,
 };
 use sdkwork_memory_spi::{
     AppendMemoryAuditCommand, AppendMemoryEventCommand, AppendMemoryOutboxCommand,
@@ -46,6 +46,32 @@ fn mutation_journal(memory_id: &str, suffix: &str) -> MemoryMutationJournal {
         audit_resource_id: memory_id.to_string(),
         audit_result: "accepted".to_string(),
     }
+}
+
+#[tokio::test]
+async fn sqlite_canonical_schema_readiness_rejects_unmigrated_database() {
+    let config = DatabaseConfig {
+        engine: DatabaseEngine::Sqlite,
+        url: "sqlite::memory:".to_owned(),
+        ..DatabaseConfig::default()
+    };
+    let store = NativeSqlMemoryStore::open_pool(&config, false)
+        .await
+        .expect("connect to unmigrated SQLite database");
+
+    assert!(store.verify_canonical_schema().await.is_err());
+}
+
+#[tokio::test]
+async fn sqlite_canonical_schema_readiness_accepts_current_database() {
+    let store = NativeSqlMemoryStore::new_in_memory_sqlite()
+        .await
+        .expect("create migrated SQLite database");
+
+    store
+        .verify_canonical_schema()
+        .await
+        .expect("current canonical schema must be ready");
 }
 
 #[tokio::test]
@@ -353,15 +379,15 @@ async fn sqlite_learning_job_completion_is_fenced_by_execution_lease() {
         .unwrap();
     assert_eq!(first.len(), 1);
     assert!(store
-        .finish_learning_job(
-            77,
-            "lease-job-1",
-            "job-worker-a",
-            "wrong-token",
-            "succeeded",
-            Some(r#"{"status":"wrong"}"#),
-            None,
-        )
+        .finish_learning_job(FinishLearningJobCommand {
+            tenant_id: 77,
+            job_uuid: "lease-job-1",
+            lease_owner: "job-worker-a",
+            lease_token: "wrong-token",
+            state: "succeeded",
+            result_json: Some(r#"{"status":"wrong"}"#),
+            error_json: None,
+        })
         .await
         .unwrap()
         .is_none());
@@ -388,28 +414,28 @@ async fn sqlite_learning_job_completion_is_fenced_by_execution_lease() {
         .unwrap();
     assert_eq!(replacement.len(), 1);
     assert!(store
-        .finish_learning_job(
-            77,
-            "lease-job-1",
-            "job-worker-a",
-            "job-lease-a",
-            "succeeded",
-            Some(r#"{"status":"stale"}"#),
-            None,
-        )
+        .finish_learning_job(FinishLearningJobCommand {
+            tenant_id: 77,
+            job_uuid: "lease-job-1",
+            lease_owner: "job-worker-a",
+            lease_token: "job-lease-a",
+            state: "succeeded",
+            result_json: Some(r#"{"status":"stale"}"#),
+            error_json: None,
+        })
         .await
         .unwrap()
         .is_none());
     let completed = store
-        .finish_learning_job(
-            77,
-            "lease-job-1",
-            "job-worker-b",
-            "job-lease-b",
-            "succeeded",
-            Some(r#"{"status":"current"}"#),
-            None,
-        )
+        .finish_learning_job(FinishLearningJobCommand {
+            tenant_id: 77,
+            job_uuid: "lease-job-1",
+            lease_owner: "job-worker-b",
+            lease_token: "job-lease-b",
+            state: "succeeded",
+            result_json: Some(r#"{"status":"current"}"#),
+            error_json: None,
+        })
         .await
         .unwrap()
         .expect("current lease must complete learning job");
@@ -531,15 +557,15 @@ async fn sqlite_eval_run_persists_dataset_profile_config_and_lifecycle_timestamp
     assert!(running.finished_at.is_none());
 
     store
-        .update_eval_run_state(
-            77,
-            "501",
-            "eval-worker",
-            "eval-lease",
-            "succeeded",
-            Some(r#"{"recallAtK":1.0}"#),
-            Some(r#"{"status":"completed"}"#),
-        )
+        .update_eval_run_state(UpdateEvalRunStateCommand {
+            tenant_id: 77,
+            eval_run_uuid: "501",
+            lease_owner: "eval-worker",
+            lease_token: "eval-lease",
+            state: "succeeded",
+            metrics_json: Some(r#"{"recallAtK":1.0}"#),
+            result_json: Some(r#"{"status":"completed"}"#),
+        })
         .await
         .unwrap();
     let completed = store
@@ -1921,12 +1947,14 @@ async fn sqlite_hard_delete_cleans_foreign_key_dependents_and_fts() {
     store
         .append_record_source_on_tx(
             &mut tx,
-            &scope,
-            "hard-delete-source",
-            "hard-delete-target",
-            "hard-delete-event",
-            "evidence",
-            Some(1.0),
+            sdkwork_memory_plugin_native_sql::NativeSqlAppendRecordSourceCommand {
+                scope: &scope,
+                source_id: "hard-delete-source",
+                memory_uuid: "hard-delete-target",
+                event_uuid: "hard-delete-event",
+                source_role: "evidence",
+                confidence_delta: Some(1.0),
+            },
         )
         .await
         .unwrap();
