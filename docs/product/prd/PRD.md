@@ -70,7 +70,7 @@ Generated route manifests and authority OpenAPI files are the operation inventor
 
 ## Release State
 
-The application is an internal release candidate, not an active production release. Server/container and PC packaging definitions exist, and local contract evidence is generated, but publication remains blocked until CI produces immutable artifacts for the release commit, detached signatures/OIDC attestations, byte-bound SBOM and provenance, PostgreSQL and container smoke evidence, load/soak evidence, and a recorded rollback exercise. Candidate packages must not be represented as deployed or production-ready.
+The application is an internal release candidate, not an active production release. Server/container and PC packaging definitions exist, and local contract evidence is generated, but publication remains blocked until the gateway has a validated process-shared database pool contract and bounded combined driver budget, CI produces immutable artifacts for the release commit, detached signatures/OIDC attestations, byte-bound SBOM and provenance, PostgreSQL and container smoke evidence, load/soak evidence, and a recorded rollback exercise. Candidate packages must not be represented as deployed or production-ready.
 
 ## Explicit Non-Goals
 

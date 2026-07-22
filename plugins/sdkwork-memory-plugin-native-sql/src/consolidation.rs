@@ -11,6 +11,7 @@ use crate::canonical_data::{append_journal_on_tx, remove_record_fts_on_tx, valid
 use crate::store::{now_text, NativeSqlMemoryStore, NativeSqlStoreError};
 
 const BATCH_LIMIT: i64 = 500;
+const RECOVERY_BATCH_LIMIT: i64 = 500;
 const CONSOLIDATION_MODE: &str = "identity_bounded_supersession";
 const SUPERSEDED_EVENT_TYPE: &str = "memory.record.superseded";
 static COMPAT_OPERATION_SEQUENCE: AtomicU64 = AtomicU64::new(1);
@@ -258,44 +259,60 @@ impl NativeSqlMemoryStore {
     ) -> Result<MemoryConsolidationResult, NativeSqlStoreError> {
         let operation_hash = journal_prefix("outbox", scope, operation_id);
         let prefix = &operation_hash[..32];
-        let rows = sqlx::query(
-            r#"
-            SELECT payload_json
-            FROM ai_outbox_event
-            WHERE tenant_id = ? AND event_type = ? AND uuid LIKE ?
-            ORDER BY id ASC
-            "#,
-        )
-        .bind(scope.tenant_id)
-        .bind(SUPERSEDED_EVENT_TYPE)
-        .bind(format!("{prefix}%"))
-        .fetch_all(self.pool())
-        .await?;
-
         let mut result = MemoryConsolidationResult::default();
-        for row in rows {
-            let payload_json: String = row.get("payload_json");
-            let payload: Value = serde_json::from_str(&payload_json).map_err(|error| {
-                NativeSqlStoreError::InvariantViolation {
-                    message: format!("stored consolidation journal payload is invalid: {error}"),
-                }
-            })?;
-            if payload.get("operationId").and_then(Value::as_str) != Some(operation_id)
-                || json_i64(&payload, "spaceId") != Some(scope.space_id)
-            {
-                return Err(NativeSqlStoreError::IdempotencyConflict {
-                    idempotency_key: operation_id.to_string(),
-                });
+        let mut last_id = i64::MIN;
+        loop {
+            let rows = sqlx::query(
+                r#"
+                SELECT id, payload_json
+                FROM ai_outbox_event
+                WHERE tenant_id = ? AND event_type = ? AND uuid LIKE ? AND id > ?
+                ORDER BY id ASC
+                LIMIT ?
+                "#,
+            )
+            .bind(scope.tenant_id)
+            .bind(SUPERSEDED_EVENT_TYPE)
+            .bind(format!("{prefix}%"))
+            .bind(last_id)
+            .bind(RECOVERY_BATCH_LIMIT)
+            .fetch_all(self.pool())
+            .await?;
+
+            if rows.is_empty() {
+                break;
             }
-            result.superseded_records = checked_add(result.superseded_records, 1)?;
-            result.transferred_sources = checked_add(
-                result.transferred_sources,
-                json_u32(&payload, "transferredSources")?,
-            )?;
-            result.deduplicated_sources = checked_add(
-                result.deduplicated_sources,
-                json_u32(&payload, "deduplicatedSources")?,
-            )?;
+            let row_count = rows.len();
+            for row in rows {
+                last_id = row.get("id");
+                let payload_json: String = row.get("payload_json");
+                let payload: Value = serde_json::from_str(&payload_json).map_err(|error| {
+                    NativeSqlStoreError::InvariantViolation {
+                        message: format!(
+                            "stored consolidation journal payload is invalid: {error}"
+                        ),
+                    }
+                })?;
+                if payload.get("operationId").and_then(Value::as_str) != Some(operation_id)
+                    || json_i64(&payload, "spaceId") != Some(scope.space_id)
+                {
+                    return Err(NativeSqlStoreError::IdempotencyConflict {
+                        idempotency_key: operation_id.to_string(),
+                    });
+                }
+                result.superseded_records = checked_add(result.superseded_records, 1)?;
+                result.transferred_sources = checked_add(
+                    result.transferred_sources,
+                    json_u32(&payload, "transferredSources")?,
+                )?;
+                result.deduplicated_sources = checked_add(
+                    result.deduplicated_sources,
+                    json_u32(&payload, "deduplicatedSources")?,
+                )?;
+            }
+            if row_count < RECOVERY_BATCH_LIMIT as usize {
+                break;
+            }
         }
         Ok(result)
     }
@@ -406,4 +423,64 @@ fn checked_add(left: u32, right: u32) -> Result<u32, NativeSqlStoreError> {
         .ok_or_else(|| NativeSqlStoreError::InvariantViolation {
             message: "consolidation result exceeded the supported u32 range".to_string(),
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn consolidation_recovery_scans_more_than_one_bounded_batch() {
+        let store = NativeSqlMemoryStore::new_in_memory_sqlite()
+            .await
+            .expect("create consolidation recovery store");
+        let scope = MemoryScopeContext::for_test(41, 73);
+        let operation_id = "bounded-consolidation-recovery";
+        let timestamp = now_text();
+        let expected = u32::try_from(RECOVERY_BATCH_LIMIT + 1).expect("bounded test row count");
+
+        for index in 0..expected {
+            let memory_uuid = format!("bounded-recovery-{index}");
+            let journal = consolidation_journal(
+                &scope,
+                operation_id,
+                &memory_uuid,
+                "bounded-recovery-winner",
+                2,
+                3,
+            )
+            .expect("build consolidation journal");
+            sqlx::query(
+                r#"
+                INSERT INTO ai_outbox_event (
+                  id, uuid, tenant_id, aggregate_type, aggregate_id,
+                  event_type, event_version, payload_json, publish_state,
+                  created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+                "#,
+            )
+            .bind(i64::from(index) + 1)
+            .bind(journal.outbox_id)
+            .bind(scope.tenant_id)
+            .bind(journal.aggregate_type)
+            .bind(journal.aggregate_id)
+            .bind(journal.event_type)
+            .bind(journal.event_version)
+            .bind(journal.payload_json)
+            .bind(&timestamp)
+            .bind(&timestamp)
+            .execute(store.pool())
+            .await
+            .expect("insert consolidation recovery journal");
+        }
+
+        let recovered = store
+            .recover_consolidation_result(&scope, operation_id)
+            .await
+            .expect("recover bounded consolidation result");
+
+        assert_eq!(recovered.superseded_records, expected);
+        assert_eq!(recovered.transferred_sources, expected * 2);
+        assert_eq!(recovered.deduplicated_sources, expected * 3);
+    }
 }

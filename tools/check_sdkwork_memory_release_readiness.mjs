@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 import { createReadStream, existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { validateProcessSharedDatabasePool } from "../../sdkwork-specs/tools/check-process-shared-database-pool.mjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const strict = process.env.SDKWORK_RELEASE_VALIDATION === "strict";
@@ -16,6 +17,7 @@ const workflow = readJson("sdkwork.workflow.json");
 const dockerfile = readText("deployments/docker/Dockerfile");
 const deployment = readText("deployments/kubernetes/deployment.yaml");
 const migrationJob = readText("deployments/kubernetes/migration-job.yaml");
+const processPoolValidation = validateProcessSharedDatabasePool(root);
 
 if (manifest?.schemaVersion !== 3 || manifest?.kind !== "sdkwork.app") {
   fail("sdkwork.app.config.json must use schemaVersion 3 and kind sdkwork.app");
@@ -32,6 +34,7 @@ requireExecutableReleaseLifecycle(workflow);
 requireCanonicalDockerfile(dockerfile);
 requireContainerTarget(targets);
 rejectFalseCandidateClaims();
+requireProductionDatabasePoolContract();
 
 if (strict) {
   if (!productionClaimed || publishStatus !== "ACTIVE" || contractState !== "production-ready") {
@@ -106,6 +109,17 @@ function rejectFalseCandidateClaims() {
     if (pkg.enabled === false && /@sha256:[a-f0-9]{64}$/u.test(pkg.url ?? "")) {
       fail(`disabled candidate package ${pkg.id} must not retain a stale immutable digest claim`);
     }
+  }
+}
+
+function requireProductionDatabasePoolContract() {
+  if (processPoolValidation.ok) return;
+  const messages = processPoolValidation.failures
+    .map((failure) => `process-shared database pool: ${failure}`);
+  if (strict || productionClaimed) {
+    for (const message of messages) fail(message);
+  } else {
+    warnings.push(...messages);
   }
 }
 

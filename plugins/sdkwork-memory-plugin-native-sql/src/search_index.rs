@@ -2,6 +2,7 @@
 
 use crate::sqlx_compat as sqlx;
 use sdkwork_memory_spi::{MemoryScopeContext, MemorySensitivityReadScope};
+use sdkwork_utils_rust::MAX_LIST_PAGE_SIZE;
 
 use crate::pool_backend::MemorySqlDialect;
 use crate::store::{
@@ -271,6 +272,7 @@ impl NativeSqlMemoryStore {
         if trimmed.is_empty() {
             return Ok(Vec::new());
         }
+        let result_limit = i64::from(top_k.clamp(1, MAX_LIST_PAGE_SIZE));
         let sensitivity_level = Self::read_scope_level(read_scope);
         match self.dialect() {
             MemorySqlDialect::Postgres => {
@@ -324,7 +326,7 @@ impl NativeSqlMemoryStore {
                 }
                 let rows = query_builder
                     .bind(&websearch_query)
-                    .bind(top_k.max(1) as i64)
+                    .bind(result_limit)
                     .fetch_all(self.pool())
                     .await?;
                 Ok(rows.into_iter().map(record_detail_from_row).collect())
@@ -378,7 +380,7 @@ impl NativeSqlMemoryStore {
                     query_builder = query_builder.bind(memory_type);
                 }
                 let rows = query_builder
-                    .bind(top_k.max(1) as i64)
+                    .bind(result_limit)
                     .fetch_all(self.pool())
                     .await?;
                 Ok(rows.into_iter().map(record_detail_from_row).collect())
@@ -445,6 +447,15 @@ mod tests {
         assert_eq!(
             postgres_websearch_or_query("alpha beta"),
             "\"alpha\" OR \"beta\""
+        );
+    }
+
+    #[test]
+    fn fulltext_result_limit_is_bounded() {
+        assert_eq!(i64::from(i32::MIN.clamp(1, MAX_LIST_PAGE_SIZE)), 1);
+        assert_eq!(
+            i64::from(i32::MAX.clamp(1, MAX_LIST_PAGE_SIZE)),
+            i64::from(MAX_LIST_PAGE_SIZE)
         );
     }
 

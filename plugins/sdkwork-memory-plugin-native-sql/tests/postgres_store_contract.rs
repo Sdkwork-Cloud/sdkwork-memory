@@ -2,8 +2,8 @@
 
 use sdkwork_database_config::{DatabaseConfig, DatabaseEngine};
 use sdkwork_memory_plugin_native_sql::{
-    InsertEntityCommand, NativeSqlAppendOutboxEventCommand, NativeSqlCreateSpaceCommand,
-    NativeSqlMemoryStore, UpdateEvalRunStateCommand,
+    ConsolidateDuplicateRecordsCommand, InsertEntityCommand, NativeSqlAppendOutboxEventCommand,
+    NativeSqlCreateSpaceCommand, NativeSqlMemoryStore, UpdateEvalRunStateCommand,
 };
 use sdkwork_memory_spi::{
     AppendMemoryEventCommand, AppendMemoryRetrievalTraceCommand, CreateMemoryRecordCommand,
@@ -463,4 +463,80 @@ async fn postgres_store_fences_expired_outbox_delivery_leases() {
         .expect("current PostgreSQL acknowledgement")
         .expect("current lease must publish the event");
     assert_eq!(published.publish_state, "published");
+}
+
+#[tokio::test]
+async fn postgres_consolidation_recovery_scans_more_than_one_bounded_batch() {
+    let Some(store) = postgres_store(&[991]).await else {
+        return;
+    };
+    const RECOVERY_ROWS: u32 = 501;
+    let scope = MemoryScopeContext::for_test(100_001, 991);
+    let operation_id = "postgres-bounded-consolidation-recovery";
+    let prefix = sdkwork_utils_rust::sha256_hash(
+        format!(
+            "memory-consolidation:outbox:{}:{}:{operation_id}",
+            scope.tenant_id, scope.space_id
+        )
+        .as_bytes(),
+    );
+    let prefix = &prefix[..32];
+    let timestamp = "2026-07-22T00:00:00.000Z";
+
+    sqlx::query(
+        "DELETE FROM ai_outbox_event WHERE tenant_id = $1 AND event_type = $2 AND uuid LIKE $3",
+    )
+    .bind(scope.tenant_id)
+    .bind("memory.record.superseded")
+    .bind(format!("{prefix}%"))
+    .execute(store.pool())
+    .await
+    .expect("clear prior PostgreSQL consolidation recovery journals");
+
+    for index in 0..RECOVERY_ROWS {
+        let memory_uuid = format!("postgres-bounded-recovery-{index}");
+        let suffix = sdkwork_utils_rust::sha256_hash(memory_uuid.as_bytes());
+        let journal_uuid = format!("{prefix}{}", &suffix[..32]);
+        let payload = serde_json::json!({
+            "operationId": operation_id,
+            "tenantId": scope.tenant_id.to_string(),
+            "spaceId": scope.space_id.to_string(),
+            "memoryId": memory_uuid,
+            "supersededByMemoryId": "postgres-bounded-recovery-winner",
+            "consolidationMode": "identity_bounded_supersession",
+            "transferredSources": 2,
+            "deduplicatedSources": 3,
+        });
+        sqlx::query(
+            r#"
+            INSERT INTO ai_outbox_event (
+              id, uuid, tenant_id, aggregate_type, aggregate_id,
+              event_type, event_version, payload_json, publish_state,
+              created_at, updated_at
+            ) VALUES ($1, $2, $3, 'memory_record', $4, $5, '1.0', $6, 'published', $7, $7)
+            "#,
+        )
+        .bind(-9_000_000_i64 - i64::from(index))
+        .bind(journal_uuid)
+        .bind(scope.tenant_id)
+        .bind(&memory_uuid)
+        .bind("memory.record.superseded")
+        .bind(payload.to_string())
+        .bind(timestamp)
+        .execute(store.pool())
+        .await
+        .expect("insert PostgreSQL consolidation recovery journal");
+    }
+
+    let recovered = store
+        .consolidate_duplicate_records_in_scope_detailed(ConsolidateDuplicateRecordsCommand {
+            scope: &scope,
+            operation_id,
+        })
+        .await
+        .expect("recover bounded PostgreSQL consolidation result");
+
+    assert_eq!(recovered.superseded_records, RECOVERY_ROWS);
+    assert_eq!(recovered.transferred_sources, RECOVERY_ROWS * 2);
+    assert_eq!(recovered.deduplicated_sources, RECOVERY_ROWS * 3);
 }
