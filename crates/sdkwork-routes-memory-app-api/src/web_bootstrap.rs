@@ -93,7 +93,7 @@ where
             public_path_prefixes: memory_app_api_public_path_prefixes(),
             ..WebRequestContextProfile::default()
         })
-        .with_route_manifest(route_manifest)
+        .with_route_manifest(route_manifest.clone())
         .with_domain_injector(Arc::new(MemoryAppContextInjector))
         .with_metrics(memory_http_metrics());
     harden_memory_web_framework_layer(layer, route_manifest)
