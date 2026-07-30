@@ -46,5 +46,5 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Run Postgres store contract tests
         env:
-          SDKWORK_MEMORY_POSTGRES_TEST_URL: postgres://memory:memory@localhost:5432/memory_test
+          SDKWORK_DATABASE_TEST_POSTGRES_URL: postgres://memory:memory@localhost:5432/memory_test
         run: cargo test -p sdkwork-memory-plugin-native-sql postgres_store_contract -- --nocapture

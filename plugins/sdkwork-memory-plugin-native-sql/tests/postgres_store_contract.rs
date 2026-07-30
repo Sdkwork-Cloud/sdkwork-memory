@@ -1,4 +1,4 @@
-//! Optional Postgres contract tests — set `SDKWORK_MEMORY_POSTGRES_TEST_URL` to run.
+//! Optional Postgres contract tests — set `SDKWORK_DATABASE_TEST_POSTGRES_URL` to run.
 
 use sdkwork_database_config::{DatabaseConfig, DatabaseEngine};
 use sdkwork_memory_plugin_native_sql::{
@@ -12,7 +12,7 @@ use sdkwork_memory_spi::{
     RetrieveMemoryRetrievalTraceQuery,
 };
 async fn postgres_store(space_ids: &[i64]) -> Option<NativeSqlMemoryStore> {
-    let url = match std::env::var("SDKWORK_MEMORY_POSTGRES_TEST_URL") {
+    let url = match std::env::var("SDKWORK_DATABASE_TEST_POSTGRES_URL") {
         Ok(url) if !url.trim().is_empty() => url,
         _ => return None,
     };

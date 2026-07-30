@@ -68,7 +68,7 @@ try {
     "--nocapture",
   ], {
     ...process.env,
-    SDKWORK_MEMORY_POSTGRES_TEST_URL:
+    SDKWORK_DATABASE_TEST_POSTGRES_URL:
       `postgres://postgres:${password}@127.0.0.1:${port}/memory_plugin`,
   });
 } finally {
