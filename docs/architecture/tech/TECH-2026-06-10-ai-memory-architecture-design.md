@@ -2418,7 +2418,7 @@ Physical migrations:
 
 ```text
 database/migrations/postgres/0001_memory_phase1.up.sql
-database/migrations/sqlite/0001_memory_phase1.up.sql
+tests/fixtures/database/sqlite/migrations/0001_memory_phase1.up.sql
 ```
 
 ### 32.3 Core Tables

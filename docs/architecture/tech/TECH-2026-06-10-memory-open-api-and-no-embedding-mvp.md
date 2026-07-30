@@ -71,7 +71,7 @@ Create or modify these implementation boundaries:
 - Create: `crates/sdkwork-intelligence-memory-repository-sqlx/src/lib.rs`
 - Create: `crates/sdkwork-intelligence-memory-repository-sqlx/src/repositories.rs`
 - Create: `database/migrations/postgres/0001_memory_phase1.up.sql`
-- Create: `database/migrations/sqlite/0001_memory_phase1.up.sql`
+- Create: `tests/fixtures/database/sqlite/migrations/0001_memory_phase1.up.sql`
 - Create: `crates/sdkwork-routes-memory-open-api/Cargo.toml`
 - Create: `crates/sdkwork-routes-memory-open-api/src/lib.rs`
 - Create: `crates/sdkwork-routes-memory-open-api/src/paths.rs`
@@ -459,7 +459,7 @@ Expected: PASS.
 
 **Files:**
 - Create: `database/migrations/postgres/0001_memory_phase1.up.sql`
-- Create: `database/migrations/sqlite/0001_memory_phase1.up.sql`
+- Create: `tests/fixtures/database/sqlite/migrations/0001_memory_phase1.up.sql`
 - Test: `tests/contracts/schema_registry_phase1_contract_test.mjs`
 
 - [ ] **Step 1: Write failing schema contract test**
@@ -484,7 +484,7 @@ const requiredTables = [
 
 for (const file of [
   "database/migrations/postgres/0001_memory_phase1.up.sql",
-  "database/migrations/sqlite/0001_memory_phase1.up.sql",
+  "tests/fixtures/database/sqlite/migrations/0001_memory_phase1.up.sql",
 ]) {
   const sql = fs.readFileSync(file, "utf8").toLowerCase();
   for (const table of requiredTables) {

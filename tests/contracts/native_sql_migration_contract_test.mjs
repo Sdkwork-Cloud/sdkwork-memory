@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const baselinePaths = [
-  "database/ddl/baseline/sqlite/0001_memory_baseline.sql",
+  "tests/fixtures/database/sqlite/ddl/baseline/0001_memory_baseline.sql",
   "database/ddl/baseline/postgres/0001_memory_baseline.sql",
-  "database/migrations/sqlite/0001_memory_schema.up.sql",
+  "tests/fixtures/database/sqlite/migrations/0001_memory_schema.up.sql",
   "database/migrations/postgres/0001_memory_schema.up.sql",
 ];
 

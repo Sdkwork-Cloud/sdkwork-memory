@@ -23,7 +23,7 @@ const phase1Tables = new Set([
 ]);
 
 const migrationPaths = [
-  "database/migrations/sqlite/0001_memory_schema.up.sql",
+  "tests/fixtures/database/sqlite/migrations/0001_memory_schema.up.sql",
   "database/migrations/postgres/0001_memory_schema.up.sql",
 ];
 
@@ -73,8 +73,8 @@ assert.ok(requiredIndexes.length > 0, "schema registry must declare phase1 index
 
 const migrationGroups = [
   [
-    "database/migrations/sqlite/0001_memory_schema.up.sql",
-    "database/migrations/sqlite/0002_memory_indexes.up.sql",
+    "tests/fixtures/database/sqlite/migrations/0001_memory_schema.up.sql",
+    "tests/fixtures/database/sqlite/migrations/0002_memory_indexes.up.sql",
   ],
   [
     "database/migrations/postgres/0001_memory_schema.up.sql",
@@ -133,7 +133,7 @@ const storeSource = fs.readFileSync(
   "utf8",
 );
 assert.ok(
-  storeSource.includes("database/migrations/sqlite/0002_memory_indexes.up.sql")
+  storeSource.includes("tests/fixtures/database/sqlite/migrations/0002_memory_indexes.up.sql")
     && storeSource.includes("database/migrations/postgres/0002_memory_indexes.up.sql"),
   "native-sql store must apply phase1 index migration",
 );

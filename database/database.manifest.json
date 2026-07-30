@@ -1,13 +1,12 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "kind": "sdkwork.database.module",
   "moduleId": "memory",
   "serviceCode": "MEMORY",
   "displayName": "MEMORY Database",
   "owner": "memory-platform",
   "engines": [
-    "postgres",
-    "sqlite"
+    "postgres"
   ],
   "defaultEngine": "postgres",
   "tablePrefix": "ai_",
@@ -15,7 +14,7 @@
   "baselineStrategy": "migrations-only",
   "modules": [],
   "lifecycle": {
-    "autoMigrate": true,
+    "autoMigrate": false,
     "autoMigrateNote": "Runtime auto-migrate is controlled by SDKWORK_DATABASE_AUTO_MIGRATE and defaults to false. Production applies the canonical root migration chain through the migration Job before rolling out runtime Pods.",
     "seedOnBoot": false,
     "defaultSeedLocale": "zh-CN",
@@ -43,5 +42,6 @@
   "spi": {
     "provider": "default",
     "hooks": []
-  }
+  },
+  "databaseRole": "authoritative-server"
 }

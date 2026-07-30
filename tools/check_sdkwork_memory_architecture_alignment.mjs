@@ -221,14 +221,14 @@ const adminTables = readText('plugins/sdkwork-memory-plugin-native-sql/src/admin
 const nativeSqlStore = readText('plugins/sdkwork-memory-plugin-native-sql/src/store.rs');
 assert(
   nativeSqlStore.includes('database/migrations/postgres/0002_memory_indexes.up.sql') &&
-    nativeSqlStore.includes('database/migrations/sqlite/0002_memory_indexes.up.sql'),
+    nativeSqlStore.includes('tests/fixtures/database/sqlite/migrations/0002_memory_indexes.up.sql'),
   'native-sql compatibility bootstrap must consume canonical root index migrations',
 );
 assert(
   fs.existsSync(
     path.join(
       repoRoot,
-      'database/migrations/sqlite/0002_memory_indexes.up.sql',
+      'tests/fixtures/database/sqlite/migrations/0002_memory_indexes.up.sql',
     ),
   ),
   'canonical SQLite phase1 index migration must exist per DATABASE_SPEC',
