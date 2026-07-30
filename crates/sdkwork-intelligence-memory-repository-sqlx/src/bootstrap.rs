@@ -73,7 +73,7 @@ pub async fn bootstrap_memory_data_plane_from_env() -> Result<MemoryDataPlane, S
         "memory database pool configured"
     );
 
-    let auto_migrate = std::env::var("SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE")
+    let auto_migrate = std::env::var("SDKWORK_DATABASE_AUTO_MIGRATE")
         .map(|value| value == "true" || value == "1")
         .unwrap_or(false);
 
@@ -85,7 +85,7 @@ pub async fn bootstrap_memory_data_plane_from_env() -> Result<MemoryDataPlane, S
             "production-like environment detected with SQLite engine — "
                 .to_string()
                 + "PostgreSQL is required for production deployments. "
-                + "Set SDKWORK_MEMORY_DATABASE_ENGINE=postgres and provide a valid PostgreSQL connection URL.",
+                + "Set SDKWORK_DATABASE_ENGINE=postgres and provide a valid PostgreSQL connection URL.",
         );
     }
 

@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use sdkwork_database_config::claw_database::postgres_url_with_search_path;
+use sdkwork_database_config::workspace_database::{
+    normalize_workspace_postgres_url, reject_retired_database_env, resolve_workspace_database_url,
+    workspace_database_env_is_configured,
+};
 use sdkwork_database_config::{DatabaseConfig, DatabaseEngine as SdkDatabaseEngine};
 use sdkwork_database_sqlx::{create_any_pool_from_config, PoolError};
 use sdkwork_drive_config::{
@@ -13,9 +16,7 @@ use sdkwork_memory_spi::MemoryDriveExportUploader;
 use sdkwork_utils_rust::is_blank;
 use sqlx::AnyPool;
 
-use crate::object_store::{
-    build_memory_drive_object_store, load_memory_drive_storage_provider,
-};
+use crate::object_store::{build_memory_drive_object_store, load_memory_drive_storage_provider};
 use crate::uploader::DriveUploaderMemoryExportAdapter;
 
 const MEMORY_DRIVE_POOL_MAX_CONNECTIONS: u32 = 5;
@@ -24,13 +25,11 @@ const DEFAULT_MEMORY_DRIVE_BUCKET: &str = "memory";
 
 pub async fn bootstrap_memory_drive_export_uploader_from_env(
 ) -> Result<Option<Arc<dyn MemoryDriveExportUploader>>, String> {
-    let database_url = std::env::var("SDKWORK_MEMORY_DRIVE_DATABASE_URL")
-        .or_else(|_| std::env::var("SDKWORK_DRIVE_DATABASE_URL"))
-        .ok()
-        .filter(|value| !is_blank(Some(value.as_str())));
-    let Some(database_url) = database_url else {
+    reject_retired_database_env().map_err(|error| error.to_string())?;
+    if !workspace_database_env_is_configured() {
         return Ok(None);
-    };
+    }
+    let database_url = resolve_workspace_database_url().map_err(|error| error.to_string())?;
 
     let object_store_root = std::env::var("SDKWORK_MEMORY_DRIVE_OBJECT_STORE_ROOT")
         .or_else(|_| std::env::var("SDKWORK_DRIVE_OBJECT_STORE_ROOT"))
@@ -52,9 +51,8 @@ pub async fn bootstrap_memory_drive_export_uploader_from_env(
 
 async fn connect_memory_drive_pool(database_url: &str) -> Result<AnyPool, String> {
     let normalized = database_url.trim();
-    let engine = SdkDatabaseEngine::from_url(normalized).ok_or_else(|| {
-        format!("unsupported memory drive database url: {normalized}")
-    })?;
+    let engine = SdkDatabaseEngine::from_url(normalized)
+        .ok_or_else(|| format!("unsupported memory drive database url: {normalized}"))?;
     let drive_engine = match engine {
         SdkDatabaseEngine::Sqlite => DriveDatabaseEngine::Sqlite,
         SdkDatabaseEngine::Postgres => DriveDatabaseEngine::Postgresql,
@@ -62,7 +60,7 @@ async fn connect_memory_drive_pool(database_url: &str) -> Result<AnyPool, String
     let database_config = DatabaseConfig {
         engine,
         url: if engine == SdkDatabaseEngine::Postgres {
-            postgres_url_with_search_path(normalized, "SDKWORK_MEMORY")
+            normalize_workspace_postgres_url(normalized).map_err(|error| error.to_string())?
         } else {
             normalized.to_string()
         },
@@ -165,11 +163,21 @@ async fn seed_s3_drive_storage_provider(
         .filter(|value| !is_blank(Some(value.as_str())));
     let path_style = std::env::var("SDKWORK_MEMORY_DRIVE_S3_PATH_STYLE")
         .ok()
-        .map(|value| matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes"
+            )
+        })
         .unwrap_or(true);
     let strict_tls = std::env::var("SDKWORK_MEMORY_DRIVE_S3_STRICT_TLS")
         .ok()
-        .map(|value| matches!(value.trim().to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes"
+            )
+        })
         .unwrap_or(!endpoint.to_ascii_lowercase().starts_with("http://"));
     let credential_ref = credential_ref.unwrap_or_else(|| "env:sdkwork-drive-s3".to_string());
 

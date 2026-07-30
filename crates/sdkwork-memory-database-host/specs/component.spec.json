@@ -24,7 +24,7 @@
     "sdkClients": [],
     "sdkDependencies": [{ "workspace": "sdkwork-database" }],
     "events": [],
-    "configKeys": ["SDKWORK_MEMORY_DATABASE_URL"]
+    "configKeys": ["SDKWORK_DATABASE_URL"]
   },
   "verification": {
     "commands": ["cargo test -p sdkwork-memory-database-host"]

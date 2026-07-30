@@ -16,7 +16,7 @@
   "modules": [],
   "lifecycle": {
     "autoMigrate": true,
-    "autoMigrateNote": "Runtime auto-migrate is controlled by SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE and defaults to false. Production applies the canonical root migration chain through the migration Job before rolling out runtime Pods.",
+    "autoMigrateNote": "Runtime auto-migrate is controlled by SDKWORK_DATABASE_AUTO_MIGRATE and defaults to false. Production applies the canonical root migration chain through the migration Job before rolling out runtime Pods.",
     "seedOnBoot": false,
     "defaultSeedLocale": "zh-CN",
     "defaultSeedProfile": "standard",

@@ -18,14 +18,14 @@ async fn canonical_sqlite_migrations_are_complete_and_idempotent() {
         .await
         .expect("create SQLite lifecycle pool");
 
-    std::env::set_var("SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE", "true");
+    std::env::set_var("SDKWORK_DATABASE_AUTO_MIGRATE", "true");
     let first = bootstrap_memory_database(pool.clone())
         .await
         .expect("apply canonical SQLite migrations");
     bootstrap_memory_database(pool.clone())
         .await
         .expect("repeat canonical SQLite migrations");
-    std::env::remove_var("SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE");
+    std::env::remove_var("SDKWORK_DATABASE_AUTO_MIGRATE");
 
     let sqlite = first.pool().as_sqlite().expect("SQLite pool");
     let applied: i64 = sqlx::query_scalar(

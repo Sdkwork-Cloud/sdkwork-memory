@@ -17,7 +17,7 @@ Investigate suspected cross-tenant or cross-space memory access.
 
 ## Immediate containment
 
-1. Enable production fail-closed auth (ensure `SDKWORK_IAM_DATABASE_URL` is set; disable `SDKWORK_MEMORY_DEV_AUTH_BYPASS`).
+1. Enable production fail-closed auth (ensure `SDKWORK_DATABASE_URL` is set; disable `SDKWORK_MEMORY_DEV_AUTH_BYPASS`).
 2. Scale deployment to zero if active exploitation is confirmed.
 3. Preserve audit logs (`ai_audit_log`) and retrieval traces.
 

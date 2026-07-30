@@ -17,14 +17,14 @@ async fn canonical_postgres_migrations_are_complete_and_idempotent() {
         .await
         .expect("create PostgreSQL lifecycle pool");
 
-    std::env::set_var("SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE", "true");
+    std::env::set_var("SDKWORK_DATABASE_AUTO_MIGRATE", "true");
     let first = bootstrap_memory_database(pool.clone())
         .await
         .expect("apply canonical PostgreSQL migrations");
     bootstrap_memory_database(pool.clone())
         .await
         .expect("repeat canonical PostgreSQL migrations");
-    std::env::remove_var("SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE");
+    std::env::remove_var("SDKWORK_DATABASE_AUTO_MIGRATE");
 
     let postgres = first.pool().as_postgres().expect("PostgreSQL pool");
     let applied: i64 = sqlx::query_scalar(

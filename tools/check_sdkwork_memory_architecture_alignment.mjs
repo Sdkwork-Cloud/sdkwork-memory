@@ -160,7 +160,7 @@ assert(
   'open-api web bootstrap must use shared memory web auth mode',
 );
 assert(
-  !openWebBootstrap.includes('SDKWORK_MEMORY_DATABASE_URL").is_ok()'),
+  !openWebBootstrap.includes('SDKWORK_DATABASE_URL").is_ok()'),
   'open-api web bootstrap must not gate auth on DATABASE_URL presence',
 );
 
@@ -384,7 +384,7 @@ assert(
   'release packaging script must emit release manifest metadata',
 );
 assert(
-  k8sDeployment.includes('SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE'),
+  k8sDeployment.includes('SDKWORK_DATABASE_AUTO_MIGRATE'),
   'k8s deployment must disable runtime auto-migrate (use migration Job)',
 );
 assert(

@@ -55,7 +55,7 @@ All list endpoints return `SdkWorkApiResponse` with `data.items` and `data.pageI
 
 ## Database lifecycle
 
-Production deployments apply schema through the Kubernetes migration Job (`db-migrate`). Runtime pods keep `SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE=false`. The only migration authority is `database/migrations/{postgres,sqlite}`; `database/ddl/baseline/` is generated with `pnpm db:materialize:baseline`. Plugin migration directories contain no SQL authority.
+Production deployments apply schema through the Kubernetes migration Job (`db-migrate`). Runtime pods keep `SDKWORK_DATABASE_AUTO_MIGRATE=false`. The only migration authority is `database/migrations/{postgres,sqlite}`; `database/ddl/baseline/` is generated with `pnpm db:materialize:baseline`. Plugin migration directories contain no SQL authority.
 
 ## Further reading
 

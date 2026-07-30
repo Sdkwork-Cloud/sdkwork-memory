@@ -30,12 +30,12 @@ pub async fn memory_dependency_ready_check() -> bool {
         return true;
     }
 
-    let iam_database_configured = std::env::var("SDKWORK_IAM_DATABASE_URL")
-        .or_else(|_| std::env::var("SDKWORK_IAM_DATABASE_ENGINE"))
+    let iam_database_configured = std::env::var("SDKWORK_DATABASE_URL")
+        .or_else(|_| std::env::var("SDKWORK_DATABASE_ENGINE"))
         .is_ok();
 
     if memory_is_production_like_environment() && !iam_database_configured {
-        tracing::warn!("memory readiness blocked: production requires SDKWORK_IAM_DATABASE_URL");
+        tracing::warn!("memory readiness blocked: production requires SDKWORK_DATABASE_URL");
         return false;
     }
 

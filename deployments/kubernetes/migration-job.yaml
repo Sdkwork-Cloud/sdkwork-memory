@@ -25,9 +25,9 @@ spec:
               value: /app
             - name: SDKWORK_MEMORY_ENVIRONMENT
               value: production
-            - name: SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE
+            - name: SDKWORK_DATABASE_AUTO_MIGRATE
               value: "true"
-            - name: SDKWORK_MEMORY_DATABASE_URL
+            - name: SDKWORK_DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: sdkwork-memory-database

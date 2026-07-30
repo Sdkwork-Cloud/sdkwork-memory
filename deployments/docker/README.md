@@ -11,8 +11,8 @@ docker run --rm -p 8080:8080 `
   -e SDKWORK_MEMORY_CONFIG_PROFILE=development `
   -e SDKWORK_MEMORY_DEPLOYMENT_PROFILE=standalone `
   -e SDKWORK_MEMORY_DEV_AUTH_BYPASS=true `
-  -e SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE=true `
-  -e SDKWORK_MEMORY_DATABASE_URL=sqlite::memory: `
+  -e SDKWORK_DATABASE_AUTO_MIGRATE=true `
+  -e SDKWORK_DATABASE_URL=sqlite::memory: `
   registry.sdkwork.com/apps/sdkwork-memory:0.1.0-dev
 ```
 

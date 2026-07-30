@@ -130,11 +130,11 @@ fn retrieval_strategy_env_rejects_unimplemented_schemes() {
 #[allow(clippy::await_holding_lock)] // Serializes process-wide environment mutation for the full bootstrap.
 async fn bootstrap_memory_runtime_from_env_with_sqlite() {
     let _guard = env_test_lock();
-    let previous_url = std::env::var("SDKWORK_MEMORY_DATABASE_URL").ok();
+    let previous_url = std::env::var("SDKWORK_DATABASE_URL").ok();
     let previous_target = std::env::var("SDKWORK_MEMORY_RUNTIME_TARGET").ok();
     let previous_implementation = std::env::var("SDKWORK_MEMORY_IMPLEMENTATION_PROFILE").ok();
     let previous_retrieval = std::env::var("SDKWORK_MEMORY_RETRIEVAL_STRATEGY").ok();
-    std::env::set_var("SDKWORK_MEMORY_DATABASE_URL", "sqlite::memory:");
+    std::env::set_var("SDKWORK_DATABASE_URL", "sqlite::memory:");
     std::env::set_var("SDKWORK_MEMORY_RUNTIME_TARGET", "test-runner");
     std::env::set_var("SDKWORK_MEMORY_IMPLEMENTATION_PROFILE", "local_embedded");
     std::env::set_var("SDKWORK_MEMORY_RETRIEVAL_STRATEGY", "search_first");
@@ -191,8 +191,8 @@ async fn bootstrap_memory_runtime_from_env_with_sqlite() {
         .expect("store ping must succeed");
 
     match previous_url {
-        Some(value) => std::env::set_var("SDKWORK_MEMORY_DATABASE_URL", value),
-        None => std::env::remove_var("SDKWORK_MEMORY_DATABASE_URL"),
+        Some(value) => std::env::set_var("SDKWORK_DATABASE_URL", value),
+        None => std::env::remove_var("SDKWORK_DATABASE_URL"),
     }
     match previous_target {
         Some(value) => std::env::set_var("SDKWORK_MEMORY_RUNTIME_TARGET", value),
@@ -214,11 +214,11 @@ async fn production_runtime_rejects_sqlite_before_pool_creation() {
     let _guard = env_test_lock();
     let previous_environment = std::env::var("SDKWORK_MEMORY_ENVIRONMENT").ok();
     let previous_profile = std::env::var("SDKWORK_MEMORY_CONFIG_PROFILE").ok();
-    let previous_url = std::env::var("SDKWORK_MEMORY_DATABASE_URL").ok();
+    let previous_url = std::env::var("SDKWORK_DATABASE_URL").ok();
 
     std::env::set_var("SDKWORK_MEMORY_ENVIRONMENT", "production");
     std::env::set_var("SDKWORK_MEMORY_CONFIG_PROFILE", "production");
-    std::env::set_var("SDKWORK_MEMORY_DATABASE_URL", "sqlite::memory:");
+    std::env::set_var("SDKWORK_DATABASE_URL", "sqlite::memory:");
 
     let error = match bootstrap_memory_runtime_from_env().await {
         Ok(_) => panic!("production SQLite runtime must be rejected"),
@@ -235,7 +235,7 @@ async fn production_runtime_rejects_sqlite_before_pool_creation() {
         None => std::env::remove_var("SDKWORK_MEMORY_CONFIG_PROFILE"),
     }
     match previous_url {
-        Some(value) => std::env::set_var("SDKWORK_MEMORY_DATABASE_URL", value),
-        None => std::env::remove_var("SDKWORK_MEMORY_DATABASE_URL"),
+        Some(value) => std::env::set_var("SDKWORK_DATABASE_URL", value),
+        None => std::env::remove_var("SDKWORK_DATABASE_URL"),
     }
 }

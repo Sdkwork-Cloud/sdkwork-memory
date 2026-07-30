@@ -129,12 +129,12 @@ pub async fn build_router() -> Result<MemoryApplication, String> {
 }
 
 pub async fn run_database_migrate_only() -> Result<(), String> {
-    let previous_auto_migrate = std::env::var_os("SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE");
-    std::env::set_var("SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE", "true");
+    let previous_auto_migrate = std::env::var_os("SDKWORK_DATABASE_AUTO_MIGRATE");
+    std::env::set_var("SDKWORK_DATABASE_AUTO_MIGRATE", "true");
     let result = sdkwork_memory_database_host::bootstrap_memory_database_from_env().await;
     match previous_auto_migrate {
-        Some(value) => std::env::set_var("SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE", value),
-        None => std::env::remove_var("SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE"),
+        Some(value) => std::env::set_var("SDKWORK_DATABASE_AUTO_MIGRATE", value),
+        None => std::env::remove_var("SDKWORK_DATABASE_AUTO_MIGRATE"),
     }
     result?;
     info!("memory database migration completed");

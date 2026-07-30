@@ -20,14 +20,14 @@ pub async fn open_native_sql_store_from_pool(
     id_generator: SnowflakeIdGenerator,
 ) -> Result<NativeSqlMemoryStore, String> {
     if pool.as_sqlite().is_none() && pool.as_postgres().is_none() {
-        let configured_engine = std::env::var("SDKWORK_MEMORY_DATABASE_ENGINE").ok();
+        let configured_engine = std::env::var("SDKWORK_DATABASE_ENGINE").ok();
         if is_blank(configured_engine.as_deref()) {
             return Err(
                 "memory native sql store requires sqlite or postgres database pool".to_string(),
             );
         }
         return Err(format!(
-            "memory native sql store requires sqlite or postgres; SDKWORK_MEMORY_DATABASE_ENGINE={} is not supported",
+            "memory native sql store requires sqlite or postgres; SDKWORK_DATABASE_ENGINE={} is not supported",
             configured_engine.unwrap_or_default()
         ));
     }

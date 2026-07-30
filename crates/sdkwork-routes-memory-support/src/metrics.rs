@@ -25,8 +25,7 @@ fn metric_runtime_profile() -> String {
         .filter(|value| !is_blank(Some(value.as_str())))
         .unwrap_or_else(|| {
             // Infer runtime profile from database engine when explicit override is absent.
-            let engine = std::env::var("SDKWORK_MEMORY_DATABASE_ENGINE")
-                .or_else(|_| std::env::var("SDKWORK_DATABASE_ENGINE"))
+            let engine = std::env::var("SDKWORK_DATABASE_ENGINE")
                 .unwrap_or_else(|_| "sqlite".to_owned())
                 .to_ascii_lowercase();
             match engine.as_str() {

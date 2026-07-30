@@ -95,7 +95,7 @@ spec:
             # The Memory service now uses database-backed node_id allocation
             # via sdkwork_node_registry, which automatically assigns unique
             # node IDs per pod. See DATABASE_SPEC §6.10.
-            - name: SDKWORK_MEMORY_DATABASE_AUTO_MIGRATE
+            - name: SDKWORK_DATABASE_AUTO_MIGRATE
               value: "false"
             - name: SDKWORK_MEMORY_OUTBOX_DELIVERY_MODE
               value: http
@@ -122,18 +122,18 @@ spec:
               value: "4194304"
             - name: SDKWORK_MEMORY_DRIVE_EXPORT_MAX_BYTES
               value: "67108864"
-            - name: SDKWORK_MEMORY_DATABASE_URL
+            - name: SDKWORK_DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: sdkwork-memory-database
                   key: database-url
-            - name: SDKWORK_IAM_DATABASE_URL
+            - name: SDKWORK_DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: sdkwork-memory-iam-database
                   key: database-url
             # Drive-backed export upload (optional; enable when privacy exports use driveTargetRef).
-            - name: SDKWORK_MEMORY_DRIVE_DATABASE_URL
+            - name: SDKWORK_DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: sdkwork-memory-drive

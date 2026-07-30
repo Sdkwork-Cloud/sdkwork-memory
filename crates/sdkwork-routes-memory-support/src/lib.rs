@@ -48,8 +48,8 @@ pub async fn memory_web_auth_mode_from_env() -> MemoryWebAuthMode {
         return MemoryWebAuthMode::DevInline;
     }
 
-    let iam_database_explicitly_configured = std::env::var("SDKWORK_IAM_DATABASE_URL")
-        .or_else(|_| std::env::var("SDKWORK_IAM_DATABASE_ENGINE"))
+    let iam_database_explicitly_configured = std::env::var("SDKWORK_DATABASE_URL")
+        .or_else(|_| std::env::var("SDKWORK_DATABASE_ENGINE"))
         .is_ok();
 
     if memory_is_production_like_environment() && !iam_database_explicitly_configured {
@@ -155,13 +155,13 @@ mod tests {
         let _restore = EnvironmentRestore::capture(&[
             "SDKWORK_MEMORY_ENVIRONMENT",
             "SDKWORK_MEMORY_DEV_AUTH_BYPASS",
-            "SDKWORK_IAM_DATABASE_URL",
-            "SDKWORK_IAM_DATABASE_ENGINE",
+            "SDKWORK_DATABASE_URL",
+            "SDKWORK_DATABASE_ENGINE",
         ]);
         std::env::set_var("SDKWORK_MEMORY_ENVIRONMENT", "production");
         std::env::remove_var("SDKWORK_MEMORY_DEV_AUTH_BYPASS");
-        std::env::remove_var("SDKWORK_IAM_DATABASE_URL");
-        std::env::remove_var("SDKWORK_IAM_DATABASE_ENGINE");
+        std::env::remove_var("SDKWORK_DATABASE_URL");
+        std::env::remove_var("SDKWORK_DATABASE_ENGINE");
 
         let mode = block_on(memory_web_auth_mode_from_env());
         assert!(matches!(mode, MemoryWebAuthMode::ProductionFailClosed));
@@ -173,13 +173,13 @@ mod tests {
         let _restore = EnvironmentRestore::capture(&[
             "SDKWORK_MEMORY_ENVIRONMENT",
             "SDKWORK_MEMORY_DEV_AUTH_BYPASS",
-            "SDKWORK_IAM_DATABASE_URL",
-            "SDKWORK_IAM_DATABASE_ENGINE",
+            "SDKWORK_DATABASE_URL",
+            "SDKWORK_DATABASE_ENGINE",
         ]);
         std::env::set_var("SDKWORK_MEMORY_ENVIRONMENT", "production");
         std::env::remove_var("SDKWORK_MEMORY_DEV_AUTH_BYPASS");
-        std::env::remove_var("SDKWORK_IAM_DATABASE_URL");
-        std::env::remove_var("SDKWORK_IAM_DATABASE_ENGINE");
+        std::env::remove_var("SDKWORK_DATABASE_URL");
+        std::env::remove_var("SDKWORK_DATABASE_ENGINE");
 
         assert!(!block_on(super::readiness::memory_dependency_ready_check()));
     }
