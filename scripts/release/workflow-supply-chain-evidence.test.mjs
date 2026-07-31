@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 
 import {
@@ -10,16 +11,16 @@ import {
   verifyReleaseEvidence,
 } from "./workflow-supply-chain-evidence.mjs";
 
-const root = resolve(".runtime", "tests", "memory-release-evidence");
+let root;
 const artifactRelativePath = "dist/release/demo.bin";
 
 test.beforeEach(() => {
-  rmSync(root, { recursive: true, force: true });
+  root = mkdtempSync(join(tmpdir(), "sdkwork-memory-release-evidence-"));
   mkdirSync(dirname(resolve(root, artifactRelativePath)), { recursive: true });
   writeFileSync(resolve(root, artifactRelativePath), "immutable memory artifact");
 });
 
-test.after(() => rmSync(root, { recursive: true, force: true }));
+test.afterEach(() => rmSync(root, { recursive: true, force: true }));
 
 test("creates and verifies byte-bound signature, SBOM, provenance, and checksum evidence", async () => {
   const { privateKey } = generateKeyPairSync("ed25519");
