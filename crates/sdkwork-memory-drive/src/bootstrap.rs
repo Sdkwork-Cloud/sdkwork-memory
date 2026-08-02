@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use sdkwork_database_config::workspace_database::{
     normalize_workspace_postgres_url, reject_retired_database_env, resolve_workspace_database_url,
-    workspace_database_env_is_configured,
+    workspace_postgres_env_is_configured,
 };
 use sdkwork_database_config::{DatabaseConfig, DatabaseEngine as SdkDatabaseEngine};
 use sdkwork_database_sqlx::{create_any_pool_from_config, PoolError};
@@ -26,7 +26,7 @@ const DEFAULT_MEMORY_DRIVE_BUCKET: &str = "memory";
 pub async fn bootstrap_memory_drive_export_uploader_from_env(
 ) -> Result<Option<Arc<dyn MemoryDriveExportUploader>>, String> {
     reject_retired_database_env().map_err(|error| error.to_string())?;
-    if !workspace_database_env_is_configured() {
+    if !workspace_postgres_env_is_configured() {
         return Ok(None);
     }
     let database_url = resolve_workspace_database_url().map_err(|error| error.to_string())?;
