@@ -136,7 +136,7 @@ pub fn memory_id_fallback_is_forbidden() -> bool {
     let lifecycle = [
         "SDKWORK_MEMORY_ENVIRONMENT",
         "SDKWORK_MEMORY_CONFIG_PROFILE",
-        "SDKWORK_CLAW_ENVIRONMENT",
+        "SDKWORK_CLOUDROUTER_ENVIRONMENT",
     ]
     .into_iter()
     .find_map(|key| {
@@ -146,9 +146,9 @@ pub fn memory_id_fallback_is_forbidden() -> bool {
     });
     let deployment_is_explicit = [
         "SDKWORK_MEMORY_DEPLOYMENT_PROFILE",
-        "SDKWORK_CLAW_DEPLOYMENT_PROFILE",
+        "SDKWORK_CLOUDROUTER_DEPLOYMENT_PROFILE",
         "SDKWORK_MEMORY_RUNTIME_TARGET",
-        "SDKWORK_CLAW_RUNTIME_TARGET",
+        "SDKWORK_CLOUDROUTER_RUNTIME_TARGET",
     ]
     .into_iter()
     .any(|key| std::env::var(key).is_ok());
