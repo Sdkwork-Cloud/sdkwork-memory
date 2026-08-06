@@ -27,16 +27,23 @@ This pre-release module uses a migrations-only lifecycle for greenfield deployme
 - Outbox deliveries, learning jobs, and eval runs persist owner/token/expiry leases. Completion and acknowledgement are fenced by the current unexpired token.
 - Runtime pods keep auto-migration disabled. Production applies migrations through the release migration job.
 
+## Initialization state
+
+This module is in **initialization state** for greenfield deployments:
+
+1. **Baseline** — `database/ddl/baseline/{engine}/0001_memory_baseline.sql` contains the full DDL snapshot.
+2. **Migrations** — `database/migrations/{engine}/` is reserved for post-GA incremental schema changes only. It is intentionally empty at initialization.
+3. **Drift** — run `pnpm db:drift:check` before release.
+
 ## Commands
 
 ```bash
-pnpm db:materialize:baseline
-pnpm db:validate
-pnpm db:plan
-pnpm db:init
-pnpm db:migrate
-pnpm db:seed
-pnpm db:status
-pnpm db:drift:check
-pnpm test:postgres:contract
+pnpm run db:validate
+pnpm run db:materialize:contract
+pnpm run db:plan
+pnpm run db:init
+pnpm run db:migrate
+pnpm run db:seed
+pnpm run db:status
+pnpm run db:drift:check
 ```
