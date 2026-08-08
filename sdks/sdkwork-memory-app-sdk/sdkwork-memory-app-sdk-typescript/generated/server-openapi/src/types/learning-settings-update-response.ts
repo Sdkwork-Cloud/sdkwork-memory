@@ -2,7 +2,7 @@ import type { MemoryLearningSettings } from './memory-learning-settings';
 
 export interface LearningSettingsUpdateResponse {
   code: 0;
-  data: unknown & Record<string, unknown>;
+  data: unknown & { item: MemoryLearningSettings; };
   /** Server-owned request correlation id. */
   traceId: string;
 }

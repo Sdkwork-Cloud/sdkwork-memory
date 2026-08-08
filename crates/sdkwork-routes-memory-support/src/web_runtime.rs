@@ -43,7 +43,6 @@ where
                 panic!("invalid Memory Redis admission configuration: {error}")
             });
     let cors_origins = sdkwork_web_bootstrap::cors_allowed_origins_from_env(&[
-        "SDKWORK_MEMORY_CORS_ALLOWED_ORIGINS",
         "SDKWORK_CORS_ALLOWED_ORIGINS",
     ]);
     let security_policy =
